@@ -1,0 +1,88 @@
+# =========================
+# Dependencies
+# =========================
+**/node_modules
+
+# =========================
+# Build output
+# =========================
+frontend/.next
+frontend/out
+backend/dist
+backend/build
+**/coverage
+**/.nyc_output
+
+# =========================
+# Environment files
+# =========================
+**/.env
+**/.env.*
+!**/.env.example
+
+# =========================
+# Logs
+# =========================
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# =========================
+# Vercel
+# =========================
+frontend/.vercel
+
+# =========================
+# TypeScript
+# =========================
+**/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# =========================
+# Runtime
+# =========================
+*.pid
+*.pid.lock
+*.seed
+
+# =========================
+# Temporary files
+# =========================
+.temp
+.tmp
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+.project
+.classpath
+.settings/
+.c9/
+*.launch
+*.sublime-workspace
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# AI Assistant Files
+# =========================
+CLAUDE.md
+AGENTS.md
+**/CLAUDE.md
+**/AGENTS.md
+
+# =========================
+# Misc
+# =========================
+*.pem
