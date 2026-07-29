@@ -1,0 +1,438 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { AddonsService } from '../addons/addons.service';
+import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { FoodVariantsService } from '../food-variants/food-variants.service';
+import { FoodsService } from '../foods/foods.service';
+import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
+import { OutletsService } from '../outlets/outlets.service';
+import { OrderPayment } from '../order-payments/entities/order-payment.entity';
+import { TableSessionsService } from '../table-sessions/table-sessions.service';
+import { AssignOrderTableDto } from './dto/assign-order-table.dto';
+import { CreateOrderItemAddonDto } from './dto/create-order-item-addon.dto';
+import { CreateOrderItemDto } from './dto/create-order-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { ListOrderItemsQueryDto } from './dto/list-order-items-query.dto';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
+import { UpdateOrderItemDto } from './dto/update-order-item.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
+import { OrderItemAddon } from './entities/order-item-addon.entity';
+import { OrderItem } from './entities/order-item.entity';
+import { OrderStatusHistory } from './entities/order-status-history.entity';
+import { OrderTable } from './entities/order-table.entity';
+import { Order } from './entities/order.entity';
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+@Injectable()
+export class OrdersService {
+  constructor(
+    @InjectRepository(Order)
+    private readonly ordersRepository: Repository<Order>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemsRepository: Repository<OrderItem>,
+    @InjectRepository(OrderItemAddon)
+    private readonly orderItemAddonsRepository: Repository<OrderItemAddon>,
+    @InjectRepository(OrderTable)
+    private readonly orderTablesRepository: Repository<OrderTable>,
+    @InjectRepository(OrderStatusHistory)
+    private readonly orderStatusHistoriesRepository: Repository<OrderStatusHistory>,
+    @InjectRepository(OrderPayment)
+    private readonly orderPaymentsRepository: Repository<OrderPayment>,
+    private readonly outletsService: OutletsService,
+    private readonly tableSessionsService: TableSessionsService,
+    private readonly diningTablesService: DiningTablesService,
+    private readonly foodsService: FoodsService,
+    private readonly foodVariantsService: FoodVariantsService,
+    private readonly addonsService: AddonsService,
+    private readonly outletDepartmentsService: OutletDepartmentsService,
+  ) {}
+
+  // ---------------------------------------------------------------- orders
+
+  async findAll(query: ListOrdersQueryDto): Promise<PaginatedResponse<Order>> {
+    const { page, limit, search, outletId, status } = query;
+    const where: FindOptionsWhere<Order> = {};
+    if (outletId !== undefined) {
+      where.outletId = outletId;
+    }
+    if (status !== undefined) {
+      where.status = status;
+    }
+    if (search) {
+      where.orderNumber = ILike(`%${search}%`);
+    }
+
+    const [orders, total] = await this.ordersRepository.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: orders,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  /** Internal lookup used by OrderPaymentsService and by this service's own sub-resources. */
+  async findOne(id: number): Promise<Order> {
+    const order = await this.ordersRepository.findOne({ where: { id } });
+    if (!order) {
+      throw new NotFoundException(`Order ${id} not found`);
+    }
+    return order;
+  }
+
+  async create(dto: CreateOrderDto, createdBy: number): Promise<Order> {
+    await this.outletsService.findOne(dto.outletId);
+    if (dto.tableSessionId !== undefined) {
+      const session = await this.tableSessionsService.findOne(
+        dto.tableSessionId,
+      );
+      if (session.outletId !== dto.outletId) {
+        throw new BadRequestException(
+          `Table session ${dto.tableSessionId} does not belong to outlet ${dto.outletId}`,
+        );
+      }
+    }
+
+    const order = this.ordersRepository.create({
+      outletId: dto.outletId,
+      tableSessionId: dto.tableSessionId ?? null,
+      orderType: dto.orderType ?? 'dine_in',
+      note: dto.note ?? null,
+      orderNumber: this.generateOrderNumber(dto.outletId),
+      createdBy,
+    });
+
+    return this.ordersRepository.save(order);
+  }
+
+  async update(id: number, dto: UpdateOrderDto): Promise<Order> {
+    const order = await this.findOne(id);
+
+    Object.assign(order, {
+      ...(dto.note !== undefined && { note: dto.note }),
+      ...(dto.discountType !== undefined && { discountType: dto.discountType }),
+      ...(dto.discountValue !== undefined && {
+        discountValue: dto.discountValue,
+      }),
+      ...(dto.taxAmount !== undefined && { taxAmount: dto.taxAmount }),
+      ...(dto.serviceChargeAmount !== undefined && {
+        serviceChargeAmount: dto.serviceChargeAmount,
+      }),
+    });
+    await this.ordersRepository.save(order);
+
+    return this.recalculateTotals(id);
+  }
+
+  async updateStatus(
+    id: number,
+    dto: UpdateOrderStatusDto,
+    changedBy: number,
+  ): Promise<Order> {
+    const order = await this.findOne(id);
+    const fromStatus = order.status;
+
+    order.status = dto.status;
+    if (dto.status === 'completed') {
+      order.completedAt = new Date();
+    }
+    if (dto.status === 'cancelled') {
+      order.cancelledAt = new Date();
+      order.cancelledBy = changedBy;
+      if (dto.cancelReason !== undefined) {
+        order.cancelReason = dto.cancelReason;
+      }
+    }
+    const saved = await this.ordersRepository.save(order);
+
+    await this.orderStatusHistoriesRepository.save(
+      this.orderStatusHistoriesRepository.create({
+        orderId: id,
+        changedBy,
+        fromStatus,
+        toStatus: dto.status,
+        note: dto.note ?? null,
+      }),
+    );
+
+    return saved;
+  }
+
+  // ------------------------------------------------------------ order items
+
+  async listItems(
+    query: ListOrderItemsQueryDto,
+  ): Promise<PaginatedResponse<OrderItem>> {
+    const { page, limit, orderId } = query;
+    const where: FindOptionsWhere<OrderItem> = {};
+    if (orderId !== undefined) {
+      where.orderId = orderId;
+    }
+
+    const [items, total] = await this.orderItemsRepository.findAndCount({
+      where,
+      order: { createdAt: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: items,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  async findItem(id: number): Promise<OrderItem> {
+    const item = await this.orderItemsRepository.findOne({ where: { id } });
+    if (!item) {
+      throw new NotFoundException(`Order item ${id} not found`);
+    }
+    return item;
+  }
+
+  async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
+    const order = await this.findOne(orderId);
+
+    const department = await this.outletDepartmentsService.findOne(
+      dto.preparationDepartmentId,
+    );
+    if (department.outletId !== order.outletId) {
+      throw new BadRequestException(
+        `Department ${dto.preparationDepartmentId} does not belong to outlet ${order.outletId}`,
+      );
+    }
+
+    let unitPrice: number;
+    if (dto.foodVariantId !== undefined) {
+      const { variant, price } =
+        await this.foodVariantsService.resolvePriceForOutlet(
+          dto.foodVariantId,
+          order.outletId,
+        );
+      if (variant.foodId !== dto.foodId) {
+        throw new BadRequestException(
+          `Food variant ${dto.foodVariantId} does not belong to food ${dto.foodId}`,
+        );
+      }
+      unitPrice = price;
+    } else {
+      const { price } = await this.foodsService.resolvePriceForOutlet(
+        dto.foodId,
+        order.outletId,
+      );
+      unitPrice = price;
+    }
+
+    const quantity = dto.quantity ?? 1;
+    const item = this.orderItemsRepository.create({
+      orderId,
+      foodId: dto.foodId,
+      foodVariantId: dto.foodVariantId ?? null,
+      preparationDepartmentId: dto.preparationDepartmentId,
+      quantity,
+      unitPrice,
+      totalAmount: round2(quantity * unitPrice),
+      note: dto.note ?? null,
+    });
+    const saved = await this.orderItemsRepository.save(item);
+
+    await this.recalculateTotals(orderId);
+    return saved;
+  }
+
+  async updateItem(id: number, dto: UpdateOrderItemDto): Promise<OrderItem> {
+    const item = await this.findItem(id);
+
+    if (dto.quantity !== undefined) {
+      item.quantity = dto.quantity;
+      item.totalAmount = round2(dto.quantity * item.unitPrice);
+    }
+    Object.assign(item, {
+      ...(dto.note !== undefined && { note: dto.note }),
+      ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.cancelReason !== undefined && {
+        cancelReason: dto.cancelReason,
+      }),
+    });
+    const saved = await this.orderItemsRepository.save(item);
+
+    await this.recalculateTotals(item.orderId);
+    return saved;
+  }
+
+  async removeItem(id: number): Promise<void> {
+    const item = await this.findItem(id);
+    await this.orderItemsRepository.remove(item);
+    await this.recalculateTotals(item.orderId);
+  }
+
+  // ------------------------------------------------------- order item addons
+
+  async listItemAddons(orderItemId: number): Promise<OrderItemAddon[]> {
+    await this.findItem(orderItemId);
+    return this.orderItemAddonsRepository.find({ where: { orderItemId } });
+  }
+
+  async addItemAddon(
+    orderItemId: number,
+    dto: CreateOrderItemAddonDto,
+  ): Promise<OrderItemAddon> {
+    const item = await this.findItem(orderItemId);
+    const addon = await this.addonsService.findOne(dto.addonId);
+
+    const quantity = dto.quantity ?? 1;
+    const saved = await this.orderItemAddonsRepository.save(
+      this.orderItemAddonsRepository.create({
+        orderItemId,
+        addonId: addon.id,
+        quantity,
+        unitPrice: addon.price,
+        totalAmount: round2(quantity * addon.price),
+      }),
+    );
+
+    await this.recalculateTotals(item.orderId);
+    return saved;
+  }
+
+  async removeItemAddon(orderItemId: number, addonId: number): Promise<void> {
+    const item = await this.findItem(orderItemId);
+    await this.orderItemAddonsRepository.delete({ orderItemId, addonId });
+    await this.recalculateTotals(item.orderId);
+  }
+
+  // ------------------------------------------------------------- order tables
+
+  async listTables(orderId: number): Promise<OrderTable[]> {
+    await this.findOne(orderId);
+    return this.orderTablesRepository.find({ where: { orderId } });
+  }
+
+  async assignTable(
+    orderId: number,
+    dto: AssignOrderTableDto,
+    assignedBy: number,
+  ): Promise<OrderTable> {
+    const order = await this.findOne(orderId);
+    const table = await this.diningTablesService.findOne(dto.diningTableId);
+    if (table.outletId !== order.outletId) {
+      throw new BadRequestException(
+        `Dining table ${dto.diningTableId} does not belong to outlet ${order.outletId}`,
+      );
+    }
+
+    const existing = await this.orderTablesRepository.findOne({
+      where: { orderId, diningTableId: dto.diningTableId },
+    });
+    if (existing) {
+      return existing; // idempotent
+    }
+
+    return this.orderTablesRepository.save(
+      this.orderTablesRepository.create({
+        orderId,
+        diningTableId: dto.diningTableId,
+        assignmentType: dto.assignmentType ?? 'added_on_arrival',
+        assignedBy,
+      }),
+    );
+  }
+
+  async unassignTable(orderId: number, diningTableId: number): Promise<void> {
+    await this.findOne(orderId);
+    await this.orderTablesRepository.delete({ orderId, diningTableId });
+  }
+
+  // --------------------------------------------------------------- payments
+
+  /** Called by OrderPaymentsService after saving a new completed payment/refund row. */
+  async recalculatePayments(orderId: number): Promise<void> {
+    const order = await this.findOne(orderId);
+    const payments = await this.orderPaymentsRepository.find({
+      where: { orderId, status: 'completed' },
+    });
+
+    const paidAmount = round2(
+      payments
+        .filter((p) => p.type === 'payment')
+        .reduce((sum, p) => sum + p.amount, 0),
+    );
+    const refundedAmount = round2(
+      payments
+        .filter((p) => p.type === 'refund')
+        .reduce((sum, p) => sum + p.amount, 0),
+    );
+
+    order.paidAmount = paidAmount;
+    order.refundedAmount = refundedAmount;
+    order.dueAmount = Math.max(round2(order.grandTotal - paidAmount), 0);
+
+    if (refundedAmount > 0 && refundedAmount >= paidAmount) {
+      order.paymentStatus = 'refunded';
+    } else if (paidAmount <= 0) {
+      order.paymentStatus = 'unpaid';
+    } else if (paidAmount >= order.grandTotal) {
+      order.paymentStatus = 'paid';
+    } else {
+      order.paymentStatus = 'partial';
+    }
+
+    await this.ordersRepository.save(order);
+  }
+
+  // ---------------------------------------------------------------- private
+
+  private async recalculateTotals(orderId: number): Promise<Order> {
+    const order = await this.findOne(orderId);
+    const items = await this.orderItemsRepository.find({ where: { orderId } });
+    const itemIds = items.map((item) => item.id);
+
+    const itemsTotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
+    const addons = itemIds.length
+      ? await this.orderItemAddonsRepository.find({
+          where: { orderItemId: In(itemIds) },
+        })
+      : [];
+    const addonsTotal = addons.reduce(
+      (sum, addon) => sum + addon.totalAmount,
+      0,
+    );
+
+    const subtotal = round2(itemsTotal + addonsTotal);
+    const discountAmount =
+      order.discountType === 'flat'
+        ? order.discountValue
+        : order.discountType === 'percentage'
+          ? round2((subtotal * order.discountValue) / 100)
+          : 0;
+    const grandTotal = round2(
+      subtotal - discountAmount + order.taxAmount + order.serviceChargeAmount,
+    );
+
+    order.subtotal = subtotal;
+    order.discountAmount = discountAmount;
+    order.grandTotal = grandTotal;
+    order.dueAmount = Math.max(round2(grandTotal - order.paidAmount), 0);
+
+    return this.ordersRepository.save(order);
+  }
+
+  private generateOrderNumber(outletId: number): string {
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `ORD-${outletId}-${Date.now()}-${random}`;
+  }
+}

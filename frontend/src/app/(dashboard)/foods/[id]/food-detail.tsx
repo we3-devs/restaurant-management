@@ -1,0 +1,480 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useAddonGroups } from "@/hooks/use-addon-groups"
+import { useFoodCategories } from "@/hooks/use-food-categories"
+import {
+  useAssignFoodAddonGroup,
+  useDeleteFood,
+  useFood,
+  useFoodAddonGroups,
+  useFoodOutlets,
+  useRemoveFoodOutlet,
+  useUnassignFoodAddonGroup,
+  useUpdateFood,
+  useUpsertFoodOutlet,
+} from "@/hooks/use-foods"
+import { useOutlets } from "@/hooks/use-outlets"
+import { FOOD_ITEM_TYPES, FOOD_TYPES, updateFoodSchema, type UpdateFoodInput } from "@/lib/validators/foods"
+
+export function FoodDetail({ foodId }: { foodId: number }) {
+  const router = useRouter()
+  const { data: food, isLoading } = useFood(foodId)
+  const { data: categories } = useFoodCategories({ limit: 100 })
+  const updateFood = useUpdateFood(foodId)
+  const deleteFood = useDeleteFood()
+
+  const form = useForm<UpdateFoodInput>({
+    resolver: zodResolver(updateFoodSchema),
+    defaultValues: {
+      foodCategoryId: undefined,
+      name: "",
+      sku: "",
+      shortDescription: "",
+      description: "",
+      itemType: "food",
+      basePrice: 0,
+      isTaxable: true,
+      isDiscountable: true,
+      isFeatured: false,
+      isActive: true,
+    },
+  })
+
+  useEffect(() => {
+    if (food) {
+      form.reset({
+        foodCategoryId: food.foodCategoryId ?? undefined,
+        name: food.name,
+        sku: food.sku ?? "",
+        shortDescription: food.shortDescription ?? "",
+        description: food.description ?? "",
+        foodType: (food.foodType as UpdateFoodInput["foodType"]) ?? undefined,
+        itemType: food.itemType as UpdateFoodInput["itemType"],
+        basePrice: food.basePrice,
+        isTaxable: food.isTaxable,
+        isDiscountable: food.isDiscountable,
+        isFeatured: food.isFeatured,
+        isActive: food.isActive,
+      })
+    }
+  }, [food, form])
+
+  async function onSubmit(values: UpdateFoodInput) {
+    try {
+      await updateFood.mutateAsync(values)
+      toast.success("Food updated")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update food")
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await deleteFood.mutateAsync(foodId)
+      toast.success("Food deleted")
+      router.push("/foods")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete food")
+    }
+  }
+
+  if (isLoading || !food) {
+    return <Skeleton className="h-96 w-full max-w-2xl" />
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">{food.name}</h1>
+          <p className="text-sm text-muted-foreground">{food.slug}</p>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete food &quot;{food.name}&quot;?</AlertDialogTitle>
+              <AlertDialogDescription>This soft-deletes the food. This cannot be undone from the UI.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={handleDelete}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="foodCategoryId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select
+                      value={field.value ? String(field.value) : "none"}
+                      onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No category</SelectItem>
+                        {categories?.data.map((category) => (
+                          <SelectItem key={category.id} value={String(category.id)}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sku"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU</FormLabel>
+                    <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="basePrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Base price</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      value={field.value}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="itemType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Item type</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FOOD_ITEM_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="foodType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Food type</FormLabel>
+                    <Select
+                      value={field.value ?? "none"}
+                      onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Not specified" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not specified</SelectItem>
+                        {FOOD_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isFeatured"
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="isFeatured"
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                    <Label htmlFor="isFeatured">Featured</Label>
+                  </div>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isActive"
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="isActive"
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                    <Label htmlFor="isActive">Active</Label>
+                  </div>
+                )}
+              />
+              <Button type="submit" disabled={updateFood.isPending}>
+                {updateFood.isPending ? "Saving..." : "Save changes"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <FoodOutletOverrides foodId={foodId} />
+      <FoodAddonGroups foodId={foodId} hasAddons={food.hasAddons} />
+    </div>
+  )
+}
+
+function FoodOutletOverrides({ foodId }: { foodId: number }) {
+  const { data: overrides } = useFoodOutlets(foodId)
+  const { data: outlets } = useOutlets({ limit: 100 })
+  const upsertOverride = useUpsertFoodOutlet(foodId)
+  const removeOverride = useRemoveFoodOutlet(foodId)
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("")
+  const [price, setPrice] = useState<string>("")
+  const [isAvailable, setIsAvailable] = useState(true)
+
+  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? `#${outletId}`
+
+  async function handleAdd() {
+    if (!selectedOutletId) return
+    try {
+      await upsertOverride.mutateAsync({
+        outletId: Number(selectedOutletId),
+        price: price ? Number(price) : undefined,
+        isAvailable,
+      })
+      toast.success("Outlet override saved")
+      setSelectedOutletId("")
+      setPrice("")
+      setIsAvailable(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save override")
+    }
+  }
+
+  async function handleRemove(outletId: number) {
+    try {
+      await removeOverride.mutateAsync(outletId)
+      toast.success("Override removed")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove override")
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Outlet overrides</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Absent from this list means the food is available at that outlet at its base price.
+        </p>
+        <div className="space-y-2">
+          {(overrides ?? []).length === 0 && <p className="text-sm text-muted-foreground">No overrides.</p>}
+          {(overrides ?? []).map((override) => (
+            <div key={override.id} className="flex items-center gap-2">
+              <Badge variant="secondary">{outletName(override.outletId)}</Badge>
+              {override.price !== null && <span className="text-sm">${override.price}</span>}
+              {!override.isAvailable && <Badge variant="destructive">unavailable</Badge>}
+              <Button variant="ghost" size="sm" onClick={() => handleRemove(override.outletId)}>
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-medium">Outlet</label>
+            <Select value={selectedOutletId} onValueChange={(value) => setSelectedOutletId(value ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select an outlet" />
+              </SelectTrigger>
+              <SelectContent>
+                {outlets?.data.map((outlet) => (
+                  <SelectItem key={outlet.id} value={String(outlet.id)}>
+                    {outlet.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-28 space-y-1.5">
+            <label className="text-sm font-medium">Price</label>
+            <input
+              type="number"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="base"
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 pb-2">
+            <Checkbox id="override-available" checked={isAvailable} onCheckedChange={(c) => setIsAvailable(c === true)} />
+            <Label htmlFor="override-available">Available</Label>
+          </div>
+          <Button onClick={handleAdd} disabled={!selectedOutletId || upsertOverride.isPending}>
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function FoodAddonGroups({ foodId, hasAddons }: { foodId: number; hasAddons: boolean }) {
+  const { data: links } = useFoodAddonGroups(foodId)
+  const { data: addonGroups } = useAddonGroups({ limit: 100 })
+  const assignGroup = useAssignFoodAddonGroup(foodId)
+  const unassignGroup = useUnassignFoodAddonGroup(foodId)
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("")
+
+  const groupName = (addonGroupId: number) =>
+    addonGroups?.data.find((g) => g.id === addonGroupId)?.name ?? `#${addonGroupId}`
+
+  async function handleAssign() {
+    if (!selectedGroupId) return
+    try {
+      await assignGroup.mutateAsync(Number(selectedGroupId))
+      toast.success("Addon group assigned")
+      setSelectedGroupId("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to assign addon group")
+    }
+  }
+
+  async function handleUnassign(addonGroupId: number) {
+    try {
+      await unassignGroup.mutateAsync(addonGroupId)
+      toast.success("Addon group unassigned")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to unassign addon group")
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Addon groups
+          {hasAddons && <Badge variant="secondary">has addons</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {(links ?? []).length === 0 && <p className="text-sm text-muted-foreground">No addon groups assigned.</p>}
+          {(links ?? []).map((link) => (
+            <div key={link.id} className="flex items-center gap-1.5">
+              <Badge variant="secondary">{groupName(link.addonGroupId)}</Badge>
+              <Button variant="ghost" size="sm" onClick={() => handleUnassign(link.addonGroupId)}>
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-medium">Assign an addon group</label>
+            <Select value={selectedGroupId} onValueChange={(value) => setSelectedGroupId(value ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select an addon group" />
+              </SelectTrigger>
+              <SelectContent>
+                {addonGroups?.data.map((group) => (
+                  <SelectItem key={group.id} value={String(group.id)}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleAssign} disabled={!selectedGroupId || assignGroup.isPending}>
+            Assign
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
