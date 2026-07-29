@@ -52,6 +52,31 @@ export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
       show: has("table-sessions.view"),
     },
     { href: "/orders", label: "Orders", show: has("orders.view") },
+    { href: "/units", label: "Units", show: has("units.view") },
+    {
+      href: "/ingredient-categories",
+      label: "Ingredient Categories",
+      show: has("ingredient-categories.view"),
+    },
+    { href: "/ingredients", label: "Ingredients", show: has("ingredients.view") },
+    { href: "/stock-ins", label: "Stock-Ins", show: has("stock-ins.view") },
+    { href: "/stock-outs", label: "Stock-Outs", show: has("stock-outs.view") },
+    {
+      href: "/stock-transfers",
+      label: "Stock Transfers",
+      show: has("stock-transfers.view"),
+    },
+    {
+      href: "/ingredient-wastages",
+      label: "Wastages",
+      show: has("ingredient-wastages.view"),
+    },
+    {
+      href: "/stock-adjustments",
+      label: "Stock Adjustments",
+      show: has("stock-adjustments.view"),
+    },
+    { href: "/stock-counts", label: "Stock Counts", show: has("stock-counts.view") },
   ].filter((link) => link.show)
 
   return (

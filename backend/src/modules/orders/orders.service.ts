@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { AddonsService } from '../addons/addons.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { FoodVariantsService } from '../food-variants/food-variants.service';
@@ -432,7 +433,6 @@ export class OrdersService {
   }
 
   private generateOrderNumber(outletId: number): string {
-    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `ORD-${outletId}-${Date.now()}-${random}`;
+    return generateDocumentNumber('ORD', outletId);
   }
 }

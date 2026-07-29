@@ -17,12 +17,22 @@ import { FoodCategoriesModule } from './modules/food-categories/food-categories.
 import { FoodVariantsModule } from './modules/food-variants/food-variants.module';
 import { FoodsModule } from './modules/foods/foods.module';
 import { HealthModule } from './modules/health/health.module';
+import { IngredientCategoriesModule } from './modules/ingredient-categories/ingredient-categories.module';
+import { IngredientWastagesModule } from './modules/ingredient-wastages/ingredient-wastages.module';
+import { IngredientsModule } from './modules/ingredients/ingredients.module';
+import { InventoryStockModule } from './modules/inventory-stock/inventory-stock.module';
 import { OrderPaymentsModule } from './modules/order-payments/order-payments.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OutletDepartmentsModule } from './modules/outlet-departments/outlet-departments.module';
 import { OutletsModule } from './modules/outlets/outlets.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
+import { StockCountsModule } from './modules/stock-counts/stock-counts.module';
+import { StockInsModule } from './modules/stock-ins/stock-ins.module';
+import { StockOutsModule } from './modules/stock-outs/stock-outs.module';
+import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
 import { TableSessionsModule } from './modules/table-sessions/table-sessions.module';
+import { UnitsModule } from './modules/units/units.module';
 import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { QueueModule } from './queue/queue.module';
@@ -84,6 +94,16 @@ import { RedisModule } from './redis/redis.module';
     TableSessionsModule,
     OrdersModule,
     OrderPaymentsModule,
+    UnitsModule,
+    IngredientCategoriesModule,
+    IngredientsModule,
+    InventoryStockModule,
+    StockInsModule,
+    StockOutsModule,
+    StockTransfersModule,
+    IngredientWastagesModule,
+    StockAdjustmentsModule,
+    StockCountsModule,
     AuthModule,
     HealthModule,
     DemoModule,

@@ -355,6 +355,81 @@ async function run() {
     'order-payments',
     'Order Payments',
   );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'units',
+    'Units',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'ingredient-categories',
+    'Ingredient Categories',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'ingredients',
+    'Ingredients',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'stock-ins',
+    'Stock-Ins',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'stock-outs',
+    'Stock-Outs',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'stock-transfers',
+    'Stock Transfers',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'ingredient-wastages',
+    'Ingredient Wastages',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'stock-adjustments',
+    'Stock Adjustments',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'stock-counts',
+    'Stock Counts',
+  );
+  const inventoryStockViewPermission = await upsertPermission(
+    permissionRepo,
+    'inventory-stock.view',
+    'View Inventory Stock & Ledger',
+    'inventory-stock',
+    'view',
+  );
+  await upsertRolePermission(
+    rolePermissionRepo,
+    role.id,
+    inventoryStockViewPermission.id,
+  );
 
   const user = await upsertUser(
     userRepo,
