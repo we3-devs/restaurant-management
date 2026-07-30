@@ -30,6 +30,7 @@ export const updateFoodSchema = z.object({
   isTaxable: z.boolean(),
   isDiscountable: z.boolean(),
   isFeatured: z.boolean(),
+  isRecipeEnabled: z.boolean(),
   isActive: z.boolean(),
 })
 

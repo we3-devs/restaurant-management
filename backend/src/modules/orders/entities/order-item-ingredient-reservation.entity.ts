@@ -8,14 +8,24 @@ import {
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 
-@Entity({ name: 'warehouse_ingredient_stocks' })
-export class WarehouseIngredientStock {
+export type OrderItemIngredientReservationStatus =
+  'reserved' | 'consumed' | 'released';
+
+@Entity({ name: 'order_item_ingredient_reservations' })
+export class OrderItemIngredientReservation {
   @PrimaryColumn({
     type: 'bigint',
     generated: 'increment',
     transformer: new BigIntTransformer(),
   })
   id: number;
+
+  @Column({
+    name: 'order_item_id',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+  })
+  orderItemId: number;
 
   @Column({
     name: 'warehouse_id',
@@ -32,15 +42,6 @@ export class WarehouseIngredientStock {
   ingredientId: number;
 
   @Column({
-    type: 'decimal',
-    precision: 18,
-    scale: 4,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  quantity: number;
-
-  @Column({
     name: 'reserved_quantity',
     type: 'decimal',
     precision: 18,
@@ -51,24 +52,27 @@ export class WarehouseIngredientStock {
   reservedQuantity: number;
 
   @Column({
-    name: 'average_cost',
-    type: 'decimal',
-    precision: 18,
-    scale: 6,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  averageCost: number;
-
-  @Column({
-    name: 'stock_value',
+    name: 'consumed_quantity',
     type: 'decimal',
     precision: 18,
     scale: 4,
     default: 0,
     transformer: new NumericTransformer(),
   })
-  stockValue: number;
+  consumedQuantity: number;
+
+  @Column({
+    name: 'wastage_quantity',
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    default: 0,
+    transformer: new NumericTransformer(),
+  })
+  wastageQuantity: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'reserved' })
+  status: OrderItemIngredientReservationStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

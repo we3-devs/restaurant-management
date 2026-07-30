@@ -12,6 +12,7 @@ export const updateAddonSchema = z.object({
   addonGroupId: z.number().nullable().optional(),
   name: z.string().min(1, "Name is required"),
   price: z.number().min(0),
+  isRecipeEnabled: z.boolean(),
   isActive: z.boolean(),
 })
 

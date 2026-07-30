@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsInt,
   IsNumber,
   IsOptional,
@@ -31,4 +32,13 @@ export class CreateAddonDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number = 0;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Gates whether Orders resolves addon_recipes and reserves ingredient stock for this addon.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isRecipeEnabled?: boolean = false;
 }

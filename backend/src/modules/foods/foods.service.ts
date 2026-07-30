@@ -5,18 +5,29 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import {
+  FindOptionsWhere,
+  ILike,
+  IsNull,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AddonGroupsService } from '../addon-groups/addon-groups.service';
 import { FoodCategoriesService } from '../food-categories/food-categories.service';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import { OutletsService } from '../outlets/outlets.service';
+import { UnitsService } from '../units/units.service';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
+import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
+import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
 import { FoodAddonGroup } from './entities/food-addon-group.entity';
 import { FoodOutlet } from './entities/food-outlet.entity';
+import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
 
 @Injectable()
@@ -28,9 +39,13 @@ export class FoodsService {
     private readonly foodOutletsRepository: Repository<FoodOutlet>,
     @InjectRepository(FoodAddonGroup)
     private readonly foodAddonGroupsRepository: Repository<FoodAddonGroup>,
+    @InjectRepository(FoodRecipe)
+    private readonly foodRecipesRepository: Repository<FoodRecipe>,
     private readonly foodCategoriesService: FoodCategoriesService,
     private readonly outletsService: OutletsService,
     private readonly addonGroupsService: AddonGroupsService,
+    private readonly ingredientsService: IngredientsService,
+    private readonly unitsService: UnitsService,
   ) {}
 
   async findAll(query: ListFoodsQueryDto): Promise<PaginatedResponse<Food>> {
@@ -83,6 +98,7 @@ export class FoodsService {
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
       isFeatured: dto.isFeatured ?? false,
+      isRecipeEnabled: dto.isRecipeEnabled ?? false,
       preparationTime: dto.preparationTime ?? null,
       sortOrder: dto.sortOrder ?? 0,
     });
@@ -119,6 +135,9 @@ export class FoodsService {
         isDiscountable: dto.isDiscountable,
       }),
       ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
+      ...(dto.isRecipeEnabled !== undefined && {
+        isRecipeEnabled: dto.isRecipeEnabled,
+      }),
       ...(dto.preparationTime !== undefined && {
         preparationTime: dto.preparationTime,
       }),
@@ -242,6 +261,114 @@ export class FoodsService {
     }
 
     return { food, price: override?.price ?? food.basePrice };
+  }
+
+  // ------------------------------------------------------------------ recipes
+
+  async listRecipes(foodId: number): Promise<FoodRecipe[]> {
+    await this.findOne(foodId);
+    return this.foodRecipesRepository.find({ where: { foodId } });
+  }
+
+  async addRecipe(
+    foodId: number,
+    dto: CreateFoodRecipeDto,
+  ): Promise<FoodRecipe> {
+    await this.findOne(foodId);
+    await this.ingredientsService.findOne(dto.ingredientId);
+    await this.unitsService.findOne(dto.unitId);
+
+    const recipe = this.foodRecipesRepository.create({
+      foodId,
+      foodVariantId: dto.foodVariantId ?? null,
+      ingredientId: dto.ingredientId,
+      unitId: dto.unitId,
+      quantity: dto.quantity,
+      wastageQuantity: dto.wastageQuantity ?? 0,
+    });
+
+    try {
+      return await this.foodRecipesRepository.save(recipe);
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string })?.code === '23505'
+      ) {
+        throw new ConflictException(
+          'A recipe row for this food/variant/ingredient/unit combination already exists',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updateRecipe(
+    foodId: number,
+    recipeId: number,
+    dto: UpdateFoodRecipeDto,
+  ): Promise<FoodRecipe> {
+    const recipe = await this.findRecipe(foodId, recipeId);
+
+    Object.assign(recipe, {
+      ...(dto.quantity !== undefined && { quantity: dto.quantity }),
+      ...(dto.wastageQuantity !== undefined && {
+        wastageQuantity: dto.wastageQuantity,
+      }),
+      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+    });
+
+    return this.foodRecipesRepository.save(recipe);
+  }
+
+  async removeRecipe(foodId: number, recipeId: number): Promise<void> {
+    const recipe = await this.findRecipe(foodId, recipeId);
+    await this.foodRecipesRepository.remove(recipe);
+  }
+
+  /**
+   * Used by OrdersService to resolve required ingredients for a food/variant
+   * combination — variant-specific rows override food-level (null) rows for
+   * the same ingredient, same override semantics as FoodOutlet.
+   */
+  async resolveRecipes(
+    foodId: number,
+    foodVariantId: number | null,
+  ): Promise<FoodRecipe[]> {
+    const rows = await this.foodRecipesRepository.find({
+      where: [
+        { foodId, foodVariantId: IsNull(), isActive: true },
+        ...(foodVariantId !== null
+          ? [{ foodId, foodVariantId, isActive: true }]
+          : []),
+      ],
+    });
+
+    const byIngredient = new Map<number, FoodRecipe>();
+    for (const row of rows) {
+      const existing = byIngredient.get(row.ingredientId);
+      if (
+        !existing ||
+        (existing.foodVariantId === null && row.foodVariantId !== null)
+      ) {
+        byIngredient.set(row.ingredientId, row);
+      }
+    }
+    return [...byIngredient.values()];
+  }
+
+  private async findRecipe(
+    foodId: number,
+    recipeId: number,
+  ): Promise<FoodRecipe> {
+    const recipe = await this.foodRecipesRepository.findOne({
+      where: { id: recipeId, foodId },
+    });
+    if (!recipe) {
+      throw new NotFoundException(
+        `Recipe ${recipeId} not found on food ${foodId}`,
+      );
+    }
+    return recipe;
   }
 
   private mapUniqueViolation(

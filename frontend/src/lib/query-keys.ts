@@ -57,6 +57,7 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.foods.all, "detail", id] as const,
     outlets: (id: number) => [...queryKeys.foods.all, "outlets", id] as const,
     addonGroups: (id: number) => [...queryKeys.foods.all, "addon-groups", id] as const,
+    recipes: (id: number) => [...queryKeys.foods.all, "recipes", id] as const,
   },
   foodVariants: {
     all: ["food-variants"] as const,
@@ -70,6 +71,7 @@ export const queryKeys = {
     lists: () => [...queryKeys.addons.all, "list"] as const,
     list: (params?: unknown) => [...queryKeys.addons.lists(), params] as const,
     detail: (id: number) => [...queryKeys.addons.all, "detail", id] as const,
+    recipes: (id: number) => [...queryKeys.addons.all, "recipes", id] as const,
   },
   diningAreas: {
     all: ["dining-areas"] as const,
@@ -101,6 +103,7 @@ export const queryKeys = {
   orderItems: {
     all: ["order-items"] as const,
     addons: (id: number) => [...queryKeys.orderItems.all, "addons", id] as const,
+    reservations: (id: number) => [...queryKeys.orderItems.all, "reservations", id] as const,
   },
   units: {
     all: ["units"] as const,

@@ -18,6 +18,7 @@ import { useAddons } from "@/hooks/use-addons"
 import { useDiningTables } from "@/hooks/use-dining-tables"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
+import { useIngredients } from "@/hooks/use-ingredients"
 import { useCreateOrderPayment, useOrderPayments } from "@/hooks/use-order-payments"
 import {
   useAddOrderItem,
@@ -25,6 +26,7 @@ import {
   useAssignOrderTable,
   useOrder,
   useOrderItemAddons,
+  useOrderItemReservations,
   useOrderItems,
   useOrderTables,
   useRemoveOrderItem,
@@ -379,6 +381,8 @@ function OrderItemsSection({ orderId, outletId }: { orderId: number; outletId: n
 function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: OrderItem; foodName: string }) {
   const { data: addonLinks } = useOrderItemAddons(orderId, item.id)
   const { data: addons } = useAddons({ limit: 100 })
+  const { data: reservations } = useOrderItemReservations(item.id)
+  const { data: ingredients } = useIngredients({ limit: 100 })
   const updateItem = useUpdateOrderItem(orderId, item.id)
   const removeItem = useRemoveOrderItem(orderId)
   const addAddon = useAddOrderItemAddon(orderId, item.id)
@@ -492,6 +496,20 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
           Add
         </Button>
       </div>
+
+      {(reservations ?? []).length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-input pt-2">
+          <span className="text-xs text-muted-foreground">Reserved ingredients:</span>
+          {(reservations ?? []).map((reservation) => (
+            <Badge key={reservation.id} variant="outline" className="text-xs">
+              {ingredients?.data.find((i) => i.id === reservation.ingredientId)?.name ??
+                `#${reservation.ingredientId}`}{" "}
+              {reservation.status === "consumed" ? reservation.consumedQuantity : reservation.reservedQuantity} (
+              {reservation.status})
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -153,6 +153,19 @@ export class WarehousesService {
     }
   }
 
+  /** Internal lookup used by OrdersService to resolve where to reserve/consume ingredient stock. */
+  async findDefaultForOutlet(outletId: number): Promise<Warehouse> {
+    const warehouse = await this.warehousesRepository.findOne({
+      where: { outletId, isDefault: true },
+    });
+    if (!warehouse) {
+      throw new NotFoundException(
+        `No default warehouse configured for outlet ${outletId}`,
+      );
+    }
+    return warehouse;
+  }
+
   async remove(id: number): Promise<void> {
     await this.findOne(id);
     // deleted_at column present — soft delete avoids the inventory/purchasing

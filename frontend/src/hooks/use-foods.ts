@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import type { CreateFoodRecipeInput } from "@/lib/validators/food-recipes"
 import type { CreateFoodInput, UpdateFoodInput, UpsertFoodOutletInput } from "@/lib/validators/foods"
 
 export interface Food {
@@ -17,6 +18,7 @@ export interface Food {
   basePrice: number
   hasVariants: boolean
   hasAddons: boolean
+  isRecipeEnabled: boolean
   isTaxable: boolean
   isDiscountable: boolean
   isFeatured: boolean
@@ -41,6 +43,17 @@ export interface FoodAddonGroupLink {
   foodId: number
   addonGroupId: number
   addonGroup?: { id: number; name: string }
+}
+
+export interface FoodRecipe {
+  id: number
+  foodId: number
+  foodVariantId: number | null
+  ingredientId: number
+  unitId: number
+  quantity: number
+  wastageQuantity: number
+  isActive: boolean
 }
 
 export interface ListFoodsParams {
@@ -145,5 +158,31 @@ export function useUnassignFoodAddonGroup(foodId: number) {
     mutationFn: (addonGroupId: number) =>
       apiClient<void>(`/foods/${foodId}/addon-groups/${addonGroupId}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.addonGroups(foodId) }),
+  })
+}
+
+export function useFoodRecipes(foodId: number) {
+  return useQuery({
+    queryKey: queryKeys.foods.recipes(foodId),
+    queryFn: () => apiClient<FoodRecipe[]>(`/foods/${foodId}/recipes`),
+    enabled: foodId > 0,
+  })
+}
+
+export function useAddFoodRecipe(foodId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateFoodRecipeInput) =>
+      apiClient<FoodRecipe>(`/foods/${foodId}/recipes`, { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.recipes(foodId) }),
+  })
+}
+
+export function useRemoveFoodRecipe(foodId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (recipeId: number) =>
+      apiClient<void>(`/foods/${foodId}/recipes/${recipeId}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.recipes(foodId) }),
   })
 }

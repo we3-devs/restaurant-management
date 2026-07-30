@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -142,6 +143,28 @@ export class UnitsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Used by OrdersService to convert a recipe's quantity (in the recipe's
+   * own unit) into the ingredient's base unit before touching stock.
+   */
+  async findConversionMultiplier(
+    fromUnitId: number,
+    toUnitId: number,
+  ): Promise<number> {
+    if (fromUnitId === toUnitId) {
+      return 1;
+    }
+    const conversion = await this.unitConversionsRepository.findOne({
+      where: { fromUnitId, toUnitId, isActive: true },
+    });
+    if (!conversion) {
+      throw new BadRequestException(
+        `No unit conversion configured from unit ${fromUnitId} to unit ${toUnitId}`,
+      );
+    }
+    return conversion.multiplier;
   }
 
   async removeConversion(id: number): Promise<void> {

@@ -117,10 +117,65 @@ export class WarehouseIngredientStocksService {
         warehouseId,
         ingredientId,
         quantity: 0,
+        reservedQuantity: 0,
         averageCost: 0,
         stockValue: 0,
       })
     );
+  }
+
+  /**
+   * Adjusts reserved_quantity only — never touches quantity/averageCost or
+   * writes a ledger row. `delta` may be negative to release a reservation.
+   * Throws if a positive delta would reserve more than is currently
+   * available (quantity - reservedQuantity).
+   */
+  async reserve(
+    warehouseId: number,
+    ingredientId: number,
+    delta: number,
+    manager?: EntityManager,
+  ): Promise<WarehouseIngredientStock> {
+    const run = async (txManager: EntityManager) => {
+      const stockRepo = txManager.getRepository(WarehouseIngredientStock);
+
+      let stock = await stockRepo.findOne({
+        where: { warehouseId, ingredientId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!stock) {
+        stock = await stockRepo.save(
+          stockRepo.create({
+            warehouseId,
+            ingredientId,
+            quantity: 0,
+            reservedQuantity: 0,
+            averageCost: 0,
+            stockValue: 0,
+          }),
+        );
+      }
+
+      if (delta > 0) {
+        const available = round(stock.quantity - stock.reservedQuantity, 4);
+        if (available < delta) {
+          throw new BadRequestException(
+            `Insufficient available stock for ingredient ${ingredientId} at warehouse ${warehouseId} (available: ${available}, requested: ${delta})`,
+          );
+        }
+      }
+
+      stock.reservedQuantity = Math.max(
+        0,
+        round(stock.reservedQuantity + delta, 4),
+      );
+      return stockRepo.save(stock);
+    };
+
+    if (manager) {
+      return run(manager);
+    }
+    return this.dataSource.transaction((txManager) => run(txManager));
   }
 
   /**

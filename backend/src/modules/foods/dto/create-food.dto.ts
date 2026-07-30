@@ -84,6 +84,15 @@ export class CreateFoodDto {
   @IsBoolean()
   isFeatured?: boolean = false;
 
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Gates whether Orders resolves food_recipes and reserves ingredient stock for this food.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isRecipeEnabled?: boolean = false;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()

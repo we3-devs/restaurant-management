@@ -14,8 +14,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
+import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
+import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
 import { FoodsService } from './foods.service';
@@ -128,5 +130,50 @@ export class FoodsController {
     @Param('addonGroupId', ParseIntPipe) addonGroupId: number,
   ) {
     return this.foodsService.unassignAddonGroup(id, addonGroupId);
+  }
+
+  @Get(':id/recipes')
+  @RequirePermissions('foods.view')
+  @ApiOperation({
+    summary:
+      'Lists ingredient recipe rows for a food (variant-specific rows override food-level rows for the same ingredient)',
+  })
+  listRecipes(@Param('id', ParseIntPipe) id: number) {
+    return this.foodsService.listRecipes(id);
+  }
+
+  @Post(':id/recipes')
+  @RequirePermissions('foods.manage')
+  @ApiOperation({ summary: 'Adds an ingredient recipe row to a food' })
+  addRecipe(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateFoodRecipeDto,
+  ) {
+    return this.foodsService.addRecipe(id, dto);
+  }
+
+  @Patch(':id/recipes/:recipeId')
+  @RequirePermissions('foods.manage')
+  @ApiOperation({
+    summary:
+      "Updates a recipe row's quantity/wastage/active flag (ingredientId/unitId/foodVariantId are immutable)",
+  })
+  updateRecipe(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('recipeId', ParseIntPipe) recipeId: number,
+    @Body() dto: UpdateFoodRecipeDto,
+  ) {
+    return this.foodsService.updateRecipe(id, recipeId, dto);
+  }
+
+  @Delete(':id/recipes/:recipeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('foods.manage')
+  @ApiOperation({ summary: 'Removes a recipe row from a food' })
+  removeRecipe(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('recipeId', ParseIntPipe) recipeId: number,
+  ) {
+    return this.foodsService.removeRecipe(id, recipeId);
   }
 }

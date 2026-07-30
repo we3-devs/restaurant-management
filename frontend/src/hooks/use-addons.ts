@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import type { CreateAddonRecipeInput } from "@/lib/validators/addon-recipes"
 import type { CreateAddonInput, UpdateAddonInput } from "@/lib/validators/addons"
 
 export interface Addon {
@@ -9,10 +10,21 @@ export interface Addon {
   addonGroupId: number | null
   name: string
   price: number
+  isRecipeEnabled: boolean
   isActive: boolean
   sortOrder: number
   createdAt: string
   updatedAt: string
+}
+
+export interface AddonRecipe {
+  id: number
+  addonId: number
+  ingredientId: number
+  unitId: number
+  quantity: number
+  wastageQuantity: number
+  isActive: boolean
 }
 
 export interface ListAddonsParams {
@@ -62,5 +74,31 @@ export function useDeleteAddon() {
   return useMutation({
     mutationFn: (id: number) => apiClient<void>(`/addons/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.addons.lists() }),
+  })
+}
+
+export function useAddonRecipes(addonId: number) {
+  return useQuery({
+    queryKey: queryKeys.addons.recipes(addonId),
+    queryFn: () => apiClient<AddonRecipe[]>(`/addons/${addonId}/recipes`),
+    enabled: addonId > 0,
+  })
+}
+
+export function useAddAddonRecipe(addonId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateAddonRecipeInput) =>
+      apiClient<AddonRecipe>(`/addons/${addonId}/recipes`, { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.addons.recipes(addonId) }),
+  })
+}
+
+export function useRemoveAddonRecipe(addonId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (recipeId: number) =>
+      apiClient<void>(`/addons/${addonId}/recipes/${recipeId}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.addons.recipes(addonId) }),
   })
 }

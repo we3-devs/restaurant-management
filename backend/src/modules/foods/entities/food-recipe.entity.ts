@@ -8,8 +8,14 @@ import {
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 
-@Entity({ name: 'warehouse_ingredient_stocks' })
-export class WarehouseIngredientStock {
+/**
+ * Bill-of-materials row: how much of one ingredient a food (or a specific
+ * variant of it) consumes. A null foodVariantId applies to the food
+ * generally unless a variant-specific row for the same ingredient overrides
+ * it — same override semantics as FoodOutlet.
+ */
+@Entity({ name: 'food_recipes' })
+export class FoodRecipe {
   @PrimaryColumn({
     type: 'bigint',
     generated: 'increment',
@@ -18,11 +24,19 @@ export class WarehouseIngredientStock {
   id: number;
 
   @Column({
-    name: 'warehouse_id',
+    name: 'food_id',
     type: 'bigint',
     transformer: new BigIntTransformer(),
   })
-  warehouseId: number;
+  foodId: number;
+
+  @Column({
+    name: 'food_variant_id',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+    nullable: true,
+  })
+  foodVariantId: number | null;
 
   @Column({
     name: 'ingredient_id',
@@ -32,43 +46,32 @@ export class WarehouseIngredientStock {
   ingredientId: number;
 
   @Column({
+    name: 'unit_id',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+  })
+  unitId: number;
+
+  @Column({
     type: 'decimal',
-    precision: 18,
+    precision: 12,
     scale: 4,
-    default: 0,
     transformer: new NumericTransformer(),
   })
   quantity: number;
 
   @Column({
-    name: 'reserved_quantity',
+    name: 'wastage_quantity',
     type: 'decimal',
-    precision: 18,
+    precision: 12,
     scale: 4,
     default: 0,
     transformer: new NumericTransformer(),
   })
-  reservedQuantity: number;
+  wastageQuantity: number;
 
-  @Column({
-    name: 'average_cost',
-    type: 'decimal',
-    precision: 18,
-    scale: 6,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  averageCost: number;
-
-  @Column({
-    name: 'stock_value',
-    type: 'decimal',
-    precision: 18,
-    scale: 4,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  stockValue: number;
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

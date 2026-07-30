@@ -95,4 +95,14 @@ export class OrderItemsController {
   ) {
     return this.ordersService.removeItemAddon(id, addonId);
   }
+
+  @Get(':id/reservations')
+  @RequirePermissions('orders.view')
+  @ApiOperation({
+    summary:
+      "Lists an order item's ingredient reservations (reserved/consumed/released) — read-only, a side effect of item/addon add-remove and order completion/cancellation",
+  })
+  listReservations(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.listItemReservations(id);
+  }
 }

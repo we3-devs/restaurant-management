@@ -28,17 +28,22 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAddonGroups } from "@/hooks/use-addon-groups"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import {
+  useAddFoodRecipe,
   useAssignFoodAddonGroup,
   useDeleteFood,
   useFood,
   useFoodAddonGroups,
   useFoodOutlets,
+  useFoodRecipes,
   useRemoveFoodOutlet,
+  useRemoveFoodRecipe,
   useUnassignFoodAddonGroup,
   useUpdateFood,
   useUpsertFoodOutlet,
 } from "@/hooks/use-foods"
+import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlets } from "@/hooks/use-outlets"
+import { useUnits } from "@/hooks/use-units"
 import { FOOD_ITEM_TYPES, FOOD_TYPES, updateFoodSchema, type UpdateFoodInput } from "@/lib/validators/foods"
 
 export function FoodDetail({ foodId }: { foodId: number }) {
@@ -61,6 +66,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       isTaxable: true,
       isDiscountable: true,
       isFeatured: false,
+      isRecipeEnabled: false,
       isActive: true,
     },
   })
@@ -79,6 +85,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
         isTaxable: food.isTaxable,
         isDiscountable: food.isDiscountable,
         isFeatured: food.isFeatured,
+        isRecipeEnabled: food.isRecipeEnabled,
         isActive: food.isActive,
       })
     }
@@ -277,6 +284,22 @@ export function FoodDetail({ foodId }: { foodId: number }) {
               />
               <FormField
                 control={form.control}
+                name="isRecipeEnabled"
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="isRecipeEnabled"
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                    <Label htmlFor="isRecipeEnabled">
+                      Recipe enabled (reserves ingredient stock when ordered)
+                    </Label>
+                  </div>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="isActive"
                 render={({ field }) => (
                   <div className="flex items-center gap-2">
@@ -299,7 +322,126 @@ export function FoodDetail({ foodId }: { foodId: number }) {
 
       <FoodOutletOverrides foodId={foodId} />
       <FoodAddonGroups foodId={foodId} hasAddons={food.hasAddons} />
+      <FoodRecipes foodId={foodId} />
     </div>
+  )
+}
+
+function FoodRecipes({ foodId }: { foodId: number }) {
+  const { data: recipes } = useFoodRecipes(foodId)
+  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: units } = useUnits({ limit: 100 })
+  const addRecipe = useAddFoodRecipe(foodId)
+  const removeRecipe = useRemoveFoodRecipe(foodId)
+
+  const [ingredientId, setIngredientId] = useState("")
+  const [unitId, setUnitId] = useState("")
+  const [quantity, setQuantity] = useState("")
+
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
+  const unitName = (id: number) => units?.data.find((u) => u.id === id)?.shortName ?? `#${id}`
+
+  async function handleAdd() {
+    if (!ingredientId || !unitId || !quantity) return
+    try {
+      await addRecipe.mutateAsync({
+        ingredientId: Number(ingredientId),
+        unitId: Number(unitId),
+        quantity: Number(quantity),
+        wastageQuantity: 0,
+      })
+      toast.success("Recipe row added")
+      setIngredientId("")
+      setUnitId("")
+      setQuantity("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add recipe row")
+    }
+  }
+
+  async function handleRemove(recipeId: number) {
+    try {
+      await removeRecipe.mutateAsync(recipeId)
+      toast.success("Recipe row removed")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove recipe row")
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recipe</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Only used when &quot;Recipe enabled&quot; is checked above — each row reserves that much of the
+          ingredient (in its own unit) per unit of this food ordered.
+        </p>
+        <div className="space-y-2">
+          {(recipes ?? []).length === 0 && <p className="text-sm text-muted-foreground">No recipe rows.</p>}
+          {(recipes ?? []).map((recipe) => (
+            <div key={recipe.id} className="flex items-center gap-2">
+              <Badge variant="secondary">{ingredientName(recipe.ingredientId)}</Badge>
+              <span className="text-sm">
+                {recipe.quantity} {unitName(recipe.unitId)}
+              </span>
+              {recipe.foodVariantId && <Badge variant="outline">variant #{recipe.foodVariantId}</Badge>}
+              <Button variant="ghost" size="sm" onClick={() => handleRemove(recipe.id)}>
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-medium">Ingredient</label>
+            <Select value={ingredientId} onValueChange={(value) => setIngredientId(value ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select an ingredient" />
+              </SelectTrigger>
+              <SelectContent>
+                {ingredients?.data.map((ingredient) => (
+                  <SelectItem key={ingredient.id} value={String(ingredient.id)}>
+                    {ingredient.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-32 space-y-1.5">
+            <label className="text-sm font-medium">Unit</label>
+            <Select value={unitId} onValueChange={(value) => setUnitId(value ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {units?.data.map((unit) => (
+                  <SelectItem key={unit.id} value={String(unit.id)}>
+                    {unit.shortName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-24 space-y-1.5">
+            <label className="text-sm font-medium">Quantity</label>
+            <input
+              type="number"
+              step="0.0001"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="200"
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none"
+            />
+          </div>
+          <Button onClick={handleAdd} disabled={!ingredientId || !unitId || !quantity || addRecipe.isPending}>
+            Add
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

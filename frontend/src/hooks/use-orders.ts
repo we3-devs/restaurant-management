@@ -55,6 +55,16 @@ export interface OrderItemAddon {
   totalAmount: number
 }
 
+export interface OrderItemIngredientReservation {
+  id: number
+  orderItemId: number
+  warehouseId: number
+  ingredientId: number
+  reservedQuantity: number
+  consumedQuantity: number
+  status: "reserved" | "consumed" | "released"
+}
+
 export interface OrderTableAssignment {
   id: number
   orderId: number
@@ -142,6 +152,7 @@ export function useUpdateOrderItem(orderId: number, itemId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
     },
   })
 }
@@ -174,6 +185,7 @@ export function useAddOrderItemAddon(orderId: number, itemId: number) {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
     },
   })
 }
@@ -187,6 +199,7 @@ export function useRemoveOrderItemAddon(orderId: number, itemId: number) {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
     },
   })
 }
@@ -214,5 +227,14 @@ export function useUnassignOrderTable(orderId: number) {
     mutationFn: (diningTableId: number) =>
       apiClient<void>(`/orders/${orderId}/tables/${diningTableId}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.tables(orderId) }),
+  })
+}
+
+/** Read-only — a side effect of item/addon add-remove and order completion/cancellation. */
+export function useOrderItemReservations(itemId: number) {
+  return useQuery({
+    queryKey: queryKeys.orderItems.reservations(itemId),
+    queryFn: () => apiClient<OrderItemIngredientReservation[]>(`/order-items/${itemId}/reservations`),
+    enabled: itemId > 0,
   })
 }
