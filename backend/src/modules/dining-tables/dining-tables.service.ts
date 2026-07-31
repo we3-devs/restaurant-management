@@ -65,6 +65,17 @@ export class DiningTablesService {
     return table;
   }
 
+  /** Public lookup by the table's human-readable code, used by the guest QR service page. */
+  async findByCode(code: string): Promise<DiningTable> {
+    const table = await this.diningTablesRepository.findOne({
+      where: { code },
+    });
+    if (!table) {
+      throw new NotFoundException(`No dining table with code "${code}"`);
+    }
+    return table;
+  }
+
   async create(dto: CreateDiningTableDto): Promise<DiningTable> {
     await this.outletsService.findOne(dto.outletId);
     await this.assertAreaBelongsToOutlet(dto.diningAreaId, dto.outletId);

@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCustomers } from "@/hooks/use-customers"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useReservations, type Reservation } from "@/hooks/use-reservations"
+import { useReservationsBootstrap } from "@/hooks/use-bootstrap"
 import { RESERVATION_STATUSES } from "@/lib/validators/reservations"
 import { CreateReservationDialog } from "./create-reservation-dialog"
 
@@ -39,6 +40,9 @@ export default function ReservationsPage() {
   const [page, setPage] = useState(1)
   const [sorting, setSorting] = useState<SortingState>([])
 
+  // One request for outlets + customers (+ a first page of reservations)
+  // instead of two separate ones; seeds the caches the hooks below read from.
+  useReservationsBootstrap()
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: customers } = useCustomers({ limit: 100 })
   const { data, isLoading, isPlaceholderData } = useReservations({

@@ -2,8 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { CheckIcon, CopyIcon, DropletIcon, HandIcon, ReceiptIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { QrCode } from "@/components/qr-code"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,9 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
 import { useOrders } from "@/hooks/use-orders"
+import {
+  useCreateServiceRequest,
+  type ServiceRequestType,
+} from "@/hooks/use-service-requests"
 import { useEndTableSession, useTableSessions, useTransferTableSession } from "@/hooks/use-table-sessions"
 
 export function TableActionsDialog({ table, onClose }: { table: DiningTable; onClose: () => void }) {
@@ -40,6 +47,33 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   })
   const [transferTargetId, setTransferTargetId] = useState("")
   const [showTransfer, setShowTransfer] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const createRequest = useCreateServiceRequest()
+
+  const guestUrl = table.code ? `/guest?table=${encodeURIComponent(table.code)}` : null
+  const fullGuestUrl = guestUrl
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}${guestUrl}`
+    : null
+
+  async function handleCallWaiter(type: ServiceRequestType) {
+    try {
+      await createRequest.mutateAsync({ diningTableId: table.id, type })
+      toast.success("Request sent to the service queue")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send request")
+    }
+  }
+
+  async function handleCopyGuestLink() {
+    if (!fullGuestUrl) return
+    try {
+      await navigator.clipboard.writeText(fullGuestUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error("Could not copy — select the link manually")
+    }
+  }
 
   async function handleEnd() {
     try {
@@ -117,6 +151,57 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
                 <Button variant="destructive" onClick={handleEnd} disabled={endSession.isPending}>
                   {endSession.isPending ? "Ending..." : "End session"}
                 </Button>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Call waiter — staff raises the request on the guest's behalf. */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Call waiter</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={createRequest.isPending}
+                  onClick={() => handleCallWaiter("water")}
+                >
+                  <DropletIcon className="text-sky-500" />
+                  Water
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={createRequest.isPending}
+                  onClick={() => handleCallWaiter("bill")}
+                >
+                  <ReceiptIcon className="text-amber-500" />
+                  Bill
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={createRequest.isPending}
+                  onClick={() => handleCallWaiter("assistance")}
+                >
+                  <HandIcon />
+                  Help
+                </Button>
+              </div>
+            </div>
+
+            {/* Guest QR card — guests scan this to call the waiter themselves. */}
+            {fullGuestUrl && (
+              <div className="flex items-center gap-4 rounded-lg border border-dashed p-3">
+                <QrCode value={fullGuestUrl} size={88} />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-sm font-medium">Guest card</p>
+                  <p className="break-all text-xs text-muted-foreground">{fullGuestUrl}</p>
+                  <Button variant="outline" size="sm" onClick={handleCopyGuestLink}>
+                    {copied ? <CheckIcon className="text-emerald-500" /> : <CopyIcon />}
+                    {copied ? "Copied" : "Copy link"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

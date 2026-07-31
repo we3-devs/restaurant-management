@@ -1,3 +1,4 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   forwardRef,
@@ -6,10 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { AssignReservationTableDto } from './dto/assign-reservation-table.dto';
@@ -19,6 +23,8 @@ import { UpdateReservationStatusDto } from './dto/update-reservation-status.dto'
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { ReservationTable } from './entities/reservation-table.entity';
 import { Reservation } from './entities/reservation.entity';
+
+const REMINDER_OFFSET_MS = 30 * 60_000;
 
 @Injectable()
 export class ReservationsService {
@@ -32,7 +38,35 @@ export class ReservationsService {
     private readonly diningTablesService: DiningTablesService,
     @Inject(forwardRef(() => TableSessionsService))
     private readonly tableSessionsService: TableSessionsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly gateway: KitchenTicketsGateway,
+    @InjectQueue('reservation-reminders')
+    private readonly reminderQueue: Queue,
   ) {}
+
+  private reminderJobId(reservationId: number): string {
+    return `reservation-reminder-${reservationId}`;
+  }
+
+  /** No-op once the reservation is already inside the reminder window / in the past. */
+  private async scheduleReminder(reservation: Reservation): Promise<void> {
+    const delay =
+      new Date(reservation.reservedAt).getTime() -
+      REMINDER_OFFSET_MS -
+      Date.now();
+    if (delay <= 0) {
+      return;
+    }
+    await this.reminderQueue.add(
+      'remind',
+      { reservationId: reservation.id },
+      { jobId: this.reminderJobId(reservation.id), delay },
+    );
+  }
+
+  private async cancelReminder(reservationId: number): Promise<void> {
+    await this.reminderQueue.remove(this.reminderJobId(reservationId));
+  }
 
   async findAll(
     query: ListReservationsQueryDto,
@@ -99,6 +133,17 @@ export class ReservationsService {
     const saved = await this.reservationsRepository.save(reservation);
 
     await this.customersService.upsertVisit(dto.customerId, dto.outletId);
+    await this.scheduleReminder(saved);
+
+    const notification = await this.notificationsService.create({
+      outletId: saved.outletId,
+      type: 'reservation_created',
+      title: `New reservation for ${saved.guestCount} guest(s)`,
+      body: `Reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
+      actorUserId: createdBy,
+      data: JSON.stringify({ reservationId: saved.id }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
 
     return saved;
   }
@@ -175,7 +220,27 @@ export class ReservationsService {
       reservation.noShowAt = new Date();
     }
 
-    return this.reservationsRepository.save(reservation);
+    const saved = await this.reservationsRepository.save(reservation);
+
+    if (dto.status !== 'pending' && dto.status !== 'confirmed') {
+      // Terminal-ish states (seated/completed/cancelled/no_show) no longer
+      // need a pre-arrival reminder.
+      await this.cancelReminder(saved.id);
+    }
+    if (dto.status === 'cancelled') {
+      const notification = await this.notificationsService.create({
+        outletId: saved.outletId,
+        type: 'reservation_cancelled',
+        priority: 'high',
+        title: `Reservation cancelled`,
+        body: `Was reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
+        actorUserId: changedBy,
+        data: JSON.stringify({ reservationId: saved.id }),
+      });
+      this.gateway.notifyNotificationCreated(notification);
+    }
+
+    return saved;
   }
 
   // -------------------------------------------------------- reservation tables

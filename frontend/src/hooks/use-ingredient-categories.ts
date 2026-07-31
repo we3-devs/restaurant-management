@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type {
   CreateIngredientCategoryInput,
   UpdateIngredientCategoryInput,
@@ -27,6 +28,8 @@ export function useIngredientCategories(params: ListIngredientCategoriesParams =
   return useQuery({
     queryKey: queryKeys.ingredientCategories.list(params),
     queryFn: () => apiClient<PaginatedResponse<IngredientCategory>>(`/ingredient-categories${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.ingredientCategories,
   })
 }
 
@@ -35,6 +38,7 @@ export function useIngredientCategory(id: number) {
     queryKey: queryKeys.ingredientCategories.detail(id),
     queryFn: () => apiClient<IngredientCategory>(`/ingredient-categories/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.ingredientCategories,
   })
 }
 

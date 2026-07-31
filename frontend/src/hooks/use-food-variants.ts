@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type {
   CreateFoodVariantInput,
   UpdateFoodVariantInput,
@@ -41,6 +42,8 @@ export function useFoodVariants(params: ListFoodVariantsParams = {}) {
   return useQuery({
     queryKey: queryKeys.foodVariants.list(params),
     queryFn: () => apiClient<PaginatedResponse<FoodVariant>>(`/food-variants${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.foodVariants,
   })
 }
 

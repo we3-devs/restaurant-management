@@ -1,0 +1,475 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import {
+  CheckCircle2Icon,
+  CheckIcon,
+  ChefHatIcon,
+  ClockIcon,
+  FlameIcon,
+  PlayIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
+import {
+  useCancelKitchenTicket,
+  useKdsBootstrap,
+  useMarkKitchenTicketReady,
+  useMarkKitchenTicketServed,
+  useRecallKitchenTicketItem,
+  useStartKitchenTicket,
+  useUpdateKitchenTicketItemStatus,
+  useUpdateKitchenTicketPriority,
+  type KitchenTicket,
+  type KitchenTicketItem,
+} from "@/hooks/use-kitchen-tickets"
+import { useOutlets } from "@/hooks/use-outlets"
+import { KITCHEN_TICKET_PRIORITIES } from "@/lib/validators/kitchen-tickets"
+import { cn } from "@/lib/utils"
+
+const OUTLET_STORAGE_KEY = "kds-outlet-id"
+
+const COLUMNS: { stage: TicketStage; label: string; dot: string }[] = [
+  { stage: "incoming", label: "Incoming", dot: "bg-amber-500" },
+  { stage: "preparing", label: "Preparing", dot: "bg-sky-500" },
+  { stage: "ready", label: "Ready", dot: "bg-emerald-500" },
+]
+
+type TicketStage = "incoming" | "preparing" | "ready"
+
+const PRIORITY_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
+  normal: "secondary",
+  high: "outline",
+  urgent: "destructive",
+}
+
+const STAGE_VARIANT: Record<TicketStage, "default" | "outline" | "secondary"> = {
+  incoming: "default",
+  preparing: "outline",
+  ready: "secondary",
+}
+
+function readStoredOutletId(): number | null {
+  if (typeof window === "undefined") return null
+  const stored = localStorage.getItem(OUTLET_STORAGE_KEY)
+  return stored ? Number(stored) : null
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+}
+
+function elapsedMinutes(since: string, now: number): number {
+  return Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000))
+}
+
+/**
+ * A ticket lives in one column at a time, derived from the statuses of its
+ * items. Ticket-level Start/Mark Ready move every item together, so tickets
+ * progress uniformly — per-item edge cases (recall/cancel) just shift the
+ * dominant stage.
+ */
+function ticketStage(ticket: KitchenTicket): TicketStage {
+  const items = ticket.items ?? []
+  const active = items.filter((item) => item.status !== "cancelled")
+  const statuses = new Set(active.map((item) => item.status))
+  // Sent items still wait to be started, so any of them keeps the ticket in
+  // Incoming — even alongside already-ready items (reachable via order-detail
+  // item edits) — otherwise a stranded sent item would sit invisible under a
+  // "ready" ticket. Mark Ready will bulk-move both sent + preparing anyway.
+  if (statuses.has("sent_to_kitchen")) return "incoming"
+  if (statuses.has("preparing")) return "preparing"
+  return "ready"
+}
+
+function ItemStatusIcon({ status }: { status: KitchenTicketItem["status"] }) {
+  switch (status) {
+    case "sent_to_kitchen":
+      return <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
+    case "preparing":
+      return <FlameIcon className="size-3.5 shrink-0 text-amber-500" />
+    case "ready":
+      return <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-500" />
+    case "served":
+      return <CheckIcon className="size-3.5 shrink-0 text-emerald-600" />
+    case "cancelled":
+      return <XIcon className="size-3.5 shrink-0 text-destructive" />
+  }
+}
+
+function TicketCard({
+  ticket,
+  now,
+  canManage,
+}: {
+  ticket: KitchenTicket
+  now: number
+  canManage: boolean
+}) {
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const outletId = ticket.outletId
+  const start = useStartKitchenTicket(outletId)
+  const markReady = useMarkKitchenTicketReady(outletId)
+  const markServed = useMarkKitchenTicketServed(outletId)
+  const updateStatus = useUpdateKitchenTicketItemStatus(outletId)
+  const updatePriority = useUpdateKitchenTicketPriority(outletId)
+  const recall = useRecallKitchenTicketItem(outletId)
+  const cancelTicket = useCancelKitchenTicket(outletId)
+
+  const items = ticket.items ?? []
+  const stage = ticketStage(ticket)
+  const tableName = ticket.order?.tableSession?.diningTable?.name
+  const orderLabel = ticket.order?.orderNumber ?? `#${ticket.orderId}`
+  const foodName = (item: KitchenTicketItem) =>
+    item.orderItem?.food?.name ?? `Food #${item.orderItem?.foodId ?? "?"}`
+  const variantName = (item: KitchenTicketItem) => item.orderItem?.foodVariant?.name
+
+  return (
+    <Card
+      className={cn(
+        "gap-3 p-3",
+        stage === "ready" && "ring-2 ring-emerald-500/40",
+        stage === "preparing" && "ring-1 ring-sky-500/30",
+      )}
+    >
+      {/* Header: table / order / sent time */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-base font-semibold leading-tight">{tableName ?? "Takeaway"}</p>
+            <span className="text-xs text-muted-foreground">{orderLabel}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sent {formatTime(ticket.createdAt)}
+            <span className="font-medium text-foreground/70"> · {elapsedMinutes(ticket.createdAt, now)}m</span>
+            {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
+          </p>
+        </div>
+        <Badge variant={PRIORITY_VARIANT[ticket.priority]}>{ticket.priority}</Badge>
+      </div>
+
+      {/* Items */}
+      <ul className="space-y-1.5">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-2 py-1.5"
+          >
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ItemStatusIcon status={item.status} />
+              <span className="truncate text-sm">
+                <span className="font-medium">{item.orderItem?.quantity ?? 1}×</span> {foodName(item)}
+                {variantName(item) ? ` (${variantName(item)})` : ""}
+              </span>
+              {item.recallCount > 0 && (
+                <span className="shrink-0 text-xs text-amber-600" title={`Recalled ${item.recallCount}×`}>
+                  ↺{item.recallCount}
+                </span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {canManage && (item.status === "ready" || item.status === "served") && (
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={recall.isPending}
+                  onClick={() => recall.mutate({ ticketId: ticket.id, itemId: item.id })}
+                  aria-label="Recall item"
+                >
+                  <RotateCcwIcon />
+                </Button>
+              )}
+              {canManage && item.status !== "served" && item.status !== "cancelled" && (
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={updateStatus.isPending}
+                  onClick={() =>
+                    updateStatus.mutate({ ticketId: ticket.id, itemId: item.id, status: "cancelled" })
+                  }
+                  aria-label="Cancel item"
+                >
+                  <XIcon />
+                </Button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {/* Footer actions */}
+      {canManage && (
+        <div className="flex items-center gap-2">
+          {stage === "incoming" && (
+            <Button
+              className="flex-1"
+              variant={STAGE_VARIANT.incoming}
+              disabled={start.isPending}
+              onClick={() => start.mutate(ticket.id)}
+            >
+              <PlayIcon />
+              {start.isPending ? "Starting..." : "Start"}
+            </Button>
+          )}
+          {stage === "preparing" && (
+            <Button
+              className="flex-1"
+              variant={STAGE_VARIANT.preparing}
+              disabled={markReady.isPending}
+              onClick={() => markReady.mutate(ticket.id)}
+            >
+              <CheckCircle2Icon />
+              {markReady.isPending ? "Marking..." : "Mark Ready"}
+            </Button>
+          )}
+          {stage === "ready" && (
+            <Button
+              className="flex-1"
+              variant={STAGE_VARIANT.ready}
+              disabled={markServed.isPending}
+              onClick={() => markServed.mutate(ticket.id)}
+            >
+              <CheckIcon />
+              {markServed.isPending ? "Marking..." : "Mark Served"}
+            </Button>
+          )}
+          <Select
+            value={ticket.priority}
+            onValueChange={(value) => value && updatePriority.mutate({ ticketId: ticket.id, priority: value })}
+          >
+            <SelectTrigger size="sm" className="w-24" aria-label="Priority">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KITCHEN_TICKET_PRIORITIES.map((priority) => (
+                <SelectItem key={priority} value={priority}>
+                  {priority}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={cancelTicket.isPending}
+            onClick={() => setCancelConfirmOpen(true)}
+            aria-label="Cancel ticket"
+          >
+            <XIcon />
+          </Button>
+        </div>
+      )}
+
+      <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this ticket?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All open items on {tableName ?? "this order"} ({orderLabel}) will be cancelled and
+              removed from the queue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep ticket</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={cancelTicket.isPending}
+              onClick={() => {
+                cancelTicket.mutate(ticket.id)
+                setCancelConfirmOpen(false)
+              }}
+            >
+              Cancel ticket
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
+
+export default function KitchenPage() {
+  const { permissions, isSuperadmin } = useCurrentUser()
+  const canManage = isSuperadmin || permissions.includes("orders.manage")
+
+  const { data: outlets } = useOutlets({ limit: 100 })
+  const [outletId, setOutletId] = useState<number | null>(() => readStoredOutletId())
+  const effectiveOutletId = outletId ?? outlets?.data[0]?.id ?? null
+
+  // Live clock driving the "…m ago" timers so they tick without a refetch.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (effectiveOutletId) localStorage.setItem(OUTLET_STORAGE_KEY, String(effectiveOutletId))
+  }, [effectiveOutletId])
+
+  // Filter to one station so each department only sees its own queue. The
+  // outlet is stored alongside the selection so switching outlets resets the
+  // filter without a setState-in-effect (lint forbids those).
+  const [stationState, setStationState] = useState<{ outletId: number | null; station: string }>({
+    outletId: null,
+    station: "all",
+  })
+  const station = stationState.outletId === effectiveOutletId ? stationState.station : "all"
+  const selectStation = (value: string) => setStationState({ outletId: effectiveOutletId, station: value })
+
+  useKitchenRealtime(effectiveOutletId)
+  const { data, isLoading } = useKdsBootstrap(effectiveOutletId)
+
+  const tickets = useMemo(() => data?.tickets ?? [], [data])
+  const stations = data?.stations ?? []
+  const hasUngrouped = tickets.some((ticket) => ticket.departmentId === null)
+
+  const visibleTickets = useMemo(() => {
+    if (station === "all") return tickets
+    if (station === "ungrouped") return tickets.filter((ticket) => ticket.departmentId === null)
+    return tickets.filter((ticket) => ticket.departmentId === Number(station))
+  }, [tickets, station])
+
+  const grouped = useMemo(() => {
+    const buckets: Record<TicketStage, KitchenTicket[]> = { incoming: [], preparing: [], ready: [] }
+    for (const ticket of visibleTickets) {
+      buckets[ticketStage(ticket)].push(ticket)
+    }
+    return buckets
+  }, [visibleTickets])
+
+  const clock = new Date(now).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">Kitchen Display</h1>
+          <span className="text-sm tabular-nums text-muted-foreground">{clock}</span>
+        </div>
+        <div className="w-56">
+          <Select
+            value={effectiveOutletId ? String(effectiveOutletId) : ""}
+            onValueChange={(value) => setOutletId(value ? Number(value) : null)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select an outlet" />
+            </SelectTrigger>
+            <SelectContent>
+              {outlets?.data.map((outlet) => (
+                <SelectItem key={outlet.id} value={String(outlet.id)}>
+                  {outlet.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {!effectiveOutletId ? (
+        <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
+      ) : isLoading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : tickets.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
+          <ChefHatIcon className="size-8 text-muted-foreground" />
+          <p className="text-sm font-medium">No active kitchen tickets</p>
+          <p className="text-sm text-muted-foreground">Orders sent to the kitchen will show up here.</p>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {/* Station tabs */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant={station === "all" ? "default" : "ghost"}
+              onClick={() => selectStation("all")}
+            >
+              All stations
+              <Badge variant="outline" className="ml-1">
+                {tickets.length}
+              </Badge>
+            </Button>
+            {stations.map((s) => {
+              const count = tickets.filter((ticket) => ticket.departmentId === s.id).length
+              if (count === 0) return null
+              return (
+                <Button
+                  key={s.id}
+                  size="sm"
+                  variant={station === String(s.id) ? "default" : "ghost"}
+                  onClick={() => selectStation(String(s.id))}
+                >
+                  {s.name}
+                  <Badge variant="outline" className="ml-1">
+                    {count}
+                  </Badge>
+                </Button>
+              )
+            })}
+            {hasUngrouped && (
+              <Button
+                size="sm"
+                variant={station === "ungrouped" ? "default" : "ghost"}
+                onClick={() => selectStation("ungrouped")}
+              >
+                Ungrouped
+                <Badge variant="outline" className="ml-1">
+                  {tickets.filter((ticket) => ticket.departmentId === null).length}
+                </Badge>
+              </Button>
+            )}
+          </div>
+
+          {/* Board */}
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-3">
+            {COLUMNS.map((column) => {
+              const columnTickets = grouped[column.stage]
+              return (
+                <div
+                  key={column.stage}
+                  className="flex min-h-0 flex-col rounded-xl border border-border bg-muted/30"
+                >
+                  <div className="flex items-center justify-between border-b px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("size-2 rounded-full", column.dot)} />
+                      <h2 className="text-sm font-semibold">{column.label}</h2>
+                    </div>
+                    <Badge variant="outline">{columnTickets.length}</Badge>
+                  </div>
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                    {columnTickets.length === 0 ? (
+                      <p className="py-8 text-center text-xs text-muted-foreground">Nothing here</p>
+                    ) : (
+                      columnTickets.map((ticket) => (
+                        <TicketCard key={ticket.id} ticket={ticket} now={now} canManage={canManage} />
+                      ))
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

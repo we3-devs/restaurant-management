@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateWarehouseInput, UpdateWarehouseInput } from "@/lib/validators/warehouses"
 
 export interface Warehouse {
@@ -28,6 +29,8 @@ export function useWarehouses(params: ListWarehousesParams = {}) {
   return useQuery({
     queryKey: queryKeys.warehouses.list(params),
     queryFn: () => apiClient<PaginatedResponse<Warehouse>>(`/warehouses${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.reference,
   })
 }
 
@@ -36,6 +39,7 @@ export function useWarehouse(id: number) {
     queryKey: queryKeys.warehouses.detail(id),
     queryFn: () => apiClient<Warehouse>(`/warehouses/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.reference,
   })
 }
 

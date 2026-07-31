@@ -25,8 +25,6 @@ import {
   useAddOrderItemAddon,
   useAssignOrderTable,
   useOrder,
-  useOrderItemAddons,
-  useOrderItemReservations,
   useOrderItems,
   useOrderTables,
   useRemoveOrderItem,
@@ -41,7 +39,7 @@ import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import {
   ORDER_ITEM_STATUSES,
   ORDER_PAYMENT_METHODS,
-  ORDER_STATUSES,
+  ORDER_STATUS_TRANSITIONS,
   createOrderItemSchema,
   createOrderPaymentSchema,
   updateOrderSchema,
@@ -108,7 +106,10 @@ export function OrderDetail({ orderId }: { orderId: number }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ORDER_STATUSES.map((status) => (
+              {[
+                order.status,
+                ...(ORDER_STATUS_TRANSITIONS[order.status as keyof typeof ORDER_STATUS_TRANSITIONS] ?? []),
+              ].map((status) => (
                 <SelectItem key={status} value={status}>
                   {status}
                 </SelectItem>
@@ -379,9 +380,7 @@ function OrderItemsSection({ orderId, outletId }: { orderId: number; outletId: n
 }
 
 function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: OrderItem; foodName: string }) {
-  const { data: addonLinks } = useOrderItemAddons(orderId, item.id)
   const { data: addons } = useAddons({ limit: 100 })
-  const { data: reservations } = useOrderItemReservations(item.id)
   const { data: ingredients } = useIngredients({ limit: 100 })
   const updateItem = useUpdateOrderItem(orderId, item.id)
   const removeItem = useRemoveOrderItem(orderId)
@@ -472,7 +471,7 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {(addonLinks ?? []).map((link) => (
+        {item.addons.map((link) => (
           <div key={link.id} className="flex items-center gap-1">
             <Badge variant="secondary">{addonName(link.addonId)}</Badge>
             <Button variant="ghost" size="sm" onClick={() => handleRemoveAddon(link.addonId)}>
@@ -497,10 +496,10 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
         </Button>
       </div>
 
-      {(reservations ?? []).length > 0 && (
+      {item.reservations.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-input pt-2">
           <span className="text-xs text-muted-foreground">Reserved ingredients:</span>
-          {(reservations ?? []).map((reservation) => (
+          {item.reservations.map((reservation) => (
             <Badge key={reservation.id} variant="outline" className="text-xs">
               {ingredients?.data.find((i) => i.id === reservation.ingredientId)?.name ??
                 `#${reservation.ingredientId}`}{" "}

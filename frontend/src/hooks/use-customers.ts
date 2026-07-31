@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateCustomerInput, UpdateCustomerInput } from "@/lib/validators/customers"
 
 export interface Customer {
@@ -36,6 +37,7 @@ export function useCustomers(params: ListCustomersParams = {}) {
     queryKey: queryKeys.customers.list(params),
     queryFn: () => apiClient<PaginatedResponse<Customer>>(`/customers${toQueryString(params)}`),
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.customersList,
   })
 }
 

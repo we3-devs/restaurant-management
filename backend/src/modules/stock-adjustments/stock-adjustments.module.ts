@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
+import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { IngredientStockAdjustmentItem } from './entities/ingredient-stock-adjustment-item.entity';
 import { IngredientStockAdjustment } from './entities/ingredient-stock-adjustment.entity';
@@ -17,6 +19,8 @@ import { StockAdjustmentsService } from './stock-adjustments.service';
     WarehousesModule,
     IngredientsModule,
     InventoryStockModule,
+    NotificationsModule,
+    KitchenTicketsModule,
   ],
   controllers: [StockAdjustmentsController],
   providers: [StockAdjustmentsService],

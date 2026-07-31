@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
 import { User } from '../users/entities/user.entity';
 import { AssignOrderTableDto } from './dto/assign-order-table.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
@@ -27,7 +28,10 @@ import { OrdersService } from './orders.service';
 @ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly kitchenTicketsService: KitchenTicketsService,
+  ) {}
 
   @Get()
   @RequirePermissions('orders.view')
@@ -69,7 +73,7 @@ export class OrdersController {
   @RequirePermissions('orders.manage')
   @ApiOperation({
     summary:
-      'Transitions order status (no transition-graph enforcement; auto-logs order_status_histories)',
+      'Transitions order status (rejects invalid transitions; auto-logs order_status_histories; completing the last active order on a table auto-ends its session and frees the table)',
   })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -77,6 +81,42 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     return this.ordersService.updateStatus(id, dto, user.id);
+  }
+
+  @Post(':id/send-to-kitchen')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary:
+      "Moves every non-held 'stock_reserved' item to 'sent_to_kitchen' and creates a KitchenTicket per department represented (held items stay in the cart)",
+  })
+  sendToKitchen(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.ordersService.sendToKitchen(id, user.id);
+  }
+
+  @Post(':id/mark-ready-items-served')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary:
+      "Waitstaff 'Mark Delivered': bulk-moves every 'ready' item across all of the order's kitchen tickets to 'served'",
+  })
+  markReadyItemsServed(@Param('id', ParseIntPipe) id: number) {
+    return this.kitchenTicketsService.markOrderReadyItemsServed(id);
+  }
+
+  @Post(':id/fire-held-items')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary:
+      "'Fire Held Items': routes every held 'stock_reserved' item to the kitchen (un-holding as it goes)",
+  })
+  fireHeldItems(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.ordersService.fireHeldItems(id, user.id);
   }
 
   @Post(':id/items')

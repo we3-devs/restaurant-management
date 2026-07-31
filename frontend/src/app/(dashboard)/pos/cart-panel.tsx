@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MinusIcon, PlusIcon, XIcon } from "lucide-react"
+import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,20 +13,52 @@ import { useAddons } from "@/hooks/use-addons"
 import { useFoods } from "@/hooks/use-foods"
 import {
   useAddOrderItemAddon,
-  useOrderItemAddons,
+  useFireHeldItems,
   useOrderItems,
   useRemoveOrderItem,
   useRemoveOrderItemAddon,
+  useSendOrderToKitchen,
   useUpdateOrderItem,
   type OrderItem,
 } from "@/hooks/use-orders"
 import { CheckoutPanel } from "./checkout-panel"
 
+const ITEM_STATUS_LABELS: Record<string, string> = {
+  sent_to_kitchen: "Sent",
+  preparing: "Preparing",
+  ready: "Ready",
+  served: "Served",
+  cancelled: "Cancelled",
+}
+
 export function CartPanel({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
+  const sendToKitchen = useSendOrderToKitchen(orderId)
+  const fireHeld = useFireHeldItems(orderId)
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const pendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
+  const pendingCount = pendingItems.filter((item) => !item.isHeld).length
+  const heldCount = pendingItems.filter((item) => item.isHeld).length
+
+  async function handleSendToKitchen() {
+    try {
+      await sendToKitchen.mutateAsync()
+      toast.success(`Sent ${pendingCount} item(s) to the kitchen`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send to kitchen")
+    }
+  }
+
+  async function handleFireHeld() {
+    try {
+      await fireHeld.mutateAsync()
+      toast.success(`Fired ${heldCount} held item(s) to the kitchen`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to fire held items")
+    }
+  }
 
   return (
     <div className="flex w-96 shrink-0 flex-col gap-3 border-l border-input pl-3">
@@ -40,13 +72,30 @@ export function CartPanel({ orderId }: { orderId: number }) {
           <CartItemRow key={item.id} orderId={orderId} item={item} foodName={foodName(item.foodId)} />
         ))}
       </div>
+      {heldCount > 0 && (
+        <Button
+          variant="outline"
+          className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+          onClick={handleFireHeld}
+          disabled={fireHeld.isPending}
+        >
+          <FlameIcon />
+          {fireHeld.isPending ? "Firing..." : `Fire held items (${heldCount})`}
+        </Button>
+      )}
+      <Button
+        variant="secondary"
+        onClick={handleSendToKitchen}
+        disabled={pendingCount === 0 || sendToKitchen.isPending}
+      >
+        {sendToKitchen.isPending ? "Sending..." : `Send to Kitchen${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
+      </Button>
       <CheckoutPanel orderId={orderId} />
     </div>
   )
 }
 
 function CartItemRow({ orderId, item, foodName }: { orderId: number; item: OrderItem; foodName: string }) {
-  const { data: addonLinks } = useOrderItemAddons(orderId, item.id)
   const { data: addons } = useAddons({ limit: 100 })
   const updateItem = useUpdateOrderItem(orderId, item.id)
   const removeItem = useRemoveOrderItem(orderId)
@@ -97,11 +146,38 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
     <div className="space-y-2 rounded-lg border border-input p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">{foodName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">{foodName}</p>
+            {item.status === "stock_reserved" && item.isHeld ? (
+              <Badge variant="outline" className="border-amber-500/50 text-xs text-amber-700 dark:text-amber-400">
+                Held
+              </Badge>
+            ) : item.status !== "stock_reserved" ? (
+              <Badge variant="secondary" className="text-xs">
+                {ITEM_STATUS_LABELS[item.status] ?? item.status}
+              </Badge>
+            ) : null}
+          </div>
           <p className="text-xs text-muted-foreground">
             {item.unitPrice} each &middot; total {item.totalAmount}
           </p>
         </div>
+        {item.status === "stock_reserved" && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={updateItem.isPending}
+            onClick={() =>
+              updateItem.mutateAsync({ isHeld: !item.isHeld }).catch((error) => {
+                toast.error(error instanceof Error ? error.message : "Failed to update item")
+              })
+            }
+            aria-label={item.isHeld ? "Fire this item now" : "Hold this item"}
+            title={item.isHeld ? "Fire now (send to kitchen)" : "Hold (don't send yet)"}
+          >
+            {item.isHeld ? <PlayIcon className="text-emerald-500" /> : <PauseIcon className="text-amber-500" />}
+          </Button>
+        )}
         <Button variant="ghost" size="icon-sm" onClick={handleRemove} aria-label="Remove item">
           <XIcon />
         </Button>
@@ -126,7 +202,7 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {(addonLinks ?? []).map((link) => (
+        {item.addons.map((link) => (
           <div key={link.id} className="flex items-center gap-1">
             <Badge variant="secondary" className="text-xs">
               {addonName(link.addonId)}

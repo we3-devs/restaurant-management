@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useOrder } from "@/hooks/use-orders"
 import { useOutletDepartments } from "@/hooks/use-outlet-departments"
+import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
 import { useOutlets } from "@/hooks/use-outlets"
+import { usePosBootstrap } from "@/hooks/use-bootstrap"
 import { CartPanel } from "./cart-panel"
 import { CategorySidebar } from "./category-sidebar"
 import { FoodGrid } from "./food-grid"
@@ -41,6 +43,13 @@ export default function PosPage() {
     if (effectiveOutletId) localStorage.setItem(OUTLET_STORAGE_KEY, String(effectiveOutletId))
   }, [effectiveOutletId])
 
+  // Keep the cart's item status badges live as the kitchen advances items
+  // (Sent -> Preparing -> Ready) — same KDS socket the /kitchen board uses.
+  useKitchenRealtime(effectiveOutletId)
+
+  // One request for departments + tables + food categories + addons instead
+  // of four; it also seeds the caches those hooks below read from.
+  usePosBootstrap(effectiveOutletId)
   const { data: departments } = useOutletDepartments({ outletId: effectiveOutletId ?? undefined, limit: 100 })
   const prepDepartments = (departments?.data ?? []).filter((d) => d.canPrepareOrder)
 

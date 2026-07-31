@@ -9,6 +9,8 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { IngredientsService } from '../ingredients/ingredients.service';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
+import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { CreateStockAdjustmentItemDto } from './dto/create-stock-adjustment-item.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
@@ -32,6 +34,8 @@ export class StockAdjustmentsService {
     private readonly warehousesService: WarehousesService,
     private readonly ingredientsService: IngredientsService,
     private readonly warehouseIngredientStocksService: WarehouseIngredientStocksService,
+    private readonly notificationsService: NotificationsService,
+    private readonly gateway: KitchenTicketsGateway,
   ) {}
 
   async findAll(
@@ -224,7 +228,22 @@ export class StockAdjustmentsService {
     adjustment.status = 'approved';
     adjustment.approvedBy = approvedBy;
     adjustment.approvedAt = new Date();
-    return this.adjustmentsRepository.save(adjustment);
+    const saved = await this.adjustmentsRepository.save(adjustment);
+
+    const warehouse = await this.warehousesService.findOne(
+      adjustment.warehouseId,
+    );
+    const notification = await this.notificationsService.create({
+      outletId: warehouse.outletId,
+      type: 'stock_adjustment',
+      title: `Stock adjustment ${adjustment.adjustmentNo} approved`,
+      body: `${items.length} item(s) adjusted at ${warehouse.name}`,
+      actorUserId: approvedBy,
+      data: JSON.stringify({ adjustmentId: id }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
+
+    return saved;
   }
 
   async cancel(id: number): Promise<IngredientStockAdjustment> {

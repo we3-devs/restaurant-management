@@ -119,6 +119,32 @@ export const queryKeys = {
     addons: (id: number) => [...queryKeys.orderItems.all, "addons", id] as const,
     reservations: (id: number) => [...queryKeys.orderItems.all, "reservations", id] as const,
   },
+  kitchenTickets: {
+    all: ["kitchen-tickets"] as const,
+    lists: () => [...queryKeys.kitchenTickets.all, "list"] as const,
+    list: (params?: unknown) => [...queryKeys.kitchenTickets.lists(), params] as const,
+    detail: (id: number) => [...queryKeys.kitchenTickets.all, "detail", id] as const,
+    bootstrap: (outletId: number | null) => [...queryKeys.kitchenTickets.all, "bootstrap", outletId] as const,
+  },
+  dashboard: {
+    all: ["dashboard"] as const,
+    summary: (params?: unknown) => [...queryKeys.dashboard.all, "summary", params] as const,
+  },
+  reports: {
+    all: ["reports"] as const,
+    detail: (type: string, params?: unknown) => [...queryKeys.reports.all, type, params] as const,
+  },
+  notifications: {
+    all: ["notifications"] as const,
+    list: (params?: unknown) => [...queryKeys.notifications.all, "list", params] as const,
+    unreadCount: (outletId: number | null) =>
+      [...queryKeys.notifications.all, "unread-count", outletId] as const,
+  },
+  serviceRequests: {
+    all: ["service-requests"] as const,
+    lists: () => [...queryKeys.serviceRequests.all, "list"] as const,
+    list: (params?: unknown) => [...queryKeys.serviceRequests.lists(), params] as const,
+  },
   units: {
     all: ["units"] as const,
     lists: () => [...queryKeys.units.all, "list"] as const,

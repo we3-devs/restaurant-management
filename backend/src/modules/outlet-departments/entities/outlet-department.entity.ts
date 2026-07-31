@@ -12,7 +12,17 @@ import { BigIntTransformer } from '../../../common/transformers/bigint.transform
 import { Outlet } from '../../outlets/entities/outlet.entity';
 
 export type OutletDepartmentType =
-  'kitchen' | 'bar' | 'counter' | 'store' | 'bakery' | 'housekeeping' | 'other';
+  | 'kitchen'
+  | 'bar'
+  | 'grill'
+  | 'pizza'
+  | 'dessert'
+  | 'drinks'
+  | 'counter'
+  | 'store'
+  | 'bakery'
+  | 'housekeeping'
+  | 'other';
 
 /**
  * Stub entity — full Outlet Departments domain is out of scope for the

@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAddons } from "@/hooks/use-addons"
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOutlet } from "@/hooks/use-outlets"
-import { useOrder, useOrderItemAddons, useOrderItems, type OrderItem } from "@/hooks/use-orders"
+import { useOrder, useOrderItems, type OrderItem } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
 
 export function ReceiptView({ orderId }: { orderId: number }) {
@@ -22,7 +22,7 @@ export function ReceiptView({ orderId }: { orderId: number }) {
   if (!order) return null
 
   return (
-    <div className="mx-auto max-w-sm space-y-4">
+    <div className="mx-auto max-w-[320px] space-y-4">
       <div className="no-print flex justify-end">
         <Button onClick={() => window.print()}>
           <PrinterIcon />
@@ -30,7 +30,10 @@ export function ReceiptView({ orderId }: { orderId: number }) {
         </Button>
       </div>
 
-      <div id="receipt" className="space-y-4 rounded-lg border border-input p-6 text-sm">
+      <div
+        id="receipt"
+        className="space-y-4 rounded-lg border border-input p-6 font-mono text-sm print:w-[80mm]"
+      >
         <div className="text-center">
           <p className="font-semibold">{outlet?.name ?? `Outlet #${order.outletId}`}</p>
           <p className="text-xs text-muted-foreground">Order {order.orderNumber}</p>
@@ -40,7 +43,7 @@ export function ReceiptView({ orderId }: { orderId: number }) {
         <Separator />
 
         <div className="space-y-2">
-          {items?.data.map((item) => <ReceiptItemRow key={item.id} orderId={orderId} item={item} name={foodName(item.foodId)} />)}
+          {items?.data.map((item) => <ReceiptItemRow key={item.id} item={item} name={foodName(item.foodId)} />)}
         </div>
 
         <Separator />
@@ -91,8 +94,7 @@ export function ReceiptView({ orderId }: { orderId: number }) {
   )
 }
 
-function ReceiptItemRow({ orderId, item, name }: { orderId: number; item: OrderItem; name: string }) {
-  const { data: addonLinks } = useOrderItemAddons(orderId, item.id)
+function ReceiptItemRow({ item, name }: { item: OrderItem; name: string }) {
   const { data: addons } = useAddons({ limit: 100 })
   const addonName = (addonId: number) => addons?.data.find((a) => a.id === addonId)?.name ?? `#${addonId}`
 
@@ -104,7 +106,7 @@ function ReceiptItemRow({ orderId, item, name }: { orderId: number; item: OrderI
         </span>
         <span>{item.totalAmount}</span>
       </div>
-      {(addonLinks ?? []).map((link) => (
+      {item.addons.map((link) => (
         <p key={link.id} className="pl-4 text-xs text-muted-foreground">
           + {addonName(link.addonId)}
         </p>

@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateDiningAreaInput, UpdateDiningAreaInput } from "@/lib/validators/dining-areas"
 
 export interface DiningArea {
@@ -25,6 +26,8 @@ export function useDiningAreas(params: ListDiningAreasParams = {}) {
   return useQuery({
     queryKey: queryKeys.diningAreas.list(params),
     queryFn: () => apiClient<PaginatedResponse<DiningArea>>(`/dining-areas${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.reference,
   })
 }
 
@@ -33,6 +36,7 @@ export function useDiningArea(id: number) {
     queryKey: queryKeys.diningAreas.detail(id),
     queryFn: () => apiClient<DiningArea>(`/dining-areas/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.reference,
   })
 }
 

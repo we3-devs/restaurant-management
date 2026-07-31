@@ -15,11 +15,16 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
       body: body || undefined,
     })
 
-    const responseBody = response.status === 204 ? null : await response.text()
-    return new NextResponse(responseBody, {
-      status: response.status,
-      headers: { "Content-Type": response.headers.get("Content-Type") ?? "application/json" },
+    // arrayBuffer (not text()) so binary bodies — report exports (xlsx/pdf)
+    // — survive the round trip intact; works fine for JSON/text bodies too.
+    const responseBody = response.status === 204 ? null : await response.arrayBuffer()
+    const headers = new Headers({
+      "Content-Type": response.headers.get("Content-Type") ?? "application/json",
     })
+    const disposition = response.headers.get("Content-Disposition")
+    if (disposition) headers.set("Content-Disposition", disposition)
+
+    return new NextResponse(responseBody, { status: response.status, headers })
   } catch (error) {
     if (error instanceof BackendUnauthorizedError) {
       return NextResponse.json({ message: "Session expired" }, { status: 401 })

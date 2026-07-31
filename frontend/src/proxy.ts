@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session"
 
-const AUTH_ROUTES = ["/login"]
+// Routes that must be reachable without a session: the login page and the
+// guest QR Call-Waiter page (guests scan a table's QR card — they have no
+// account).
+const AUTH_ROUTES = ["/login", "/guest"]
 
 /**
  * Optimistic-only check (cookie presence, no backend call — Proxy must stay

@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateAddonRecipeInput } from "@/lib/validators/addon-recipes"
 import type { CreateAddonInput, UpdateAddonInput } from "@/lib/validators/addons"
 
@@ -38,6 +39,8 @@ export function useAddons(params: ListAddonsParams = {}) {
   return useQuery({
     queryKey: queryKeys.addons.list(params),
     queryFn: () => apiClient<PaginatedResponse<Addon>>(`/addons${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.addons,
   })
 }
 

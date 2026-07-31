@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type {
   CreateOutletDepartmentInput,
   UpdateOutletDepartmentInput,
@@ -32,6 +33,8 @@ export function useOutletDepartments(params: ListOutletDepartmentsParams = {}) {
     queryKey: queryKeys.outletDepartments.list(params),
     queryFn: () =>
       apiClient<PaginatedResponse<OutletDepartment>>(`/outlet-departments${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.departments,
   })
 }
 
@@ -40,6 +43,7 @@ export function useOutletDepartment(id: number) {
     queryKey: queryKeys.outletDepartments.detail(id),
     queryFn: () => apiClient<OutletDepartment>(`/outlet-departments/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.departments,
   })
 }
 

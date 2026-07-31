@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateUnitConversionInput, CreateUnitInput, UpdateUnitInput } from "@/lib/validators/units"
 
 export interface Unit {
@@ -32,6 +33,8 @@ export function useUnits(params: ListUnitsParams = {}) {
   return useQuery({
     queryKey: queryKeys.units.list(params),
     queryFn: () => apiClient<PaginatedResponse<Unit>>(`/units${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.units,
   })
 }
 
@@ -40,6 +43,7 @@ export function useUnit(id: number) {
     queryKey: queryKeys.units.detail(id),
     queryFn: () => apiClient<Unit>(`/units/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.units,
   })
 }
 
@@ -76,6 +80,7 @@ export function useUnitConversions(unitId: number) {
     queryKey: queryKeys.units.conversions(unitId),
     queryFn: () => apiClient<UnitConversion[]>(`/units/${unitId}/conversions`),
     enabled: unitId > 0,
+    staleTime: STALE_TIME.units,
   })
 }
 

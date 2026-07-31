@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateAddonGroupInput, UpdateAddonGroupInput } from "@/lib/validators/addon-groups"
 
 export interface AddonGroup {
@@ -26,6 +27,8 @@ export function useAddonGroups(params: ListAddonGroupsParams = {}) {
   return useQuery({
     queryKey: queryKeys.addonGroups.list(params),
     queryFn: () => apiClient<PaginatedResponse<AddonGroup>>(`/addon-groups${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.reference,
   })
 }
 
@@ -34,6 +37,7 @@ export function useAddonGroup(id: number) {
     queryKey: queryKeys.addonGroups.detail(id),
     queryFn: () => apiClient<AddonGroup>(`/addon-groups/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.reference,
   })
 }
 

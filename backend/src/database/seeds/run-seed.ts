@@ -444,6 +444,30 @@ async function run() {
     'reservations',
     'Reservations',
   );
+  const dashboardViewPermission = await upsertPermission(
+    permissionRepo,
+    'dashboard.view',
+    'View Dashboard',
+    'dashboard',
+    'view',
+  );
+  await upsertRolePermission(
+    rolePermissionRepo,
+    role.id,
+    dashboardViewPermission.id,
+  );
+  const reportsViewPermission = await upsertPermission(
+    permissionRepo,
+    'reports.view',
+    'View Reports',
+    'reports',
+    'view',
+  );
+  await upsertRolePermission(
+    rolePermissionRepo,
+    role.id,
+    reportsViewPermission.id,
+  );
 
   const user = await upsertUser(
     userRepo,

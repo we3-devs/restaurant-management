@@ -2,6 +2,8 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
+import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSession } from './entities/table-session.entity';
@@ -15,6 +17,8 @@ import { TableSessionsService } from './table-sessions.service';
     OutletsModule,
     CustomersModule,
     forwardRef(() => ReservationsModule),
+    NotificationsModule,
+    KitchenTicketsModule,
   ],
   controllers: [TableSessionsController],
   providers: [TableSessionsService],

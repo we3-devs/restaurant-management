@@ -17,6 +17,8 @@ import {
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { ReservationsService } from '../reservations/reservations.service';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
@@ -36,6 +38,8 @@ export class TableSessionsService {
     private readonly customersService: CustomersService,
     @Inject(forwardRef(() => ReservationsService))
     private readonly reservationsService: ReservationsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly gateway: KitchenTicketsGateway,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -110,6 +114,18 @@ export class TableSessionsService {
 
     await this.diningTablesService.setStatus(dto.diningTableId, 'occupied');
 
+    const table = await this.diningTablesService.findOne(dto.diningTableId);
+    const notification = await this.notificationsService.create({
+      outletId: dto.outletId,
+      type: 'system',
+      title: `${table.name} — guests checked in`,
+      body: `${saved.guestCount} guest(s)`,
+      tableName: table.name,
+      actorUserId: startedBy,
+      data: JSON.stringify({ tableSessionId: saved.id }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
+
     return saved;
   }
 
@@ -124,6 +140,17 @@ export class TableSessionsService {
       session.diningTableId,
       'available',
     );
+
+    const table = await this.diningTablesService.findOne(session.diningTableId);
+    const notification = await this.notificationsService.create({
+      outletId: session.outletId,
+      type: 'system',
+      title: `${table.name} — session ended`,
+      tableName: table.name,
+      actorUserId: endedBy,
+      data: JSON.stringify({ tableSessionId: saved.id }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
 
     return saved;
   }

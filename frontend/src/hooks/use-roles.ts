@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateRoleInput, UpdateRoleInput } from "@/lib/validators/roles"
 
 export interface Role {
@@ -30,6 +31,7 @@ export function useRoles(params: ListRolesParams = {}) {
     queryKey: queryKeys.roles.list(params),
     queryFn: () => apiClient<PaginatedResponse<Role>>(`/roles${toQueryString(params)}`),
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.reference,
   })
 }
 
@@ -38,6 +40,7 @@ export function useRole(id: number) {
     queryKey: queryKeys.roles.detail(id),
     queryFn: () => apiClient<Role>(`/roles/${id}`),
     enabled: id > 0,
+    staleTime: STALE_TIME.reference,
   })
 }
 

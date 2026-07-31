@@ -119,6 +119,14 @@ export class OrderItem {
   @Column({ type: 'varchar', length: 255, default: 'stock_reserved' })
   status: OrderItemStatus;
 
+  /**
+   * Fire/Hold: a held item stays in the cart (status 'stock_reserved') when
+   * the rest of the order is sent to the kitchen, and is routed later via
+   * "Fire Held Items". Only meaningful while status is 'stock_reserved'.
+   */
+  @Column({ name: 'is_held', type: 'boolean', default: false })
+  isHeld: boolean;
+
   @Column({ type: 'text', nullable: true })
   note: string | null;
 

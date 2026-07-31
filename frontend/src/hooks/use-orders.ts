@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -43,7 +43,12 @@ export interface OrderItem {
   unitPrice: number
   totalAmount: number
   status: string
+  isHeld: boolean
   note: string | null
+  // Embedded by GET /order-items so cart/order-detail rows don't each need
+  // their own /order-items/:id/addons and /order-items/:id/reservations call.
+  addons: OrderItemAddon[]
+  reservations: OrderItemIngredientReservation[]
 }
 
 export interface OrderItemAddon {
@@ -85,6 +90,7 @@ export function useOrders(params: ListOrdersParams = {}) {
   return useQuery({
     queryKey: queryKeys.orders.list(params),
     queryFn: () => apiClient<PaginatedResponse<Order>>(`/orders${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -93,6 +99,8 @@ export function useOrder(id: number) {
     queryKey: queryKeys.orders.detail(id),
     queryFn: () => apiClient<Order>(`/orders/${id}`),
     enabled: id > 0,
+    // Fallback in case a websocket event is missed — mirrors useKdsBootstrap.
+    refetchInterval: 30_000,
   })
 }
 
@@ -121,6 +129,47 @@ export function useUpdateOrderStatus(id: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
+      // Completing a dine-in order can auto-end its table session server-side.
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+    },
+  })
+}
+
+export function useSendOrderToKitchen(orderId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/send-to-kitchen`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+    },
+  })
+}
+
+export function useFireHeldItems(orderId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/fire-held-items`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+    },
+  })
+}
+
+/** Waitstaff "Mark Delivered" from the ready queue — serves every ready item across the order's tickets. */
+export function useMarkOrderReadyItemsServed(orderId: number, outletId: number | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient<unknown>(`/orders/${orderId}/mark-ready-items-served`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+      if (outletId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
+      }
     },
   })
 }
@@ -130,6 +179,9 @@ export function useOrderItems(orderId: number) {
     queryKey: queryKeys.orders.items(orderId),
     queryFn: () => apiClient<PaginatedResponse<OrderItem>>(`/order-items${toQueryString({ orderId, limit: 100 })}`),
     enabled: orderId > 0,
+    // The KDS realtime push is the primary path for kitchen status changes;
+    // this poll is the fallback if the socket connection drops.
+    refetchInterval: 30_000,
   })
 }
 
@@ -148,7 +200,7 @@ export function useAddOrderItem(orderId: number) {
 export function useUpdateOrderItem(orderId: number, itemId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { quantity?: number; status?: string; note?: string }) =>
+    mutationFn: (input: { quantity?: number; status?: string; note?: string; isHeld?: boolean }) =>
       apiClient<OrderItem>(`/order-items/${itemId}`, { method: "PATCH", body: JSON.stringify(input) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })

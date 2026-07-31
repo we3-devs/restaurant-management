@@ -12,6 +12,21 @@ export const ORDER_STATUSES = [
   "completed",
   "cancelled",
 ] as const
+// Mirrors the backend's ORDER_STATUS_TRANSITIONS (orders.service.ts) — the
+// source of truth for what's actually accepted lives server-side; this only
+// drives which options the status dropdown offers.
+export const ORDER_STATUS_TRANSITIONS: Record<(typeof ORDER_STATUSES)[number], (typeof ORDER_STATUSES)[number][]> = {
+  pending: ["accepted", "cancelled"],
+  accepted: ["preparing", "cancelled"],
+  preparing: ["partially_ready", "ready", "cancelled"],
+  partially_ready: ["ready", "partially_served", "cancelled"],
+  ready: ["partially_served", "served", "cancelled"],
+  partially_served: ["served", "cancelled"],
+  served: ["completed"],
+  completed: [],
+  cancelled: [],
+}
+
 export const ORDER_ITEM_STATUSES = [
   "stock_reserved",
   "sent_to_kitchen",

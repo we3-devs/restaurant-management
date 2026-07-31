@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -36,6 +36,7 @@ export function useStockCounts(params: ListStockCountsParams = {}) {
   return useQuery({
     queryKey: queryKeys.stockCounts.list(params),
     queryFn: () => apiClient<PaginatedResponse<StockCount>>(`/stock-counts${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
   })
 }
 

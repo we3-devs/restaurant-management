@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateDiningTableInput, UpdateDiningTableInput } from "@/lib/validators/dining-tables"
 
 export interface DiningTable {
@@ -30,6 +31,8 @@ export function useDiningTables(params: ListDiningTablesParams = {}) {
   return useQuery({
     queryKey: queryKeys.diningTables.list(params),
     queryFn: () => apiClient<PaginatedResponse<DiningTable>>(`/dining-tables${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.tables,
   })
 }
 

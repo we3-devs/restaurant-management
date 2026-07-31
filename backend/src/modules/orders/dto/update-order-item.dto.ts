@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import type { OrderItemStatus } from '../entities/order-item.entity';
 
 const ORDER_ITEM_STATUSES: OrderItemStatus[] = [
@@ -34,4 +41,12 @@ export class UpdateOrderItemDto {
   @IsOptional()
   @IsString()
   cancelReason?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Fire/Hold: holds the item in the cart instead of sending it with the rest of the order (only while status is stock_reserved)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isHeld?: boolean;
 }

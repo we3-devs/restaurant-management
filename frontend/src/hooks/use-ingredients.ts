@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
+import { STALE_TIME } from "@/lib/query-config"
 import type { CreateIngredientInput, UpdateIngredientInput } from "@/lib/validators/ingredients"
 
 export interface Ingredient {
@@ -27,6 +28,8 @@ export function useIngredients(params: ListIngredientsParams = {}) {
   return useQuery({
     queryKey: queryKeys.ingredients.list(params),
     queryFn: () => apiClient<PaginatedResponse<Ingredient>>(`/ingredients${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.ingredients,
   })
 }
 

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,11 @@ import { FoodVariantsService } from '../food-variants/food-variants.service';
 import { FoodsService } from '../foods/foods.service';
 import { IngredientsService } from '../ingredients/ingredients.service';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
+import { KitchenTicketItem } from '../kitchen-tickets/entities/kitchen-ticket-item.entity';
+import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity';
+import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
+import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
@@ -36,6 +42,12 @@ import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { OrderTable } from './entities/order-table.entity';
 import { Order } from './entities/order.entity';
+import type { OrderStatus } from './entities/order.entity';
+
+export interface OrderItemWithRelations extends OrderItem {
+  addons: OrderItemAddon[];
+  reservations: OrderItemIngredientReservation[];
+}
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -44,6 +56,23 @@ function round2(value: number): number {
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
+
+/**
+ * Happy-path order lifecycle plus "cancelled" reachable from any
+ * non-terminal state. `completed`/`cancelled` are terminal (no outgoing
+ * edges) — enforced in updateStatus().
+ */
+const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: ['accepted', 'cancelled'],
+  accepted: ['preparing', 'cancelled'],
+  preparing: ['partially_ready', 'ready', 'cancelled'],
+  partially_ready: ['ready', 'partially_served', 'cancelled'],
+  ready: ['partially_served', 'served', 'cancelled'],
+  partially_served: ['served', 'cancelled'],
+  served: ['completed'],
+  completed: [],
+  cancelled: [],
+};
 
 @Injectable()
 export class OrdersService {
@@ -62,6 +91,9 @@ export class OrdersService {
     private readonly orderPaymentsRepository: Repository<OrderPayment>,
     @InjectRepository(OrderItemIngredientReservation)
     private readonly reservationsRepository: Repository<OrderItemIngredientReservation>,
+    private readonly kitchenTicketsService: KitchenTicketsService,
+    private readonly gateway: KitchenTicketsGateway,
+    private readonly notificationsService: NotificationsService,
     private readonly outletsService: OutletsService,
     private readonly tableSessionsService: TableSessionsService,
     private readonly customersService: CustomersService,
@@ -185,6 +217,15 @@ export class OrdersService {
     const order = await this.findOne(id);
     const fromStatus = order.status;
 
+    if (
+      dto.status !== fromStatus &&
+      !ORDER_STATUS_TRANSITIONS[fromStatus].includes(dto.status)
+    ) {
+      throw new ConflictException(
+        `Order ${id} cannot move from "${fromStatus}" to "${dto.status}"`,
+      );
+    }
+
     order.status = dto.status;
     if (dto.status === 'completed') {
       order.completedAt = new Date();
@@ -210,18 +251,175 @@ export class OrdersService {
 
     if (dto.status === 'completed') {
       await this.consumeReservationsForOrder(id, changedBy);
+      await this.freeTableForCompletedOrder(saved, changedBy);
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
+      const notification = await this.notificationsService.create({
+        outletId: saved.outletId,
+        type: 'order_cancelled',
+        priority: 'high',
+        title: `Order ${saved.orderNumber} cancelled`,
+        body: dto.cancelReason ?? null,
+        orderId: saved.id,
+        actorUserId: changedBy,
+      });
+      this.gateway.notifyNotificationCreated(notification);
     }
 
     return saved;
+  }
+
+  /**
+   * On order completion: the table session auto-closes (and the table frees)
+   * once the customer has left — i.e. when the completed order is the last
+   * active order on the session. Deliberately NOT tied to billing: a party
+   * that completes their order and walks (even with an open tab) frees the
+   * table, per the product's "close only after the customer leaves" rule.
+   */
+  private async freeTableForCompletedOrder(
+    order: Order,
+    changedBy: number,
+  ): Promise<void> {
+    if (order.tableSessionId === null) {
+      return;
+    }
+    const session = await this.tableSessionsService.findOne(
+      order.tableSessionId,
+    );
+    if (session.status !== 'active' && session.status !== 'billing') {
+      return;
+    }
+
+    const sessionOrders = await this.ordersRepository.find({
+      where: { tableSessionId: order.tableSessionId },
+    });
+    const hasOtherActiveOrder = sessionOrders.some(
+      (other) =>
+        other.id !== order.id &&
+        other.status !== 'completed' &&
+        other.status !== 'cancelled',
+    );
+    if (!hasOtherActiveOrder) {
+      await this.tableSessionsService.end(session.id, changedBy);
+    }
+  }
+
+  /**
+   * Moves every non-held 'stock_reserved' item on the order to
+   * 'sent_to_kitchen' and groups them into one KitchenTicket per department
+   * represented (items with no preparationDepartmentId share a single
+   * null-department ticket). Held items stay in the cart. If the order is
+   * still 'pending', also advances it to 'accepted'.
+   */
+  async sendToKitchen(
+    orderId: number,
+    changedBy: number,
+  ): Promise<KitchenTicket[]> {
+    const order = await this.findOne(orderId);
+    const items = await this.orderItemsRepository.find({
+      where: { orderId, status: 'stock_reserved' },
+    });
+    const eligible = items.filter((item) => !item.isHeld);
+    if (eligible.length === 0) {
+      throw new BadRequestException(
+        items.some((item) => item.isHeld)
+          ? 'Every pending item is held — fire the held items to send them'
+          : 'No items to send to kitchen',
+      );
+    }
+    return this.sendItemsToKitchen(order, eligible, changedBy);
+  }
+
+  /**
+   * "Fire Held Items": routes every held 'stock_reserved' item to the
+   * kitchen (un-holding them as they go) — the "bring drinks first" flow.
+   */
+  async fireHeldItems(
+    orderId: number,
+    changedBy: number,
+  ): Promise<KitchenTicket[]> {
+    const order = await this.findOne(orderId);
+    const held = await this.orderItemsRepository.find({
+      where: { orderId, status: 'stock_reserved', isHeld: true },
+    });
+    if (held.length === 0) {
+      throw new BadRequestException('No held items to fire');
+    }
+    for (const item of held) {
+      item.isHeld = false;
+    }
+    return this.sendItemsToKitchen(order, held, changedBy);
+  }
+
+  private async sendItemsToKitchen(
+    order: Order,
+    items: OrderItem[],
+    changedBy: number,
+  ): Promise<KitchenTicket[]> {
+    const groups = new Map<number | null, OrderItem[]>();
+    for (const item of items) {
+      const key = item.preparationDepartmentId;
+      const group = groups.get(key);
+      if (group) {
+        group.push(item);
+      } else {
+        groups.set(key, [item]);
+      }
+    }
+
+    const tickets = await this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(KitchenTicket);
+      const ticketItemRepo = manager.getRepository(KitchenTicketItem);
+      const itemRepo = manager.getRepository(OrderItem);
+
+      const createdTickets: KitchenTicket[] = [];
+      for (const [departmentId, groupItems] of groups) {
+        const ticket = await ticketRepo.save(
+          ticketRepo.create({
+            orderId: order.id,
+            outletId: order.outletId,
+            departmentId,
+            status: 'open',
+          }),
+        );
+        for (const item of groupItems) {
+          await ticketItemRepo.save(
+            ticketItemRepo.create({
+              ticketId: ticket.id,
+              orderItemId: item.id,
+              status: 'sent_to_kitchen',
+            }),
+          );
+          item.status = 'sent_to_kitchen';
+          await itemRepo.save(item);
+        }
+        createdTickets.push(ticket);
+      }
+      return createdTickets;
+    });
+
+    if (order.status === 'pending') {
+      await this.updateStatus(order.id, { status: 'accepted' }, changedBy);
+    }
+
+    this.kitchenTicketsService.notifyTicketsCreated(tickets);
+    const notification = await this.notificationsService.create({
+      outletId: order.outletId,
+      type: 'order_sent',
+      title: `Order ${order.orderNumber} sent to kitchen`,
+      orderId: order.id,
+      actorUserId: changedBy,
+      data: JSON.stringify({ ticketCount: tickets.length }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
+    return tickets;
   }
 
   // ------------------------------------------------------------ order items
 
   async listItems(
     query: ListOrderItemsQueryDto,
-  ): Promise<PaginatedResponse<OrderItem>> {
+  ): Promise<PaginatedResponse<OrderItemWithRelations>> {
     const { page, limit, orderId } = query;
     const where: FindOptionsWhere<OrderItem> = {};
     if (orderId !== undefined) {
@@ -236,7 +434,7 @@ export class OrdersService {
     });
 
     return {
-      data: items,
+      data: await this.attachItemRelations(items),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -247,6 +445,57 @@ export class OrdersService {
       throw new NotFoundException(`Order item ${id} not found`);
     }
     return item;
+  }
+
+  /**
+   * Batches addons + ingredient reservations for a page of order items into
+   * two queries (instead of the caller doing one of each per item — the
+   * classic N+1 that /order-items/:id/addons and /order-items/:id/reservations
+   * used to force on every consumer that rendered a cart/order-detail row).
+   */
+  private async attachItemRelations(
+    items: OrderItem[],
+  ): Promise<OrderItemWithRelations[]> {
+    const itemIds = items.map((item) => item.id);
+    const [addons, reservations] = itemIds.length
+      ? await Promise.all([
+          this.orderItemAddonsRepository.find({
+            where: { orderItemId: In(itemIds) },
+          }),
+          this.reservationsRepository.find({
+            where: { orderItemId: In(itemIds) },
+          }),
+        ])
+      : [[], []];
+
+    const addonsByItem = new Map<number, OrderItemAddon[]>();
+    for (const addon of addons) {
+      const group = addonsByItem.get(addon.orderItemId);
+      if (group) {
+        group.push(addon);
+      } else {
+        addonsByItem.set(addon.orderItemId, [addon]);
+      }
+    }
+
+    const reservationsByItem = new Map<
+      number,
+      OrderItemIngredientReservation[]
+    >();
+    for (const reservation of reservations) {
+      const group = reservationsByItem.get(reservation.orderItemId);
+      if (group) {
+        group.push(reservation);
+      } else {
+        reservationsByItem.set(reservation.orderItemId, [reservation]);
+      }
+    }
+
+    return items.map((item) => ({
+      ...item,
+      addons: addonsByItem.get(item.id) ?? [],
+      reservations: reservationsByItem.get(item.id) ?? [],
+    }));
   }
 
   async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
@@ -324,6 +573,19 @@ export class OrdersService {
         cancelReason: dto.cancelReason,
       }),
     });
+    if (dto.isHeld !== undefined) {
+      if (item.status !== 'stock_reserved') {
+        throw new BadRequestException(
+          'Only items that have not been sent to the kitchen can be held or fired',
+        );
+      }
+      if (dto.status !== undefined) {
+        throw new BadRequestException(
+          'Cannot change an item status and its held flag in the same request',
+        );
+      }
+      item.isHeld = dto.isHeld;
+    }
     const saved = await this.orderItemsRepository.save(item);
 
     await this.recalculateTotals(item.orderId);

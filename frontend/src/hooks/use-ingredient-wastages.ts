@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -35,6 +35,7 @@ export function useIngredientWastages(params: ListIngredientWastagesParams = {})
   return useQuery({
     queryKey: queryKeys.ingredientWastages.list(params),
     queryFn: () => apiClient<PaginatedResponse<IngredientWastage>>(`/ingredient-wastages${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
   })
 }
 

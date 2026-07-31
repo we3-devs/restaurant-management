@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -48,6 +48,7 @@ export function useWarehouseIngredientStocks(params: ListWarehouseIngredientStoc
     queryFn: () =>
       apiClient<PaginatedResponse<WarehouseIngredientStock>>(`/warehouse-ingredient-stocks${toQueryString(params)}`),
     enabled: params.ingredientId !== undefined || params.warehouseId !== undefined,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -57,5 +58,6 @@ export function useInventoryTransactions(params: ListInventoryTransactionsParams
     queryFn: () =>
       apiClient<PaginatedResponse<InventoryTransaction>>(`/inventory-transactions${toQueryString(params)}`),
     enabled: params.ingredientId !== undefined || params.warehouseId !== undefined,
+    placeholderData: keepPreviousData,
   })
 }

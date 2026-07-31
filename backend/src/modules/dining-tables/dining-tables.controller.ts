@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { DiningTablesService } from './dining-tables.service';
 import { CreateDiningTableDto } from './dto/create-dining-table.dto';
@@ -23,6 +24,24 @@ import { UpdateDiningTableDto } from './dto/update-dining-table.dto';
 @Controller('dining-tables')
 export class DiningTablesController {
   constructor(private readonly diningTablesService: DiningTablesService) {}
+
+  @Get('lookup')
+  @Public()
+  @ApiOperation({
+    summary:
+      'Resolves a table by its code for the guest QR service page (no auth) — returns only the fields guests need',
+  })
+  async findByCode(@Query('code') code: string) {
+    const table = await this.diningTablesService.findByCode(code);
+    // Trim to a minimal public shape — the full entity carries layout/status
+    // internals that a guest endpoint should not expose.
+    return {
+      id: table.id,
+      outletId: table.outletId,
+      name: table.name,
+      code: table.code,
+    };
+  }
 
   @Get()
   @RequirePermissions('dining-tables.view')

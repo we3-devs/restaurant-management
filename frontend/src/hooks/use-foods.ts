@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -67,6 +67,7 @@ export function useFoods(params: ListFoodsParams = {}) {
   return useQuery({
     queryKey: queryKeys.foods.list(params),
     queryFn: () => apiClient<PaginatedResponse<Food>>(`/foods${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
   })
 }
 

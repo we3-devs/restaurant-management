@@ -13,6 +13,10 @@ import type { OutletDepartmentType } from '../entities/outlet-department.entity'
 const OUTLET_DEPARTMENT_TYPES: OutletDepartmentType[] = [
   'kitchen',
   'bar',
+  'grill',
+  'pizza',
+  'dessert',
+  'drinks',
   'counter',
   'store',
   'bakery',

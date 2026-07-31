@@ -4,9 +4,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type Redis from 'ioredis';
+import { randomUUID } from 'node:crypto';
+import { REDIS_CLIENT } from '../../redis/redis.module';
+import { KDS_WS_TICKET_PREFIX } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
@@ -17,12 +22,15 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { PermissionsService } from './permissions.service';
 import { User } from '../users/entities/user.entity';
 
+const WS_TICKET_TTL_SECONDS = 30;
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly permissionsService: PermissionsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   @Public()
@@ -68,6 +76,24 @@ export class AuthController {
       user.id,
     );
     return { ...this.toAuthUser(user), permissions: Array.from(permissions) };
+  }
+
+  @Post('ws-ticket')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Mints a short-lived, one-time ticket used to authenticate a WebSocket connection (browsers only ever hold an httpOnly auth cookie, never the JWT itself)',
+  })
+  async issueWsTicket(@CurrentUser() user: User): Promise<{ ticket: string }> {
+    const ticket = randomUUID();
+    await this.redis.set(
+      `${KDS_WS_TICKET_PREFIX}${ticket}`,
+      JSON.stringify({ userId: user.id, isSuperadmin: user.isSuperadmin }),
+      'EX',
+      WS_TICKET_TTL_SECONDS,
+    );
+    return { ticket };
   }
 
   @Get('admin-check')

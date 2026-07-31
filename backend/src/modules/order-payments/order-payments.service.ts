@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { ListOrderPaymentsQueryDto } from './dto/list-order-payments-query.dto';
@@ -13,6 +15,8 @@ export class OrderPaymentsService {
     @InjectRepository(OrderPayment)
     private readonly orderPaymentsRepository: Repository<OrderPayment>,
     private readonly ordersService: OrdersService,
+    private readonly notificationsService: NotificationsService,
+    private readonly gateway: KitchenTicketsGateway,
   ) {}
 
   async findAll(
@@ -71,6 +75,19 @@ export class OrderPaymentsService {
     const saved = await this.orderPaymentsRepository.save(payment);
 
     await this.ordersService.recalculatePayments(orderId);
+
+    if (saved.status === 'completed' && saved.type === 'payment') {
+      const notification = await this.notificationsService.create({
+        outletId: order.outletId,
+        type: 'payment_received',
+        title: `Payment received — ${order.orderNumber}`,
+        body: `${saved.method} · ${saved.amount}`,
+        orderId,
+        actorUserId: receivedBy,
+        data: JSON.stringify({ paymentId: saved.id }),
+      });
+      this.gateway.notifyNotificationCreated(notification);
+    }
 
     return saved;
   }
