@@ -14,6 +14,16 @@ export type ReportType =
   | "reservations"
   | "customers"
   | "payments"
+  | "suppliers"
+  | "purchase-orders"
+  | "goods-receiving"
+  | "purchase-returns"
+  | "supplier-payments"
+  | "employees"
+  | "attendance"
+  | "shifts"
+  | "staff-performance"
+  | "payroll-export"
 
 export interface ReportColumn {
   key: string

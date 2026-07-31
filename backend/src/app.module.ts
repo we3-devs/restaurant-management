@@ -9,10 +9,15 @@ import configuration, { AppConfig } from './config/configuration';
 import { validate } from './config/env.validation';
 import { AddonGroupsModule } from './modules/addon-groups/addon-groups.module';
 import { AddonsModule } from './modules/addons/addons.module';
+import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module';
+import { BusinessOperationsModule } from './modules/business-operations/business-operations.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { GoodsReceivingModule } from './modules/goods-receiving/goods-receiving.module';
 import { DemoModule } from './modules/demo/demo.module';
 import { DiningAreasModule } from './modules/dining-areas/dining-areas.module';
 import { DiningTablesModule } from './modules/dining-tables/dining-tables.module';
@@ -29,16 +34,21 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { OrderPaymentsModule } from './modules/order-payments/order-payments.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OutletDepartmentsModule } from './modules/outlet-departments/outlet-departments.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
+import { PurchaseReturnsModule } from './modules/purchase-returns/purchase-returns.module';
 import { OutletsModule } from './modules/outlets/outlets.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
 import { StockCountsModule } from './modules/stock-counts/stock-counts.module';
 import { StockInsModule } from './modules/stock-ins/stock-ins.module';
 import { StockOutsModule } from './modules/stock-outs/stock-outs.module';
 import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
+import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TableSessionsModule } from './modules/table-sessions/table-sessions.module';
 import { UnitsModule } from './modules/units/units.module';
 import { UsersModule } from './modules/users/users.module';
@@ -107,6 +117,16 @@ import { RedisModule } from './redis/redis.module';
     KitchenTicketsModule,
     NotificationsModule,
     ServiceRequestsModule,
+    SuppliersModule,
+    PurchaseOrdersModule,
+    GoodsReceivingModule,
+    PurchaseReturnsModule,
+    SupplierPaymentsModule,
+    EmployeesModule,
+    ShiftsModule,
+    AttendanceModule,
+    AssignmentsModule,
+    BusinessOperationsModule,
     UnitsModule,
     IngredientCategoriesModule,
     IngredientsModule,

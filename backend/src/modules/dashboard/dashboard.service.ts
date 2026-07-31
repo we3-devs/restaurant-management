@@ -52,6 +52,43 @@ export interface DashboardSummary {
     revenue: number;
   }[];
   recentActivity: Awaited<ReturnType<NotificationsService['findAll']>>['data'];
+  supplierSummary: {
+    activeCount: number;
+    totalOutstanding: number;
+    overCreditLimitCount: number;
+    topSuppliers: {
+      supplierId: number;
+      companyName: string;
+      outstandingBalance: number;
+    }[];
+  };
+  purchaseSummary: {
+    pendingApproval: number;
+    approved: number;
+    awaitingDelivery: number;
+    recentPurchases: {
+      poId: number;
+      poNo: string;
+      grandTotal: number;
+      status: string;
+      createdAt: string;
+    }[];
+    purchaseTrend: { date: string; count: number; totalValue: number }[];
+  };
+  receivingSummary: {
+    todayCount: number;
+  };
+  employeeSummary: {
+    totalActive: number;
+    onLeaveOrInactive: number;
+  };
+  attendanceSummary: {
+    presentToday: number;
+    absentToday: number;
+    lateToday: number;
+    onShiftNow: number;
+  };
+  staffOnDuty: { employeeId: number; employeeName: string; clockIn: string }[];
 }
 
 @Injectable()
@@ -98,6 +135,22 @@ export class DashboardService {
           this.getRecentActivity(range),
         ]);
 
+        const [
+          supplierSummary,
+          purchaseSummary,
+          receivingSummary,
+          employeeSummary,
+          attendanceSummary,
+          staffOnDuty,
+        ] = await Promise.all([
+          this.getSupplierSummary(range),
+          this.getPurchaseSummary(range),
+          this.getReceivingSummary(range),
+          this.getEmployeeSummary(range),
+          this.getAttendanceSummary(range),
+          this.getStaffOnDuty(range),
+        ]);
+
         return {
           salesOverview,
           revenueTrend,
@@ -110,6 +163,12 @@ export class DashboardService {
           paymentBreakdown,
           bestSellingFoods,
           recentActivity,
+          supplierSummary,
+          purchaseSummary,
+          receivingSummary,
+          employeeSummary,
+          attendanceSummary,
+          staffOnDuty,
         };
       },
       CACHE_TTL_MS,
@@ -430,6 +489,244 @@ export class DashboardService {
       foodName: row.foodName,
       quantitySold: Number(row.quantitySold),
       revenue: Number(row.revenue),
+    }));
+  }
+
+  private async getSupplierSummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['supplierSummary']> {
+    const baseQb = () => {
+      const qb = this.ordersRepository.manager
+        .createQueryBuilder()
+        .from('suppliers', 'supplier')
+        .where("supplier.status = 'active'");
+      if (range.outletId !== undefined) {
+        qb.andWhere('supplier.outlet_id = :outletId', {
+          outletId: range.outletId,
+        });
+      }
+      return qb;
+    };
+
+    const [activeCount, totals, overLimit, topSuppliers] = await Promise.all([
+      baseQb().getCount(),
+      baseQb()
+        .select(
+          'COALESCE(SUM(supplier.outstanding_balance), 0)',
+          'totalOutstanding',
+        )
+        .getRawOne<{ totalOutstanding: string }>(),
+      baseQb()
+        .andWhere('supplier.credit_limit > 0')
+        .andWhere('supplier.outstanding_balance > supplier.credit_limit')
+        .getCount(),
+      baseQb()
+        .select('supplier.id', 'supplierId')
+        .addSelect('supplier.company_name', 'companyName')
+        .addSelect('supplier.outstanding_balance', 'outstandingBalance')
+        .orderBy('supplier.outstanding_balance', 'DESC')
+        .limit(5)
+        .getRawMany<{
+          supplierId: number;
+          companyName: string;
+          outstandingBalance: string;
+        }>(),
+    ]);
+
+    return {
+      activeCount,
+      totalOutstanding: Number(totals?.totalOutstanding ?? 0),
+      overCreditLimitCount: overLimit,
+      topSuppliers: topSuppliers.map((row) => ({
+        supplierId: Number(row.supplierId),
+        companyName: row.companyName,
+        outstandingBalance: Number(row.outstandingBalance),
+      })),
+    };
+  }
+
+  private async getPurchaseSummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['purchaseSummary']> {
+    const baseQb = () => {
+      const qb = this.ordersRepository.manager
+        .createQueryBuilder()
+        .from('purchase_orders', 'po');
+      if (range.outletId !== undefined) {
+        qb.andWhere('po.outlet_id = :outletId', { outletId: range.outletId });
+      }
+      return qb;
+    };
+
+    const [pendingApproval, approved, awaitingDelivery, recentRows, trendRows] =
+      await Promise.all([
+        baseQb().andWhere("po.status = 'pending_approval'").getCount(),
+        baseQb().andWhere("po.status = 'approved'").getCount(),
+        baseQb()
+          .andWhere("po.status IN ('approved', 'partially_received')")
+          .getCount(),
+        baseQb()
+          .select('po.id', 'poId')
+          .addSelect('po.po_no', 'poNo')
+          .addSelect('po.grand_total', 'grandTotal')
+          .addSelect('po.status', 'status')
+          .addSelect('po.created_at', 'createdAt')
+          .orderBy('po.created_at', 'DESC')
+          .limit(10)
+          .getRawMany<{
+            poId: number;
+            poNo: string;
+            grandTotal: string;
+            status: string;
+            createdAt: string;
+          }>(),
+        baseQb()
+          .select("TO_CHAR(po.created_at, 'YYYY-MM-DD')", 'date')
+          .addSelect('COUNT(*)', 'count')
+          .addSelect('COALESCE(SUM(po.grand_total), 0)', 'totalValue')
+          .andWhere('po.created_at BETWEEN :from AND :to', {
+            from: range.from,
+            to: range.to,
+          })
+          .groupBy('date')
+          .orderBy('date', 'ASC')
+          .getRawMany<{ date: string; count: string; totalValue: string }>(),
+      ]);
+
+    return {
+      pendingApproval,
+      approved,
+      awaitingDelivery,
+      recentPurchases: recentRows.map((row) => ({
+        poId: Number(row.poId),
+        poNo: row.poNo,
+        grandTotal: Number(row.grandTotal),
+        status: row.status,
+        createdAt: row.createdAt,
+      })),
+      purchaseTrend: trendRows.map((row) => ({
+        date: row.date,
+        count: Number(row.count),
+        totalValue: Number(row.totalValue),
+      })),
+    };
+  }
+
+  private async getReceivingSummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['receivingSummary']> {
+    const today = new Date().toISOString().slice(0, 10);
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('COUNT(*)', 'count')
+      .from('goods_receivings', 'grn')
+      .where('grn.received_date = :today', { today });
+    if (range.outletId !== undefined) {
+      qb.andWhere('grn.outlet_id = :outletId', { outletId: range.outletId });
+    }
+    const row = await qb.getRawOne<{ count: string }>();
+    return { todayCount: Number(row?.count ?? 0) };
+  }
+
+  private async getEmployeeSummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['employeeSummary']> {
+    const baseQb = () => {
+      const qb = this.ordersRepository.manager
+        .createQueryBuilder()
+        .from('employees', 'employee');
+      if (range.outletId !== undefined) {
+        qb.andWhere('employee.outlet_id = :outletId', {
+          outletId: range.outletId,
+        });
+      }
+      return qb;
+    };
+    const [totalActive, onLeaveOrInactive] = await Promise.all([
+      baseQb().andWhere("employee.employment_status = 'active'").getCount(),
+      baseQb().andWhere("employee.employment_status != 'active'").getCount(),
+    ]);
+    return { totalActive, onLeaveOrInactive };
+  }
+
+  private async getAttendanceSummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['attendanceSummary']> {
+    const today = new Date();
+    const start = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+    const end = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 1,
+    );
+
+    const baseQb = () => {
+      const qb = this.ordersRepository.manager
+        .createQueryBuilder()
+        .from('attendance', 'attendance')
+        .where('attendance.clock_in >= :start', { start })
+        .andWhere('attendance.clock_in < :end', { end });
+      if (range.outletId !== undefined) {
+        qb.andWhere('attendance.outlet_id = :outletId', {
+          outletId: range.outletId,
+        });
+      }
+      return qb;
+    };
+
+    const [presentToday, lateToday, onShiftNow, totalEmployees] =
+      await Promise.all([
+        baseQb()
+          .andWhere("attendance.status IN ('present', 'late')")
+          .getCount(),
+        baseQb().andWhere('attendance.is_late = true').getCount(),
+        baseQb().andWhere('attendance.clock_out IS NULL').getCount(),
+        this.getEmployeeSummary(range).then((s) => s.totalActive),
+      ]);
+
+    return {
+      presentToday,
+      absentToday: Math.max(0, totalEmployees - presentToday),
+      lateToday,
+      onShiftNow,
+    };
+  }
+
+  private async getStaffOnDuty(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['staffOnDuty']> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('attendance.employee_id', 'employeeId')
+      .addSelect('employee.name', 'employeeName')
+      .addSelect('attendance.clock_in', 'clockIn')
+      .from('attendance', 'attendance')
+      .innerJoin(
+        'employees',
+        'employee',
+        'employee.id = attendance.employee_id',
+      )
+      .where('attendance.clock_out IS NULL')
+      .orderBy('attendance.clock_in', 'DESC')
+      .limit(20);
+    if (range.outletId !== undefined) {
+      qb.andWhere('attendance.outlet_id = :outletId', {
+        outletId: range.outletId,
+      });
+    }
+    const rows = await qb.getRawMany<{
+      employeeId: number;
+      employeeName: string;
+      clockIn: string;
+    }>();
+    return rows.map((row) => ({
+      employeeId: Number(row.employeeId),
+      employeeName: row.employeeName,
+      clockIn: row.clockIn,
     }));
   }
 

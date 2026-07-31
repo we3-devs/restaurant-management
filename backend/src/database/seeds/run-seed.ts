@@ -444,6 +444,69 @@ async function run() {
     'reservations',
     'Reservations',
   );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'suppliers',
+    'Suppliers',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'purchase-orders',
+    'Purchase Orders',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'goods-receiving',
+    'Goods Receiving',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'purchase-returns',
+    'Purchase Returns',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'supplier-payments',
+    'Supplier Payments',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'employees',
+    'Employees',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'shifts',
+    'Shifts',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'attendance',
+    'Attendance',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'staff-reports',
+    'Staff Reports',
+  );
   const dashboardViewPermission = await upsertPermission(
     permissionRepo,
     'dashboard.view',

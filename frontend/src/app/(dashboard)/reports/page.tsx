@@ -26,6 +26,16 @@ const REPORT_TABS: { value: ReportType; label: string }[] = [
   { value: "reservations", label: "Reservations" },
   { value: "customers", label: "Customers" },
   { value: "payments", label: "Payments" },
+  { value: "suppliers", label: "Suppliers" },
+  { value: "purchase-orders", label: "Purchase Orders" },
+  { value: "goods-receiving", label: "Goods Receiving" },
+  { value: "purchase-returns", label: "Purchase Returns" },
+  { value: "supplier-payments", label: "Supplier Payments" },
+  { value: "employees", label: "Employees" },
+  { value: "attendance", label: "Attendance" },
+  { value: "shifts", label: "Shifts" },
+  { value: "staff-performance", label: "Staff Performance" },
+  { value: "payroll-export", label: "Payroll Export" },
 ]
 
 const PAGE_SIZE = 15

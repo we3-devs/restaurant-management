@@ -89,6 +89,36 @@ export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
       show: has("stock-adjustments.view"),
     },
     { href: "/stock-counts", label: "Stock Counts", show: has("stock-counts.view") },
+    { href: "/suppliers", label: "Suppliers", show: has("suppliers.view") },
+    {
+      href: "/purchase-orders",
+      label: "Purchase Orders",
+      show: has("purchase-orders.view"),
+    },
+    {
+      href: "/goods-receiving",
+      label: "Goods Receiving",
+      show: has("goods-receiving.view"),
+    },
+    {
+      href: "/purchase-returns",
+      label: "Purchase Returns",
+      show: has("purchase-returns.view"),
+    },
+    {
+      href: "/supplier-payments",
+      label: "Supplier Payments",
+      show: has("supplier-payments.view"),
+    },
+    { href: "/employees", label: "Employees", show: has("employees.view") },
+    { href: "/positions", label: "Positions", show: has("employees.view") },
+    { href: "/shifts", label: "Shifts", show: has("shifts.view") },
+    { href: "/attendance", label: "Attendance", show: has("attendance.view") },
+    {
+      href: "/staff-dashboard",
+      label: "Staff Dashboard",
+      show: has("employees.view"),
+    },
   ].filter((link) => link.show)
 
   return (

@@ -16,6 +16,16 @@ export const NOTIFICATION_TYPES = [
   "service_request",
   "report_generated",
   "user_created",
+  "purchase_order_approved",
+  "purchase_order_rejected",
+  "goods_received",
+  "purchase_return",
+  "supplier_payment_recorded",
+  "low_supplier_credit",
+  "employee_clock_in",
+  "employee_late",
+  "shift_started",
+  "shift_ended",
   "system",
 ] as const
 
@@ -30,6 +40,15 @@ export const NOTIFICATION_CATEGORY_GROUPS: Record<string, NotificationType[]> = 
   Payments: ["payment_received"],
   Reservations: ["reservation_created", "reservation_cancelled", "reservation_reminder"],
   Inventory: ["low_stock", "out_of_stock", "stock_adjustment"],
+  Procurement: [
+    "purchase_order_approved",
+    "purchase_order_rejected",
+    "goods_received",
+    "purchase_return",
+    "supplier_payment_recorded",
+    "low_supplier_credit",
+  ],
+  Staff: ["employee_clock_in", "employee_late", "shift_started", "shift_ended"],
   System: ["service_request", "report_generated", "user_created", "system"],
 }
 
@@ -54,5 +73,15 @@ export const NOTIFICATION_TOAST_VARIANT: Record<NotificationType, "success" | "e
   service_request: "info",
   report_generated: "info",
   user_created: "info",
+  purchase_order_approved: "success",
+  purchase_order_rejected: "error",
+  goods_received: "success",
+  purchase_return: "warning",
+  supplier_payment_recorded: "success",
+  low_supplier_credit: "warning",
+  employee_clock_in: "info",
+  employee_late: "warning",
+  shift_started: "info",
+  shift_ended: "info",
   system: "info",
 }

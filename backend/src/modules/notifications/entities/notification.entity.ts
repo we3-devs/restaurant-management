@@ -34,6 +34,16 @@ export type NotificationType =
   | 'service_request'
   | 'report_generated'
   | 'user_created'
+  | 'purchase_order_approved'
+  | 'purchase_order_rejected'
+  | 'goods_received'
+  | 'purchase_return'
+  | 'supplier_payment_recorded'
+  | 'low_supplier_credit'
+  | 'employee_clock_in'
+  | 'employee_late'
+  | 'shift_started'
+  | 'shift_ended'
   | 'system';
 
 export type NotificationPriority = 'normal' | 'high' | 'urgent';
