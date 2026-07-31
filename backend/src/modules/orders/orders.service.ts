@@ -8,6 +8,7 @@ import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { AddonsService } from '../addons/addons.service';
+import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { FoodVariantsService } from '../food-variants/food-variants.service';
 import { FoodsService } from '../foods/foods.service';
@@ -16,6 +17,7 @@ import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-i
 import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
+import { ReservationsService } from '../reservations/reservations.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { UnitsService } from '../units/units.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
@@ -62,6 +64,8 @@ export class OrdersService {
     private readonly reservationsRepository: Repository<OrderItemIngredientReservation>,
     private readonly outletsService: OutletsService,
     private readonly tableSessionsService: TableSessionsService,
+    private readonly customersService: CustomersService,
+    private readonly reservationsService: ReservationsService,
     private readonly diningTablesService: DiningTablesService,
     private readonly foodsService: FoodsService,
     private readonly foodVariantsService: FoodVariantsService,
@@ -123,10 +127,25 @@ export class OrdersService {
         );
       }
     }
+    if (dto.customerId !== undefined) {
+      await this.customersService.findOne(dto.customerId);
+    }
+    if (dto.reservationId !== undefined) {
+      const reservation = await this.reservationsService.findOne(
+        dto.reservationId,
+      );
+      if (reservation.outletId !== dto.outletId) {
+        throw new BadRequestException(
+          `Reservation ${dto.reservationId} does not belong to outlet ${dto.outletId}`,
+        );
+      }
+    }
 
     const order = this.ordersRepository.create({
       outletId: dto.outletId,
       tableSessionId: dto.tableSessionId ?? null,
+      customerId: dto.customerId ?? null,
+      reservationId: dto.reservationId ?? null,
       orderType: dto.orderType ?? 'dine_in',
       note: dto.note ?? null,
       orderNumber: this.generateOrderNumber(dto.outletId),

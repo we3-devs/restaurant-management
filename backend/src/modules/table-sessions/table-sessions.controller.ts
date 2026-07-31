@@ -13,6 +13,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { User } from '../users/entities/user.entity';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
 import { ListTableSessionsQueryDto } from './dto/list-table-sessions-query.dto';
+import { TransferTableSessionDto } from './dto/transfer-table-session.dto';
 import { TableSessionsService } from './table-sessions.service';
 
 @ApiTags('table-sessions')
@@ -54,5 +55,19 @@ export class TableSessionsController {
   })
   end(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.tableSessionsService.end(id, user.id);
+  }
+
+  @Post(':id/transfer')
+  @RequirePermissions('table-sessions.manage')
+  @ApiOperation({
+    summary:
+      'Moves an in-progress session to a different table (same outlet, destination must be free)',
+  })
+  transfer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransferTableSessionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.tableSessionsService.transfer(id, dto, user.id);
   }
 }

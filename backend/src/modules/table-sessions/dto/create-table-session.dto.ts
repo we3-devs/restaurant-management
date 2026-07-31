@@ -28,4 +28,14 @@ export class CreateTableSessionDto {
   @IsOptional()
   @IsIn(TABLE_SESSION_SOURCES)
   source?: TableSessionSource = 'staff';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  customerId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  reservationId?: number;
 }

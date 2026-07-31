@@ -10,6 +10,7 @@ import { validate } from './config/env.validation';
 import { AddonGroupsModule } from './modules/addon-groups/addon-groups.module';
 import { AddonsModule } from './modules/addons/addons.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CustomersModule } from './modules/customers/customers.module';
 import { DemoModule } from './modules/demo/demo.module';
 import { DiningAreasModule } from './modules/dining-areas/dining-areas.module';
 import { DiningTablesModule } from './modules/dining-tables/dining-tables.module';
@@ -25,6 +26,7 @@ import { OrderPaymentsModule } from './modules/order-payments/order-payments.mod
 import { OrdersModule } from './modules/orders/orders.module';
 import { OutletDepartmentsModule } from './modules/outlet-departments/outlet-departments.module';
 import { OutletsModule } from './modules/outlets/outlets.module';
+import { ReservationsModule } from './modules/reservations/reservations.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
 import { StockCountsModule } from './modules/stock-counts/stock-counts.module';
@@ -91,6 +93,8 @@ import { RedisModule } from './redis/redis.module';
     AddonsModule,
     DiningAreasModule,
     DiningTablesModule,
+    CustomersModule,
+    ReservationsModule,
     TableSessionsModule,
     OrdersModule,
     OrderPaymentsModule,

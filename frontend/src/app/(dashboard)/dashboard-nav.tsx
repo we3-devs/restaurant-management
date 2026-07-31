@@ -52,6 +52,12 @@ export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
       show: has("table-sessions.view"),
     },
     { href: "/orders", label: "Orders", show: has("orders.view") },
+    { href: "/customers", label: "Customers", show: has("customers.view") },
+    {
+      href: "/reservations",
+      label: "Reservations",
+      show: has("reservations.view"),
+    },
     { href: "/units", label: "Units", show: has("units.view") },
     {
       href: "/ingredient-categories",

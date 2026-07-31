@@ -8,8 +8,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
+import { Customer } from '../../customers/entities/customer.entity';
 import { DiningTable } from '../../dining-tables/entities/dining-table.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
+import { Reservation } from '../../reservations/entities/reservation.entity';
 import { User } from '../../users/entities/user.entity';
 
 export type TableSessionSource =
@@ -48,9 +50,6 @@ export class TableSession {
   @JoinColumn({ name: 'dining_table_id' })
   diningTable: DiningTable;
 
-  // reservationId/customerId map columns that exist in the schema but have no
-  // entity yet (Reservations/Customers domains aren't built) — left nullable
-  // and unset by the app this phase.
   @Column({
     name: 'reservation_id',
     type: 'bigint',
@@ -59,6 +58,10 @@ export class TableSession {
   })
   reservationId: number | null;
 
+  @ManyToOne(() => Reservation, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reservation_id' })
+  reservation: Reservation | null;
+
   @Column({
     name: 'customer_id',
     type: 'bigint',
@@ -66,6 +69,10 @@ export class TableSession {
     nullable: true,
   })
   customerId: number | null;
+
+  @ManyToOne(() => Customer, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer | null;
 
   @Column({ name: 'guest_count', type: 'int', default: 1 })
   guestCount: number;
@@ -108,6 +115,21 @@ export class TableSession {
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'ended_by' })
   endedByUser: User | null;
+
+  @Column({
+    name: 'transferred_by',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+    nullable: true,
+  })
+  transferredBy: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'transferred_by' })
+  transferredByUser: User | null;
+
+  @Column({ name: 'transferred_at', type: 'timestamp', nullable: true })
+  transferredAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

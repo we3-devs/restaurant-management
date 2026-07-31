@@ -430,6 +430,20 @@ async function run() {
     role.id,
     inventoryStockViewPermission.id,
   );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'customers',
+    'Customers',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'reservations',
+    'Reservations',
+  );
 
   const user = await upsertUser(
     userRepo,

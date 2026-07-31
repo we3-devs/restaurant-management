@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
@@ -29,6 +29,7 @@ export function useRoles(params: ListRolesParams = {}) {
   return useQuery({
     queryKey: queryKeys.roles.list(params),
     queryFn: () => apiClient<PaginatedResponse<Role>>(`/roles${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -23,7 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,17 +35,10 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DataTablePagination } from "@/components/data-table-pagination"
-import { useDeactivateUser, useUsers, type User } from "@/hooks/use-users"
-import { CreateUserDialog } from "./create-user-dialog"
+import { useDeleteCustomer, useCustomers, type Customer } from "@/hooks/use-customers"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 
 const PAGE_SIZE = 10
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  const first = parts[0]?.[0] ?? ""
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : ""
-  return (first + last).toUpperCase() || "?"
-}
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -57,61 +49,47 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced
 }
 
-export default function UsersPage() {
+export default function CustomersPage() {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebouncedValue(search, 300)
   const [page, setPage] = useState(1)
   const [sorting, setSorting] = useState<SortingState>([])
-  const [deactivateTarget, setDeactivateTarget] = useState<User | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
 
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch])
 
-  const { data, isLoading, isPlaceholderData } = useUsers({
+  const { data, isLoading, isPlaceholderData } = useCustomers({
     page,
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
   })
-  const deactivateUser = useDeactivateUser(deactivateTarget?.id ?? 0)
+  const deleteCustomer = useDeleteCustomer()
 
-  const columns = useMemo<ColumnDef<User>[]>(
+  const columns = useMemo<ColumnDef<Customer>[]>(
     () => [
       {
         accessorKey: "name",
         header: "Name",
         cell: ({ row }) => (
-          <div className="flex items-center gap-2.5">
-            <Avatar size="sm">
-              <AvatarFallback>{initials(row.original.name)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium">{row.original.name}</p>
-              <p className="text-xs text-muted-foreground">{row.original.email}</p>
-            </div>
+          <div>
+            <p className="font-medium">{row.original.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.original.email ?? row.original.phone ?? "—"}
+            </p>
           </div>
         ),
       },
+      { accessorKey: "phone", header: "Phone" },
       {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <div className="flex gap-1">
-            {row.original.isSuperadmin && <Badge>superadmin</Badge>}
-            <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
-              {row.original.isActive ? "active" : "inactive"}
-            </Badge>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "createdAt",
-        header: "Joined",
-        cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleDateString()}
-          </span>
+          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+            {row.original.isActive ? "active" : "inactive"}
+          </Badge>
         ),
       },
       {
@@ -128,17 +106,12 @@ export default function UsersPage() {
                 }
               />
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push(`/users/${row.original.id}`)}>
+                <DropdownMenuItem onClick={() => router.push(`/customers/${row.original.id}`)}>
                   View details
                 </DropdownMenuItem>
-                {row.original.isActive && (
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => setDeactivateTarget(row.original)}
-                  >
-                    Deactivate
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(row.original)}>
+                  Delete
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -157,14 +130,14 @@ export default function UsersPage() {
     getSortedRowModel: getSortedRowModel(),
   })
 
-  async function handleDeactivate() {
-    if (!deactivateTarget) return
+  async function handleDelete() {
+    if (!deleteTarget) return
     try {
-      await deactivateUser.mutateAsync()
-      toast.success(`"${deactivateTarget.name}" deactivated`)
-      setDeactivateTarget(null)
+      await deleteCustomer.mutateAsync(deleteTarget.id)
+      toast.success(`"${deleteTarget.name}" deleted`)
+      setDeleteTarget(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to deactivate user")
+      toast.error(error instanceof Error ? error.message : "Failed to delete customer")
     }
   }
 
@@ -173,8 +146,8 @@ export default function UsersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Users</h1>
-        <CreateUserDialog />
+        <h1 className="text-lg font-semibold">Customers</h1>
+        <CreateCustomerDialog />
       </div>
 
       <div className="relative w-72">
@@ -182,7 +155,7 @@ export default function UsersPage() {
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or email..."
+          placeholder="Search by name, phone, or email..."
           className="pl-8"
         />
       </div>
@@ -192,9 +165,9 @@ export default function UsersPage() {
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <UsersIcon className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">No users found</p>
+          <p className="text-sm font-medium">No customers found</p>
           <p className="text-sm text-muted-foreground">
-            {debouncedSearch ? "Try a different search." : "Create your first user to get started."}
+            {debouncedSearch ? "Try a different search." : "Create your first customer to get started."}
           </p>
         </div>
       ) : (
@@ -231,7 +204,7 @@ export default function UsersPage() {
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/users/${row.original.id}`)}
+                  onClick={() => router.push(`/customers/${row.original.id}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
@@ -252,19 +225,16 @@ export default function UsersPage() {
         />
       )}
 
-      <AlertDialog open={deactivateTarget !== null} onOpenChange={(open) => !open && setDeactivateTarget(null)}>
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate &quot;{deactivateTarget?.name}&quot;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Revokes all of their role assignments. They can still log in but will have no access until
-              reassigned a role.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Delete &quot;{deleteTarget?.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={handleDeactivate}>
-              Deactivate
+            <AlertDialogAction variant="destructive" onClick={handleDelete}>
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

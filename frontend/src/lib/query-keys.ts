@@ -20,6 +20,20 @@ export const queryKeys = {
     all: ["permissions"] as const,
     list: () => [...queryKeys.permissions.all, "list"] as const,
   },
+  customers: {
+    all: ["customers"] as const,
+    lists: () => [...queryKeys.customers.all, "list"] as const,
+    list: (params?: unknown) => [...queryKeys.customers.lists(), params] as const,
+    detail: (id: number) => [...queryKeys.customers.all, "detail", id] as const,
+    outlets: (id: number) => [...queryKeys.customers.all, "outlets", id] as const,
+  },
+  reservations: {
+    all: ["reservations"] as const,
+    lists: () => [...queryKeys.reservations.all, "list"] as const,
+    list: (params?: unknown) => [...queryKeys.reservations.lists(), params] as const,
+    detail: (id: number) => [...queryKeys.reservations.all, "detail", id] as const,
+    tables: (id: number) => [...queryKeys.reservations.all, "tables", id] as const,
+  },
   outlets: {
     all: ["outlets"] as const,
     lists: () => [...queryKeys.outlets.all, "list"] as const,

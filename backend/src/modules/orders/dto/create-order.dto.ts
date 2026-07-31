@@ -14,6 +14,16 @@ export class CreateOrderDto {
   @IsInt()
   tableSessionId?: number;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  customerId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  reservationId?: number;
+
   @ApiPropertyOptional({ enum: ORDER_TYPES, default: 'dine_in' })
   @IsOptional()
   @IsIn(ORDER_TYPES)

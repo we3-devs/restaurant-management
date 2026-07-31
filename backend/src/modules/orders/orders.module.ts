@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonsModule } from '../addons/addons.module';
+import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { FoodVariantsModule } from '../food-variants/food-variants.module';
 import { FoodsModule } from '../foods/foods.module';
@@ -9,6 +10,7 @@ import { InventoryStockModule } from '../inventory-stock/inventory-stock.module'
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
 import { OutletDepartmentsModule } from '../outlet-departments/outlet-departments.module';
 import { OutletsModule } from '../outlets/outlets.module';
+import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { UnitsModule } from '../units/units.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
@@ -39,6 +41,8 @@ import { OrdersService } from './orders.service';
     ]),
     OutletsModule,
     TableSessionsModule,
+    CustomersModule,
+    ReservationsModule,
     DiningTablesModule,
     FoodsModule,
     FoodVariantsModule,

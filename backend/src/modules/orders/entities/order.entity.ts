@@ -9,7 +9,9 @@ import {
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
+import { Customer } from '../../customers/entities/customer.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
+import { Reservation } from '../../reservations/entities/reservation.entity';
 import { TableSession } from '../../table-sessions/entities/table-session.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -60,8 +62,6 @@ export class Order {
   @JoinColumn({ name: 'outlet_id' })
   outlet: Outlet;
 
-  // reservation_id/customer_id map columns with no entity yet (Reservations/
-  // Customers domains aren't built) — left nullable and unset by the app.
   @Column({
     name: 'reservation_id',
     type: 'bigint',
@@ -70,6 +70,10 @@ export class Order {
   })
   reservationId: number | null;
 
+  @ManyToOne(() => Reservation, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reservation_id' })
+  reservation: Reservation | null;
+
   @Column({
     name: 'customer_id',
     type: 'bigint',
@@ -77,6 +81,10 @@ export class Order {
     nullable: true,
   })
   customerId: number | null;
+
+  @ManyToOne(() => Customer, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer | null;
 
   @Column({
     name: 'table_session_id',
