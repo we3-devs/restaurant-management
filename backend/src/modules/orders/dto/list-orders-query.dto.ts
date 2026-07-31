@@ -28,6 +28,12 @@ export class ListOrdersQueryDto extends PaginationQueryDto {
   @IsInt()
   outletId?: number;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  tableSessionId?: number;
+
   @ApiPropertyOptional({ enum: ORDER_STATUSES })
   @IsOptional()
   @IsIn(ORDER_STATUSES)

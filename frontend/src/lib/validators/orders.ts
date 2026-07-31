@@ -51,7 +51,7 @@ export type UpdateOrderInput = z.infer<typeof updateOrderSchema>
 export const createOrderItemSchema = z.object({
   foodId: z.number({ message: "Select a food" }).positive(),
   foodVariantId: z.number().positive().optional(),
-  preparationDepartmentId: z.number({ message: "Select a department" }).positive(),
+  preparationDepartmentId: z.number().positive().optional(),
   quantity: z.number().min(0.01),
 })
 

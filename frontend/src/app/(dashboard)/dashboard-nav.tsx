@@ -10,6 +10,8 @@ export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
 
   const links = [
     { href: "/dashboard", label: "Dashboard", show: true },
+    { href: "/pos", label: "POS", show: has("orders.manage") },
+    { href: "/floor", label: "Floor", show: has("table-sessions.view") },
     { href: "/users", label: "Users", show: has("users.view") },
     { href: "/roles", label: "Roles", show: has("roles.view") },
     { href: "/outlets", label: "Outlets", show: has("outlets.view") },

@@ -120,9 +120,7 @@ describe('Customers (e2e)', () => {
       .expect(200);
 
     const body = response.body as { data: CustomerResponseBody[] };
-    expect(body.data.some((customer) => customer.id === customerId)).toBe(
-      true,
-    );
+    expect(body.data.some((customer) => customer.id === customerId)).toBe(true);
   });
 
   it('PATCH /api/customers/:id updates fields', async () => {
@@ -167,9 +165,9 @@ describe('Customers (e2e)', () => {
       .send({ isFavoriteOutlet: true })
       .expect(200);
 
-    expect(
-      (response.body as CustomerOutletResponseBody).isFavoriteOutlet,
-    ).toBe(true);
+    expect((response.body as CustomerOutletResponseBody).isFavoriteOutlet).toBe(
+      true,
+    );
   });
 
   it('GET /api/customers/:id 404s for an unknown id', async () => {

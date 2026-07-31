@@ -81,10 +81,13 @@ export class OrdersService {
   // ---------------------------------------------------------------- orders
 
   async findAll(query: ListOrdersQueryDto): Promise<PaginatedResponse<Order>> {
-    const { page, limit, search, outletId, status } = query;
+    const { page, limit, search, outletId, tableSessionId, status } = query;
     const where: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    }
+    if (tableSessionId !== undefined) {
+      where.tableSessionId = tableSessionId;
     }
     if (status !== undefined) {
       where.status = status;
@@ -249,13 +252,15 @@ export class OrdersService {
   async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
     const order = await this.findOne(orderId);
 
-    const department = await this.outletDepartmentsService.findOne(
-      dto.preparationDepartmentId,
-    );
-    if (department.outletId !== order.outletId) {
-      throw new BadRequestException(
-        `Department ${dto.preparationDepartmentId} does not belong to outlet ${order.outletId}`,
+    if (dto.preparationDepartmentId !== undefined) {
+      const department = await this.outletDepartmentsService.findOne(
+        dto.preparationDepartmentId,
       );
+      if (department.outletId !== order.outletId) {
+        throw new BadRequestException(
+          `Department ${dto.preparationDepartmentId} does not belong to outlet ${order.outletId}`,
+        );
+      }
     }
 
     let unitPrice: number;
@@ -284,7 +289,7 @@ export class OrdersService {
       orderId,
       foodId: dto.foodId,
       foodVariantId: dto.foodVariantId ?? null,
-      preparationDepartmentId: dto.preparationDepartmentId,
+      preparationDepartmentId: dto.preparationDepartmentId ?? null,
       quantity,
       unitPrice,
       totalAmount: round2(quantity * unitPrice),

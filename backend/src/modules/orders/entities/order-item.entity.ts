@@ -69,12 +69,13 @@ export class OrderItem {
     name: 'preparation_department_id',
     type: 'bigint',
     transformer: new BigIntTransformer(),
+    nullable: true,
   })
-  preparationDepartmentId: number;
+  preparationDepartmentId: number | null;
 
-  @ManyToOne(() => OutletDepartment, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => OutletDepartment, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'preparation_department_id' })
-  preparationDepartment: OutletDepartment;
+  preparationDepartment: OutletDepartment | null;
 
   @Column({
     type: 'numeric',

@@ -11,12 +11,13 @@ export class CreateOrderItemDto {
   @IsInt()
   foodVariantId?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Which outlet department (kitchen/bar/etc.) prepares this item',
+      'Which outlet department (kitchen/bar/etc.) prepares this item — omit for items that need no prep routing (e.g. bottled drinks)',
   })
+  @IsOptional()
   @IsInt()
-  preparationDepartmentId: number;
+  preparationDepartmentId?: number;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

@@ -77,6 +77,7 @@ export interface ListOrdersParams {
   limit?: number
   search?: string
   outletId?: number
+  tableSessionId?: number
   status?: string
 }
 
@@ -147,7 +148,7 @@ export function useAddOrderItem(orderId: number) {
 export function useUpdateOrderItem(orderId: number, itemId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { quantity?: number; status?: string }) =>
+    mutationFn: (input: { quantity?: number; status?: string; note?: string }) =>
       apiClient<OrderItem>(`/order-items/${itemId}`, { method: "PATCH", body: JSON.stringify(input) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })

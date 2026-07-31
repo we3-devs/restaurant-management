@@ -14,8 +14,8 @@ export class OrderItemResponseDto {
   @ApiProperty({ required: false, nullable: true })
   foodVariantId: number | null;
 
-  @ApiProperty()
-  preparationDepartmentId: number;
+  @ApiProperty({ required: false, nullable: true })
+  preparationDepartmentId: number | null;
 
   @ApiProperty()
   quantity: number;
