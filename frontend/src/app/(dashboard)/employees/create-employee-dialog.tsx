@@ -17,6 +17,8 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useOutlets } from "@/hooks/use-outlets"
+import { useOutletDepartments } from "@/hooks/use-outlet-departments"
+import { useUsers } from "@/hooks/use-users"
 import { useCreateEmployee, usePositions } from "@/hooks/use-employees"
 import { createEmployeeSchema, type CreateEmployeeInput } from "@/lib/validators/employees"
 
@@ -32,12 +34,15 @@ export function CreateEmployeeDialog() {
   const [open, setOpen] = useState(false)
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: positions } = usePositions()
+  const { data: users } = useUsers({ limit: 100 })
   const createEmployee = useCreateEmployee()
 
   const form = useForm<CreateEmployeeInput>({
     resolver: zodResolver(createEmployeeSchema),
     defaultValues,
   })
+  const selectedOutletId = form.watch("outletId")
+  const { data: departments } = useOutletDepartments({ outletId: selectedOutletId || undefined, limit: 100 })
 
   async function onSubmit(values: CreateEmployeeInput) {
     try {
@@ -76,7 +81,14 @@ export function CreateEmployeeDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Outlet</FormLabel>
-                  <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
+                  <Select
+                    items={outlets?.data.map((outlet) => ({ value: String(outlet.id), label: outlet.name }))}
+                    value={field.value ? String(field.value) : ""}
+                    onValueChange={(v) => {
+                      field.onChange(Number(v))
+                      form.setValue("departmentId", undefined)
+                    }}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select an outlet" />
                     </SelectTrigger>
@@ -94,11 +106,46 @@ export function CreateEmployeeDialog() {
             />
             <FormField
               control={form.control}
+              name="departmentId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Department</FormLabel>
+                  <Select
+                    items={[
+                      { value: "none", label: "No department" },
+                      ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
+                    ]}
+                    value={field.value ? String(field.value) : "none"}
+                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                    disabled={!selectedOutletId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No department</SelectItem>
+                      {departments?.data.map((department) => (
+                        <SelectItem key={department.id} value={String(department.id)}>
+                          {department.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="positionId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Position</FormLabel>
                   <Select
+                    items={[
+                      { value: "none", label: "No position" },
+                      ...(positions?.map((position) => ({ value: String(position.id), label: position.name })) ?? []),
+                    ]}
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
                   >
@@ -110,6 +157,36 @@ export function CreateEmployeeDialog() {
                       {positions?.map((position) => (
                         <SelectItem key={position.id} value={String(position.id)}>
                           {position.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="userId"
+              render={({ field }) => (
+                <FormItem className="col-span-2">
+                  <FormLabel>Linked user account</FormLabel>
+                  <Select
+                    items={[
+                      { value: "none", label: "No login account" },
+                      ...(users?.data.map((user) => ({ value: String(user.id), label: `${user.name} (${user.email})` })) ?? []),
+                    ]}
+                    value={field.value ? String(field.value) : "none"}
+                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No login account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No login account</SelectItem>
+                      {users?.data.map((user) => (
+                        <SelectItem key={user.id} value={String(user.id)}>
+                          {user.name} ({user.email})
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -54,7 +54,7 @@ export class ReportsController {
     user: User,
   ): Promise<void> {
     if (!STAFF_REPORT_TYPES.includes(type) || user.isSuperadmin) return;
-    const grantedSlugs = await this.permissionsService.getGlobalPermissionSlugs(
+    const grantedSlugs = await this.permissionsService.getPermissionSlugs(
       user.id,
     );
     if (!grantedSlugs.has('staff-reports.view')) {

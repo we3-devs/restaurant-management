@@ -33,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const grantedSlugs = await this.permissionsService.getGlobalPermissionSlugs(
+    const grantedSlugs = await this.permissionsService.getPermissionSlugs(
       user.id,
     );
     const hasAll = requiredPermissions.every((slug) => grantedSlugs.has(slug));

@@ -18,10 +18,6 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
           port: redisConfig?.port,
           lazyConnect: false,
           maxRetriesPerRequest: 3,
-          // Capped backoff, retried forever — a long-running server should
-          // reconnect on its own once Redis comes back. Test/seed processes
-          // don't rely on this client ever giving up to exit cleanly; they
-          // use --forceExit instead (see backend/package.json test:e2e).
           retryStrategy: (times) => Math.min(times * 200, 2000),
         });
       },

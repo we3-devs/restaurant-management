@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlets } from "@/hooks/use-outlets"
+import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import { useEmployees, usePositions, type Employee } from "@/hooks/use-employees"
 import { EMPLOYMENT_STATUSES } from "@/lib/validators/employees"
 import { CreateEmployeeDialog } from "./create-employee-dialog"
@@ -37,6 +38,7 @@ export default function EmployeesPage() {
 
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: positions } = usePositions()
+  const { data: departments } = useOutletDepartments({ limit: 100 })
   const { data, isLoading, isPlaceholderData } = useEmployees({
     page,
     limit: PAGE_SIZE,
@@ -48,6 +50,7 @@ export default function EmployeesPage() {
 
   const positionName = (id: number | null) => positions?.find((p) => p.id === id)?.name ?? "—"
   const outletName = (id: number) => outlets?.data.find((o) => o.id === id)?.name ?? `#${id}`
+  const departmentName = (id: number | null) => (id ? (departments?.data.find((d) => d.id === id)?.name ?? `#${id}`) : "—")
 
   const columns = useMemo<ColumnDef<Employee>[]>(
     () => [
@@ -63,6 +66,7 @@ export default function EmployeesPage() {
       },
       { id: "position", header: "Position", cell: ({ row }) => positionName(row.original.positionId) },
       { id: "outlet", header: "Outlet", cell: ({ row }) => outletName(row.original.outletId) },
+      { id: "department", header: "Department", cell: ({ row }) => departmentName(row.original.departmentId) },
       {
         id: "employmentStatus",
         header: "Status",
@@ -75,7 +79,7 @@ export default function EmployeesPage() {
       { id: "joiningDate", header: "Joined", cell: ({ row }) => row.original.joiningDate ?? "—" },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [positions, outlets],
+    [positions, outlets, departments],
   )
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })
@@ -102,7 +106,14 @@ export default function EmployeesPage() {
         </div>
         <div className="w-56 space-y-1.5">
           <label className="text-sm font-medium">Filter by outlet</label>
-          <Select value={outletFilter} onValueChange={(v) => { setOutletFilter(v ?? "all"); setPage(1) }}>
+          <Select
+            items={[
+              { value: "all", label: "All outlets" },
+              ...(outlets?.data.map((outlet) => ({ value: String(outlet.id), label: outlet.name })) ?? []),
+            ]}
+            value={outletFilter}
+            onValueChange={(v) => { setOutletFilter(v ?? "all"); setPage(1) }}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="All outlets" />
             </SelectTrigger>
@@ -118,7 +129,14 @@ export default function EmployeesPage() {
         </div>
         <div className="w-56 space-y-1.5">
           <label className="text-sm font-medium">Filter by position</label>
-          <Select value={positionFilter} onValueChange={(v) => { setPositionFilter(v ?? "all"); setPage(1) }}>
+          <Select
+            items={[
+              { value: "all", label: "All positions" },
+              ...(positions?.map((position) => ({ value: String(position.id), label: position.name })) ?? []),
+            ]}
+            value={positionFilter}
+            onValueChange={(v) => { setPositionFilter(v ?? "all"); setPage(1) }}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="All positions" />
             </SelectTrigger>

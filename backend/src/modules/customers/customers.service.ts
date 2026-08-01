@@ -1,12 +1,15 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OutletsService } from '../outlets/outlets.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerOutletDto } from './dto/update-customer-outlet.dto';
@@ -16,12 +19,16 @@ import { Customer } from './entities/customer.entity';
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
   constructor(
     @InjectRepository(Customer)
     private readonly customersRepository: Repository<Customer>,
     @InjectRepository(CustomerOutlet)
     private readonly customerOutletsRepository: Repository<CustomerOutlet>,
     private readonly outletsService: OutletsService,
+    private readonly loyaltyService: LoyaltyService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async findAll(
@@ -67,13 +74,35 @@ export class CustomersService {
       phone: dto.phone ?? null,
       email: dto.email ?? null,
       address: dto.address ?? null,
+      dateOfBirth: dto.dateOfBirth ?? null,
     });
 
+    let saved: Customer;
     try {
-      return await this.customersRepository.save(customer);
+      saved = await this.customersRepository.save(customer);
     } catch (error) {
       throw this.mapUniqueViolation(error);
     }
+
+    try {
+      const loyaltySettings = await this.settingsService.getLoyaltySettings();
+      const welcomeBonusPoints = Number(loyaltySettings.welcomeBonusPoints ?? 0);
+      if (welcomeBonusPoints > 0) {
+        await this.loyaltyService.earnPoints(
+          saved.id,
+          welcomeBonusPoints,
+          'welcome_bonus',
+        );
+        saved.welcomeBonusGranted = true;
+        saved = await this.customersRepository.save(saved);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to grant welcome bonus for customer ${saved.id}: ${(error as Error).message}`,
+      );
+    }
+
+    return saved;
   }
 
   async update(id: number, dto: UpdateCustomerDto): Promise<Customer> {
@@ -84,6 +113,7 @@ export class CustomersService {
       ...(dto.phone !== undefined && { phone: dto.phone }),
       ...(dto.email !== undefined && { email: dto.email }),
       ...(dto.address !== undefined && { address: dto.address }),
+      ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
 

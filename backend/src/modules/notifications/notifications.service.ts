@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
+import { User } from '../users/entities/user.entity';
+import { EmailService } from './channels/email.service';
+import { PushService } from './channels/push.service';
+import { SmsService } from './channels/sms.service';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
+import { NotificationPreference } from './entities/notification-preference.entity';
 import { Notification } from './entities/notification.entity';
 
 export interface NotificationsFeedResponse extends PaginatedResponse<Notification> {
@@ -11,15 +17,75 @@ export interface NotificationsFeedResponse extends PaginatedResponse<Notificatio
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationsRepository: Repository<Notification>,
+    @InjectRepository(NotificationPreference)
+    private readonly preferencesRepository: Repository<NotificationPreference>,
+    @InjectRepository(UserRoleAssignment)
+    private readonly userRoleAssignmentRepository: Repository<UserRoleAssignment>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+    private readonly emailService: EmailService,
+    private readonly smsService: SmsService,
+    private readonly pushService: PushService,
   ) {}
 
   /** Persists a notification. The caller pushes it over the websocket (see KitchenTicketsGateway#notifyNotificationCreated). */
   async create(input: Partial<Notification>): Promise<Notification> {
-    return this.notificationsRepository.save(
+    const notification = await this.notificationsRepository.save(
       this.notificationsRepository.create(input),
+    );
+    void this.dispatchExternalChannels(notification).catch((error: Error) =>
+      this.logger.error(`External channel dispatch failed for notification ${notification.id}: ${error.message}`),
+    );
+    return notification;
+  }
+
+  /**
+   * Fans a notification out to email/SMS/push for every user with a role
+   * assignment on the notification's outlet, filtered by their preferences.
+   * In-app (feed + websocket) delivery is unaffected by this — it always
+   * happens regardless of these preferences (see the callers of `create`).
+   */
+  private async dispatchExternalChannels(notification: Notification): Promise<void> {
+    if (!this.emailService.isConfigured && !this.smsService.isConfigured && !this.pushService.isConfigured) {
+      return;
+    }
+
+    const assignments = await this.userRoleAssignmentRepository.find({
+      where: { outletId: notification.outletId, isActive: true },
+    });
+    const userIds = [...new Set(assignments.map((a) => a.userId))];
+    if (userIds.length === 0) return;
+
+    const [users, preferenceRows] = await Promise.all([
+      this.usersRepository.findBy({ id: In(userIds) }),
+      this.preferencesRepository
+        .createQueryBuilder('preference')
+        .where('preference.user_id IN (:...userIds)', { userIds })
+        .getMany(),
+    ]);
+    const preferenceByUserId = new Map(preferenceRows.map((p) => [p.userId, p]));
+
+    await Promise.all(
+      users.map(async (user) => {
+        const preference = preferenceByUserId.get(user.id);
+        if (!preference || preference.mutedTypes.includes(notification.type)) return;
+
+        const body = notification.body ?? notification.title;
+        if (preference.emailEnabled && user.email) {
+          await this.emailService.send(user.email, notification.title, body);
+        }
+        if (preference.smsEnabled && user.phone) {
+          await this.smsService.send(user.phone, `${notification.title}: ${body}`);
+        }
+        if (preference.pushEnabled) {
+          await this.pushService.sendToUser(user.id, notification.title, body);
+        }
+      }),
     );
   }
 

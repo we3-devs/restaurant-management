@@ -36,7 +36,7 @@ export function CreateDiningTableDialog() {
 
   async function onSubmit(values: CreateDiningTableInput) {
     try {
-      await createDiningTable.mutateAsync(values)
+      await createDiningTable.mutateAsync({ ...values, code: values.code || undefined })
       toast.success(`Table "${values.name}" created`)
       form.reset({ outletId: 0, diningAreaId: 0, name: "", code: "", capacity: 1 })
       setOpen(false)
@@ -115,6 +115,17 @@ export function CreateDiningTableDialog() {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl placeholder="T1" {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Code (optional)</FormLabel>
+                  <FormControl placeholder="e.g. A1" {...field} />
                   <FormMessage />
                 </FormItem>
               )}

@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
+import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.subscriber';
 import { TimestampSubscriber } from './common/subscribers/timestamp.subscriber';
 import configuration, { AppConfig } from './config/configuration';
 import { validate } from './config/env.validation';
@@ -11,9 +12,12 @@ import { AddonGroupsModule } from './modules/addon-groups/addon-groups.module';
 import { AddonsModule } from './modules/addons/addons.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module';
 import { BusinessOperationsModule } from './modules/business-operations/business-operations.module';
+import { CustomerAuthModule } from './modules/customer-auth/customer-auth.module';
+import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
@@ -30,6 +34,7 @@ import { IngredientWastagesModule } from './modules/ingredient-wastages/ingredie
 import { IngredientsModule } from './modules/ingredients/ingredients.module';
 import { InventoryStockModule } from './modules/inventory-stock/inventory-stock.module';
 import { KitchenTicketsModule } from './modules/kitchen-tickets/kitchen-tickets.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OrderPaymentsModule } from './modules/order-payments/order-payments.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -40,6 +45,7 @@ import { OutletsModule } from './modules/outlets/outlets.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
+import { SettingsModule } from './modules/settings/settings.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
@@ -89,7 +95,7 @@ import { RedisModule } from './redis/redis.module';
           // TypeORM 0.3.x no longer sets create/update-date columns
           // client-side unless the DB column has its own DEFAULT — the
           // Laravel schema has none, so this subscriber does it instead.
-          subscribers: [TimestampSubscriber],
+          subscribers: [TimestampSubscriber, RealtimeChangeSubscriber],
         };
       },
     }),
@@ -143,6 +149,11 @@ import { RedisModule } from './redis/redis.module';
     BootstrapModule,
     DashboardModule,
     ReportsModule,
+    SettingsModule,
+    AuditLogsModule,
+    LoyaltyModule,
+    CustomerAuthModule,
+    CustomerPortalModule,
   ],
 })
 export class AppModule {}

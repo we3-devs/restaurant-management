@@ -6,7 +6,57 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Base UI's `Select.Value` only resolves the closed trigger's display label
+ * from an `items` array/record passed to `Select.Root` — it does NOT read
+ * the label back off the `SelectItem`s actually rendered in `SelectContent`.
+ * Every call site in this app builds options as JSX children instead of an
+ * `items` prop, so without this, every closed select showed the raw stored
+ * value (e.g. an outlet id "94") instead of its label ("Birtamod").
+ *
+ * Rather than requiring every call site to also pass `items`, this walks
+ * the JSX children once to auto-derive {value, label} pairs from whatever
+ * <SelectItem> elements were authored — so existing/future call sites work
+ * without change. An explicit `items` prop (if a caller wants one) still
+ * wins.
+ */
+function collectItemsFromChildren(node: React.ReactNode): { value: unknown; label: React.ReactNode }[] {
+  const collected: { value: unknown; label: React.ReactNode }[] = []
+  function walk(child: React.ReactNode) {
+    React.Children.forEach(child, (element) => {
+      if (!React.isValidElement(element)) return
+      if (element.type === SelectItem) {
+        const itemProps = element.props as SelectPrimitive.Item.Props
+        collected.push({ value: itemProps.value, label: itemProps.children })
+        return
+      }
+      const childProps = element.props as { children?: React.ReactNode } | undefined
+      if (childProps?.children) walk(childProps.children)
+    })
+  }
+  walk(node)
+  return collected
+}
+
+function Select<Value = string, Multiple extends boolean | undefined = false>({
+  items,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derivedItems = React.useMemo(
+    () => items ?? collectItemsFromChildren(children),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [children, items],
+  )
+  return (
+    <SelectPrimitive.Root
+      items={(Array.isArray(derivedItems) && derivedItems.length === 0 ? undefined : derivedItems) as never}
+      {...props}
+    >
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

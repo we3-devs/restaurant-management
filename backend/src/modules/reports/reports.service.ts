@@ -111,6 +111,20 @@ export class ReportsService {
         return this.staffPerformanceReport(resolved);
       case 'payroll-export':
         return this.payrollExportReport(resolved);
+      case 'settings-changes':
+        return this.settingsChangesReport(resolved);
+      case 'audit-logs':
+        return this.auditLogsReport(resolved);
+      case 'loyalty-top-customers':
+        return this.loyaltyTopCustomersReport(resolved);
+      case 'loyalty-points-earned':
+        return this.loyaltyPointsEarnedReport(resolved);
+      case 'loyalty-points-redeemed':
+        return this.loyaltyPointsRedeemedReport(resolved);
+      case 'loyalty-outstanding':
+        return this.loyaltyOutstandingReport(resolved);
+      case 'loyalty-transactions':
+        return this.loyaltyTransactionsReport(resolved);
     }
   }
 
@@ -888,6 +902,180 @@ export class ReportsService {
       .orderBy('employee.name', resolved.sortDir);
     if (resolved.search) {
       qb.andWhere('employee.name ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async settingsChangesReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('setting.category', 'category')
+      .addSelect('"user".name', 'updatedBy')
+      .addSelect('setting.updated_at', 'updatedAt')
+      .from('global_settings', 'setting')
+      .leftJoin('users', 'user', '"user".id = setting.updated_by_user_id')
+      .where('setting.updated_at BETWEEN :from AND :to', {
+        from: resolved.from,
+        to: resolved.to,
+      })
+      .orderBy('setting.updated_at', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('setting.category ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async auditLogsReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('log.action', 'action')
+      .addSelect('log.entity_type', 'entityType')
+      .addSelect('log.entity_id', 'entityId')
+      .addSelect('log.user_id', 'userId')
+      .addSelect('log.created_at', 'createdAt')
+      .from('audit_logs', 'log')
+      .where('log.created_at BETWEEN :from AND :to', {
+        from: resolved.from,
+        to: resolved.to,
+      })
+      .orderBy('log.created_at', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('(log.entity_type ILIKE :search OR log.entity_id ILIKE :search)', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async loyaltyTopCustomersReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('customer.name', 'customerName')
+      .addSelect('account.current_points', 'currentPoints')
+      .addSelect('account.lifetime_earned', 'lifetimeEarned')
+      .addSelect('account.lifetime_redeemed', 'lifetimeRedeemed')
+      .from('loyalty_accounts', 'account')
+      .innerJoin('customers', 'customer', 'customer.id = account.customer_id')
+      .orderBy('account.current_points', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('customer.name ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async loyaltyPointsEarnedReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('t.created_at', 'date')
+      .addSelect('customer.name', 'customerName')
+      .addSelect('t.points', 'points')
+      .addSelect('t.source', 'source')
+      .addSelect('"order".order_number', 'orderNumber')
+      .from('loyalty_transactions', 't')
+      .innerJoin('customers', 'customer', 'customer.id = t.customer_id')
+      .leftJoin('orders', 'order', '"order".id = t.order_id')
+      .where("t.type = 'earn'")
+      .andWhere('t.created_at BETWEEN :from AND :to', {
+        from: resolved.from,
+        to: resolved.to,
+      })
+      .orderBy('t.created_at', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('customer.name ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async loyaltyPointsRedeemedReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('t.created_at', 'date')
+      .addSelect('customer.name', 'customerName')
+      .addSelect('t.points', 'points')
+      .addSelect('t.source', 'source')
+      .addSelect('"order".order_number', 'orderNumber')
+      .from('loyalty_transactions', 't')
+      .innerJoin('customers', 'customer', 'customer.id = t.customer_id')
+      .leftJoin('orders', 'order', '"order".id = t.order_id')
+      .where("t.type = 'redeem'")
+      .andWhere('t.created_at BETWEEN :from AND :to', {
+        from: resolved.from,
+        to: resolved.to,
+      })
+      .orderBy('t.created_at', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('customer.name ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async loyaltyOutstandingReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('customer.name', 'customerName')
+      .addSelect('account.current_points', 'currentPoints')
+      .addSelect('account.expiring_points', 'expiringPoints')
+      .from('loyalty_accounts', 'account')
+      .innerJoin('customers', 'customer', 'customer.id = account.customer_id')
+      .where('account.current_points > 0')
+      .orderBy('account.current_points', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('customer.name ILIKE :search', {
+        search: `%${resolved.search}%`,
+      });
+    }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async loyaltyTransactionsReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('t.created_at', 'date')
+      .addSelect('customer.name', 'customerName')
+      .addSelect('t.type', 'type')
+      .addSelect('t.points', 'points')
+      .addSelect('t.balance_after', 'balanceAfter')
+      .addSelect('t.source', 'source')
+      .from('loyalty_transactions', 't')
+      .innerJoin('customers', 'customer', 'customer.id = t.customer_id')
+      .where('t.created_at BETWEEN :from AND :to', {
+        from: resolved.from,
+        to: resolved.to,
+      })
+      .orderBy('t.created_at', resolved.sortDir);
+    if (resolved.search) {
+      qb.andWhere('customer.name ILIKE :search', {
         search: `%${resolved.search}%`,
       });
     }

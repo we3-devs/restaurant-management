@@ -8,11 +8,13 @@ import { FoodsModule } from '../foods/foods.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
 import { OutletDepartmentsModule } from '../outlet-departments/outlet-departments.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
+import { SettingsModule } from '../settings/settings.module';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { UnitsModule } from '../units/units.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
@@ -60,6 +62,8 @@ import { OrdersService } from './orders.service';
     // realtime notifyTicketsCreated() push.
     KitchenTicketsModule,
     NotificationsModule,
+    LoyaltyModule,
+    SettingsModule,
   ],
   controllers: [OrdersController, OrderItemsController],
   providers: [OrdersService],

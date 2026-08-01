@@ -72,10 +72,17 @@ export class AuthController {
     summary: 'Returns the current user plus their resolved global permissions',
   })
   async me(@CurrentUser() user: User) {
-    const permissions = await this.permissionsService.getGlobalPermissionSlugs(
-      user.id,
-    );
-    return { ...this.toAuthUser(user), permissions: Array.from(permissions) };
+    const [permissions, outletIds, departmentIds] = await Promise.all([
+      this.permissionsService.getPermissionSlugs(user.id),
+      this.permissionsService.getAccessibleOutletIds(user.id),
+      this.permissionsService.getAccessibleOutletDepartmentIds(user.id),
+    ]);
+    return {
+      ...this.toAuthUser(user),
+      permissions: Array.from(permissions),
+      outletIds,
+      departmentIds,
+    };
   }
 
   @Post('ws-ticket')

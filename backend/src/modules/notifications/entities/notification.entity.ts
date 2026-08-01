@@ -44,6 +44,9 @@ export type NotificationType =
   | 'employee_late'
   | 'shift_started'
   | 'shift_ended'
+  | 'settings_changed'
+  | 'loyalty_points_earned'
+  | 'loyalty_points_redeemed'
   | 'system';
 
 export type NotificationPriority = 'normal' | 'high' | 'urgent';

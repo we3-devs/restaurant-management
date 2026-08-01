@@ -45,6 +45,14 @@ export class OutletDepartmentsService {
     };
   }
 
+  /** Unpaginated, single-outlet lookup used by GET /outlet-departments/assigned — no `outlet-departments.view` permission required to see the departments at your own outlet. */
+  async findByOutlet(outletId: number): Promise<OutletDepartment[]> {
+    return this.departmentsRepository.find({
+      where: { outletId },
+      order: { name: 'ASC' },
+    });
+  }
+
   /** Internal lookup used by WarehousesService to validate an outletDepartmentId. */
   async findOne(id: number): Promise<OutletDepartment> {
     const department = await this.departmentsRepository.findOne({

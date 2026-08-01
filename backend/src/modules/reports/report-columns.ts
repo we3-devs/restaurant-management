@@ -19,6 +19,13 @@ export const REPORT_TYPES = [
   'shifts',
   'staff-performance',
   'payroll-export',
+  'settings-changes',
+  'audit-logs',
+  'loyalty-top-customers',
+  'loyalty-points-earned',
+  'loyalty-points-redeemed',
+  'loyalty-outstanding',
+  'loyalty-transactions',
 ] as const;
 
 export type ReportType = (typeof REPORT_TYPES)[number];
@@ -203,5 +210,50 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     { key: 'presentDays', header: 'Present Days' },
     { key: 'lateDays', header: 'Late Days' },
     { key: 'workingHours', header: 'Total Working Hours' },
+  ],
+  'settings-changes': [
+    { key: 'category', header: 'Category' },
+    { key: 'updatedBy', header: 'Updated By' },
+    { key: 'updatedAt', header: 'Updated At' },
+  ],
+  'audit-logs': [
+    { key: 'action', header: 'Action' },
+    { key: 'entityType', header: 'Entity Type' },
+    { key: 'entityId', header: 'Entity ID' },
+    { key: 'userId', header: 'User ID' },
+    { key: 'createdAt', header: 'Date' },
+  ],
+  'loyalty-top-customers': [
+    { key: 'customerName', header: 'Customer' },
+    { key: 'currentPoints', header: 'Current Points' },
+    { key: 'lifetimeEarned', header: 'Lifetime Earned' },
+    { key: 'lifetimeRedeemed', header: 'Lifetime Redeemed' },
+  ],
+  'loyalty-points-earned': [
+    { key: 'date', header: 'Date' },
+    { key: 'customerName', header: 'Customer' },
+    { key: 'points', header: 'Points' },
+    { key: 'source', header: 'Source' },
+    { key: 'orderNumber', header: 'Order #' },
+  ],
+  'loyalty-points-redeemed': [
+    { key: 'date', header: 'Date' },
+    { key: 'customerName', header: 'Customer' },
+    { key: 'points', header: 'Points' },
+    { key: 'source', header: 'Source' },
+    { key: 'orderNumber', header: 'Order #' },
+  ],
+  'loyalty-outstanding': [
+    { key: 'customerName', header: 'Customer' },
+    { key: 'currentPoints', header: 'Current Points' },
+    { key: 'expiringPoints', header: 'Expiring Points' },
+  ],
+  'loyalty-transactions': [
+    { key: 'date', header: 'Date' },
+    { key: 'customerName', header: 'Customer' },
+    { key: 'type', header: 'Type' },
+    { key: 'points', header: 'Points' },
+    { key: 'balanceAfter', header: 'Balance After' },
+    { key: 'source', header: 'Source' },
   ],
 };

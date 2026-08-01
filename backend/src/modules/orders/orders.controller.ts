@@ -20,6 +20,7 @@ import { AssignOrderTableDto } from './dto/assign-order-table.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
+import { RedeemLoyaltyPointsDto } from './dto/redeem-loyalty-points.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrdersService } from './orders.service';
@@ -117,6 +118,17 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     return this.ordersService.fireHeldItems(id, user.id);
+  }
+
+  @Post(':id/loyalty/redeem')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({ summary: 'Redeems loyalty points against an order (recalculates totals)' })
+  redeemLoyaltyPoints(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RedeemLoyaltyPointsDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ordersService.redeemLoyaltyPoints(id, dto.points, user.id);
   }
 
   @Post(':id/items')

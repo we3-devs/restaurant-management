@@ -17,9 +17,10 @@ import type { ScopeLevel } from './scope-level';
 
 /**
  * Maps the full existing table, including the outlet/department/warehouse
- * scope columns. This foundation phase's PermissionsGuard only reads rows
- * where scopeType='global' — outlet-scoped resolution is deferred until the
- * Outlets/Warehouses domain is built.
+ * scope columns. PermissionsService.getPermissionSlugs() grants a permission
+ * from any active assignment regardless of scope — the scope columns record
+ * *where* a role was assigned for HR/reporting purposes, but nothing in the
+ * app currently enforces access differently per outlet.
  */
 @Entity({ name: 'user_role_assignments' })
 export class UserRoleAssignment {

@@ -39,21 +39,21 @@ export interface StaffDashboard {
 export function useStaffDashboard(outletId?: number) {
   return useQuery({
     queryKey: queryKeys.assignments.staffDashboard(outletId),
-    queryFn: () => apiClient<StaffDashboard>(`/staff-dashboard${toQueryString({ outletId })}`),
+    queryFn: () => apiClient<StaffDashboard>(`/assignments/staff-dashboard${toQueryString({ outletId })}`),
   })
 }
 
 export function useTableAssignments(outletId?: number) {
   return useQuery({
     queryKey: queryKeys.assignments.tables(outletId),
-    queryFn: () => apiClient<TableAssignment[]>(`/table-assignments${toQueryString({ outletId })}`),
+    queryFn: () => apiClient<TableAssignment[]>(`/assignments/table-assignments${toQueryString({ outletId })}`),
   })
 }
 
 export function useOrderAssignments(outletId?: number) {
   return useQuery({
     queryKey: queryKeys.assignments.orders(outletId),
-    queryFn: () => apiClient<OrderAssignment[]>(`/order-assignments${toQueryString({ outletId })}`),
+    queryFn: () => apiClient<OrderAssignment[]>(`/assignments/order-assignments${toQueryString({ outletId })}`),
   })
 }
 
@@ -61,7 +61,7 @@ export function useAssignTable() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { employeeId: number; diningTableId: number; sessionId?: number; outletId: number }) =>
-      apiClient<TableAssignment>("/table-assignments", { method: "POST", body: JSON.stringify(input) }),
+      apiClient<TableAssignment>("/assignments/table-assignments", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all }),
   })
 }
@@ -69,7 +69,8 @@ export function useAssignTable() {
 export function useUnassignTable() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => apiClient<TableAssignment>(`/table-assignments/${id}/unassign`, { method: "POST" }),
+    mutationFn: (id: number) =>
+      apiClient<TableAssignment>(`/assignments/table-assignments/${id}/unassign`, { method: "POST" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all }),
   })
 }
@@ -78,7 +79,7 @@ export function useAssignOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { employeeId: number; orderId: number; outletId: number }) =>
-      apiClient<OrderAssignment>("/order-assignments", { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OrderAssignment>("/assignments/order-assignments", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all }),
   })
 }

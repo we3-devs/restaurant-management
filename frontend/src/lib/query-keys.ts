@@ -39,12 +39,15 @@ export const queryKeys = {
     lists: () => [...queryKeys.outlets.all, "list"] as const,
     list: (params?: unknown) => [...queryKeys.outlets.lists(), params] as const,
     detail: (id: number) => [...queryKeys.outlets.all, "detail", id] as const,
+    assigned: () => [...queryKeys.outlets.all, "assigned"] as const,
   },
   outletDepartments: {
     all: ["outlet-departments"] as const,
     lists: () => [...queryKeys.outletDepartments.all, "list"] as const,
     list: (params?: unknown) => [...queryKeys.outletDepartments.lists(), params] as const,
     detail: (id: number) => [...queryKeys.outletDepartments.all, "detail", id] as const,
+    assigned: (outletId: number | null) =>
+      [...queryKeys.outletDepartments.all, "assigned", outletId] as const,
   },
   warehouses: {
     all: ["warehouses"] as const,
@@ -139,6 +142,8 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.notifications.all, "list", params] as const,
     unreadCount: (outletId: number | null) =>
       [...queryKeys.notifications.all, "unread-count", outletId] as const,
+    preferences: () => [...queryKeys.notifications.all, "preferences"] as const,
+    pushPublicKey: () => [...queryKeys.notifications.all, "push-public-key"] as const,
   },
   serviceRequests: {
     all: ["service-requests"] as const,
@@ -280,5 +285,30 @@ export const queryKeys = {
     tables: (outletId?: number) => [...queryKeys.assignments.all, "tables", outletId] as const,
     orders: (outletId?: number) => [...queryKeys.assignments.all, "orders", outletId] as const,
     staffDashboard: (outletId?: number) => [...queryKeys.assignments.all, "staff-dashboard", outletId] as const,
+  },
+  settings: {
+    all: ["settings"] as const,
+    category: (category: string) => [...queryKeys.settings.all, category] as const,
+    allCategories: () => [...queryKeys.settings.all, "all-categories"] as const,
+  },
+  auditLogs: {
+    all: ["audit-logs"] as const,
+    list: (params?: unknown) => [...queryKeys.auditLogs.all, "list", params] as const,
+  },
+  loyalty: {
+    all: ["loyalty"] as const,
+    accounts: (params?: unknown) => [...queryKeys.loyalty.all, "accounts", params] as const,
+    account: (customerId: number) => [...queryKeys.loyalty.all, "account", customerId] as const,
+    transactions: (params?: unknown) => [...queryKeys.loyalty.all, "transactions", params] as const,
+  },
+  customerPortal: {
+    all: ["customer-portal"] as const,
+    profile: () => [...queryKeys.customerPortal.all, "profile"] as const,
+    addresses: () => [...queryKeys.customerPortal.all, "addresses"] as const,
+    favorites: () => [...queryKeys.customerPortal.all, "favorites"] as const,
+    orders: (params?: unknown) => [...queryKeys.customerPortal.all, "orders", params] as const,
+    order: (id: number) => [...queryKeys.customerPortal.all, "order", id] as const,
+    loyalty: () => [...queryKeys.customerPortal.all, "loyalty"] as const,
+    loyaltyHistory: (params?: unknown) => [...queryKeys.customerPortal.all, "loyalty-history", params] as const,
   },
 } as const;

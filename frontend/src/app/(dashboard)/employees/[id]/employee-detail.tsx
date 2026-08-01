@@ -25,6 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlet } from "@/hooks/use-outlets"
+import { useOutletDepartments } from "@/hooks/use-outlet-departments"
+import { useUsers } from "@/hooks/use-users"
 import {
   useDeleteEmployee,
   useEmployee,
@@ -41,14 +43,30 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
 
   const { data: employee, isLoading } = useEmployee(employeeId)
   const { data: positions } = usePositions()
+  const { data: users } = useUsers({ limit: 100 })
   const { data: outlet } = useOutlet(employee?.outletId ?? 0)
+  const { data: departments } = useOutletDepartments({ outletId: employee?.outletId, limit: 100 })
   const { data: performance } = useEmployeePerformance(employeeId)
+  const linkedUser = users?.data.find((u) => u.id === employee?.userId)
+  const currentDepartment = departments?.data.find((d) => d.id === employee?.departmentId)
   const updateEmployee = useUpdateEmployee(employeeId)
   const deleteEmployee = useDeleteEmployee()
 
   const form = useForm<UpdateEmployeeInput>({
     resolver: zodResolver(updateEmployeeSchema),
-    defaultValues: { name: "" },
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      userId: undefined,
+      positionId: undefined,
+      departmentId: undefined,
+      joiningDate: "",
+      employmentStatus: "active",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+      emergencyContactRelation: "",
+    },
   })
 
   useEffect(() => {
@@ -57,7 +75,9 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
         name: employee.name,
         email: employee.email ?? "",
         phone: employee.phone ?? "",
+        userId: employee.userId ?? undefined,
         positionId: employee.positionId ?? undefined,
+        departmentId: employee.departmentId ?? undefined,
         joiningDate: employee.joiningDate ?? "",
         employmentStatus: employee.employmentStatus,
         emergencyContactName: employee.emergencyContactName ?? "",
@@ -98,10 +118,18 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
               {employee.employeeCode} · {outlet?.name ?? `Outlet #${employee.outletId}`}
+              {employee.departmentId && ` · ${currentDepartment?.name ?? `Department #${employee.departmentId}`}`}
             </p>
             <Badge variant={employee.employmentStatus === "active" ? "secondary" : "outline"}>
               {employee.employmentStatus}
             </Badge>
+            {employee.userId ? (
+              <Badge variant="outline">
+                Login: {linkedUser ? linkedUser.email : `user #${employee.userId}`}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">No login account</Badge>
+            )}
           </div>
         </div>
         {canManage && (
@@ -185,6 +213,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                   <FormItem>
                     <FormLabel>Position</FormLabel>
                     <Select
+                      items={[
+                        { value: "none", label: "No position" },
+                        ...(positions?.map((position) => ({ value: String(position.id), label: position.name })) ?? []),
+                      ]}
                       value={field.value ? String(field.value) : "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
                       disabled={!canManage}
@@ -197,6 +229,68 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                         {positions?.map((position) => (
                           <SelectItem key={position.id} value={String(position.id)}>
                             {position.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select
+                      items={[
+                        { value: "none", label: "No department" },
+                        ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
+                      ]}
+                      value={field.value ? String(field.value) : "none"}
+                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                      disabled={!canManage}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No department</SelectItem>
+                        {departments?.data.map((department) => (
+                          <SelectItem key={department.id} value={String(department.id)}>
+                            {department.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="userId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Linked user account</FormLabel>
+                    <Select
+                      items={[
+                        { value: "none", label: "No login account" },
+                        ...(users?.data.map((user) => ({ value: String(user.id), label: `${user.name} (${user.email})` })) ?? []),
+                      ]}
+                      value={field.value ? String(field.value) : "none"}
+                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                      disabled={!canManage}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No login account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No login account</SelectItem>
+                        {users?.data.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>
+                            {user.name} ({user.email})
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -1,32 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { BellRingIcon, PackageCheckIcon, QrCodeIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { ReadyQueue } from "./ready-queue"
 import { ServiceRequestsPanel } from "./service-requests-panel"
 
-const OUTLET_STORAGE_KEY = "service-outlet-id"
-
-function readStoredOutletId(): number | null {
-  if (typeof window === "undefined") return null
-  const stored = localStorage.getItem(OUTLET_STORAGE_KEY)
-  return stored ? Number(stored) : null
-}
-
 export default function ServicePage() {
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const [outletId, setOutletId] = useState<number | null>(() => readStoredOutletId())
-  const effectiveOutletId = outletId ?? outlets?.data[0]?.id ?? null
-
-  useEffect(() => {
-    if (effectiveOutletId) localStorage.setItem(OUTLET_STORAGE_KEY, String(effectiveOutletId))
-  }, [effectiveOutletId])
+  const { outletId: effectiveOutletId, setOutletId, outlets, showOutletPicker } = useActiveOutlet()
 
   // Pushes ready notifications, service requests and kitchen status changes —
   // the same /kds socket the kitchen board and POS use.
@@ -40,23 +25,25 @@ export default function ServicePage() {
           <Button variant="outline" size="sm" render={<Link href="/floor" />}>
             Floor
           </Button>
-          <div className="w-56">
-            <Select
-              value={effectiveOutletId ? String(effectiveOutletId) : ""}
-              onValueChange={(value) => setOutletId(value ? Number(value) : null)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an outlet" />
-              </SelectTrigger>
-              <SelectContent>
-                {outlets?.data.map((outlet) => (
-                  <SelectItem key={outlet.id} value={String(outlet.id)}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {showOutletPicker && (
+            <div className="w-56">
+              <Select
+                value={effectiveOutletId ? String(effectiveOutletId) : ""}
+                onValueChange={(value) => setOutletId(value ? Number(value) : null)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select an outlet" />
+                </SelectTrigger>
+                <SelectContent>
+                  {outlets.map((outlet) => (
+                    <SelectItem key={outlet.id} value={String(outlet.id)}>
+                      {outlet.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
 

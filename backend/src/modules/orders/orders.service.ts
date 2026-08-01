@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -19,11 +20,13 @@ import { KitchenTicketItem } from '../kitchen-tickets/entities/kitchen-ticket-it
 import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
 import { ReservationsService } from '../reservations/reservations.service';
+import { SettingsService } from '../settings/settings.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { UnitsService } from '../units/units.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
@@ -76,6 +79,8 @@ const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
@@ -108,6 +113,8 @@ export class OrdersService {
     private readonly warehousesService: WarehousesService,
     private readonly warehouseIngredientStocksService: WarehouseIngredientStocksService,
     private readonly dataSource: DataSource,
+    private readonly loyaltyService: LoyaltyService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   // ---------------------------------------------------------------- orders
@@ -252,8 +259,42 @@ export class OrdersService {
     if (dto.status === 'completed') {
       await this.consumeReservationsForOrder(id, changedBy);
       await this.freeTableForCompletedOrder(saved, changedBy);
+      if (saved.customerId) {
+        try {
+          const loyaltySettings = await this.settingsService.getLoyaltySettings();
+          const pointsPerCurrencyUnit = Number(
+            loyaltySettings.pointsPerCurrencyUnit ?? 0,
+          );
+          const pointsToEarn = Math.floor(
+            saved.grandTotal * pointsPerCurrencyUnit,
+          );
+          if (pointsToEarn > 0) {
+            await this.loyaltyService.earnPoints(
+              saved.customerId,
+              pointsToEarn,
+              'order_purchase',
+              { orderId: saved.id, userId: changedBy },
+            );
+            saved.loyaltyPointsEarned = pointsToEarn;
+            await this.ordersRepository.save(saved);
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Failed to award loyalty points for order ${saved.id}: ${(error as Error).message}`,
+          );
+        }
+      }
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
+      if (saved.loyaltyPointsEarned > 0 || saved.loyaltyPointsRedeemed > 0) {
+        try {
+          await this.loyaltyService.reverseForRefund(saved.id, changedBy);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to reverse loyalty points for order ${saved.id}: ${(error as Error).message}`,
+          );
+        }
+      }
       const notification = await this.notificationsService.create({
         outletId: saved.outletId,
         type: 'order_cancelled',
@@ -753,6 +794,61 @@ export class OrdersService {
     await this.ordersRepository.save(order);
   }
 
+  // --------------------------------------------------------------- loyalty
+
+  /**
+   * Redeems loyalty points against an order: the account-level min/balance
+   * checks live in LoyaltyService.redeemPoints, while the max-redemption
+   * cap (a percentage of the order's own grand total) is enforced here
+   * since only this method knows that value.
+   */
+  async redeemLoyaltyPoints(
+    orderId: number,
+    points: number,
+    userId: number,
+  ): Promise<Order> {
+    const order = await this.findOne(orderId);
+    if (!order.customerId) {
+      throw new BadRequestException('Order has no customer to redeem points for');
+    }
+
+    const loyaltySettings = await this.settingsService.getLoyaltySettings();
+    const pointsPerCurrencyUnit = Number(
+      loyaltySettings.pointsPerCurrencyUnit ?? 0,
+    );
+    if (pointsPerCurrencyUnit <= 0) {
+      throw new BadRequestException(
+        'Loyalty redemption is not configured (pointsPerCurrencyUnit is 0)',
+      );
+    }
+    const maxRedemptionPercent = Number(
+      loyaltySettings.maxRedemptionPercent ?? 0,
+    );
+    const maxRedeemableValue = round2(
+      (order.grandTotal * maxRedemptionPercent) / 100,
+    );
+
+    const discountAmount = round2(points / pointsPerCurrencyUnit);
+    if (discountAmount > maxRedeemableValue) {
+      throw new BadRequestException(
+        `Redemption value ${discountAmount} exceeds the maximum redeemable value of ${maxRedeemableValue} for this order`,
+      );
+    }
+
+    await this.loyaltyService.redeemPoints(
+      order.customerId,
+      points,
+      orderId,
+      userId,
+    );
+
+    order.loyaltyPointsRedeemed = points;
+    order.loyaltyDiscountAmount = discountAmount;
+    await this.ordersRepository.save(order);
+
+    return this.recalculateTotals(orderId);
+  }
+
   // ---------------------------------------------------------------- private
 
   private async recalculateTotals(orderId: number): Promise<Order> {
@@ -779,7 +875,11 @@ export class OrdersService {
           ? round2((subtotal * order.discountValue) / 100)
           : 0;
     const grandTotal = round2(
-      subtotal - discountAmount + order.taxAmount + order.serviceChargeAmount,
+      subtotal -
+        discountAmount -
+        order.loyaltyDiscountAmount +
+        order.taxAmount +
+        order.serviceChargeAmount,
     );
 
     order.subtotal = subtotal;

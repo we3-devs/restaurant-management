@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { BellIcon, BellRingIcon, CheckCheckIcon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -10,13 +9,14 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -25,14 +25,6 @@ import {
   type AppNotification,
 } from "@/hooks/use-notifications"
 import { cn } from "@/lib/utils"
-
-const OUTLET_STORAGE_KEY = "bell-outlet-id"
-
-function readStoredOutletId(): number | null {
-  if (typeof window === "undefined") return null
-  const stored = localStorage.getItem(OUTLET_STORAGE_KEY)
-  return stored ? Number(stored) : null
-}
 
 function formatRelative(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
@@ -58,13 +50,7 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
 
 export function NotificationBell() {
   const currentUser = useCurrentUser()
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const [outletId] = useState<number | null>(() => readStoredOutletId())
-  const effectiveOutletId = outletId ?? outlets?.data[0]?.id ?? null
-
-  useEffect(() => {
-    if (effectiveOutletId) localStorage.setItem(OUTLET_STORAGE_KEY, String(effectiveOutletId))
-  }, [effectiveOutletId])
+  const { outletId: effectiveOutletId } = useActiveOutlet()
 
   useNotificationsRealtime(effectiveOutletId, currentUser.id)
 
@@ -104,20 +90,22 @@ export function NotificationBell() {
         }
       />
       <DropdownMenuContent align="end" sideOffset={6} className="w-80">
-        <DropdownMenuLabel className="flex items-center justify-between px-2">
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={handleMarkAll}
-              disabled={markAll.isPending}
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
-            >
-              <CheckCheckIcon className="size-3" />
-              Mark all read
-            </button>
-          )}
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center justify-between px-2">
+            <span>Notifications</span>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={handleMarkAll}
+                disabled={markAll.isPending}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                <CheckCheckIcon className="size-3" />
+                Mark all read
+              </button>
+            )}
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
 
         <div className="max-h-80 space-y-1 overflow-y-auto p-1">

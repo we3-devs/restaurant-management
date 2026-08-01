@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, QueryFailedError, Repository } from 'typeorm';
+import { ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CreateOutletDto } from './dto/create-outlet.dto';
 import { ListOutletsQueryDto } from './dto/list-outlets-query.dto';
@@ -33,6 +33,20 @@ export class OutletsService {
       data: outlets,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  /** Every outlet, unpaginated — used by GET /outlets/assigned for superadmins and users with only global/unscoped assignments. */
+  async findAllUnpaginated(): Promise<Outlet[]> {
+    return this.outletsRepository.find({ order: { name: 'ASC' } });
+  }
+
+  /** Unpaginated lookup for exactly the given outlet IDs — used by GET /outlets/assigned so regular users never fetch (or need permission to view) the full outlet list. */
+  async findByIds(ids: number[]): Promise<Outlet[]> {
+    if (ids.length === 0) return [];
+    return this.outletsRepository.find({
+      where: { id: In(ids) },
+      order: { name: 'ASC' },
+    });
   }
 
   /** Internal lookup used by OutletDepartments/Warehouses to validate an outletId. */

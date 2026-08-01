@@ -89,6 +89,20 @@ export interface DashboardSummary {
     onShiftNow: number;
   };
   staffOnDuty: { employeeId: number; employeeName: string; clockIn: string }[];
+  recentAuditActivity: {
+    id: number;
+    action: string;
+    entityType: string;
+    entityId: string | null;
+    userId: number | null;
+    createdAt: string;
+  }[];
+  loyaltySummary: {
+    activeAccounts: number;
+    totalPointsOutstanding: number;
+    pointsEarnedInPeriod: number;
+    pointsRedeemedInPeriod: number;
+  };
 }
 
 @Injectable()
@@ -142,6 +156,7 @@ export class DashboardService {
           employeeSummary,
           attendanceSummary,
           staffOnDuty,
+          recentAuditActivity,
         ] = await Promise.all([
           this.getSupplierSummary(range),
           this.getPurchaseSummary(range),
@@ -149,6 +164,11 @@ export class DashboardService {
           this.getEmployeeSummary(range),
           this.getAttendanceSummary(range),
           this.getStaffOnDuty(range),
+          this.getRecentAuditActivity(),
+        ]);
+
+        const [loyaltySummary] = await Promise.all([
+          this.getLoyaltySummary(range),
         ]);
 
         return {
@@ -169,6 +189,8 @@ export class DashboardService {
           employeeSummary,
           attendanceSummary,
           staffOnDuty,
+          recentAuditActivity,
+          loyaltySummary,
         };
       },
       CACHE_TTL_MS,
@@ -702,7 +724,7 @@ export class DashboardService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('attendance.employee_id', 'employeeId')
-      .addSelect('employee.name', 'employeeName')
+      .addSelect('user.name', 'employeeName')
       .addSelect('attendance.clock_in', 'clockIn')
       .from('attendance', 'attendance')
       .innerJoin(
@@ -710,6 +732,7 @@ export class DashboardService {
         'employee',
         'employee.id = attendance.employee_id',
       )
+      .innerJoin('users','user','user.id = employee.user_id')
       .where('attendance.clock_out IS NULL')
       .orderBy('attendance.clock_in', 'DESC')
       .limit(20);
@@ -728,6 +751,75 @@ export class DashboardService {
       employeeName: row.employeeName,
       clockIn: row.clockIn,
     }));
+  }
+
+  private async getRecentAuditActivity(): Promise<
+    DashboardSummary['recentAuditActivity']
+  > {
+    const rows = await this.ordersRepository.manager
+      .createQueryBuilder()
+      .select('a.id', 'id')
+      .addSelect('a.action', 'action')
+      .addSelect('a.entity_type', 'entityType')
+      .addSelect('a.entity_id', 'entityId')
+      .addSelect('a.user_id', 'userId')
+      .addSelect('a.created_at', 'createdAt')
+      .from('audit_logs', 'a')
+      .orderBy('a.created_at', 'DESC')
+      .limit(10)
+      .getRawMany<{
+        id: number;
+        action: string;
+        entityType: string;
+        entityId: string | null;
+        userId: number | null;
+        createdAt: string;
+      }>();
+    return rows.map((row) => ({
+      id: Number(row.id),
+      action: row.action,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      userId: row.userId !== null ? Number(row.userId) : null,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  private async getLoyaltySummary(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['loyaltySummary']> {
+    const [accountTotals, periodTotals] = await Promise.all([
+      this.ordersRepository.manager
+        .createQueryBuilder()
+        .select('COUNT(*)', 'activeAccounts')
+        .addSelect('COALESCE(SUM(account.current_points), 0)', 'totalPointsOutstanding')
+        .from('loyalty_accounts', 'account')
+        .where('account.current_points > 0')
+        .getRawOne<{ activeAccounts: string; totalPointsOutstanding: string }>(),
+      this.ordersRepository.manager
+        .createQueryBuilder()
+        .select(
+          "COALESCE(SUM(t.points) FILTER (WHERE t.type = 'earn'), 0)",
+          'pointsEarned',
+        )
+        .addSelect(
+          "COALESCE(SUM(ABS(t.points)) FILTER (WHERE t.type = 'redeem'), 0)",
+          'pointsRedeemed',
+        )
+        .from('loyalty_transactions', 't')
+        .where('t.created_at BETWEEN :from AND :to', {
+          from: range.from,
+          to: range.to,
+        })
+        .getRawOne<{ pointsEarned: string; pointsRedeemed: string }>(),
+    ]);
+
+    return {
+      activeAccounts: Number(accountTotals?.activeAccounts ?? 0),
+      totalPointsOutstanding: Number(accountTotals?.totalPointsOutstanding ?? 0),
+      pointsEarnedInPeriod: Number(periodTotals?.pointsEarned ?? 0),
+      pointsRedeemedInPeriod: Number(periodTotals?.pointsRedeemed ?? 0),
+    };
   }
 
   private async getRecentActivity(

@@ -28,10 +28,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useCreatePosition, useDeletePosition, usePositions } from "@/hooks/use-employees"
+import { useRoles } from "@/hooks/use-roles"
 import { createPositionSchema, type CreatePositionInput } from "@/lib/validators/employees"
 
 export default function PositionsPage() {
@@ -73,6 +75,7 @@ export default function PositionsPage() {
               <TableHead>Name</TableHead>
               <TableHead>Slug</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Default role</TableHead>
               <TableHead>Status</TableHead>
               {canManage && <TableHead />}
             </TableRow>
@@ -83,6 +86,13 @@ export default function PositionsPage() {
                 <TableCell className="font-medium">{position.name}</TableCell>
                 <TableCell>{position.slug}</TableCell>
                 <TableCell>{position.description ?? "—"}</TableCell>
+                <TableCell>
+                  {position.defaultRole ? (
+                    <Badge variant="outline">{position.defaultRole.name}</Badge>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge variant={position.isActive ? "secondary" : "outline"}>
                     {position.isActive ? "active" : "inactive"}
@@ -119,6 +129,8 @@ export default function PositionsPage() {
 function CreatePositionDialog() {
   const [open, setOpen] = useState(false)
   const createPosition = useCreatePosition()
+  const { data: rolesPage } = useRoles({ limit: 100 })
+  const roles = rolesPage?.data ?? []
 
   const form = useForm<CreatePositionInput>({
     resolver: zodResolver(createPositionSchema),
@@ -189,6 +201,32 @@ function CreatePositionDialog() {
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="defaultRoleId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default role</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : "none"}
+                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No default role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No default role</SelectItem>
+                      {roles.map((role) => (
+                        <SelectItem key={role.id} value={String(role.id)}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

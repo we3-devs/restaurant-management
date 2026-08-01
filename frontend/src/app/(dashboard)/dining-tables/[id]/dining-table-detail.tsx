@@ -52,7 +52,7 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
 
   async function onSubmit(values: UpdateDiningTableInput) {
     try {
-      await updateTable.mutateAsync(values)
+      await updateTable.mutateAsync({ ...values, code: values.code || undefined })
       toast.success("Table updated")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update table")
@@ -111,6 +111,17 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Code (optional)</FormLabel>
+                    <FormControl placeholder="e.g. A1" {...field} />
                     <FormMessage />
                   </FormItem>
                 )}

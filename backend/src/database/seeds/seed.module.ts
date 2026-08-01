@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TimestampSubscriber } from '../../common/subscribers/timestamp.subscriber';
 import configuration, { AppConfig } from '../../config/configuration';
 import { validate } from '../../config/env.validation';
+import { EmployeesModule } from '../../modules/employees/employees.module';
 import { OutletDepartmentsModule } from '../../modules/outlet-departments/outlet-departments.module';
 import { OutletsModule } from '../../modules/outlets/outlets.module';
 import { RolesModule } from '../../modules/roles/roles.module';
@@ -40,6 +41,7 @@ import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
     OutletsModule,
     OutletDepartmentsModule,
     WarehousesModule,
+    EmployeesModule,
   ],
 })
 export class SeedModule {}

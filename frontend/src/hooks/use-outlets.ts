@@ -18,12 +18,23 @@ export interface ListOutletsParams {
   search?: string
 }
 
-export function useOutlets(params: ListOutletsParams = {}) {
+export function useOutlets(params: ListOutletsParams = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.outlets.list(params),
     queryFn: () => apiClient<PaginatedResponse<Outlet>>(`/outlets${toQueryString(params)}`),
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME.outlets,
+    enabled: options.enabled ?? true,
+  })
+}
+
+/** Only the current user's assigned outlets — no `outlets.view` permission required. Superadmins/globally-scoped users get every outlet back. */
+export function useAssignedOutlets(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.outlets.assigned(),
+    queryFn: () => apiClient<Outlet[]>("/outlets/assigned"),
+    staleTime: STALE_TIME.outlets,
+    enabled: options.enabled ?? true,
   })
 }
 

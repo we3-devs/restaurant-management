@@ -3,6 +3,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -10,6 +11,7 @@ import {
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.module';
+import { registerRealtimeServer } from '../../realtime/realtime-bus';
 import { PermissionsService } from '../auth/permissions.service';
 import type { Notification } from '../notifications/entities/notification.entity';
 import type { ServiceRequest } from '../service-requests/entities/service-request.entity';
@@ -38,7 +40,7 @@ type KdsSocket = Omit<Socket, 'data'> & { data: KdsSocketData };
     credentials: true,
   },
 })
-export class KitchenTicketsGateway implements OnGatewayConnection {
+export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit {
   private readonly logger = new Logger(KitchenTicketsGateway.name);
 
   @WebSocketServer()
@@ -48,6 +50,11 @@ export class KitchenTicketsGateway implements OnGatewayConnection {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly permissionsService: PermissionsService,
   ) {}
+
+  /** Hands the live Socket.IO server to RealtimeChangeSubscriber, which TypeORM instantiates outside Nest's DI graph and so can't inject this gateway directly. */
+  afterInit(server: Server): void {
+    registerRealtimeServer(server, (outletId) => this.outletRoom(outletId));
+  }
 
   async handleConnection(client: KdsSocket): Promise<void> {
     const ticket = client.handshake.auth?.ticket as string | undefined;
@@ -74,7 +81,7 @@ export class KitchenTicketsGateway implements OnGatewayConnection {
 
     if (!payload.isSuperadmin) {
       const permissions =
-        await this.permissionsService.getGlobalPermissionSlugs(payload.userId);
+        await this.permissionsService.getPermissionSlugs(payload.userId);
       // orders.view covers the KDS board; orders.manage covers the POS screen,
       // which also subscribes to this namespace to keep its cart badges live.
       if (

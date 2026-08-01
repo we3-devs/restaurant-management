@@ -41,11 +41,9 @@ import {
   type KitchenTicket,
   type KitchenTicketItem,
 } from "@/hooks/use-kitchen-tickets"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { KITCHEN_TICKET_PRIORITIES } from "@/lib/validators/kitchen-tickets"
 import { cn } from "@/lib/utils"
-
-const OUTLET_STORAGE_KEY = "kds-outlet-id"
 
 const COLUMNS: { stage: TicketStage; label: string; dot: string }[] = [
   { stage: "incoming", label: "Incoming", dot: "bg-amber-500" },
@@ -65,12 +63,6 @@ const STAGE_VARIANT: Record<TicketStage, "default" | "outline" | "secondary"> = 
   incoming: "default",
   preparing: "outline",
   ready: "secondary",
-}
-
-function readStoredOutletId(): number | null {
-  if (typeof window === "undefined") return null
-  const stored = localStorage.getItem(OUTLET_STORAGE_KEY)
-  return stored ? Number(stored) : null
 }
 
 function formatTime(iso: string): string {
@@ -310,9 +302,7 @@ export default function KitchenPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("orders.manage")
 
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const [outletId, setOutletId] = useState<number | null>(() => readStoredOutletId())
-  const effectiveOutletId = outletId ?? outlets?.data[0]?.id ?? null
+  const { outletId: effectiveOutletId, setOutletId, outlets, showOutletPicker, departmentId } = useActiveOutlet()
 
   // Live clock driving the "…m ago" timers so they tick without a refetch.
   const [now, setNow] = useState(() => Date.now())
@@ -321,26 +311,26 @@ export default function KitchenPage() {
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    if (effectiveOutletId) localStorage.setItem(OUTLET_STORAGE_KEY, String(effectiveOutletId))
-  }, [effectiveOutletId])
-
-  // Filter to one station so each department only sees its own queue. The
-  // outlet is stored alongside the selection so switching outlets resets the
-  // filter without a setState-in-effect (lint forbids those).
-  const [stationState, setStationState] = useState<{ outletId: number | null; station: string }>({
-    outletId: null,
-    station: "all",
-  })
-  const station = stationState.outletId === effectiveOutletId ? stationState.station : "all"
-  const selectStation = (value: string) => setStationState({ outletId: effectiveOutletId, station: value })
-
   useKitchenRealtime(effectiveOutletId)
   const { data, isLoading } = useKdsBootstrap(effectiveOutletId)
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
   const hasUngrouped = tickets.some((ticket) => ticket.departmentId === null)
+
+  // Filter to one station so each department only sees its own queue. The
+  // outlet is stored alongside the selection so switching outlets resets the
+  // filter without a setState-in-effect (lint forbids those). Defaults to
+  // the active outlet/department context's auto-selected department, if it's
+  // one of this outlet's stations, instead of dumping everyone into "all stations".
+  const assignedStation = stations.find((s) => s.id === departmentId)
+  const [stationState, setStationState] = useState<{ outletId: number | null; station: string }>({
+    outletId: null,
+    station: "all",
+  })
+  const station =
+    stationState.outletId === effectiveOutletId ? stationState.station : (assignedStation ? String(assignedStation.id) : "all")
+  const selectStation = (value: string) => setStationState({ outletId: effectiveOutletId, station: value })
 
   const visibleTickets = useMemo(() => {
     if (station === "all") return tickets
@@ -365,23 +355,25 @@ export default function KitchenPage() {
           <h1 className="text-lg font-semibold">Kitchen Display</h1>
           <span className="text-sm tabular-nums text-muted-foreground">{clock}</span>
         </div>
-        <div className="w-56">
-          <Select
-            value={effectiveOutletId ? String(effectiveOutletId) : ""}
-            onValueChange={(value) => setOutletId(value ? Number(value) : null)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select an outlet" />
-            </SelectTrigger>
-            <SelectContent>
-              {outlets?.data.map((outlet) => (
-                <SelectItem key={outlet.id} value={String(outlet.id)}>
-                  {outlet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showOutletPicker && (
+          <div className="w-56">
+            <Select
+              value={effectiveOutletId ? String(effectiveOutletId) : ""}
+              onValueChange={(value) => setOutletId(value ? Number(value) : null)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select an outlet" />
+              </SelectTrigger>
+              <SelectContent>
+                {outlets.map((outlet) => (
+                  <SelectItem key={outlet.id} value={String(outlet.id)}>
+                    {outlet.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {!effectiveOutletId ? (

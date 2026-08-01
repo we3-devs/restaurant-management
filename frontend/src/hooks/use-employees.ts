@@ -16,6 +16,8 @@ export interface Position {
   name: string
   slug: string
   description: string | null
+  defaultRoleId: number | null
+  defaultRole?: { id: number; name: string; slug: string } | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -144,7 +146,7 @@ export interface EmployeePerformance {
 export function useEmployeePerformance(id: number, params: { dateFrom?: string; dateTo?: string } = {}) {
   return useQuery({
     queryKey: queryKeys.employees.performance(id, params),
-    queryFn: () => apiClient<EmployeePerformance>(`/performance/${id}${toQueryString(params)}`),
+    queryFn: () => apiClient<EmployeePerformance>(`/assignments/performance/${id}${toQueryString(params)}`),
     enabled: id > 0,
   })
 }

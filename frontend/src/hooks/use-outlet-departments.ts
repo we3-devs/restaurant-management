@@ -38,6 +38,16 @@ export function useOutletDepartments(params: ListOutletDepartmentsParams = {}) {
   })
 }
 
+/** Departments at one outlet, scoped to the current user's own assignments — no `outlet-departments.view` permission required. */
+export function useAssignedOutletDepartments(outletId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.outletDepartments.assigned(outletId),
+    queryFn: () => apiClient<OutletDepartment[]>(`/outlet-departments/assigned?outletId=${outletId}`),
+    enabled: outletId !== null && outletId > 0,
+    staleTime: STALE_TIME.departments,
+  })
+}
+
 export function useOutletDepartment(id: number) {
   return useQuery({
     queryKey: queryKeys.outletDepartments.detail(id),

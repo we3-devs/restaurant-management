@@ -118,6 +118,54 @@ export function useDeleteNotification() {
   })
 }
 
+export interface NotificationPreferences {
+  emailEnabled: boolean
+  smsEnabled: boolean
+  pushEnabled: boolean
+  mutedTypes: NotificationType[]
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: queryKeys.notifications.preferences(),
+    queryFn: () => apiClient<NotificationPreferences>("/notifications/preferences"),
+  })
+}
+
+export function useUpdateNotificationPreferences() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Partial<NotificationPreferences>) =>
+      apiClient<NotificationPreferences>("/notifications/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.notifications.preferences(), data),
+  })
+}
+
+export function usePushPublicKey() {
+  return useQuery({
+    queryKey: queryKeys.notifications.pushPublicKey(),
+    queryFn: () => apiClient<{ publicKey: string | null; configured: boolean }>("/notifications/push/public-key"),
+    staleTime: Infinity,
+  })
+}
+
+export function useSubscribePush() {
+  return useMutation({
+    mutationFn: (input: { endpoint: string; p256dh: string; auth: string }) =>
+      apiClient<void>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(input) }),
+  })
+}
+
+export function useUnsubscribePush() {
+  return useMutation({
+    mutationFn: (endpoint: string) =>
+      apiClient<void>("/notifications/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  })
+}
+
 /**
  * Keeps the notification feed fresh via the shared /kds websocket and pops a
  * toast for realtime events — the persistent history lives in the

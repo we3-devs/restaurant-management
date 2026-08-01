@@ -33,6 +33,9 @@ export class User {
   @Column({ name: 'is_superadmin', type: 'boolean', default: false })
   isSuperadmin: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  phone: string | null;
+
   @Column({
     name: 'remember_token',
     type: 'varchar',

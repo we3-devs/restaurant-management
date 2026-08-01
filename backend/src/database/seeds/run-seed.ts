@@ -5,9 +5,11 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { IsNull, Repository } from 'typeorm';
 import { AppConfig } from '../../config/configuration';
+import { Position } from '../../modules/employees/entities/position.entity';
 import { Permission } from '../../modules/roles/entities/permission.entity';
 import { RolePermission } from '../../modules/roles/entities/role-permission.entity';
 import { Role } from '../../modules/roles/entities/role.entity';
+import type { ScopeLevel } from '../../modules/roles/entities/scope-level';
 import { UserRoleAssignment } from '../../modules/roles/entities/user-role-assignment.entity';
 import { User } from '../../modules/users/entities/user.entity';
 import { SeedModule } from './seed.module';
@@ -98,6 +100,190 @@ async function upsertModulePermissions(
   await upsertRolePermission(rolePermissionRepo, roleId, managePermission.id);
 }
 
+function titleCase(slug: string): string {
+  return slug.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
+}
+
+async function upsertOperationalRole(
+  repo: Repository<Role>,
+  input: { slug: string; name: string; rank: number; description: string; level?: ScopeLevel },
+): Promise<Role> {
+  let role = await repo.findOne({ where: { slug: input.slug } });
+  if (!role) {
+    role = repo.create({
+      name: input.name,
+      slug: input.slug,
+      level: input.level ?? 'outlet',
+      rank: input.rank,
+      isAssignable: true,
+      isSystem: false,
+      isActive: true,
+      description: input.description,
+    });
+    role = await repo.save(role);
+    logger.log(`Created role "${role.slug}"`);
+  } else {
+    logger.log(`Role "${role.slug}" already exists, skipping`);
+  }
+  return role;
+}
+
+/** Creates the permission if missing (module/action inferred from the slug) and grants it to the role. */
+async function grantPermissionSlug(
+  permissionRepo: Repository<Permission>,
+  rolePermissionRepo: Repository<RolePermission>,
+  roleId: number,
+  slug: string,
+  name: string,
+): Promise<void> {
+  const [module, action] = slug.split('.');
+  const permission = await upsertPermission(permissionRepo, slug, name, module, action);
+  await upsertRolePermission(rolePermissionRepo, roleId, permission.id);
+}
+
+async function upsertPosition(
+  repo: Repository<Position>,
+  input: { name: string; slug: string; description: string; defaultRoleId: number },
+): Promise<Position> {
+  let position = await repo.findOne({ where: { slug: input.slug } });
+  if (!position) {
+    position = repo.create({
+      name: input.name,
+      slug: input.slug,
+      description: input.description,
+      defaultRoleId: input.defaultRoleId,
+      isActive: true,
+    });
+    position = await repo.save(position);
+    logger.log(`Created position "${position.slug}"`);
+  } else if (position.defaultRoleId !== input.defaultRoleId) {
+    position.defaultRoleId = input.defaultRoleId;
+    position = await repo.save(position);
+    logger.log(`Linked position "${position.slug}" -> role ${input.defaultRoleId}`);
+  } else {
+    logger.log(`Position "${position.slug}" already exists, skipping`);
+  }
+  return position;
+}
+
+interface RoleSeed {
+  slug: string;
+  name: string;
+  rank: number;
+  description: string;
+  /** Grants both {module}.view and {module}.manage. */
+  fullModules: string[];
+  /** Grants a single already-namespaced permission slug, e.g. "dashboard.view". */
+  singlePermissions: string[];
+  position: { name: string; slug: string; description: string };
+}
+
+const OPERATIONAL_ROLES: RoleSeed[] = [
+  {
+    slug: 'manager',
+    name: 'Manager',
+    rank: 20,
+    description: 'Outlet manager — full operational access short of user/role administration.',
+    fullModules: [
+      'orders', 'order-payments', 'table-sessions', 'dining-tables', 'dining-areas',
+      'reservations', 'customers', 'employees', 'shifts', 'attendance',
+      'suppliers', 'purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments',
+      'foods', 'food-categories', 'food-variants', 'addon-groups', 'addons',
+      'ingredients', 'ingredient-categories', 'units',
+      'stock-ins', 'stock-outs', 'stock-transfers', 'stock-adjustments', 'stock-counts', 'ingredient-wastages',
+      'loyalty', 'settings',
+    ],
+    singlePermissions: [
+      'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view',
+      'outlets.view', 'warehouses.view', 'outlet-departments.view',
+    ],
+    position: { name: 'Manager', slug: 'manager', description: 'Runs day-to-day outlet operations.' },
+  },
+  {
+    slug: 'cashier',
+    name: 'Cashier',
+    rank: 40,
+    description: 'Front-of-house billing and payment collection.',
+    fullModules: ['order-payments', 'orders', 'loyalty'],
+    singlePermissions: ['customers.view', 'dining-tables.view', 'dashboard.view'],
+    position: { name: 'Cashier', slug: 'cashier', description: 'Handles billing, payments and loyalty redemption at the counter.' },
+  },
+  {
+    slug: 'waiter',
+    name: 'Waiter',
+    rank: 50,
+    description: 'Front-of-house service — takes orders, manages tables, settles bills.',
+    fullModules: ['orders', 'order-payments', 'table-sessions', 'reservations'],
+    singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view'],
+    position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
+  },
+  {
+    slug: 'bartender',
+    name: 'Bartender',
+    rank: 50,
+    description: 'Bar orders and drink service.',
+    fullModules: ['orders', 'order-payments'],
+    singlePermissions: ['ingredients.view', 'dining-tables.view'],
+    position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
+  },
+  {
+    slug: 'host',
+    name: 'Host / Hostess',
+    rank: 50,
+    description: 'Guest seating and reservation management.',
+    fullModules: ['reservations', 'table-sessions'],
+    singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view'],
+    position: { name: 'Host/Hostess', slug: 'host-hostess', description: 'Greets guests, manages the seating queue and reservations.' },
+  },
+  {
+    slug: 'cook',
+    name: 'Cook',
+    rank: 50,
+    description: 'Kitchen staff — prepares food and logs ingredient wastage.',
+    fullModules: ['ingredient-wastages', 'orders'],
+    singlePermissions: ['ingredients.view', 'ingredient-categories.view', 'inventory-stock.view', 'stock-outs.view', 'units.view'],
+    position: { name: 'Cook', slug: 'cook', description: 'Prepares kitchen orders.' },
+  },
+  {
+    slug: 'housekeeping',
+    name: 'Housekeeping',
+    rank: 60,
+    description: 'Table and dining-area upkeep between seatings.',
+    fullModules: ['dining-tables'],
+    singlePermissions: ['dining-areas.view', 'table-sessions.view', 'attendance.view', 'shifts.view'],
+    position: { name: 'Housekeeping Staff', slug: 'housekeeping', description: 'Cleans and resets tables and dining areas between seatings.' },
+  },
+  {
+    slug: 'kitchen-helper',
+    name: 'Kitchen Helper',
+    rank: 70,
+    description: 'Dishwashing and kitchen support.',
+    fullModules: [],
+    singlePermissions: ['orders.view', 'attendance.view', 'shifts.view'],
+    position: { name: 'Dishwasher', slug: 'dishwasher', description: 'Kitchen support — dishwashing and cleaning.' },
+  },
+];
+
+async function seedOperationalRolesAndPositions(
+  roleRepo: Repository<Role>,
+  permissionRepo: Repository<Permission>,
+  rolePermissionRepo: Repository<RolePermission>,
+  positionRepo: Repository<Position>,
+): Promise<void> {
+  for (const seed of OPERATIONAL_ROLES) {
+    const role = await upsertOperationalRole(roleRepo, seed);
+
+    for (const module of seed.fullModules) {
+      await upsertModulePermissions(permissionRepo, rolePermissionRepo, role.id, module, titleCase(module));
+    }
+    for (const slug of seed.singlePermissions) {
+      await grantPermissionSlug(permissionRepo, rolePermissionRepo, role.id, slug, titleCase(slug.split('.')[0]));
+    }
+
+    await upsertPosition(positionRepo, { ...seed.position, defaultRoleId: role.id });
+  }
+}
+
 async function upsertUser(
   repo: Repository<User>,
   email: string,
@@ -161,6 +347,7 @@ async function run() {
   const assignmentRepo = app.get<Repository<UserRoleAssignment>>(
     getRepositoryToken(UserRoleAssignment),
   );
+  const positionRepo = app.get<Repository<Position>>(getRepositoryToken(Position));
 
   const role = await upsertRole(roleRepo);
   const usersViewPermission = await upsertPermission(
@@ -532,6 +719,34 @@ async function run() {
     reportsViewPermission.id,
   );
 
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'settings',
+    'Settings',
+  );
+  const auditLogsViewPermission = await upsertPermission(
+    permissionRepo,
+    'audit-logs.view',
+    'View Audit Logs',
+    'audit-logs',
+    'view',
+  );
+  await upsertRolePermission(
+    rolePermissionRepo,
+    role.id,
+    auditLogsViewPermission.id,
+  );
+
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'loyalty',
+    'Loyalty',
+  );
+
   const user = await upsertUser(
     userRepo,
     seedConfig.adminEmail,
@@ -539,6 +754,8 @@ async function run() {
     bcryptConfig.saltRounds,
   );
   await upsertGlobalAssignment(assignmentRepo, user.id, role.id);
+
+  await seedOperationalRolesAndPositions(roleRepo, permissionRepo, rolePermissionRepo, positionRepo);
 
   logger.log('Seed complete.');
   await app.close();

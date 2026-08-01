@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { ArchiveIcon, ArchiveRestoreIcon, BellOffIcon, CheckIcon, Trash2Icon } from "lucide-react"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataTablePagination } from "@/components/data-table-pagination"
-import { useOutlets } from "@/hooks/use-outlets"
 import {
   useArchiveNotification,
   useDeleteNotification,
@@ -25,14 +25,7 @@ import {
 } from "@/lib/validators/notifications"
 import { cn } from "@/lib/utils"
 
-const OUTLET_STORAGE_KEY = "bell-outlet-id"
 const PAGE_SIZE = 20
-
-function readStoredOutletId(): number | null {
-  if (typeof window === "undefined") return null
-  const stored = localStorage.getItem(OUTLET_STORAGE_KEY)
-  return stored ? Number(stored) : null
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString()
@@ -45,9 +38,7 @@ const PRIORITY_VARIANT: Record<string, "secondary" | "outline" | "destructive"> 
 }
 
 export default function NotificationsPage() {
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const [outletId] = useState<number | null>(() => readStoredOutletId())
-  const effectiveOutletId = outletId ?? outlets?.data[0]?.id ?? null
+  const { outletId: effectiveOutletId, outlets } = useActiveOutlet()
 
   const [page, setPage] = useState(1)
   const [category, setCategory] = useState<string>("all")
@@ -85,7 +76,7 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Notifications</h1>
         <p className="text-sm text-muted-foreground">
-          {outlets?.data.find((o) => o.id === effectiveOutletId)?.name ?? "No outlet selected"}
+          {outlets.find((o) => o.id === effectiveOutletId)?.name ?? "No outlet selected"}
         </p>
       </div>
 
