@@ -7,6 +7,7 @@ import { NotificationBell } from "./notification-bell"
 import { LogoutButton } from "./logout-button"
 import { WhoAmIButton } from "./whoami-button"
 import { RealtimeInvalidationProvider } from "./realtime-invalidation-provider"
+import { CommandPalette } from "@/components/command-palette"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // The real auth check — proxy.ts only did an optimistic cookie check. This
@@ -18,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <CurrentUserProvider user={user}>
       <ActiveOutletProvider>
       <RealtimeInvalidationProvider />
+      <CommandPalette />
       <div className="flex min-h-screen">
         <aside
           id="dashboard-sidebar"
