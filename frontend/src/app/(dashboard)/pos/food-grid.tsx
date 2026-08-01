@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -10,6 +11,24 @@ import { Input } from "@/components/ui/input"
 import { useAddOrderItem } from "@/hooks/use-orders"
 import { useFoods, type Food } from "@/hooks/use-foods"
 import { VariantPickerDialog } from "./variant-picker-dialog"
+
+const ROW_HEIGHT = 96
+const ROW_GAP = 12
+
+function useColumnCount() {
+  const [columns, setColumns] = useState(2)
+  useEffect(() => {
+    function update() {
+      if (window.innerWidth >= 1024) setColumns(4)
+      else if (window.innerWidth >= 640) setColumns(3)
+      else setColumns(2)
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
+  return columns
+}
 
 export function FoodGrid({
   orderId,
@@ -28,6 +47,24 @@ export function FoodGrid({
     limit: 60,
   })
   const addItem = useAddOrderItem(orderId)
+
+  const columns = useColumnCount()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const items = foods?.data ?? []
+  const rows = useMemo(() => {
+    const chunked: Food[][] = []
+    for (let i = 0; i < items.length; i += columns) {
+      chunked.push(items.slice(i, i + columns))
+    }
+    return chunked
+  }, [items, columns])
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT + ROW_GAP,
+    overscan: 4,
+  })
 
   async function handleAdd(food: Food) {
     if (food.hasVariants) {
@@ -57,38 +94,53 @@ export function FoodGrid({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-        {!isLoading && (foods?.data.length ?? 0) === 0 && (
-          <p className="text-sm text-muted-foreground">No foods found.</p>
-        )}
-        {foods?.data.map((food) => (
-          <Card
-            key={food.id}
-            className="cursor-pointer transition-colors hover:bg-muted/50"
-            onClick={() => handleAdd(food)}
-          >
-            <CardContent className="space-y-1 p-3">
-              <p className="text-sm font-medium">{food.name}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{food.basePrice}</span>
-                <div className="flex gap-1">
-                  {food.hasVariants && (
-                    <Badge variant="secondary" className="text-xs">
-                      variants
-                    </Badge>
-                  )}
-                  {food.hasAddons && (
-                    <Badge variant="secondary" className="text-xs">
-                      addons
-                    </Badge>
-                  )}
-                </div>
+      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {!isLoading && items.length === 0 && <p className="text-sm text-muted-foreground">No foods found.</p>}
+
+      {!isLoading && items.length > 0 && (
+        <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
+          <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+              <div
+                key={virtualRow.key}
+                className="absolute top-0 left-0 grid w-full gap-3"
+                style={{
+                  height: ROW_HEIGHT,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                }}
+              >
+                {rows[virtualRow.index].map((food) => (
+                  <Card
+                    key={food.id}
+                    className="h-full cursor-pointer transition-colors hover:bg-muted/50"
+                    onClick={() => handleAdd(food)}
+                  >
+                    <CardContent className="space-y-1 p-3">
+                      <p className="text-sm font-medium">{food.name}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">{food.basePrice}</span>
+                        <div className="flex gap-1">
+                          {food.hasVariants && (
+                            <Badge variant="secondary" className="text-xs">
+                              variants
+                            </Badge>
+                          )}
+                          {food.hasAddons && (
+                            <Badge variant="secondary" className="text-xs">
+                              addons
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {variantFood && (
         <VariantPickerDialog
