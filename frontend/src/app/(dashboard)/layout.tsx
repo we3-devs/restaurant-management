@@ -8,6 +8,7 @@ import { LogoutButton } from "./logout-button"
 import { WhoAmIButton } from "./whoami-button"
 import { RealtimeInvalidationProvider } from "./realtime-invalidation-provider"
 import { CommandPalette } from "@/components/command-palette"
+import { OfflineIndicator } from "@/components/offline-indicator"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // The real auth check — proxy.ts only did an optimistic cookie check. This
@@ -45,6 +46,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-6">
             <MobileNavToggle />
             <div className="flex flex-1 items-center justify-end gap-4 text-sm">
+              <OfflineIndicator />
               <span className="hidden text-muted-foreground sm:inline">{user.email}</span>
               <WhoAmIButton />
               <NotificationBell />

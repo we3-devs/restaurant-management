@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAddons } from "@/hooks/use-addons"
 import { useFoods } from "@/hooks/use-foods"
+import { useOnlineStatus } from "@/lib/offline/online-status"
 import {
   useAddOrderItemAddon,
   useFireHeldItems,
@@ -36,6 +37,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
   const { data: foods } = useFoods({ limit: 100 })
   const sendToKitchen = useSendOrderToKitchen(orderId)
   const fireHeld = useFireHeldItems(orderId)
+  const isOnline = useOnlineStatus()
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
   const pendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
@@ -43,6 +45,10 @@ export function CartPanel({ orderId }: { orderId: number }) {
   const heldCount = pendingItems.filter((item) => item.isHeld).length
 
   async function handleSendToKitchen() {
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to send items to the kitchen")
+      return
+    }
     try {
       await sendToKitchen.mutateAsync()
       toast.success(`Sent ${pendingCount} item(s) to the kitchen`)
@@ -52,6 +58,10 @@ export function CartPanel({ orderId }: { orderId: number }) {
   }
 
   async function handleFireHeld() {
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to send items to the kitchen")
+      return
+    }
     try {
       await fireHeld.mutateAsync()
       toast.success(`Fired ${heldCount} held item(s) to the kitchen`)
@@ -77,7 +87,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
           variant="outline"
           className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
           onClick={handleFireHeld}
-          disabled={fireHeld.isPending}
+          disabled={fireHeld.isPending || !isOnline}
         >
           <FlameIcon />
           {fireHeld.isPending ? "Firing..." : `Fire held items (${heldCount})`}
@@ -86,7 +96,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
       <Button
         variant="secondary"
         onClick={handleSendToKitchen}
-        disabled={pendingCount === 0 || sendToKitchen.isPending}
+        disabled={pendingCount === 0 || sendToKitchen.isPending || !isOnline}
       >
         {sendToKitchen.isPending ? "Sending..." : `Send to Kitchen${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
@@ -101,6 +111,7 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
   const removeItem = useRemoveOrderItem(orderId)
   const addAddon = useAddOrderItemAddon(orderId, item.id)
   const removeAddon = useRemoveOrderItemAddon(orderId, item.id)
+  const isOnline = useOnlineStatus()
   const [note, setNote] = useState(item.note ?? "")
   const [selectedAddonId, setSelectedAddonId] = useState("")
 
@@ -134,6 +145,10 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
 
   async function handleAddAddon() {
     if (!selectedAddonId) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to add addons")
+      return
+    }
     try {
       await addAddon.mutateAsync({ addonId: Number(selectedAddonId), quantity: 1 })
       setSelectedAddonId("")

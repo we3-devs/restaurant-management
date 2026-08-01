@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
+import { queuableApiClient } from "@/lib/offline/queuable-api-client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
 import type {
@@ -112,12 +113,28 @@ export function useCreateOrder() {
   })
 }
 
+/**
+ * Absolute-value PATCH (not a delta) — replaying a queued update converges
+ * to the same state, so this is safe to auto-queue while offline. See
+ * queuable-api-client.ts.
+ */
 export function useUpdateOrder(id: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: UpdateOrderInput) =>
-      apiClient<Order>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) }),
+      queuableApiClient<Order>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, "Update order totals"),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.detail(id) })
+      const previous = queryClient.getQueryData<Order>(queryKeys.orders.detail(id))
+      queryClient.setQueryData<Order>(queryKeys.orders.detail(id), (old) =>
+        old ? { ...old, ...input } : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.orders.detail(id), context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) }),
   })
 }
 
@@ -197,12 +214,45 @@ export function useAddOrderItem(orderId: number) {
   })
 }
 
+/**
+ * Absolute-value PATCH — quantity/note/isHeld are target values, not deltas,
+ * so replaying a queued update converges to the same state. Safe to
+ * auto-queue while offline. See queuable-api-client.ts.
+ */
 export function useUpdateOrderItem(orderId: number, itemId: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { quantity?: number; status?: string; note?: string; isHeld?: boolean }) =>
-      apiClient<OrderItem>(`/order-items/${itemId}`, { method: "PATCH", body: JSON.stringify(input) }),
-    onSuccess: () => {
+      queuableApiClient<OrderItem>(
+        `/order-items/${itemId}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+        "Update order item",
+      ),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
+      const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
+      queryClient.setQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId), (old) =>
+        old
+          ? {
+              ...old,
+              data: old.data.map((item) =>
+                item.id === itemId
+                  ? {
+                      ...item,
+                      ...input,
+                      totalAmount: item.unitPrice * (input.quantity ?? item.quantity),
+                    }
+                  : item,
+              ),
+            }
+          : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.orders.items(orderId), context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
@@ -210,11 +260,24 @@ export function useUpdateOrderItem(orderId: number, itemId: number) {
   })
 }
 
+/** DELETE by id — a no-op if replayed twice, safe to auto-queue while offline. */
 export function useRemoveOrderItem(orderId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (itemId: number) => apiClient<void>(`/order-items/${itemId}`, { method: "DELETE" }),
-    onSuccess: () => {
+    mutationFn: (itemId: number) =>
+      queuableApiClient<void>(`/order-items/${itemId}`, { method: "DELETE" }, "Remove order item"),
+    onMutate: async (itemId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
+      const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
+      queryClient.setQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId), (old) =>
+        old ? { ...old, data: old.data.filter((item) => item.id !== itemId) } : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _itemId, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.orders.items(orderId), context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
     },
@@ -243,12 +306,37 @@ export function useAddOrderItemAddon(orderId: number, itemId: number) {
   })
 }
 
+/** DELETE by id — a no-op if replayed twice, safe to auto-queue while offline. */
 export function useRemoveOrderItemAddon(orderId: number, itemId: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (addonId: number) =>
-      apiClient<void>(`/order-items/${itemId}/addons/${addonId}`, { method: "DELETE" }),
-    onSuccess: () => {
+      queuableApiClient<void>(
+        `/order-items/${itemId}/addons/${addonId}`,
+        { method: "DELETE" },
+        "Remove order item addon",
+      ),
+    onMutate: async (addonId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
+      const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
+      queryClient.setQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId), (old) =>
+        old
+          ? {
+              ...old,
+              data: old.data.map((item) =>
+                item.id === itemId
+                  ? { ...item, addons: item.addons.filter((addon) => addon.addonId !== addonId) }
+                  : item,
+              ),
+            }
+          : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _addonId, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.orders.items(orderId), context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })

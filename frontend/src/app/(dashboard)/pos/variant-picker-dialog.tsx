@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAddOrderItem } from "@/hooks/use-orders"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import type { Food } from "@/hooks/use-foods"
+import { useOnlineStatus } from "@/lib/offline/online-status"
 
 export function VariantPickerDialog({
   food,
@@ -26,8 +27,13 @@ export function VariantPickerDialog({
 }) {
   const { data: variants, isLoading } = useFoodVariants({ foodId: food.id, limit: 100 })
   const addItem = useAddOrderItem(orderId)
+  const isOnline = useOnlineStatus()
 
   async function handlePick(foodVariantId: number) {
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to add items to the order")
+      return
+    }
     try {
       await addItem.mutateAsync({
         foodId: food.id,

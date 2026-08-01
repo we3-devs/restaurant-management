@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useAddOrderItem } from "@/hooks/use-orders"
 import { useFoods, type Food } from "@/hooks/use-foods"
+import { useOnlineStatus } from "@/lib/offline/online-status"
 import { VariantPickerDialog } from "./variant-picker-dialog"
 
 const ROW_HEIGHT = 96
@@ -47,6 +48,7 @@ export function FoodGrid({
     limit: 60,
   })
   const addItem = useAddOrderItem(orderId)
+  const isOnline = useOnlineStatus()
 
   const columns = useColumnCount()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -67,6 +69,10 @@ export function FoodGrid({
   })
 
   async function handleAdd(food: Food) {
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to add items to the order")
+      return
+    }
     if (food.hasVariants) {
       setVariantFood(food)
       return

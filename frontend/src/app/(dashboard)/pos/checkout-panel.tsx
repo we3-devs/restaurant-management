@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrder, useUpdateOrder, useUpdateOrderStatus } from "@/hooks/use-orders"
+import { useOnlineStatus } from "@/lib/offline/online-status"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@/lib/validators/orders"
 
 export function CheckoutPanel({ orderId }: { orderId: number }) {
@@ -20,6 +21,7 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
   const updateOrder = useUpdateOrder(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
   const createPayment = useCreateOrderPayment(orderId)
+  const isOnline = useOnlineStatus()
 
   const [discountType, setDiscountType] = useState<string>("none")
   const [discountValue, setDiscountValue] = useState(0)
@@ -63,6 +65,10 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
 
   async function handleAddPayment() {
     if (paymentAmount <= 0) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to record a payment")
+      return
+    }
     try {
       await createPayment.mutateAsync({ type: "payment", method: paymentMethod, amount: paymentAmount })
       toast.success("Payment recorded")
@@ -72,6 +78,10 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
   }
 
   async function handleCompleteSale() {
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to complete the sale")
+      return
+    }
     try {
       await updateStatus.mutateAsync("completed")
       toast.success("Sale complete")
@@ -181,7 +191,7 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
         variant="outline"
         size="sm"
         onClick={handleAddPayment}
-        disabled={createPayment.isPending || paymentAmount <= 0}
+        disabled={createPayment.isPending || paymentAmount <= 0 || !isOnline}
       >
         {createPayment.isPending ? "Recording..." : "Add payment"}
       </Button>
@@ -190,9 +200,9 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
         className="w-full"
         size="lg"
         onClick={handleCompleteSale}
-        disabled={order.dueAmount > 0 || updateStatus.isPending}
+        disabled={order.dueAmount > 0 || updateStatus.isPending || !isOnline}
       >
-        {order.dueAmount > 0 ? `Due ${order.dueAmount}` : "Complete sale"}
+        {!isOnline ? "Offline" : order.dueAmount > 0 ? `Due ${order.dueAmount}` : "Complete sale"}
       </Button>
     </div>
   )
