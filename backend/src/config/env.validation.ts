@@ -47,14 +47,15 @@ class EnvironmentVariables {
   })
   REDIS_URL?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  REDIS_HOST: string;
+  REDIS_HOST?: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(65535)
-  REDIS_PORT: number;
+  REDIS_PORT?: number;
 
   @IsString()
   @IsNotEmpty()
