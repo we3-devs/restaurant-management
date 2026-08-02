@@ -22,6 +22,14 @@ import { UpsertFoodVariantOutletDto } from './dto/upsert-food-variant-outlet.dto
 import { FoodVariantOutlet } from './entities/food-variant-outlet.entity';
 import { FoodVariant } from './entities/food-variant.entity';
 
+export interface PublicFoodVariant {
+  id: number;
+  foodId: number;
+  name: string;
+  price: number;
+  isDefault: boolean;
+}
+
 @Injectable()
 export class FoodVariantsService {
   constructor(
@@ -55,6 +63,34 @@ export class FoodVariantsService {
 
     return {
       data: variants,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  /** Guest-facing variant listing for /guest ordering — active variants only, trimmed fields. Requires foodId (never list every variant in the system to an anonymous request). */
+  async findAllPublic(
+    query: ListFoodVariantsQueryDto,
+  ): Promise<PaginatedResponse<PublicFoodVariant>> {
+    const { page, limit, foodId } = query;
+    if (foodId === undefined) {
+      throw new BadRequestException('foodId is required');
+    }
+
+    const [variants, total] = await this.variantsRepository.findAndCount({
+      where: { foodId, isActive: true },
+      order: { sortOrder: 'ASC', name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: variants.map((variant) => ({
+        id: variant.id,
+        foodId: variant.foodId,
+        name: variant.name,
+        price: variant.price,
+        isDefault: variant.isDefault,
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }

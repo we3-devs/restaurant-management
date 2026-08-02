@@ -4,6 +4,20 @@ import type {
   TableSessionStatus,
 } from '../entities/table-session.entity';
 
+export class TableSessionCustomerSummaryDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ nullable: true })
+  phone: string | null;
+
+  @ApiProperty({ nullable: true })
+  loyaltyTier: string | null;
+}
+
 export class TableSessionResponseDto {
   @ApiProperty()
   id: number;
@@ -16,6 +30,12 @@ export class TableSessionResponseDto {
 
   @ApiProperty()
   guestCount: number;
+
+  @ApiProperty({ nullable: true })
+  customerId: number | null;
+
+  @ApiProperty({ type: TableSessionCustomerSummaryDto, nullable: true })
+  customer: TableSessionCustomerSummaryDto | null;
 
   @ApiProperty()
   source: TableSessionSource;

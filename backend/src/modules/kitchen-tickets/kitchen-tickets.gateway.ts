@@ -12,7 +12,6 @@ import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.module';
 import { registerRealtimeServer } from '../../realtime/realtime-bus';
-import { PermissionsService } from '../auth/permissions.service';
 import type { Notification } from '../notifications/entities/notification.entity';
 import type { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
@@ -46,10 +45,7 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
   @WebSocketServer()
   server: Server;
 
-  constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    private readonly permissionsService: PermissionsService,
-  ) {}
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
   /** Hands the live Socket.IO server to RealtimeChangeSubscriber, which TypeORM instantiates outside Nest's DI graph and so can't inject this gateway directly. */
   afterInit(server: Server): void {
@@ -79,20 +75,14 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       return;
     }
 
-    if (!payload.isSuperadmin) {
-      const permissions =
-        await this.permissionsService.getPermissionSlugs(payload.userId);
-      // orders.view covers the KDS board; orders.manage covers the POS screen,
-      // which also subscribes to this namespace to keep its cart badges live.
-      if (
-        !permissions.has('orders.view') &&
-        !permissions.has('orders.manage')
-      ) {
-        client.disconnect(true);
-        return;
-      }
-    }
-
+    // No further permission check: this namespace was originally KDS/POS-only
+    // (orders.view / orders.manage), but it's now also the sole delivery
+    // channel for notification.created — which spans every module
+    // (reservations, service requests, loyalty, inventory, HR, ...). A valid
+    // one-time ticket already proves the caller is an authenticated staff
+    // member; per-event-type access still isn't enforced here (a joined
+    // client receives everything emitted to its outlet room), matching the
+    // existing coarse room-level model rather than introducing a new one.
     client.data.userId = payload.userId;
   }
 

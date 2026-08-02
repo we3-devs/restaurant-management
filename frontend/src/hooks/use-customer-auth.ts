@@ -16,7 +16,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export function useRequestOtp() {
   return useMutation({
-    mutationFn: (input: RequestOtpInput) => post<{ sent: true }>("/api/customer-auth/otp/request", input),
+    // devCode is TEMPORARY — only populated outside production (see
+    // CustomerAuthService.requestOtp) — remove once real SMS delivery is
+    // confirmed working end-to-end.
+    mutationFn: (input: RequestOtpInput) =>
+      post<{ sent: true; devCode?: string }>("/api/customer-auth/otp/request", input),
   })
 }
 

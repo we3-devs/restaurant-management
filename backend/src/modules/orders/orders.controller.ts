@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -10,20 +11,42 @@ import {
   Patch,
   Post,
   Query,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
+import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
+import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
+import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
 import { AssignOrderTableDto } from './dto/assign-order-table.dto';
+import { CreateGuestOrderDto } from './dto/create-guest-order.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { RedeemLoyaltyPointsDto } from './dto/redeem-loyalty-points.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import type { OrderStatus } from './entities/order.entity';
 import { OrdersService } from './orders.service';
+
+/** Throws unless the presented customer session is a real, OTP-verified customer (not the anonymous 12h guest-session type) — ordering requires a verified phone number. */
+function requireVerifiedCustomerId(customer: CustomerJwtPayload): number {
+  if (customer.type !== 'customer' || customer.sub === null) {
+    throw new UnauthorizedException('Phone verification is required to order');
+  }
+  return customer.sub;
+}
+
+/** A guest may only back out before the kitchen has made real progress on their order. */
+const GUEST_CANCELLABLE_STATUSES: OrderStatus[] = ['pending', 'accepted'];
 
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -32,7 +55,93 @@ export class OrdersController {
   constructor(
     private readonly ordersService: OrdersService,
     private readonly kitchenTicketsService: KitchenTicketsService,
+    private readonly diningTablesService: DiningTablesService,
+    private readonly tableSessionsService: TableSessionsService,
   ) {}
+
+  @Public()
+  @UseGuards(CustomerJwtAuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('guest')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Guest self-ordering from /guest — requires an OTP-verified customer session. Opens a table session (source: qr_order) if the table has none yet.',
+  })
+  async createGuestOrder(
+    @Body() dto: CreateGuestOrderDto,
+    @CurrentCustomer() customer: CustomerJwtPayload,
+  ) {
+    const customerId = requireVerifiedCustomerId(customer);
+    const table = await this.diningTablesService.findByCode(dto.tableCode);
+
+    let session = await this.tableSessionsService.findActiveForTable(table.id);
+    if (!session) {
+      session = await this.tableSessionsService.create(
+        {
+          outletId: table.outletId,
+          diningTableId: table.id,
+          source: 'qr_order',
+          customerId,
+        },
+        null,
+      );
+    } else {
+      session = await this.tableSessionsService.attachCustomerIfMissing(
+        session.id,
+        customerId,
+      );
+    }
+
+    return this.ordersService.createFromGuest(
+      table.outletId,
+      session.id,
+      customerId,
+      dto.items,
+      table.id,
+      table.name,
+    );
+  }
+
+  @Public()
+  @UseGuards(CustomerJwtAuthGuard)
+  @Post('guest/:id/cancel')
+  @ApiOperation({
+    summary:
+      "Lets a verified guest cancel their own order — only while it's 'pending' or 'accepted' (before the kitchen has made real progress).",
+  })
+  async cancelGuestOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentCustomer() customer: CustomerJwtPayload,
+  ) {
+    const customerId = requireVerifiedCustomerId(customer);
+    const order = await this.ordersService.findOne(id);
+    if (order.customerId !== customerId) {
+      throw new UnauthorizedException('This order does not belong to you');
+    }
+    if (!GUEST_CANCELLABLE_STATUSES.includes(order.status)) {
+      throw new ConflictException(
+        `Order ${id} can no longer be cancelled (status: ${order.status})`,
+      );
+    }
+    return this.ordersService.updateStatus(id, { status: 'cancelled' }, null);
+  }
+
+  @Public()
+  @UseGuards(CustomerJwtAuthGuard)
+  @Get('guest/mine')
+  @ApiOperation({
+    summary:
+      "The verified guest's own orders (with items) at this table's outlet, most recent first — for /guest order tracking.",
+  })
+  async myGuestOrders(
+    @Query('tableCode') tableCode: string,
+    @CurrentCustomer() customer: CustomerJwtPayload,
+  ) {
+    const customerId = requireVerifiedCustomerId(customer);
+    const table = await this.diningTablesService.findByCode(tableCode);
+    return this.ordersService.findMineForCustomer(customerId, table.outletId);
+  }
 
   @Get()
   @RequirePermissions('orders.view')

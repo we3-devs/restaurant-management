@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { MoreVerticalIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { DiningTable } from "@/hooks/use-dining-tables"
@@ -15,22 +17,36 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export function TableCard({ table }: { table: DiningTable }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          "flex flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
-          STATUS_STYLES[table.status] ?? STATUS_STYLES.available,
-        )}
-      >
-        <span className="text-sm font-semibold">{table.name}</span>
-        <span className="text-xs capitalize">{table.status}</span>
-        <span className="text-xs opacity-75">seats {table.capacity}</span>
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => router.push(`/pos?tableId=${table.id}`)}
+          className={cn(
+            "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
+            STATUS_STYLES[table.status] ?? STATUS_STYLES.available,
+          )}
+        >
+          <span className="text-sm font-semibold">{table.name}</span>
+          <span className="text-xs capitalize">{table.status}</span>
+          <span className="text-xs opacity-75">seats {table.capacity}</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+          aria-label="More table actions"
+          className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-current opacity-60 hover:bg-black/10 hover:opacity-100"
+        >
+          <MoreVerticalIcon className="size-4" />
+        </button>
+      </div>
       {open && <TableActionsDialog table={table} onClose={() => setOpen(false)} />}
     </>
   )

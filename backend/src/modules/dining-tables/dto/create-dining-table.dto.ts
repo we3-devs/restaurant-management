@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -33,10 +34,15 @@ export class CreateDiningTableDto {
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional()
+  // Normalized so it always matches the guest QR page's forced
+  // .toUpperCase() lookup (findByCode does an exact-match query) — without
+  // this, a table created with a lowercase/mixed-case code would never be
+  // findable by guests scanning its QR card.
+  @ApiPropertyOptional({ example: 'T1' })
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   code?: string;
 
   @ApiPropertyOptional({ default: 1 })

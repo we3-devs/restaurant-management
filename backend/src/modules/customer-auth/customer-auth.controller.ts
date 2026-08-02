@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
 import { CustomerAuthService } from './customer-auth.service';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
@@ -23,6 +24,8 @@ export class CustomerAuthController {
   constructor(private readonly customerAuthService: CustomerAuthService) {}
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sends a one-time code to a phone number or email' })
@@ -31,6 +34,8 @@ export class CustomerAuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -56,6 +61,14 @@ export class CustomerAuthController {
     return this.customerAuthService.guestSession(dto.tableId);
   }
 
+  // Public() is required here even though CustomerJwtAuthGuard enforces the
+  // real check — without it, the globally-registered staff JwtAuthGuard
+  // (APP_GUARD) runs first and tries to validate the customer JWT as a
+  // staff one, looks up payload.sub in `users`, finds nothing (it's a
+  // customer id), and rejects with "User no longer exists" before this
+  // route's own guard ever runs. Same pattern as this controller's other
+  // routes and CustomerPortalController.
+  @Public()
   @Get('me')
   @ApiBearerAuth()
   @UseGuards(CustomerJwtAuthGuard)

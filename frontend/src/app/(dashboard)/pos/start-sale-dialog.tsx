@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,15 +25,31 @@ type OrderType = (typeof ORDER_TYPES)[number]
 export function StartSaleDialog({
   outletId,
   onSaleStarted,
+  preselectedTableId,
 }: {
   outletId: number
   onSaleStarted: (orderId: number) => void
+  preselectedTableId?: number
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(Boolean(preselectedTableId))
   const [orderType, setOrderType] = useState<OrderType>("dine_in")
   const [tableSessionId, setTableSessionId] = useState<string>("")
-  const [newTableId, setNewTableId] = useState<string>("")
+  const [newTableId, setNewTableId] = useState<string>(
+    preselectedTableId ? String(preselectedTableId) : "",
+  )
   const [guestCount, setGuestCount] = useState(2)
+
+  // Arriving via a table-card click on /floor (?tableId=...) — jump straight
+  // into the walk-in form pre-filled for that table instead of making the
+  // user re-pick it from the dropdown.
+  useEffect(() => {
+    if (preselectedTableId) {
+      setOpen(true)
+      setOrderType("dine_in")
+      setTableSessionId("")
+      setNewTableId(String(preselectedTableId))
+    }
+  }, [preselectedTableId])
 
   const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
   const { data: availableTables } = useDiningTables({ outletId, status: "available", limit: 100 })

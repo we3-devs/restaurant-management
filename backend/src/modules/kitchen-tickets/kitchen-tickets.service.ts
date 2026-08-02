@@ -178,6 +178,16 @@ export class KitchenTicketsService {
     return saved;
   }
 
+  /** Cancels every still-open ticket for an order — called when the order itself is cancelled (staff or guest), so the kitchen doesn't keep working on food nobody's paying for. Reuses cancelTicket() per ticket rather than duplicating its item/notification logic. */
+  async cancelAllForOrder(orderId: number): Promise<void> {
+    const tickets = await this.ticketsRepository.find({
+      where: { orderId, status: In(['open', 'in_progress']) },
+    });
+    for (const ticket of tickets) {
+      await this.cancelTicket(ticket.id);
+    }
+  }
+
   async cancelTicket(ticketId: number): Promise<KitchenTicket> {
     const ticket = await this.findOne(ticketId);
     const items = await this.ticketItemsRepository.find({

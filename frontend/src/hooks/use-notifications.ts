@@ -1,9 +1,8 @@
 import { useEffect } from "react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { Socket } from "socket.io-client"
 import { toast } from "sonner"
 import { apiClient } from "@/lib/api/client"
-import { connectKdsSocket } from "@/lib/realtime/kds-socket"
+import { acquireKdsSocket, releaseKdsSocket } from "@/lib/realtime/kds-socket"
 import { queryKeys } from "@/lib/query-keys"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import {
@@ -53,6 +52,11 @@ export function useNotifications(params: ListNotificationsParams) {
       ),
     enabled: !!outletId && outletId > 0,
     placeholderData: keepPreviousData,
+    // Safety net for the (rare) case the /kds socket in
+    // useNotificationsRealtime never connects or drops silently — without
+    // this, the bell only ever refreshes on mount (refetchOnWindowFocus/
+    // refetchOnReconnect are both off globally, see query-provider.tsx).
+    refetchInterval: 60_000,
   })
 }
 
@@ -180,35 +184,30 @@ export function useNotificationsRealtime(outletId: number | null, currentUserId?
   useEffect(() => {
     if (!outletId) return
 
-    let socket: Socket | undefined
-    let cancelled = false
+    const socket = acquireKdsSocket()
+    const subscribe = () => socket.emit("subscribe-outlet", { outletId })
+    const onNotificationCreated = (notification: AppNotification) => {
+      invalidate()
+      const isSelf = currentUserId !== undefined && notification.actorUserId === currentUserId
+      if (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type)) {
+        return
+      }
+      const variant = NOTIFICATION_TOAST_VARIANT[notification.type] ?? "info"
+      toast[variant](notification.title, { description: notification.body ?? undefined })
+    }
 
-    connectKdsSocket()
-      .then((s) => {
-        if (cancelled) {
-          s.disconnect()
-          return
-        }
-        socket = s
-        socket.on("connect", () => socket?.emit("subscribe-outlet", { outletId }))
-        socket.on("notification.created", (notification: AppNotification) => {
-          invalidate()
-          const isSelf = currentUserId !== undefined && notification.actorUserId === currentUserId
-          if (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type)) {
-            return
-          }
-          const variant = NOTIFICATION_TOAST_VARIANT[notification.type] ?? "info"
-          toast[variant](notification.title, { description: notification.body ?? undefined })
-        })
-      })
-      .catch(() => {
-        // Realtime is a nice-to-have — the feed refetches on open anyway.
-      })
+    socket.on("connect", subscribe)
+    socket.on("notification.created", onNotificationCreated)
+    if (socket.connected) subscribe()
 
     return () => {
-      cancelled = true
-      socket?.disconnect()
+      socket.off("connect", subscribe)
+      socket.off("notification.created", onNotificationCreated)
+      releaseKdsSocket()
     }
+    // invalidate's identity changes every render (useInvalidateNotifications
+    // isn't memoized) — omitted deliberately so this effect only re-runs on
+    // an actual outlet/user change, not every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outletId, currentUserId])
 }

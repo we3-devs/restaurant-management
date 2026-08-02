@@ -12,12 +12,48 @@ import { ListFoodCategoriesQueryDto } from './dto/list-food-categories-query.dto
 import { UpdateFoodCategoryDto } from './dto/update-food-category.dto';
 import { FoodCategory } from './entities/food-category.entity';
 
+export interface PublicFoodCategory {
+  id: number;
+  parentId: number | null;
+  name: string;
+}
+
 @Injectable()
 export class FoodCategoriesService {
   constructor(
     @InjectRepository(FoodCategory)
     private readonly categoriesRepository: Repository<FoodCategory>,
   ) {}
+
+  /** Guest-facing category listing for /guest ordering — active categories only, trimmed fields. */
+  async findAllPublic(
+    query: ListFoodCategoriesQueryDto,
+  ): Promise<PaginatedResponse<PublicFoodCategory>> {
+    const { page, limit, search, parentId } = query;
+    const where: FindOptionsWhere<FoodCategory> = { isActive: true };
+    if (parentId !== undefined) {
+      where.parentId = parentId;
+    }
+    if (search) {
+      where.name = ILike(`%${search}%`);
+    }
+
+    const [categories, total] = await this.categoriesRepository.findAndCount({
+      where,
+      order: { sortOrder: 'ASC', name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: categories.map((category) => ({
+        id: category.id,
+        parentId: category.parentId,
+        name: category.name,
+      })),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
 
   async findAll(
     query: ListFoodCategoriesQueryDto,

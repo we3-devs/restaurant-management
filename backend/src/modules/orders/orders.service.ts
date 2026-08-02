@@ -197,6 +197,80 @@ export class OrdersService {
     return this.ordersRepository.save(order);
   }
 
+  /**
+   * Guest self-ordering from /guest (OTP-verified customers only — enforced
+   * by the controller's CustomerJwtAuthGuard check, not here). Kept separate
+   * from create() rather than widening its signature: source/orderSource
+   * are hardcoded here (never caller-supplied), and there's no staff
+   * `createdBy` — matches the 'online'/'qr' origin columns that already
+   * exist on the entity for exactly this case.
+   */
+  async createFromGuest(
+    outletId: number,
+    tableSessionId: number,
+    customerId: number,
+    items: CreateOrderItemDto[],
+    diningTableId: number,
+    tableName: string,
+  ): Promise<Order> {
+    const order = this.ordersRepository.create({
+      outletId,
+      tableSessionId,
+      customerId,
+      orderType: 'dine_in',
+      orderNumber: this.generateOrderNumber(outletId),
+      createdBy: null,
+      source: 'online',
+      orderSource: 'qr',
+    });
+    const saved = await this.ordersRepository.save(order);
+
+    for (const item of items) {
+      await this.addItem(saved.id, item);
+    }
+
+    // Guests have no staff actor to drive this — reuses the exact same
+    // kitchen-send path staff use via POST /orders/:id/send-to-kitchen, so a
+    // guest order reaches the kitchen the moment it's placed instead of
+    // sitting invisibly until a staff member notices and sends it manually.
+    await this.sendToKitchen(saved.id, null);
+
+    const notification = await this.notificationsService.create({
+      outletId,
+      type: 'guest_order_placed',
+      title: 'New Guest Order',
+      body: `${tableName} placed a new order`,
+      orderId: saved.id,
+      tableName,
+      data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
+    });
+    this.gateway.notifyNotificationCreated(notification);
+
+    return this.findOne(saved.id);
+  }
+
+  /** The authenticated guest's own orders at this outlet, most recent first — for /guest order tracking. Never accepts a caller-supplied customerId. */
+  async findMineForCustomer(
+    customerId: number,
+    outletId: number,
+  ): Promise<(Order & { items: OrderItemWithRelations[] })[]> {
+    const orders = await this.ordersRepository.find({
+      where: { customerId, outletId },
+      order: { createdAt: 'DESC' },
+      take: 20,
+    });
+
+    return Promise.all(
+      orders.map(async (order) => {
+        const items = await this.orderItemsRepository.find({
+          where: { orderId: order.id },
+          order: { createdAt: 'ASC' },
+        });
+        return { ...order, items: await this.attachItemRelations(items) };
+      }),
+    );
+  }
+
   async update(id: number, dto: UpdateOrderDto): Promise<Order> {
     const order = await this.findOne(id);
 
@@ -219,7 +293,7 @@ export class OrdersService {
   async updateStatus(
     id: number,
     dto: UpdateOrderStatusDto,
-    changedBy: number,
+    changedBy: number | null,
   ): Promise<Order> {
     const order = await this.findOne(id);
     const fromStatus = order.status;
@@ -257,6 +331,13 @@ export class OrdersService {
     );
 
     if (dto.status === 'completed') {
+      // No guest-facing "complete" route exists — only staff drive an order
+      // to completion, so a real actor is always expected here.
+      if (changedBy === null) {
+        throw new BadRequestException(
+          'Completing an order requires a staff actor',
+        );
+      }
       await this.consumeReservationsForOrder(id, changedBy);
       await this.freeTableForCompletedOrder(saved, changedBy);
       if (saved.customerId) {
@@ -286,6 +367,7 @@ export class OrdersService {
       }
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
+      await this.kitchenTicketsService.cancelAllForOrder(id);
       if (saved.loyaltyPointsEarned > 0 || saved.loyaltyPointsRedeemed > 0) {
         try {
           await this.loyaltyService.reverseForRefund(saved.id, changedBy);
@@ -354,7 +436,7 @@ export class OrdersService {
    */
   async sendToKitchen(
     orderId: number,
-    changedBy: number,
+    changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
     const items = await this.orderItemsRepository.find({
@@ -377,7 +459,7 @@ export class OrdersService {
    */
   async fireHeldItems(
     orderId: number,
-    changedBy: number,
+    changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
     const held = await this.orderItemsRepository.find({
@@ -395,7 +477,7 @@ export class OrdersService {
   private async sendItemsToKitchen(
     order: Order,
     items: OrderItem[],
-    changedBy: number,
+    changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const groups = new Map<number | null, OrderItem[]>();
     for (const item of items) {

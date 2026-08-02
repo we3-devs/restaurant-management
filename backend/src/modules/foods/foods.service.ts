@@ -30,6 +30,16 @@ import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
 
+export interface PublicFood {
+  id: number;
+  foodCategoryId: number | null;
+  name: string;
+  shortDescription: string | null;
+  basePrice: number;
+  hasVariants: boolean;
+  hasAddons: boolean;
+}
+
 @Injectable()
 export class FoodsService {
   constructor(
@@ -67,6 +77,44 @@ export class FoodsService {
 
     return {
       data: foods,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  /**
+   * Guest-facing menu listing for /guest ordering — active items only, and
+   * only the fields already shown on a POS food card (no internal flags like
+   * isTaxable/isDiscountable/preparationTime).
+   */
+  async findAllPublic(
+    query: ListFoodsQueryDto,
+  ): Promise<PaginatedResponse<PublicFood>> {
+    const { page, limit, search, foodCategoryId } = query;
+    const where: FindOptionsWhere<Food> = { isActive: true };
+    if (foodCategoryId !== undefined) {
+      where.foodCategoryId = foodCategoryId;
+    }
+    if (search) {
+      where.name = ILike(`%${search}%`);
+    }
+
+    const [foods, total] = await this.foodsRepository.findAndCount({
+      where,
+      order: { sortOrder: 'ASC', name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: foods.map((food) => ({
+        id: food.id,
+        foodCategoryId: food.foodCategoryId,
+        name: food.name,
+        shortDescription: food.shortDescription,
+        basePrice: food.basePrice,
+        hasVariants: food.hasVariants,
+        hasAddons: food.hasAddons,
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }

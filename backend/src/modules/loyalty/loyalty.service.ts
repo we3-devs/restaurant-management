@@ -225,7 +225,10 @@ export class LoyaltyService {
    * transaction recorded against the order with an offsetting
    * refund_reversal entry. No-op if nothing was ever recorded for it.
    */
-  async reverseForRefund(orderId: number, userId: number): Promise<void> {
+  async reverseForRefund(
+    orderId: number,
+    userId: number | null,
+  ): Promise<void> {
     const priorTransactions = await this.transactionsRepository.find({
       where: [
         { orderId, type: 'earn' },
@@ -239,7 +242,7 @@ export class LoyaltyService {
         await this.writeTransaction(manager, {
           customerId: prior.customerId,
           orderId,
-          userId,
+          userId: userId ?? undefined,
           type: 'refund_reversal',
           points: -prior.points,
           source: 'refund_reversal',

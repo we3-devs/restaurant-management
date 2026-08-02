@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CreateFoodCategoryDto } from './dto/create-food-category.dto';
 import { ListFoodCategoriesQueryDto } from './dto/list-food-categories-query.dto';
@@ -32,6 +33,17 @@ export class FoodCategoriesController {
   })
   findAll(@Query() query: ListFoodCategoriesQueryDto) {
     return this.foodCategoriesService.findAll(query);
+  }
+
+  // Must come before @Get(':id') — see foods.controller.ts's same-shaped route.
+  @Public()
+  @Get('public')
+  @ApiOperation({
+    summary:
+      'Guest-facing category listing for /guest ordering (active categories only, trimmed fields, no auth required)',
+  })
+  findAllPublic(@Query() query: ListFoodCategoriesQueryDto) {
+    return this.foodCategoriesService.findAllPublic(query);
   }
 
   @Get(':id')

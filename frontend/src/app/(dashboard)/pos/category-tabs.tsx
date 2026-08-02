@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 
-export function CategorySidebar({
+export function CategoryTabs({
   categoryId,
   onSelect,
 }: {
@@ -13,13 +13,15 @@ export function CategorySidebar({
   const { data: categories } = useFoodCategories({ limit: 100 })
 
   return (
-    <div className="flex w-48 shrink-0 flex-col gap-1 overflow-y-auto border-r border-input pr-2">
+    <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-input pb-3">
       <button
         type="button"
         onClick={() => onSelect(null)}
         className={cn(
-          "rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted",
-          categoryId === null && "bg-muted font-medium",
+          "shrink-0 rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors",
+          categoryId === null
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted/50 text-muted-foreground hover:bg-muted",
         )}
       >
         All items
@@ -30,8 +32,10 @@ export function CategorySidebar({
           type="button"
           onClick={() => onSelect(category.id)}
           className={cn(
-            "rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted",
-            categoryId === category.id && "bg-muted font-medium",
+            "shrink-0 rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors",
+            categoryId === category.id
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted/50 text-muted-foreground hover:bg-muted",
           )}
         >
           {category.name}

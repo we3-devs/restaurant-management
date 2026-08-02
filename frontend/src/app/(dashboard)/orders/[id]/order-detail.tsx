@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -15,10 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAddonGroups } from "@/hooks/use-addon-groups"
 import { useAddons } from "@/hooks/use-addons"
+import { useCustomer, useCustomerOutlets } from "@/hooks/use-customers"
 import { useDiningTables } from "@/hooks/use-dining-tables"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { useLoyaltyAccount } from "@/hooks/use-loyalty"
 import { useCreateOrderPayment, useOrderPayments } from "@/hooks/use-order-payments"
 import {
   useAddOrderItem,
@@ -224,10 +227,44 @@ export function OrderDetail({ orderId }: { orderId: number }) {
         </CardContent>
       </Card>
 
+      {order.customerId && <CustomerSection customerId={order.customerId} outletId={order.outletId} />}
+
       <OrderItemsSection orderId={orderId} outletId={order.outletId} />
       <OrderTablesSection orderId={orderId} outletId={order.outletId} />
       <OrderPaymentsSection orderId={orderId} />
     </div>
+  )
+}
+
+function CustomerSection({ customerId, outletId }: { customerId: number; outletId: number }) {
+  const { data: customer } = useCustomer(customerId)
+  const { data: loyalty } = useLoyaltyAccount(customerId)
+  const { data: outlets } = useCustomerOutlets(customerId)
+  const visitCount = outlets?.find((visit) => visit.outletId === outletId)?.visitCount ?? 0
+
+  if (!customer) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Customer</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <div className="grid grid-cols-2 gap-2">
+          <span className="text-muted-foreground">Name</span>
+          <span className="text-right">{customer.name}</span>
+          <span className="text-muted-foreground">Phone</span>
+          <span className="text-right">{customer.phone ?? "—"}</span>
+          <span className="text-muted-foreground">Loyalty points</span>
+          <span className="text-right">{loyalty?.currentPoints ?? 0}</span>
+          <span className="text-muted-foreground">Visits at this outlet</span>
+          <span className="text-right">{visitCount}</span>
+        </div>
+        <Link href={`/customers/${customerId}`} className="inline-block text-sm text-primary hover:underline">
+          View customer profile
+        </Link>
+      </CardContent>
+    </Card>
   )
 }
 

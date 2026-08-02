@@ -1,8 +1,7 @@
 import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import type { Socket } from "socket.io-client"
 import { toast } from "sonner"
-import { connectKdsSocket } from "@/lib/realtime/kds-socket"
+import { acquireKdsSocket, releaseKdsSocket } from "@/lib/realtime/kds-socket"
 import { queryKeys } from "@/lib/query-keys"
 import type { AppNotification } from "./use-notifications"
 
@@ -25,8 +24,7 @@ export function useKitchenRealtime(outletId: number | null): void {
   useEffect(() => {
     if (!outletId) return
 
-    let socket: Socket | undefined
-    let cancelled = false
+    const socket = acquireKdsSocket()
 
     const invalidateKitchen = () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
@@ -43,51 +41,49 @@ export function useKitchenRealtime(outletId: number | null): void {
       queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests.all })
     }
 
-    connectKdsSocket()
-      .then((s) => {
-        if (cancelled) {
-          s.disconnect()
-          return
-        }
-        socket = s
-        socket.on("connect", () => socket?.emit("subscribe-outlet", { outletId }))
-        socket.on("kitchen.ticket.created", () => {
-          invalidateKitchen()
-          invalidateOrders()
+    const subscribe = () => socket.emit("subscribe-outlet", { outletId })
+    const onTicketChange = () => {
+      invalidateKitchen()
+      invalidateOrders()
+    }
+    const onNotificationCreated = (notification: AppNotification) => {
+      invalidateService()
+      if (notification.type === "kitchen_ready") {
+        toast.success(notification.title, {
+          description: notification.body ?? undefined,
+          duration: 6000,
         })
-        socket.on("kitchen.ticket.updated", () => {
-          invalidateKitchen()
-          invalidateOrders()
+      } else if (notification.type === "service_request") {
+        toast.info(notification.title, {
+          description: notification.body ?? "New service request",
+          duration: 8000,
         })
-        socket.on("kitchen.item.updated", () => {
-          invalidateKitchen()
-          invalidateOrders()
+      } else if (notification.type === "guest_order_placed") {
+        invalidateOrders()
+        toast.info(notification.title, {
+          description: notification.body ?? "A guest placed a new order",
+          duration: 8000,
         })
-        socket.on("notification.created", (notification: AppNotification) => {
-          invalidateService()
-          if (notification.type === "kitchen_ready") {
-            toast.success(notification.title, {
-              description: notification.body ?? undefined,
-              duration: 6000,
-            })
-          } else if (notification.type === "service_request") {
-            toast.info(notification.title, {
-              description: notification.body ?? "New service request",
-              duration: 8000,
-            })
-          }
-        })
-        socket.on("service_request.created", () => {
-          invalidateService()
-        })
-      })
-      .catch(() => {
-        // Realtime is a nice-to-have — the 30s poll in useKdsBootstrap covers this.
-      })
+      }
+    }
+    const onServiceRequestCreated = () => invalidateService()
+
+    socket.on("connect", subscribe)
+    socket.on("kitchen.ticket.created", onTicketChange)
+    socket.on("kitchen.ticket.updated", onTicketChange)
+    socket.on("kitchen.item.updated", onTicketChange)
+    socket.on("notification.created", onNotificationCreated)
+    socket.on("service_request.created", onServiceRequestCreated)
+    if (socket.connected) subscribe()
 
     return () => {
-      cancelled = true
-      socket?.disconnect()
+      socket.off("connect", subscribe)
+      socket.off("kitchen.ticket.created", onTicketChange)
+      socket.off("kitchen.ticket.updated", onTicketChange)
+      socket.off("kitchen.item.updated", onTicketChange)
+      socket.off("notification.created", onNotificationCreated)
+      socket.off("service_request.created", onServiceRequestCreated)
+      releaseKdsSocket()
     }
   }, [outletId, queryClient])
 }

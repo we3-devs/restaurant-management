@@ -6,6 +6,7 @@ import { CheckIcon, CopyIcon, DropletIcon, HandIcon, ReceiptIcon } from "lucide-
 import { toast } from "sonner"
 
 import { QrCode } from "@/components/qr-code"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -120,6 +121,20 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
               {activeSession.id}
             </p>
 
+            {activeSession.customer && (
+              <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium">{activeSession.customer.name}</p>
+                  {activeSession.customer.phone && (
+                    <p className="text-xs text-muted-foreground">{activeSession.customer.phone}</p>
+                  )}
+                </div>
+                {activeSession.customer.loyaltyTier && (
+                  <Badge variant="secondary">{activeSession.customer.loyaltyTier}</Badge>
+                )}
+              </div>
+            )}
+
             {showTransfer ? (
               <div className="space-y-2">
                 <Select value={transferTargetId} onValueChange={(value) => setTransferTargetId(value ?? "")}>
@@ -189,21 +204,6 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
                 </Button>
               </div>
             </div>
-
-            {/* Guest QR card — guests scan this to call the waiter themselves. */}
-            {fullGuestUrl && (
-              <div className="flex items-center gap-4 rounded-lg border border-dashed p-3">
-                <QrCode value={fullGuestUrl} size={88} />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-sm font-medium">Guest card</p>
-                  <p className="break-all text-xs text-muted-foreground">{fullGuestUrl}</p>
-                  <Button variant="outline" size="sm" onClick={handleCopyGuestLink}>
-                    {copied ? <CheckIcon className="text-emerald-500" /> : <CopyIcon />}
-                    {copied ? "Copied" : "Copy link"}
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -215,6 +215,27 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
 
         {table.status !== "occupied" && table.status !== "available" && (
           <p className="text-sm text-muted-foreground">Status: {table.status}</p>
+        )}
+
+        {/*
+          Guest QR card — /guest looks the table up by its static `code`, not
+          by session, so the link works identically whether the table is
+          occupied or free. Shown for both statuses; other statuses (e.g.
+          cleaning, reserved) fall back to the plain "Status: X" message above
+          with no card, matching how those statuses are handled elsewhere.
+        */}
+        {fullGuestUrl && (table.status === "occupied" || table.status === "available") && (
+          <div className="mt-4 flex items-center gap-4 rounded-lg border border-dashed p-3">
+            <QrCode value={fullGuestUrl} size={88} />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className="text-sm font-medium">Guest card</p>
+              <p className="break-all text-xs text-muted-foreground">{fullGuestUrl}</p>
+              <Button variant="outline" size="sm" onClick={handleCopyGuestLink}>
+                {copied ? <CheckIcon className="text-emerald-500" /> : <CopyIcon />}
+                {copied ? "Copied" : "Copy link"}
+              </Button>
+            </div>
+          </div>
         )}
 
         <DialogFooter>

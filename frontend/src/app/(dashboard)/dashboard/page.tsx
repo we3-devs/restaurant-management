@@ -12,12 +12,23 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import {
+  AlertTriangleIcon,
+  ChefHatIcon,
+  ReceiptIcon,
+  ShoppingBagIcon,
+  Trash2Icon,
+  UtensilsCrossedIcon,
+  WalletIcon,
+  WalletCardsIcon,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateRangeFilter } from "@/components/date-range-filter"
+import { StatCard } from "@/components/stat-card"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDashboardSummary } from "@/hooks/use-dashboard"
 import { useOutlets } from "@/hooks/use-outlets"
@@ -34,20 +45,6 @@ function defaultRange() {
 
 function money(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 })
-}
-
-function StatCard({ label, value, description }: { label: string; value: string; description?: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl">{value}</CardTitle>
-      </CardHeader>
-      {description && (
-        <CardContent className="text-xs text-muted-foreground">{description}</CardContent>
-      )}
-    </Card>
-  )
 }
 
 const CHART_COLOR = "var(--chart-1)"
@@ -84,11 +81,11 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Welcome, {user.name}</h1>
-          <p className="text-sm text-muted-foreground">Management overview</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome, {user.name}</h1>
+          <p className="text-sm text-muted-foreground">Here&apos;s what&apos;s happening across your business</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-48 space-y-1.5">
@@ -115,19 +112,24 @@ export default function DashboardPage() {
       </div>
 
       {isLoading || !data ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
           ))}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Orders" value={String(data.salesOverview.orderCount)} />
-            <StatCard label="Revenue" value={money(data.salesOverview.grandTotal)} />
-            <StatCard label="Avg order value" value={money(data.salesOverview.avgOrderValue)} />
-            <StatCard label="Active table sessions" value={String(data.activeTableSessions)} />
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <StatCard icon={ShoppingBagIcon} label="Orders" value={String(data.salesOverview.orderCount)} />
+            <StatCard icon={WalletIcon} label="Revenue" value={money(data.salesOverview.grandTotal)} />
+            <StatCard icon={ReceiptIcon} label="Avg order value" value={money(data.salesOverview.avgOrderValue)} />
             <StatCard
+              icon={UtensilsCrossedIcon}
+              label="Active table sessions"
+              value={String(data.activeTableSessions)}
+            />
+            <StatCard
+              icon={ChefHatIcon}
               label="Kitchen"
               value={`${data.kitchenOverview.openTickets + data.kitchenOverview.inProgressTickets} active`}
               description={
@@ -137,15 +139,18 @@ export default function DashboardPage() {
               }
             />
             <StatCard
+              icon={AlertTriangleIcon}
               label="Low stock"
               value={String(data.inventoryOverview.lowStockCount)}
               description={`${data.inventoryOverview.outOfStockCount} out of stock`}
             />
             <StatCard
+              icon={Trash2Icon}
               label="Wastage cost"
               value={money(data.wastageSummary.reduce((sum, w) => sum + w.totalCost, 0))}
             />
             <StatCard
+              icon={WalletCardsIcon}
               label="Payments collected"
               value={money(data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0))}
             />

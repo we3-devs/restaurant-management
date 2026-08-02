@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { SearchIcon } from "lucide-react"
+import { SearchIcon, UtensilsIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +13,7 @@ import { useFoods, type Food } from "@/hooks/use-foods"
 import { useOnlineStatus } from "@/lib/offline/online-status"
 import { VariantPickerDialog } from "./variant-picker-dialog"
 
-const ROW_HEIGHT = 96
+const ROW_HEIGHT = 208
 const ROW_GAP = 12
 
 function useColumnCount() {
@@ -119,13 +119,25 @@ export function FoodGrid({
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
-                    className="h-full cursor-pointer transition-colors hover:bg-muted/50"
+                    className="flex h-full cursor-pointer flex-col overflow-hidden p-0 transition-colors hover:bg-muted/50"
                     onClick={() => handleAdd(food)}
                   >
-                    <CardContent className="space-y-1 p-3">
+                    <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
+                      <UtensilsIcon className="size-8 text-muted-foreground/50" />
+                    </div>
+                    <CardContent className="flex flex-1 flex-col gap-1 p-3">
                       <p className="text-sm font-medium">{food.name}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">{food.basePrice}</span>
+                      {food.shortDescription && (
+                        <p className="line-clamp-2 flex-1 text-xs text-muted-foreground">
+                          {food.shortDescription}
+                        </p>
+                      )}
+                      <div className="mt-auto flex items-center justify-between pt-1">
+                        {food.hasVariants ? (
+                          <span className="text-xs text-muted-foreground">Choose variant</span>
+                        ) : (
+                          <span className="text-sm font-medium">{food.basePrice}</span>
+                        )}
                         <div className="flex gap-1">
                           {food.hasVariants && (
                             <Badge variant="secondary" className="text-xs">

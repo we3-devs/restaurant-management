@@ -71,9 +71,9 @@ export function CartPanel({ orderId }: { orderId: number }) {
   }
 
   return (
-    <div className="flex w-96 shrink-0 flex-col gap-3 border-l border-input pl-3">
+    <div className="flex w-full flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
-      <div className="flex-1 space-y-2 overflow-y-auto">
+      <div className="max-h-[45vh] space-y-2 overflow-y-auto">
         {isLoading && <Skeleton className="h-32 w-full" />}
         {!isLoading && (items?.data.length ?? 0) === 0 && (
           <p className="text-sm text-muted-foreground">No items yet — tap a food to add it.</p>

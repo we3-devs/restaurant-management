@@ -15,6 +15,8 @@ export interface Order {
   id: number
   outletId: number
   tableSessionId: number | null
+  customerId: number | null
+  reservationId: number | null
   orderNumber: string
   orderType: string
   status: string

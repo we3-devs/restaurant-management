@@ -15,10 +15,47 @@ async function fetchWsTicket(): Promise<string> {
   return ticket
 }
 
-export async function connectKdsSocket(): Promise<Socket> {
-  const ticket = await fetchWsTicket()
-  return io(`${BACKEND_WS_URL}/kds`, {
-    auth: { ticket },
-    transports: ["websocket"],
-  })
+let sharedSocket: Socket | null = null
+let refCount = 0
+
+/**
+ * One shared /kds connection per tab, ref-counted across every consumer
+ * (notification bell, kitchen realtime, the global invalidation provider —
+ * previously each opened its own socket independently).
+ *
+ * `auth` is a function, not a static `{ ticket }` object — Socket.IO calls
+ * it fresh before *every* connection attempt, including automatic
+ * reconnects. The ws-ticket is single-use server-side (redeemed and
+ * deleted on first handshake, see kitchen-tickets.gateway.ts), so a static
+ * captured ticket would make every reconnect after any transient drop
+ * retry with an already-dead ticket, get disconnected, and back off
+ * (Socket.IO's default reconnectionDelayMax is 5000ms) — that's what
+ * produced the reported multi-second notification delays.
+ */
+export function acquireKdsSocket(): Socket {
+  if (!sharedSocket) {
+    sharedSocket = io(`${BACKEND_WS_URL}/kds`, {
+      autoConnect: false,
+      transports: ["websocket"],
+      auth: (cb) => {
+        fetchWsTicket()
+          .then((ticket) => cb({ ticket }))
+          .catch(() => cb({}))
+      },
+    })
+  }
+  refCount += 1
+  if (!sharedSocket.connected && !sharedSocket.active) {
+    sharedSocket.connect()
+  }
+  return sharedSocket
+}
+
+/** Pairs with acquireKdsSocket() — call once per consumer on cleanup. */
+export function releaseKdsSocket(): void {
+  refCount = Math.max(0, refCount - 1)
+  if (refCount === 0 && sharedSocket) {
+    sharedSocket.disconnect()
+    sharedSocket = null
+  }
 }

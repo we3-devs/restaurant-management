@@ -14,6 +14,7 @@ export default function CustomerLoginPage() {
   const [name, setName] = useState("")
   const [stage, setStage] = useState<"identify" | "verify">("identify")
   const [error, setError] = useState<string | null>(null)
+  const [devCode, setDevCode] = useState<string | null>(null)
 
   const requestOtp = useRequestOtp()
   const verifyOtp = useVerifyOtp()
@@ -23,7 +24,8 @@ export default function CustomerLoginPage() {
   async function handleRequestOtp() {
     setError(null)
     try {
-      await requestOtp.mutateAsync(isEmail ? { email: identifier } : { phone: identifier })
+      const result = await requestOtp.mutateAsync(isEmail ? { email: identifier } : { phone: identifier })
+      setDevCode(result.devCode ?? null)
       setStage("verify")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send code")
@@ -74,6 +76,14 @@ export default function CustomerLoginPage() {
             </>
           ) : (
             <>
+              {/* TEMPORARY: dev-only code echoed by the API outside production
+                  (no SMS delivery confirmed working yet) — remove this block
+                  once that's verified end-to-end. */}
+              {devCode && (
+                <p className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+                  Dev mode — your code is <span className="font-mono font-semibold">{devCode}</span>
+                </p>
+              )}
               <Input
                 placeholder="6-digit code"
                 value={code}

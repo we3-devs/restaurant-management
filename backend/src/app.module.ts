@@ -2,6 +2,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.subscriber';
@@ -101,6 +102,11 @@ import { RedisModule } from './redis/redis.module';
     }),
     CacheModule.register({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    // Not registered as a global APP_GUARD — applied via @UseGuards(ThrottlerGuard)
+    // only on the handful of public, unauthenticated guest-facing routes (see
+    // customer-auth/dining-tables/orders/service-requests controllers), so
+    // authenticated staff APIs are completely untouched by this.
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 20 }]),
     RedisModule,
     QueueModule,
     UsersModule,

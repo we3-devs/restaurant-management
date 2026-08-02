@@ -2,9 +2,8 @@
 
 import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import type { Socket } from "socket.io-client"
 
-import { connectKdsSocket } from "@/lib/realtime/kds-socket"
+import { acquireKdsSocket, releaseKdsSocket } from "@/lib/realtime/kds-socket"
 import { RESOURCE_QUERY_MAP } from "@/lib/realtime/resource-query-map"
 import { useOutlets } from "@/hooks/use-outlets"
 
@@ -29,36 +28,28 @@ export function RealtimeInvalidationProvider() {
   useEffect(() => {
     if (!outletIds) return
 
-    let socket: Socket | undefined
-    let cancelled = false
+    const socket = acquireKdsSocket()
+    const subscribe = () => {
+      for (const idStr of outletIds.split(",")) {
+        socket.emit("subscribe-outlet", { outletId: Number(idStr) })
+      }
+    }
+    const onResourceChanged = (payload: ResourceChangedPayload) => {
+      const keys = RESOURCE_QUERY_MAP[payload.resource]
+      if (!keys) return
+      for (const queryKey of keys) {
+        queryClient.invalidateQueries({ queryKey })
+      }
+    }
 
-    connectKdsSocket()
-      .then((s) => {
-        if (cancelled) {
-          s.disconnect()
-          return
-        }
-        socket = s
-        socket.on("connect", () => {
-          for (const idStr of outletIds.split(",")) {
-            socket?.emit("subscribe-outlet", { outletId: Number(idStr) })
-          }
-        })
-        socket.on("resource.changed", (payload: ResourceChangedPayload) => {
-          const keys = RESOURCE_QUERY_MAP[payload.resource]
-          if (!keys) return
-          for (const queryKey of keys) {
-            queryClient.invalidateQueries({ queryKey })
-          }
-        })
-      })
-      .catch(() => {
-        // Realtime is a nice-to-have — pages still refetch on their own staleTime/mount.
-      })
+    socket.on("connect", subscribe)
+    socket.on("resource.changed", onResourceChanged)
+    if (socket.connected) subscribe()
 
     return () => {
-      cancelled = true
-      socket?.disconnect()
+      socket.off("connect", subscribe)
+      socket.off("resource.changed", onResourceChanged)
+      releaseKdsSocket()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outletIds])

@@ -4,12 +4,23 @@ import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
 import type { CreateTableSessionInput, TransferTableSessionInput } from "@/lib/validators/table-sessions"
 
+export interface TableSessionCustomerSummary {
+  id: number
+  name: string
+  phone: string | null
+  loyaltyTier: string | null
+}
+
 export interface TableSession {
   id: number
   outletId: number
   diningTableId: number
   reservationId: number | null
   customerId: number | null
+  // Only populated by the list endpoint (GET /table-sessions), which loads
+  // the customer relation + a batched loyalty-tier lookup for the floor
+  // board — GET /table-sessions/:id doesn't load it, so it's absent there.
+  customer?: TableSessionCustomerSummary | null
   guestCount: number
   source: string
   status: string

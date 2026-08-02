@@ -15,10 +15,12 @@ import { REDIS_CLIENT } from '../../redis/redis.module';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { Customer } from '../customers/entities/customer.entity';
+import { SmsService } from '../notifications/channels/sms.service';
 import { CustomerJwtPayload } from './types/customer-jwt-payload';
 
 const OTP_TTL_SECONDS = 5 * 60;
 const OTP_RESEND_LOCK_SECONDS = 60;
+const OTP_MAX_VERIFY_ATTEMPTS = 5;
 const GUEST_SESSION_EXPIRES_IN = '12h';
 const CUSTOMER_SESSION_EXPIRES_IN = '30d';
 
@@ -27,6 +29,9 @@ function otpKey(identifier: string): string {
 }
 function otpLockKey(identifier: string): string {
   return `customer-otp-lock:${identifier}`;
+}
+function otpAttemptsKey(identifier: string): string {
+  return `customer-otp-attempts:${identifier}`;
 }
 
 @Injectable()
@@ -41,6 +46,7 @@ export class CustomerAuthService {
     private readonly configService: ConfigService<AppConfig>,
     private readonly auditLogsService: AuditLogsService,
     private readonly diningTablesService: DiningTablesService,
+    private readonly smsService: SmsService,
   ) {}
 
   private resolveIdentifier(phone?: string, email?: string): string {
@@ -50,7 +56,10 @@ export class CustomerAuthService {
     return (phone ?? email!).trim().toLowerCase();
   }
 
-  async requestOtp(phone?: string, email?: string): Promise<{ sent: true }> {
+  async requestOtp(
+    phone?: string,
+    email?: string,
+  ): Promise<{ sent: true; devCode?: string }> {
     const identifier = this.resolveIdentifier(phone, email);
 
     const locked = await this.redis.set(
@@ -68,13 +77,24 @@ export class CustomerAuthService {
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.redis.set(otpKey(identifier), code, 'EX', OTP_TTL_SECONDS);
+    // A fresh code means a fresh set of verify attempts.
+    await this.redis.del(otpAttemptsKey(identifier));
 
-    // No SMS/email provider is wired up yet (see settings.enableSms) — until
-    // one is configured, the code is delivered via server logs so the flow
-    // is fully testable end-to-end in every environment.
-    this.logger.log(`OTP for ${identifier}: ${code}`);
+    if (phone && this.smsService.isConfigured) {
+      await this.smsService.send(phone, `Your verification code is ${code}`);
+    } else {
+      // Email OTP and any environment without Twilio configured falls back
+      // to server logs so the flow stays testable everywhere.
+      this.logger.log(`OTP for ${identifier}: ${code}`);
+    }
 
-    return { sent: true };
+    // TEMPORARY: surfaces the code straight in the API response outside
+    // production so the frontend can show it during testing, without
+    // depending on SMS actually being deliverable in every environment.
+    // Remove once real SMS delivery is confirmed working end-to-end.
+    const devCode = process.env.NODE_ENV !== 'production' ? code : undefined;
+
+    return { sent: true, devCode };
   }
 
   async verifyOtp(
@@ -84,11 +104,23 @@ export class CustomerAuthService {
     name?: string,
   ): Promise<{ accessToken: string; customer: Customer } > {
     const identifier = this.resolveIdentifier(phone, email);
+
+    const attempts = await this.redis.incr(otpAttemptsKey(identifier));
+    if (attempts === 1) {
+      await this.redis.expire(otpAttemptsKey(identifier), OTP_TTL_SECONDS);
+    }
+    if (attempts > OTP_MAX_VERIFY_ATTEMPTS) {
+      throw new UnauthorizedException(
+        'Too many incorrect attempts — request a new code',
+      );
+    }
+
     const storedCode = await this.redis.get(otpKey(identifier));
     if (!storedCode || storedCode !== code) {
       throw new UnauthorizedException('Invalid or expired code');
     }
     await this.redis.del(otpKey(identifier));
+    await this.redis.del(otpAttemptsKey(identifier));
 
     const customer = await this.findOrCreateCustomer(phone, email, name);
     customer.lastLoginAt = new Date();

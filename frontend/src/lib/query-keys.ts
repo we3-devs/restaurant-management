@@ -305,10 +305,18 @@ export const queryKeys = {
     all: ["customer-portal"] as const,
     profile: () => [...queryKeys.customerPortal.all, "profile"] as const,
     addresses: () => [...queryKeys.customerPortal.all, "addresses"] as const,
-    favorites: () => [...queryKeys.customerPortal.all, "favorites"] as const,
     orders: (params?: unknown) => [...queryKeys.customerPortal.all, "orders", params] as const,
-    order: (id: number) => [...queryKeys.customerPortal.all, "order", id] as const,
     loyalty: () => [...queryKeys.customerPortal.all, "loyalty"] as const,
     loyaltyHistory: (params?: unknown) => [...queryKeys.customerPortal.all, "loyalty-history", params] as const,
+  },
+  guestMenu: {
+    all: ["guest-menu"] as const,
+    categories: (params?: unknown) => [...queryKeys.guestMenu.all, "categories", params] as const,
+    foods: (params?: unknown) => [...queryKeys.guestMenu.all, "foods", params] as const,
+    variants: (foodId?: number) => [...queryKeys.guestMenu.all, "variants", foodId] as const,
+  },
+  guestOrders: {
+    all: ["guest-orders"] as const,
+    mine: (tableCode: string) => [...queryKeys.guestOrders.all, "mine", tableCode] as const,
   },
 } as const;

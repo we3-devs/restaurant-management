@@ -24,6 +24,7 @@ export type NotificationType =
   | 'order_sent'
   | 'order_ready'
   | 'order_cancelled'
+  | 'guest_order_placed'
   | 'payment_received'
   | 'reservation_created'
   | 'reservation_cancelled'

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { customerApiClient } from "@/lib/api/customer-client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
 import type {
@@ -6,22 +7,6 @@ import type {
   UpdateProfileInput,
   UpsertAddressInput,
 } from "@/lib/validators/customer-portal"
-
-/** Browser-side fetch wrapper for the customer portal proxy (mirrors apiClient, different base path). */
-async function customerApiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api/customer-backend${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
-  })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new Error(body?.message ?? `Request to ${path} failed with ${response.status}`)
-  }
-  if (response.status === 204) {
-    return undefined as T
-  }
-  return (await response.json()) as T
-}
 
 export interface CustomerAddress {
   id: string
@@ -123,38 +108,11 @@ export function useRemoveCustomerAddress() {
   })
 }
 
-export function useCustomerFavorites() {
-  return useQuery({
-    queryKey: queryKeys.customerPortal.favorites(),
-    queryFn: () => customerApiClient<number[]>("/customer-portal/favorites"),
-  })
-}
-
-export function useToggleCustomerFavorite() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (foodId: number) =>
-      customerApiClient<number[]>("/customer-portal/favorites/toggle", {
-        method: "POST",
-        body: JSON.stringify({ foodId }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.customerPortal.favorites() }),
-  })
-}
-
 export function useCustomerOrders(params: { page?: number; limit?: number } = {}) {
   return useQuery({
     queryKey: queryKeys.customerPortal.orders(params),
     queryFn: () =>
       customerApiClient<PaginatedResponse<PortalOrder>>(`/customer-portal/orders${toQueryString(params)}`),
-  })
-}
-
-export function useCustomerOrder(orderId: number) {
-  return useQuery({
-    queryKey: queryKeys.customerPortal.order(orderId),
-    queryFn: () => customerApiClient<PortalOrder>(`/customer-portal/orders/${orderId}`),
-    enabled: orderId > 0,
   })
 }
 

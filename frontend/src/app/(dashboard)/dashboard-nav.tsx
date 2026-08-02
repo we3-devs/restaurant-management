@@ -73,9 +73,9 @@ function NavSection({
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "rounded-md px-2 py-1.5 text-sm transition-colors",
+                  "relative rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
                   active
-                    ? "bg-primary/10 font-medium text-primary"
+                    ? "bg-primary/10 font-medium text-primary before:absolute before:top-1/2 before:-left-3.75 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >

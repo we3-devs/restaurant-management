@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
@@ -35,6 +36,18 @@ export class FoodsController {
   })
   findAll(@Query() query: ListFoodsQueryDto) {
     return this.foodsService.findAll(query);
+  }
+
+  // Must come before @Get(':id') — otherwise Nest/Express would try to
+  // ParseIntPipe("public") as the :id param and 400 before this ever runs.
+  @Public()
+  @Get('public')
+  @ApiOperation({
+    summary:
+      'Guest-facing menu listing for /guest ordering (active foods only, trimmed fields, no auth required)',
+  })
+  findAllPublic(@Query() query: ListFoodsQueryDto) {
+    return this.foodsService.findAllPublic(query);
   }
 
   @Get(':id')
