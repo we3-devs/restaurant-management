@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { setAuthCookies } from "@/lib/auth/session"
 import { loginSchema } from "@/lib/validators/auth"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://127.0.0.1:3001"
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://https://restaurant-management-g6vb.onrender.com"
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)

@@ -1,7 +1,7 @@
 import { io, type Socket } from "socket.io-client"
 import { apiClient } from "@/lib/api/client"
 
-const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "http://127.0.0.1:3001"
+const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "http://https://restaurant-management-g6vb.onrender.com"
 
 /**
  * The browser only ever holds an httpOnly auth cookie (see
