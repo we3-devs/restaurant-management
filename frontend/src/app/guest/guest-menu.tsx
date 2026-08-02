@@ -188,7 +188,7 @@ export function GuestMenu({ tableCode }: { tableCode: string }) {
         <Button className="w-full" size="lg" onClick={handleSubmit} disabled={submitOrder.isPending}>
           {submitOrder.isPending
             ? "Sending..."
-            : `Send order to kitchen — ${cartCount} item${cartCount === 1 ? "" : "s"} (${cartTotal})`}
+            : `Place order — ${cartCount} item${cartCount === 1 ? "" : "s"} (${cartTotal})`}
         </Button>
       )}
 

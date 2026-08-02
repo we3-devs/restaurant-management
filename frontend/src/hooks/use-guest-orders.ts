@@ -16,7 +16,15 @@ export interface SubmitGuestOrderInput {
   items: GuestOrderItemInput[]
 }
 
-export type GuestOrder = Order & { items: OrderItem[] }
+// Unlike the staff order-detail page (which looks food names up from an
+// already-loaded foods list), /orders/guest/mine embeds them directly — see
+// OrdersService.findMineForCustomer.
+export type GuestOrderItem = OrderItem & {
+  food: { id: number; name: string } | null
+  foodVariant: { id: number; name: string } | null
+}
+
+export type GuestOrder = Order & { items: GuestOrderItem[] }
 
 /** Requires an OTP-verified customer session (not the anonymous guest-session type) — see CustomerJwtAuthGuard + requireVerifiedCustomerId on the backend. */
 export function useSubmitGuestOrder() {
@@ -47,9 +55,10 @@ export function useMyGuestOrders(tableCode: string) {
     queryKey: queryKeys.guestOrders.mine(tableCode),
     queryFn: () => customerApiClient<GuestOrder[]>(`/orders/guest/mine${toQueryString({ tableCode })}`),
     enabled: !!tableCode,
-    // No websocket channel for guest sessions yet (see kds-socket.ts — ticket
-    // exchange is staff-only) — short polling keeps order status "close to"
-    // realtime for guest tracking without expanding that auth surface here.
-    refetchInterval: 7000,
+    // Pushed live via guest-socket.ts (see useGuestOrderRealtime in
+    // guest-order-tracker.tsx) — this interval is only the fallback for a
+    // dropped/reconnecting socket, same role as the 30s poll in
+    // use-kitchen-realtime.ts.
+    refetchInterval: 30000,
   })
 }

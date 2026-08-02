@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session"
 
-// Routes that must be reachable without a session: the login page and the
-// guest QR Call-Waiter page (guests scan a table's QR card — they have no
-// account).
+// Routes that must be reachable without a (staff) session: the login page
+// and the whole /guest subtree — the QR ordering/tracking flow guests use
+// has its own, separate customer-JWT auth (see customer-session.ts) and
+// never carries a staff cookie.
 const AUTH_ROUTES = ["/login", "/guest"]
+
+function isAuthRoute(pathname: string): boolean {
+  return AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+}
 
 /**
  * Optimistic-only check (cookie presence, no backend call — Proxy must stay
@@ -14,17 +19,17 @@ const AUTH_ROUTES = ["/login", "/guest"]
 export function proxy(request: NextRequest) {
   const hasSession = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
   const { pathname } = request.nextUrl
-  const isAuthRoute = AUTH_ROUTES.includes(pathname)
+  const isAuth = isAuthRoute(pathname)
 
   if (pathname === "/") {
     return NextResponse.redirect(new URL(hasSession ? "/dashboard" : "/login", request.url))
   }
 
-  if (!hasSession && !isAuthRoute) {
+  if (!hasSession && !isAuth) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (hasSession && isAuthRoute) {
+  if (hasSession && isAuth) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 

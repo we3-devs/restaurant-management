@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { LogOutIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,14 +14,23 @@ import {
   useUpdateCustomerPreferences,
   useUpdateCustomerProfile,
 } from "@/hooks/use-customer-portal"
+import { useCustomerLogout } from "@/hooks/use-customer-auth"
 
 export function CustomerProfileClient() {
+  const router = useRouter()
   const { data: profile } = useCustomerProfile()
   const { data: addresses } = useCustomerAddresses()
   const updateProfile = useUpdateCustomerProfile()
   const updatePreferences = useUpdateCustomerPreferences()
   const addAddress = useAddCustomerAddress()
   const removeAddress = useRemoveCustomerAddress()
+  const logout = useCustomerLogout()
+
+  async function handleLogout() {
+    await logout.mutateAsync()
+    router.push("/portal/login")
+    router.refresh()
+  }
 
   const [name, setName] = useState("")
   const [dietary, setDietary] = useState("")
@@ -135,6 +146,11 @@ export function CustomerProfileClient() {
           </div>
         </CardContent>
       </Card>
+
+      <Button variant="outline" disabled={logout.isPending} onClick={handleLogout}>
+        <LogOutIcon />
+        {logout.isPending ? "Signing out..." : "Sign out"}
+      </Button>
     </div>
   )
 }

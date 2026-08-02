@@ -4,20 +4,28 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import type Redis from 'ioredis';
+import { randomUUID } from 'node:crypto';
+import { REDIS_CLIENT } from '../../redis/redis.module';
 import { Public } from '../auth/decorators/public.decorator';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
+import { GUEST_WS_TICKET_PREFIX } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { CustomerAuthService } from './customer-auth.service';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
 import { GuestSessionDto } from './dto/guest-session.dto';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CustomerJwtAuthGuard } from './guards/customer-jwt-auth.guard';
+import { requireVerifiedCustomerId } from './require-verified-customer.util';
 import type { CustomerJwtPayload } from './types/customer-jwt-payload';
+
+const WS_TICKET_TTL_SECONDS = 30;
 
 @ApiTags('customer-auth')
 @Controller('customer-auth')
@@ -26,7 +34,10 @@ import type { CustomerJwtPayload } from './types/customer-jwt-payload';
 // activity worth an audit row.
 @SkipAudit()
 export class CustomerAuthController {
-  constructor(private readonly customerAuthService: CustomerAuthService) {}
+  constructor(
+    private readonly customerAuthService: CustomerAuthService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
 
   @Public()
   @UseGuards(ThrottlerGuard)
@@ -80,5 +91,28 @@ export class CustomerAuthController {
   @ApiOperation({ summary: 'Returns the current customer/guest session claims' })
   me(@CurrentCustomer() customer: CustomerJwtPayload) {
     return customer;
+  }
+
+  @Public()
+  @Post('ws-ticket')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(CustomerJwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Mints a short-lived, one-time ticket used to authenticate the /guest order-tracker WebSocket connection',
+  })
+  async issueWsTicket(
+    @CurrentCustomer() customer: CustomerJwtPayload,
+  ): Promise<{ ticket: string }> {
+    const customerId = requireVerifiedCustomerId(customer, 'to track your order');
+    const ticket = randomUUID();
+    await this.redis.set(
+      `${GUEST_WS_TICKET_PREFIX}${ticket}`,
+      JSON.stringify({ customerId }),
+      'EX',
+      WS_TICKET_TTL_SECONDS,
+    );
+    return { ticket };
   }
 }

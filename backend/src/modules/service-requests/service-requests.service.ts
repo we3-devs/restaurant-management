@@ -5,6 +5,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { CreateGuestServiceRequestDto } from './dto/create-guest-service-request.dto';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
 import { ListServiceRequestsQueryDto } from './dto/list-service-requests-query.dto';
@@ -25,6 +26,7 @@ export class ServiceRequestsService {
     private readonly diningTablesService: DiningTablesService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    private readonly tableSessionsService: TableSessionsService,
   ) {}
 
   async findAll(
@@ -79,8 +81,14 @@ export class ServiceRequestsService {
   /** Guest-initiated via the QR page — the table is resolved by its printed code. */
   async createFromGuest(
     dto: CreateGuestServiceRequestDto,
+    customerId: number,
   ): Promise<ServiceRequest> {
     const table = await this.diningTablesService.findByCode(dto.tableCode);
+    await this.tableSessionsService.ensureActiveForGuest(
+      table.id,
+      table.outletId,
+      customerId,
+    );
     return this.createForTable(
       table.outletId,
       table.id,

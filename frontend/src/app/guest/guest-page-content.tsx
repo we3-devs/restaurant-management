@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { CheckCircle2Icon, DropletIcon, HandIcon, Loader2Icon, ReceiptIcon, UtensilsIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -11,12 +11,14 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiClient } from "@/lib/api/client"
+import { customerApiClient } from "@/lib/api/customer-client"
 import type { CurrentCustomer } from "@/lib/auth/customer-dal"
+import { useCustomerLogout } from "@/hooks/use-customer-auth"
 import { usePublicFoodCategories, usePublicFoods } from "@/hooks/use-guest-menu"
 import type { ServiceRequestType } from "@/hooks/use-service-requests"
 import { GuestAuthGate } from "./guest-auth-gate"
 import { GuestMenu } from "./guest-menu"
-import { GuestOrderTracker } from "./guest-order-tracker"
+import { GuestOrderTracker, GuestTrackItemsLink } from "./guest-order-tracker"
 
 interface GuestTable {
   id: number
@@ -40,6 +42,7 @@ export function GuestPageContent({ initialCustomer }: { initialCustomer: Current
 }
 
 function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer | null }) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const tableCode = useMemo(() => (searchParams.get("table") ?? "").trim().toUpperCase(), [searchParams])
 
@@ -50,9 +53,16 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState<ServiceRequestType | null>(null)
 
+  const logout = useCustomerLogout()
+
   // Loading is derived: no table resolved yet and the lookup hasn't failed.
   const loadingTable = tableCode !== "" && !table && !lookupFailed
   const isVerifiedCustomer = initialCustomer?.type === "customer" && initialCustomer.sub !== null
+
+  async function handleLogout() {
+    await logout.mutateAsync()
+    router.refresh()
+  }
 
   // Warms the menu cache as soon as /guest opens (even before the guest
   // finishes OTP verification) rather than waiting for the "Order yourself"
@@ -85,7 +95,7 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
     if (!tableCode || !requestedType || sending) return
     setSending(true)
     try {
-      await apiClient("/service-requests/guest", {
+      await customerApiClient("/service-requests/guest", {
         method: "POST",
         body: JSON.stringify({ tableCode, type: requestedType, note: note.trim() || undefined }),
       })
@@ -136,7 +146,7 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
     <GuestShell>
       {isVerifiedCustomer && (
         <div className="mb-4">
-          <GuestOrderTracker tableCode={tableCode} />
+          <GuestTrackItemsLink tableCode={tableCode} />
         </div>
       )}
 
@@ -147,6 +157,20 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
           </p>
           <h1 className="mt-1 text-4xl font-bold tracking-tight">{table.name}</h1>
         </div>
+
+        {isVerifiedCustomer && (
+          <div className="mt-2 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              disabled={logout.isPending}
+              onClick={handleLogout}
+            >
+              {logout.isPending ? "Signing out..." : "Having problem? Sign out"}
+            </Button>
+          </div>
+        )}
 
         {!isVerifiedCustomer ? (
           <div className="mt-6">
@@ -235,13 +259,19 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
           </DialogContent>
         </Dialog>
       )}
+
+      {isVerifiedCustomer && (
+        <div className="mt-8">
+          <GuestOrderTracker tableCode={tableCode} />
+        </div>
+      )}
     </GuestShell>
   )
 }
 
 function GuestShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-6 pt-12 sm:pt-20">
       {children}
       <p className="mt-6 text-xs text-muted-foreground">
         Need something else? Just wave or call out — we&apos;re here to help.

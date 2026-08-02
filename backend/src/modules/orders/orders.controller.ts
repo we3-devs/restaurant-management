@@ -21,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
+import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
 import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
@@ -36,14 +37,6 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import type { OrderStatus } from './entities/order.entity';
 import { OrdersService } from './orders.service';
-
-/** Throws unless the presented customer session is a real, OTP-verified customer (not the anonymous 12h guest-session type) — ordering requires a verified phone number. */
-function requireVerifiedCustomerId(customer: CustomerJwtPayload): number {
-  if (customer.type !== 'customer' || customer.sub === null) {
-    throw new UnauthorizedException('Phone verification is required to order');
-  }
-  return customer.sub;
-}
 
 /** A guest may only back out before the kitchen has made real progress on their order. */
 const GUEST_CANCELLABLE_STATUSES: OrderStatus[] = ['pending', 'accepted'];
@@ -72,26 +65,14 @@ export class OrdersController {
     @Body() dto: CreateGuestOrderDto,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    const customerId = requireVerifiedCustomerId(customer);
+    const customerId = requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(dto.tableCode);
 
-    let session = await this.tableSessionsService.findActiveForTable(table.id);
-    if (!session) {
-      session = await this.tableSessionsService.create(
-        {
-          outletId: table.outletId,
-          diningTableId: table.id,
-          source: 'qr_order',
-          customerId,
-        },
-        null,
-      );
-    } else {
-      session = await this.tableSessionsService.attachCustomerIfMissing(
-        session.id,
-        customerId,
-      );
-    }
+    const session = await this.tableSessionsService.ensureActiveForGuest(
+      table.id,
+      table.outletId,
+      customerId,
+    );
 
     return this.ordersService.createFromGuest(
       table.outletId,
@@ -114,7 +95,7 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    const customerId = requireVerifiedCustomerId(customer);
+    const customerId = requireVerifiedCustomerId(customer, 'to order');
     const order = await this.ordersService.findOne(id);
     if (order.customerId !== customerId) {
       throw new UnauthorizedException('This order does not belong to you');
@@ -132,15 +113,20 @@ export class OrdersController {
   @Get('guest/mine')
   @ApiOperation({
     summary:
-      "The verified guest's own orders (with items) at this table's outlet, most recent first — for /guest order tracking.",
+      "The verified guest's own orders (with items) on this table's current visit, most recent first — for /guest order tracking.",
   })
   async myGuestOrders(
     @Query('tableCode') tableCode: string,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    const customerId = requireVerifiedCustomerId(customer);
+    const customerId = requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(tableCode);
-    return this.ordersService.findMineForCustomer(customerId, table.outletId);
+    // Scoped to this table's latest session, not just the outlet — a phone
+    // number's orders from a previous, unrelated visit must never surface
+    // (or be cancellable) from today's table session. See findMineForCustomer.
+    const session = await this.tableSessionsService.findLatestForTable(table.id);
+    if (!session) return [];
+    return this.ordersService.findMineForCustomer(customerId, session.id);
   }
 
   @Get()

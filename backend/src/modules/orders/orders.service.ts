@@ -167,6 +167,90 @@ export class OrdersService {
     return order;
   }
 
+  /** Called by KitchenTicketsService after any item-level change — pushes the current order to the guest's own room if it's a guest order (no-op otherwise). */
+  async notifyGuestByOrderId(orderId: number): Promise<void> {
+    const order = await this.ordersRepository.findOne({ where: { id: orderId } });
+    if (!order) return;
+    this.gateway.notifyGuestOrderChanged(order);
+  }
+
+  /**
+   * The happy-path stage the order's active (non-cancelled) items have
+   * collectively reached, or null if there's nothing to derive yet (every
+   * item is still 'stock_reserved' — not sent to kitchen). Item status
+   * itself is untouched here; this only reads it.
+   */
+  private deriveOrderStageFromItems(items: OrderItem[]): OrderStatus | null {
+    const statuses = new Set(items.map((item) => item.status));
+    if (statuses.size === 0) return null;
+    if (statuses.size === 1 && statuses.has('served')) return 'served';
+    if (statuses.has('served')) return 'partially_served';
+    if (statuses.size === 1 && statuses.has('ready')) return 'ready';
+    if (statuses.has('ready')) return 'partially_ready';
+    if (statuses.has('preparing')) return 'preparing';
+    if (statuses.has('sent_to_kitchen')) return 'accepted';
+    return null;
+  }
+
+  /**
+   * Shortest path from `from` to `to` over the real ORDER_STATUS_TRANSITIONS
+   * graph (BFS — the graph is small and every edge weight is equal).
+   * Deliberately not a fixed "walk every intermediate stage" list:
+   * `partially_ready`/`ready` are alternatives at the same point in the
+   * flow (as are `partially_served`/`served`), so e.g. preparing -> ready
+   * must skip `partially_ready` entirely, not pass through it. Returns []
+   * if `to` is unreachable from `from` (e.g. `to` is behind `from`).
+   */
+  private findStatusPath(from: OrderStatus, to: OrderStatus): OrderStatus[] {
+    if (from === to) return [];
+    const queue: OrderStatus[][] = [[from]];
+    const visited = new Set<OrderStatus>([from]);
+    while (queue.length > 0) {
+      const path = queue.shift()!;
+      const last = path[path.length - 1];
+      for (const next of ORDER_STATUS_TRANSITIONS[last]) {
+        if (next === to) return [...path.slice(1), next];
+        if (!visited.has(next)) {
+          visited.add(next);
+          queue.push([...path, next]);
+        }
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Called by KitchenTicketsService after any item-level change. Order.status
+   * only otherwise moves on an explicit staff PATCH or via
+   * maybeAdvanceToServed — nothing walks it through preparing/partially-ready/
+   * ready as tickets progress (see the ORDER_STATUS_TRANSITIONS comment).
+   * This closes that gap: sent (accepted) -> preparing -> (partially_ready
+   * or ready) -> (partially_served or served), taking only the direct hops
+   * the items actually support (via findStatusPath), each one going through
+   * the normal updateStatus() path so history/notifications/realtime push
+   * all fire exactly as they would for a staff-driven change. Deliberately
+   * never moves it backward (e.g. after a recalled item) — findStatusPath
+   * returns [] when `to` is behind `from`, since the graph has no backward
+   * edges — and never touches cancelled/completed orders or item status
+   * itself.
+   */
+  async syncStatusFromItems(
+    orderId: number,
+    changedBy: number | null,
+  ): Promise<void> {
+    const order = await this.findOne(orderId);
+    if (order.status === 'cancelled' || order.status === 'completed') return;
+
+    const items = await this.orderItemsRepository.find({ where: { orderId } });
+    const active = items.filter((item) => item.status !== 'cancelled');
+    const target = this.deriveOrderStageFromItems(active);
+    if (!target) return;
+
+    for (const status of this.findStatusPath(order.status, target)) {
+      await this.updateStatus(orderId, { status }, changedBy);
+    }
+  }
+
   /**
    * A 'completed' order is a closed book — the last active status
    * (ORDER_STATUS_TRANSITIONS already blocks any further status change out
@@ -272,24 +356,39 @@ export class OrdersService {
     });
     this.gateway.notifyNotificationCreated(notification);
 
-    return this.findOne(saved.id);
+    const full = await this.findOne(saved.id);
+    this.gateway.notifyGuestOrderChanged(full);
+    return full;
   }
 
-  /** The authenticated guest's own orders at this outlet, most recent first — for /guest order tracking. Never accepts a caller-supplied customerId. */
+  /**
+   * The authenticated guest's own orders on this specific table session,
+   * most recent first — for /guest order tracking. Never accepts a
+   * caller-supplied customerId. Scoped to a tableSessionId (not just
+   * outletId): the same phone number may have dined at this outlet before
+   * on a different table/visit, and those old orders (possibly still
+   * 'pending'/'accepted' if staff never closed them out) must never surface
+   * — or be cancellable — from a guest's current, unrelated table session.
+   */
   async findMineForCustomer(
     customerId: number,
-    outletId: number,
+    tableSessionId: number,
   ): Promise<(Order & { items: OrderItemWithRelations[] })[]> {
     const orders = await this.ordersRepository.find({
-      where: { customerId, outletId },
+      where: { customerId, tableSessionId },
       order: { createdAt: 'DESC' },
       take: 20,
     });
 
     return Promise.all(
       orders.map(async (order) => {
+        // Loads food/foodVariant here (unlike the staff order-detail flow,
+        // which looks names up client-side from an already-loaded foods
+        // list) — the guest item tracker has no such list mounted, so the
+        // name has to travel with the item.
         const items = await this.orderItemsRepository.find({
           where: { orderId: order.id },
+          relations: ['food', 'foodVariant'],
           order: { createdAt: 'ASC' },
         });
         return { ...order, items: await this.attachItemRelations(items) };
@@ -384,6 +483,7 @@ export class OrdersService {
     }
 
     const saved = await this.ordersRepository.save(order);
+    this.gateway.notifyGuestOrderChanged(saved);
 
     await this.orderStatusHistoriesRepository.save(
       this.orderStatusHistoriesRepository.create({

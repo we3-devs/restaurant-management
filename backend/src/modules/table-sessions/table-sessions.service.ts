@@ -165,6 +165,14 @@ export class TableSessionsService {
     });
   }
 
+  /** The table's most recent session regardless of status — used to scope a guest's "my orders" view to their own visit, not just their phone number's whole history at this table. */
+  async findLatestForTable(diningTableId: number): Promise<TableSession | null> {
+    return this.tableSessionsRepository.findOne({
+      where: { diningTableId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   /**
    * Ties a verified guest to a session that's already open (e.g. a staff
    * walk-in with no customer on record yet, or a second guest joining the
@@ -186,6 +194,28 @@ export class TableSessionsService {
     // per session, even if more guests place orders on it afterwards.
     await this.customersService.upsertVisit(customerId, session.outletId);
     return saved;
+  }
+
+  /**
+   * Shared by every guest-facing entry point (place an order, call staff, ...):
+   * reuses the table's open session if there is one (attaching the customer
+   * if it doesn't have one yet), otherwise opens a fresh 'qr_order' session.
+   * Guarantees a guest interacting with a table is always tied to a session,
+   * and that session is always tied to a phone-verified customer.
+   */
+  async ensureActiveForGuest(
+    diningTableId: number,
+    outletId: number,
+    customerId: number,
+  ): Promise<TableSession> {
+    const existing = await this.findActiveForTable(diningTableId);
+    if (!existing) {
+      return this.create(
+        { outletId, diningTableId, source: 'qr_order', customerId },
+        null,
+      );
+    }
+    return this.attachCustomerIfMissing(existing.id, customerId);
   }
 
   /** startedBy is null for guest-opened (source: 'qr_order') sessions — no staff member initiated it. */

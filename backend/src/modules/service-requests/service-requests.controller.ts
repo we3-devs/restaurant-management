@@ -13,6 +13,10 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
+import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
+import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
+import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
 import { User } from '../users/entities/user.entity';
 import { CreateGuestServiceRequestDto } from './dto/create-guest-service-request.dto';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
@@ -29,14 +33,18 @@ export class ServiceRequestsController {
 
   @Post('guest')
   @Public()
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(CustomerJwtAuthGuard, ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary:
-      'Guest Call-Waiter request from the QR page — resolves the table by its printed code, no auth',
+      'Guest Call-Waiter request from the QR page — requires an OTP-verified customer session. Resolves the table by its printed code and opens/attaches a table session (source: qr_order), same as guest ordering.',
   })
-  createFromGuest(@Body() dto: CreateGuestServiceRequestDto) {
-    return this.serviceRequestsService.createFromGuest(dto);
+  createFromGuest(
+    @Body() dto: CreateGuestServiceRequestDto,
+    @CurrentCustomer() customer: CustomerJwtPayload,
+  ) {
+    const customerId = requireVerifiedCustomerId(customer, 'to call staff');
+    return this.serviceRequestsService.createFromGuest(dto, customerId);
   }
 
   @Get()

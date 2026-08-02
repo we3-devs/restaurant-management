@@ -381,7 +381,16 @@ export class KitchenTicketsService {
       ticket.status = 'open';
     }
 
-    return this.ticketsRepository.save(ticket);
+    const saved = await this.ticketsRepository.save(ticket);
+    // Single choke point for every item-level mutation (single/bulk
+    // transition, recall, mark-delivered): first walks Order.status forward
+    // to match how far its items have collectively progressed (item status
+    // itself is untouched — see syncStatusFromItems), then pushes the
+    // current order to the guest tracker room (a no-op unless this order
+    // actually has a customer of record, i.e. is a guest order).
+    await this.ordersService.syncStatusFromItems(saved.orderId, null);
+    await this.ordersService.notifyGuestByOrderId(saved.orderId);
+    return saved;
   }
 
   /** Called by OrdersService.sendToKitchen() after creating tickets in its own transaction. */

@@ -18,19 +18,35 @@ import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from './entities/kitchen-ticket.entity';
 
 export const KDS_WS_TICKET_PREFIX = 'kds-ws-ticket:';
+export const GUEST_WS_TICKET_PREFIX = 'guest-ws-ticket:';
 
 interface KdsSocketData {
   userId?: number;
+  customerId?: number;
 }
 
 type KdsSocket = Omit<Socket, 'data'> & { data: KdsSocketData };
 
+export interface GuestOrderUpdate {
+  id: number;
+  customerId: number | null;
+  status: string;
+  orderNumber: string;
+}
+
 /**
- * Pushes kitchen ticket/item changes to KDS screens in realtime. Auth can't
- * use a normal Authorization header (the browser only ever holds an httpOnly
- * cookie, see frontend/src/lib/auth/session.ts), so clients redeem a
- * short-lived one-time ticket (minted by AuthController#wsTicket) on
- * connect instead — see handleConnection().
+ * Pushes kitchen ticket/item changes to KDS screens in realtime, and guest
+ * order status changes to the /guest order tracker. Auth can't use a normal
+ * Authorization header (the browser only ever holds an httpOnly cookie, see
+ * frontend/src/lib/auth/session.ts / customer-session.ts), so clients redeem
+ * a short-lived one-time ticket on connect instead — see handleConnection().
+ * Staff tickets (minted by AuthController#wsTicket) and guest tickets
+ * (minted by CustomerAuthController#wsTicket) are two disjoint Redis
+ * keyspaces, so a guest ticket can never resolve to a staff identity or vice
+ * versa: guest sockets only ever get `data.customerId` set and are only ever
+ * joined to their own `customer:<id>` room, never an outlet room — they
+ * can't reach subscribe-outlet (guarded by `data.userId`) or anything
+ * broadcast to outlet rooms.
  */
 @WebSocketGateway({
   namespace: '/kds',
@@ -59,31 +75,49 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       return;
     }
 
-    const key = `${KDS_WS_TICKET_PREFIX}${ticket}`;
-    const raw = await this.redis.get(key);
-    if (!raw) {
-      client.disconnect(true);
+    const staffKey = `${KDS_WS_TICKET_PREFIX}${ticket}`;
+    const staffRaw = await this.redis.get(staffKey);
+    if (staffRaw) {
+      await this.redis.del(staffKey);
+      let payload: { userId: number; isSuperadmin: boolean };
+      try {
+        payload = JSON.parse(staffRaw) as { userId: number; isSuperadmin: boolean };
+      } catch {
+        client.disconnect(true);
+        return;
+      }
+      // No further permission check: this namespace was originally KDS/POS-only
+      // (orders.view / orders.manage), but it's now also the sole delivery
+      // channel for notification.created — which spans every module
+      // (reservations, service requests, loyalty, inventory, HR, ...). A valid
+      // one-time ticket already proves the caller is an authenticated staff
+      // member; per-event-type access still isn't enforced here (a joined
+      // client receives everything emitted to its outlet room), matching the
+      // existing coarse room-level model rather than introducing a new one.
+      client.data.userId = payload.userId;
       return;
     }
-    await this.redis.del(key);
 
-    let payload: { userId: number; isSuperadmin: boolean };
-    try {
-      payload = JSON.parse(raw) as { userId: number; isSuperadmin: boolean };
-    } catch {
-      client.disconnect(true);
+    const guestKey = `${GUEST_WS_TICKET_PREFIX}${ticket}`;
+    const guestRaw = await this.redis.get(guestKey);
+    if (guestRaw) {
+      await this.redis.del(guestKey);
+      let payload: { customerId: number };
+      try {
+        payload = JSON.parse(guestRaw) as { customerId: number };
+      } catch {
+        client.disconnect(true);
+        return;
+      }
+      client.data.customerId = payload.customerId;
+      // Auto-joined (unlike staff, which explicitly subscribe-outlet after
+      // choosing one) since the room is fully determined by the ticket —
+      // there's nothing for a guest client to choose.
+      void client.join(this.customerRoom(payload.customerId));
       return;
     }
 
-    // No further permission check: this namespace was originally KDS/POS-only
-    // (orders.view / orders.manage), but it's now also the sole delivery
-    // channel for notification.created — which spans every module
-    // (reservations, service requests, loyalty, inventory, HR, ...). A valid
-    // one-time ticket already proves the caller is an authenticated staff
-    // member; per-event-type access still isn't enforced here (a joined
-    // client receives everything emitted to its outlet room), matching the
-    // existing coarse room-level model rather than introducing a new one.
-    client.data.userId = payload.userId;
+    client.disconnect(true);
   }
 
   @SubscribeMessage('subscribe-outlet')
@@ -131,7 +165,19 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       .emit('service_request.created', request);
   }
 
+  /** Pushes an order status change to the guest tracker on /guest (only guests, i.e. orders with a customer of record, ever have anyone listening). */
+  notifyGuestOrderChanged(order: GuestOrderUpdate): void {
+    if (order.customerId === null) return;
+    this.server
+      .to(this.customerRoom(order.customerId))
+      .emit('guest.order.updated', order);
+  }
+
   private outletRoom(outletId: number): string {
     return `outlet:${outletId}`;
+  }
+
+  private customerRoom(customerId: number): string {
+    return `customer:${customerId}`;
   }
 }
