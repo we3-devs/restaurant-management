@@ -88,13 +88,15 @@ export class CustomerAuthService {
       this.logger.log(`OTP for ${identifier}: ${code}`);
     }
 
-    // TEMPORARY: surfaces the code straight in the API response outside
-    // production so the frontend can show it during testing, without
-    // depending on SMS actually being deliverable in every environment.
-    // Remove once real SMS delivery is confirmed working end-to-end.
-    const devCode = process.env.NODE_ENV !== 'production' ? code : undefined;
-
-    return { sent: true, devCode };
+    // TEMPORARY: surfaces the code straight in the API response (including
+    // production) so the frontend can show it without depending on SMS
+    // actually being deliverable — see SmsService.isConfigured above. This
+    // is a real security tradeoff: anyone who can reach the API sees the
+    // code without touching the phone, which defeats the "verified phone
+    // number ties an order to a real person" anti-abuse purpose the OTP
+    // otherwise serves (see GuestAuthGate's comment). Remove once real SMS
+    // delivery is confirmed working end-to-end.
+    return { sent: true, devCode: code };
   }
 
   async verifyOtp(
