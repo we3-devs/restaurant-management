@@ -1,34 +1,46 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo } from "react"
 import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@/components/status-badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { CreateDiningTableDialog } from "./create-dining-table-dialog"
 
-const columns: ColumnDef<DiningTable>[] = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "capacity", header: "Capacity" },
-  {
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
-  },
-]
-
 export default function DiningTablesPage() {
-  const [outletFilter, setOutletFilter] = useState<string>("all")
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { outletId } = useActiveOutlet()
   const { data, isLoading } = useDiningTables({
     limit: 100,
-    outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
+    outletId: outletId ?? undefined,
   })
+  const { data: areas } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
+
+  const areaName = (diningAreaId: number) =>
+    areas?.data.find((area) => area.id === diningAreaId)?.name ?? `#${diningAreaId}`
+
+  const columns = useMemo<ColumnDef<DiningTable>[]>(
+    () => [
+      { accessorKey: "name", header: "Name" },
+      {
+        id: "diningArea",
+        header: "Dining Area",
+        cell: ({ row }) => areaName(row.original.diningAreaId),
+      },
+      { accessorKey: "capacity", header: "Capacity" },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [areas],
+  )
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -41,23 +53,6 @@ export default function DiningTablesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Dining Tables</h1>
         <CreateDiningTableDialog />
-      </div>
-
-      <div className="w-64 space-y-1.5">
-        <label className="text-sm font-medium">Filter by outlet</label>
-        <Select value={outletFilter} onValueChange={(value) => setOutletFilter(value ?? "all")}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="All outlets" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All outlets</SelectItem>
-            {outlets?.data.map((outlet) => (
-              <SelectItem key={outlet.id} value={String(outlet.id)}>
-                {outlet.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {isLoading ? (
