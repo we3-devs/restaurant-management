@@ -25,17 +25,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCustomers } from "@/hooks/use-customers"
-import { useOutlets } from "@/hooks/use-outlets"
-import { useReservations, type Reservation } from "@/hooks/use-reservations"
+import { useDiningTables } from "@/hooks/use-dining-tables"
+import { useReservations, useReservationTables, type Reservation } from "@/hooks/use-reservations"
 import { useReservationsBootstrap } from "@/hooks/use-bootstrap"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { RESERVATION_STATUSES } from "@/lib/validators/reservations"
 import { CreateReservationDialog } from "./create-reservation-dialog"
 
 const PAGE_SIZE = 10
 
+/** Resolves a reservation's assigned table name(s) — a reservation can have more than one. */
+function ReservationTableCell({ reservationId, outletId }: { reservationId: number; outletId: number }) {
+  const { data: assignments } = useReservationTables(reservationId)
+  const { data: tables } = useDiningTables({ outletId, limit: 100 })
+
+  if (!assignments || assignments.length === 0) {
+    return <span className="text-muted-foreground">Unassigned</span>
+  }
+  return (
+    <>
+      {assignments
+        .map((assignment) => tables?.data.find((t) => t.id === assignment.diningTableId)?.name ?? `#${assignment.diningTableId}`)
+        .join(", ")}
+    </>
+  )
+}
+
 export default function ReservationsPage() {
   const router = useRouter()
-  const [outletFilter, setOutletFilter] = useState<string>("all")
+  const { outletId } = useActiveOutlet()
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [sorting, setSorting] = useState<SortingState>([])
@@ -43,35 +61,41 @@ export default function ReservationsPage() {
   // One request for outlets + customers (+ a first page of reservations)
   // instead of two separate ones; seeds the caches the hooks below read from.
   useReservationsBootstrap()
-  const { data: outlets } = useOutlets({ limit: 100 })
   const { data: customers } = useCustomers({ limit: 100 })
   const { data, isLoading, isPlaceholderData } = useReservations({
     page,
     limit: PAGE_SIZE,
-    outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
+    outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
 
-  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? `#${outletId}`
   const customerName = (customerId: number) =>
     customers?.data.find((c) => c.id === customerId)?.name ?? `#${customerId}`
+  const customerPhone = (customerId: number) => customers?.data.find((c) => c.id === customerId)?.phone ?? "—"
 
   const columns = useMemo<ColumnDef<Reservation>[]>(
     () => [
+      {
+        accessorKey: "reservedAt",
+        header: "Time",
+        cell: ({ row }) => new Date(row.original.reservedAt).toLocaleString(),
+      },
+      {
+        id: "table",
+        header: "Table",
+        cell: ({ row }) => (
+          <ReservationTableCell reservationId={row.original.id} outletId={row.original.outletId} />
+        ),
+      },
       {
         id: "customer",
         header: "Customer",
         cell: ({ row }) => <p className="font-medium">{customerName(row.original.customerId)}</p>,
       },
       {
-        id: "outlet",
-        header: "Outlet",
-        cell: ({ row }) => outletName(row.original.outletId),
-      },
-      {
-        accessorKey: "reservedAt",
-        header: "Reserved for",
-        cell: ({ row }) => new Date(row.original.reservedAt).toLocaleString(),
+        id: "phone",
+        header: "Phone",
+        cell: ({ row }) => customerPhone(row.original.customerId),
       },
       { accessorKey: "guestCount", header: "Guests" },
       {
@@ -104,7 +128,7 @@ export default function ReservationsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, outlets, customers],
+    [router, customers],
   )
 
   const table = useReactTable({
@@ -126,28 +150,6 @@ export default function ReservationsPage() {
       </div>
 
       <div className="flex gap-4">
-        <div className="w-64 space-y-1.5">
-          <label className="text-sm font-medium">Filter by outlet</label>
-          <Select
-            value={outletFilter}
-            onValueChange={(value) => {
-              setOutletFilter(value ?? "all")
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All outlets" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All outlets</SelectItem>
-              {outlets?.data.map((outlet) => (
-                <SelectItem key={outlet.id} value={String(outlet.id)}>
-                  {outlet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="w-64 space-y-1.5">
           <label className="text-sm font-medium">Filter by status</label>
           <Select

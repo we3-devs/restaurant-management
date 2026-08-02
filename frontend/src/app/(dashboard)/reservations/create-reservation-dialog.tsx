@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -17,19 +18,23 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCustomers } from "@/hooks/use-customers"
+import { useDiningAreas } from "@/hooks/use-dining-areas"
+import { useDiningTables } from "@/hooks/use-dining-tables"
 import { useOutlets } from "@/hooks/use-outlets"
-import { useCreateReservation } from "@/hooks/use-reservations"
-import {
-  RESERVATION_SOURCES,
-  createReservationSchema,
-  type CreateReservationInput,
-} from "@/lib/validators/reservations"
+import { useCreateReservation, type Reservation } from "@/hooks/use-reservations"
+import { apiClient } from "@/lib/api/client"
+import { queryKeys } from "@/lib/query-keys"
+import { createReservationSchema, type CreateReservationInput } from "@/lib/validators/reservations"
 
 export function CreateReservationDialog() {
   const [open, setOpen] = useState(false)
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: customers } = useCustomers({ limit: 100 })
   const createReservation = useCreateReservation()
+  const queryClient = useQueryClient()
+
+  const [diningAreaId, setDiningAreaId] = useState("")
+  const [diningTableId, setDiningTableId] = useState("")
 
   const form = useForm<CreateReservationInput>({
     resolver: zodResolver(createReservationSchema),
@@ -39,17 +44,50 @@ export function CreateReservationDialog() {
       reservedAt: "",
       guestCount: 2,
       source: "staff",
+      depositAmount: 0,
+      specialRequest: "",
+      internalNote: "",
     },
   })
 
+  const outletId = form.watch("outletId")
+  const { data: areas } = useDiningAreas({ outletId: outletId || undefined, limit: 100 })
+  const { data: tables } = useDiningTables({
+    outletId: outletId || undefined,
+    diningAreaId: diningAreaId ? Number(diningAreaId) : undefined,
+    limit: 100,
+  })
+
+  function resetAll() {
+    form.reset({
+      outletId: 0,
+      customerId: 0,
+      reservedAt: "",
+      guestCount: 2,
+      source: "staff",
+      depositAmount: 0,
+      specialRequest: "",
+      internalNote: "",
+    })
+    setDiningAreaId("")
+    setDiningTableId("")
+  }
+
   async function onSubmit(values: CreateReservationInput) {
     try {
-      await createReservation.mutateAsync({
+      const reservation = await createReservation.mutateAsync({
         ...values,
         reservedAt: new Date(values.reservedAt).toISOString(),
       })
+      if (diningTableId) {
+        await apiClient<Reservation>(`/reservations/${reservation.id}/tables`, {
+          method: "POST",
+          body: JSON.stringify({ diningTableId: Number(diningTableId) }),
+        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.reservations.tables(reservation.id) })
+      }
       toast.success("Reservation created")
-      form.reset({ outletId: 0, customerId: 0, reservedAt: "", guestCount: 2, source: "staff" })
+      resetAll()
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create reservation")
@@ -73,7 +111,11 @@ export function CreateReservationDialog() {
                   <FormLabel>Outlet</FormLabel>
                   <Select
                     value={field.value ? String(field.value) : ""}
-                    onValueChange={(value) => field.onChange(Number(value))}
+                    onValueChange={(value) => {
+                      field.onChange(Number(value))
+                      setDiningAreaId("")
+                      setDiningTableId("")
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select an outlet" />
@@ -90,6 +132,48 @@ export function CreateReservationDialog() {
                 </FormItem>
               )}
             />
+
+            {outletId > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <FormLabel>Dining area</FormLabel>
+                  <Select
+                    value={diningAreaId}
+                    onValueChange={(value) => {
+                      setDiningAreaId(value ?? "")
+                      setDiningTableId("")
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Any area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areas?.data.map((area) => (
+                        <SelectItem key={area.id} value={String(area.id)}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <FormLabel>Table (optional)</FormLabel>
+                  <Select value={diningTableId} onValueChange={(value) => setDiningTableId(value ?? "")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Assign later" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tables?.data.map((table) => (
+                        <SelectItem key={table.id} value={String(table.id)}>
+                          {table.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             <FormField
               control={form.control}
               name="customerId"
@@ -144,22 +228,16 @@ export function CreateReservationDialog() {
             />
             <FormField
               control={form.control}
-              name="source"
+              name="depositAmount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Source</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RESERVATION_SOURCES.map((source) => (
-                        <SelectItem key={source} value={source}>
-                          {source}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>Reservation amount (deposit)</FormLabel>
+                  <FormControl
+                    type="number"
+                    step="0.01"
+                    value={field.value}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -170,6 +248,17 @@ export function CreateReservationDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Special request (optional)</FormLabel>
+                  <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="internalNote"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Internal note (optional)</FormLabel>
                   <FormControl {...field} />
                   <FormMessage />
                 </FormItem>
