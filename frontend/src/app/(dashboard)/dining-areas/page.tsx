@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDiningAreas, type DiningArea } from "@/hooks/use-dining-areas"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { CreateDiningAreaDialog } from "./create-dining-area-dialog"
 
 const columns: ColumnDef<DiningArea>[] = [
@@ -20,7 +21,8 @@ const columns: ColumnDef<DiningArea>[] = [
 ]
 
 export default function DiningAreasPage() {
-  const { data, isLoading } = useDiningAreas({ limit: 100 })
+  const { outletId } = useActiveOutlet()
+  const { data, isLoading } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
 
   const table = useReactTable({
     data: data?.data ?? [],
