@@ -167,6 +167,22 @@ export class OrdersService {
     return order;
   }
 
+  /**
+   * A 'completed' order is a closed book — the last active status
+   * (ORDER_STATUS_TRANSITIONS already blocks any further status change out
+   * of it). Every other mutation surface (note/discount, items, addons,
+   * table assignment, loyalty redemption, payments) needs the same wall,
+   * called at each entry point rather than relying on any single choke
+   * point since orders/order-items/order-payments are separate resources.
+   */
+  static assertMutable(order: Order): void {
+    if (order.status === 'completed') {
+      throw new ConflictException(
+        `Order ${order.id} is completed and can no longer be modified`,
+      );
+    }
+  }
+
   async create(dto: CreateOrderDto, createdBy: number): Promise<Order> {
     await this.outletsService.findOne(dto.outletId);
     if (dto.tableSessionId !== undefined) {
@@ -283,6 +299,7 @@ export class OrdersService {
 
   async update(id: number, dto: UpdateOrderDto): Promise<Order> {
     const order = await this.findOne(id);
+    OrdersService.assertMutable(order);
 
     Object.assign(order, {
       ...(dto.note !== undefined && { note: dto.note }),
@@ -317,6 +334,16 @@ export class OrdersService {
       );
     }
 
+    if (dto.status === 'completed' && changedBy === null) {
+      // No guest-facing "complete" route exists — only staff drive an order
+      // to completion, so a real actor is always expected here. Checked
+      // before anything is persisted (the DB now hard-locks a completed
+      // order's row, so this can't be a "complete now, reject after" step).
+      throw new BadRequestException(
+        'Completing an order requires a staff actor',
+      );
+    }
+
     order.status = dto.status;
     if (dto.status === 'completed') {
       order.completedAt = new Date();
@@ -328,6 +355,34 @@ export class OrdersService {
         order.cancelReason = dto.cancelReason;
       }
     }
+
+    // Loyalty points earned on completion are folded into `order` here —
+    // before the single save below — rather than a second save afterward:
+    // once that save commits the row as 'completed', the DB trigger that
+    // locks completed orders would reject any further UPDATE to it.
+    if (dto.status === 'completed' && order.customerId) {
+      try {
+        const loyaltySettings = await this.settingsService.getLoyaltySettings();
+        const pointsPerCurrencyUnit = Number(
+          loyaltySettings.pointsPerCurrencyUnit ?? 0,
+        );
+        const pointsToEarn = Math.floor(order.grandTotal * pointsPerCurrencyUnit);
+        if (pointsToEarn > 0) {
+          await this.loyaltyService.earnPoints(
+            order.customerId,
+            pointsToEarn,
+            'order_purchase',
+            { orderId: order.id, userId: changedBy as number },
+          );
+          order.loyaltyPointsEarned = pointsToEarn;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to award loyalty points for order ${order.id}: ${(error as Error).message}`,
+        );
+      }
+    }
+
     const saved = await this.ordersRepository.save(order);
 
     await this.orderStatusHistoriesRepository.save(
@@ -341,40 +396,8 @@ export class OrdersService {
     );
 
     if (dto.status === 'completed') {
-      // No guest-facing "complete" route exists — only staff drive an order
-      // to completion, so a real actor is always expected here.
-      if (changedBy === null) {
-        throw new BadRequestException(
-          'Completing an order requires a staff actor',
-        );
-      }
-      await this.consumeReservationsForOrder(id, changedBy);
-      await this.freeTableForCompletedOrder(saved, changedBy);
-      if (saved.customerId) {
-        try {
-          const loyaltySettings = await this.settingsService.getLoyaltySettings();
-          const pointsPerCurrencyUnit = Number(
-            loyaltySettings.pointsPerCurrencyUnit ?? 0,
-          );
-          const pointsToEarn = Math.floor(
-            saved.grandTotal * pointsPerCurrencyUnit,
-          );
-          if (pointsToEarn > 0) {
-            await this.loyaltyService.earnPoints(
-              saved.customerId,
-              pointsToEarn,
-              'order_purchase',
-              { orderId: saved.id, userId: changedBy },
-            );
-            saved.loyaltyPointsEarned = pointsToEarn;
-            await this.ordersRepository.save(saved);
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Failed to award loyalty points for order ${saved.id}: ${(error as Error).message}`,
-          );
-        }
-      }
+      await this.consumeReservationsForOrder(id, changedBy as number);
+      await this.freeTableForCompletedOrder(saved, changedBy as number);
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
       await this.kitchenTicketsService.cancelAllForOrder(id);
@@ -454,6 +477,7 @@ export class OrdersService {
     changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
+    OrdersService.assertMutable(order);
     const items = await this.orderItemsRepository.find({
       where: { orderId, status: 'stock_reserved' },
     });
@@ -477,6 +501,7 @@ export class OrdersService {
     changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
+    OrdersService.assertMutable(order);
     const held = await this.orderItemsRepository.find({
       where: { orderId, status: 'stock_reserved', isHeld: true },
     });
@@ -736,6 +761,7 @@ export class OrdersService {
 
   async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
     const order = await this.findOne(orderId);
+    OrdersService.assertMutable(order);
 
     const preparationDepartmentId = await this.resolvePreparationDepartmentId(
       order.outletId,
@@ -790,6 +816,7 @@ export class OrdersService {
 
   async updateItem(id: number, dto: UpdateOrderItemDto): Promise<OrderItem> {
     const item = await this.findItem(id);
+    OrdersService.assertMutable(await this.findOne(item.orderId));
     const previousQuantity = item.quantity;
 
     if (dto.quantity !== undefined) {
@@ -837,6 +864,7 @@ export class OrdersService {
 
   async removeItem(id: number): Promise<void> {
     const item = await this.findItem(id);
+    OrdersService.assertMutable(await this.findOne(item.orderId));
     const reservations = await this.reservationsRepository.find({
       where: { orderItemId: id, status: 'reserved' },
     });
@@ -863,6 +891,7 @@ export class OrdersService {
     dto: CreateOrderItemAddonDto,
   ): Promise<OrderItemAddon> {
     const item = await this.findItem(orderItemId);
+    OrdersService.assertMutable(await this.findOne(item.orderId));
     const addon = await this.addonsService.findOne(dto.addonId);
 
     const quantity = dto.quantity ?? 1;
@@ -889,6 +918,7 @@ export class OrdersService {
 
   async removeItemAddon(orderItemId: number, addonId: number): Promise<void> {
     const item = await this.findItem(orderItemId);
+    OrdersService.assertMutable(await this.findOne(item.orderId));
     await this.orderItemAddonsRepository.delete({ orderItemId, addonId });
     await this.recalculateTotals(item.orderId);
     await this.recalculateReservations(orderItemId);
@@ -917,6 +947,7 @@ export class OrdersService {
     assignedBy: number,
   ): Promise<OrderTable> {
     const order = await this.findOne(orderId);
+    OrdersService.assertMutable(order);
     const table = await this.diningTablesService.findOne(dto.diningTableId);
     if (table.outletId !== order.outletId) {
       throw new BadRequestException(
@@ -942,7 +973,7 @@ export class OrdersService {
   }
 
   async unassignTable(orderId: number, diningTableId: number): Promise<void> {
-    await this.findOne(orderId);
+    OrdersService.assertMutable(await this.findOne(orderId));
     await this.orderTablesRepository.delete({ orderId, diningTableId });
   }
 
@@ -997,6 +1028,7 @@ export class OrdersService {
     userId: number,
   ): Promise<Order> {
     const order = await this.findOne(orderId);
+    OrdersService.assertMutable(order);
     if (!order.customerId) {
       throw new BadRequestException('Order has no customer to redeem points for');
     }

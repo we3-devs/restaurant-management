@@ -57,6 +57,7 @@ export class OrderPaymentsService {
     receivedBy: number,
   ): Promise<OrderPayment> {
     const order = await this.ordersService.findOne(orderId);
+    OrdersService.assertMutable(order);
 
     const payment = this.orderPaymentsRepository.create({
       outletId: order.outletId,

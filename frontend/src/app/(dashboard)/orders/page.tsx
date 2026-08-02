@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useOrders, type Order } from "@/hooks/use-orders"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { ORDER_STATUSES } from "@/lib/validators/orders"
 import { CreateOrderDialog } from "./create-order-dialog"
 
@@ -30,12 +30,11 @@ const columns: ColumnDef<Order>[] = [
 ]
 
 export default function OrdersPage() {
-  const [outletFilter, setOutletFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { outletId } = useActiveOutlet()
   const { data, isLoading } = useOrders({
     limit: 100,
-    outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
+    outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
 
@@ -53,22 +52,6 @@ export default function OrdersPage() {
       </div>
 
       <div className="flex gap-4">
-        <div className="w-64 space-y-1.5">
-          <label className="text-sm font-medium">Filter by outlet</label>
-          <Select value={outletFilter} onValueChange={(value) => setOutletFilter(value ?? "all")}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All outlets" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All outlets</SelectItem>
-              {outlets?.data.map((outlet) => (
-                <SelectItem key={outlet.id} value={String(outlet.id)}>
-                  {outlet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="w-64 space-y-1.5">
           <label className="text-sm font-medium">Filter by status</label>
           <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "all")}>

@@ -55,6 +55,7 @@ export function OrderDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const updateOrder = useUpdateOrder(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
+  const isLocked = order?.status === "completed"
 
   const form = useForm<UpdateOrderInput>({
     resolver: zodResolver(updateOrderSchema),
@@ -102,7 +103,11 @@ export function OrderDetail({ orderId }: { orderId: number }) {
           </div>
         </div>
         <div className="w-48">
-          <Select value={order.status} onValueChange={(value) => value && handleStatusChange(value)}>
+          <Select
+            value={order.status}
+            onValueChange={(value) => value && handleStatusChange(value)}
+            disabled={isLocked}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -119,6 +124,12 @@ export function OrderDetail({ orderId }: { orderId: number }) {
           </Select>
         </div>
       </div>
+
+      {isLocked && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
+          This order is completed and locked — nothing about it (items, tables, payments, totals) can be changed anymore.
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -144,6 +155,7 @@ export function OrderDetail({ orderId }: { orderId: number }) {
             <span className="text-right">{order.refundedAmount}</span>
           </div>
 
+          {!isLocked && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -222,14 +234,15 @@ export function OrderDetail({ orderId }: { orderId: number }) {
               </Button>
             </form>
           </Form>
+          )}
         </CardContent>
       </Card>
 
       {order.customerId && <CustomerSection customerId={order.customerId} outletId={order.outletId} />}
 
-      <OrderItemsSection orderId={orderId} />
-      <OrderTablesSection orderId={orderId} outletId={order.outletId} />
-      <OrderPaymentsSection orderId={orderId} />
+      <OrderItemsSection orderId={orderId} readOnly={isLocked} />
+      <OrderTablesSection orderId={orderId} outletId={order.outletId} readOnly={isLocked} />
+      <OrderPaymentsSection orderId={orderId} readOnly={isLocked} />
     </div>
   )
 }
@@ -266,7 +279,7 @@ function CustomerSection({ customerId, outletId }: { customerId: number; outletI
   )
 }
 
-function OrderItemsSection({ orderId }: { orderId: number }) {
+function OrderItemsSection({ orderId, readOnly }: { orderId: number; readOnly: boolean }) {
   const { data: items } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
   const addItem = useAddOrderItem(orderId)
@@ -299,10 +312,11 @@ function OrderItemsSection({ orderId }: { orderId: number }) {
         <div className="space-y-3">
           {(items?.data ?? []).length === 0 && <p className="text-sm text-muted-foreground">No items yet.</p>}
           {(items?.data ?? []).map((item) => (
-            <OrderItemRow key={item.id} orderId={orderId} item={item} foodName={foodName(item.foodId)} />
+            <OrderItemRow key={item.id} orderId={orderId} item={item} foodName={foodName(item.foodId)} readOnly={readOnly} />
           ))}
         </div>
 
+        {!readOnly && (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-3">
             <FormField
@@ -383,12 +397,23 @@ function OrderItemsSection({ orderId }: { orderId: number }) {
             </div>
           </form>
         </Form>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: OrderItem; foodName: string }) {
+function OrderItemRow({
+  orderId,
+  item,
+  foodName,
+  readOnly,
+}: {
+  orderId: number
+  item: OrderItem
+  foodName: string
+  readOnly: boolean
+}) {
   const { data: addons } = useAddons({ limit: 100 })
   const { data: ingredients } = useIngredients({ limit: 100 })
   const updateItem = useUpdateOrderItem(orderId, item.id)
@@ -453,9 +478,11 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
             {item.unitPrice} each &middot; total {item.totalAmount}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleRemove}>
-          Remove
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="sm" onClick={handleRemove}>
+            Remove
+          </Button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <input
@@ -463,9 +490,10 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
           step="1"
           defaultValue={item.quantity}
           onBlur={(e) => handleQuantityChange(e.target.value)}
-          className="h-8 w-20 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none"
+          disabled={readOnly}
+          className="h-8 w-20 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none disabled:opacity-60"
         />
-        <Select value={item.status} onValueChange={(value) => value && handleStatusChange(value)}>
+        <Select value={item.status} onValueChange={(value) => value && handleStatusChange(value)} disabled={readOnly}>
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
@@ -483,26 +511,32 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
         {item.addons.map((link) => (
           <div key={link.id} className="flex items-center gap-1">
             <Badge variant="secondary">{addonName(link.addonId)}</Badge>
-            <Button variant="ghost" size="sm" onClick={() => handleRemoveAddon(link.addonId)}>
-              &times;
-            </Button>
+            {!readOnly && (
+              <Button variant="ghost" size="sm" onClick={() => handleRemoveAddon(link.addonId)}>
+                &times;
+              </Button>
+            )}
           </div>
         ))}
-        <Select value={selectedAddonId} onValueChange={(value) => setSelectedAddonId(value ?? "")}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Add addon" />
-          </SelectTrigger>
-          <SelectContent>
-            {addons?.data.map((addon) => (
-              <SelectItem key={addon.id} value={String(addon.id)}>
-                {addon.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="ghost" size="sm" onClick={handleAddAddon} disabled={!selectedAddonId}>
-          Add
-        </Button>
+        {!readOnly && (
+          <>
+            <Select value={selectedAddonId} onValueChange={(value) => setSelectedAddonId(value ?? "")}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Add addon" />
+              </SelectTrigger>
+              <SelectContent>
+                {addons?.data.map((addon) => (
+                  <SelectItem key={addon.id} value={String(addon.id)}>
+                    {addon.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="sm" onClick={handleAddAddon} disabled={!selectedAddonId}>
+              Add
+            </Button>
+          </>
+        )}
       </div>
 
       {item.reservations.length > 0 && (
@@ -522,7 +556,15 @@ function OrderItemRow({ orderId, item, foodName }: { orderId: number; item: Orde
   )
 }
 
-function OrderTablesSection({ orderId, outletId }: { orderId: number; outletId: number }) {
+function OrderTablesSection({
+  orderId,
+  outletId,
+  readOnly,
+}: {
+  orderId: number
+  outletId: number
+  readOnly: boolean
+}) {
   const { data: assignments } = useOrderTables(orderId)
   const { data: tables } = useDiningTables({ outletId, limit: 100 })
   const assignTable = useAssignOrderTable(orderId)
@@ -561,13 +603,16 @@ function OrderTablesSection({ orderId, outletId }: { orderId: number; outletId: 
           {(assignments ?? []).map((assignment) => (
             <div key={assignment.id} className="flex items-center gap-1.5">
               <Badge variant="secondary">{tableName(assignment.diningTableId)}</Badge>
-              <Button variant="ghost" size="sm" onClick={() => handleUnassign(assignment.diningTableId)}>
-                Remove
-              </Button>
+              {!readOnly && (
+                <Button variant="ghost" size="sm" onClick={() => handleUnassign(assignment.diningTableId)}>
+                  Remove
+                </Button>
+              )}
             </div>
           ))}
         </div>
 
+        {!readOnly && (
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
             <label className="text-sm font-medium">Assign a table</label>
@@ -588,12 +633,13 @@ function OrderTablesSection({ orderId, outletId }: { orderId: number; outletId: 
             Assign
           </Button>
         </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function OrderPaymentsSection({ orderId }: { orderId: number }) {
+function OrderPaymentsSection({ orderId, readOnly }: { orderId: number; readOnly: boolean }) {
   const { data: payments } = useOrderPayments(orderId)
   const createPayment = useCreateOrderPayment(orderId)
 
@@ -631,6 +677,7 @@ function OrderPaymentsSection({ orderId }: { orderId: number }) {
           ))}
         </div>
 
+        {!readOnly && (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-3">
             <FormField
@@ -697,6 +744,7 @@ function OrderPaymentsSection({ orderId }: { orderId: number }) {
             </div>
           </form>
         </Form>
+        )}
       </CardContent>
     </Card>
   )
