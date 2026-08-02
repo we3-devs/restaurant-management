@@ -10,11 +10,14 @@ export interface AppConfig {
     username: string;
     password: string;
   };
-  redis: {
-    url?: string;
-    host: string;
-    port: number;
-  };
+  redis:
+    | {
+        url: string;
+      }
+    | {
+        host: string;
+        port: number;
+      };
   jwt: {
     accessSecret: string;
     accessExpiresIn: string;
@@ -41,7 +44,7 @@ export default (): AppConfig => ({
     username: process.env.DB_USERNAME ?? 'postgres',
     password: process.env.DB_PASSWORD ?? '',
   },
-    redis: process.env.REDIS_URL
+  redis: process.env.REDIS_URL
     ? {
         url: process.env.REDIS_URL,
       }
