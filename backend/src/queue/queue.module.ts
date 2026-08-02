@@ -8,15 +8,19 @@ import { AppConfig } from '../config/configuration';
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppConfig>) => {
-        const redisConfig = configService.get('redis', { infer: true });
+        const redis = configService.get('redis', { infer: true })!;
+
         return {
-          connection: {
-            host: redisConfig?.host,
-            port: redisConfig?.port,
-            // Capped backoff, retried forever — see redis.module.ts for why
-            // this no longer gives up after N attempts.
-            retryStrategy: (times: number) => Math.min(times * 200, 2000),
-          },
+          connection: redis.url
+            ? {
+                url: redis.url,
+                retryStrategy: (times: number) => Math.min(times * 200, 2000),
+              }
+            : {
+                host: redis.host,
+                port: redis.port,
+                retryStrategy: (times: number) => Math.min(times * 200, 2000),
+              },
         };
       },
     }),
