@@ -72,9 +72,9 @@ export function GuestAuthGate() {
         </>
       ) : (
         <>
-          {/* TEMPORARY: dev-only code echoed by the API outside production
-              (no SMS delivery confirmed working yet) — remove this block
-              once that's verified end-to-end. */}
+          {/* TEMPORARY: code echoed by the API in every environment, including
+              production (no SMS delivery confirmed working yet) — remove
+              this block once that's verified end-to-end. */}
             <p className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
               Dev mode — your code is <span className="font-mono font-semibold">{devCode}</span>
             </p>
