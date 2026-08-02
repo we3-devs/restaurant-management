@@ -2,7 +2,7 @@ import "server-only"
 
 import { getCustomerToken } from "@/lib/auth/customer-session"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://https://restaurant-management-g6vb.onrender.com"
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 export class CustomerUnauthorizedError extends Error {
   constructor() {

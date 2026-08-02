@@ -2,7 +2,7 @@ import "server-only"
 
 import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "@/lib/auth/session"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://https://restaurant-management-g6vb.onrender.com"
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 export class BackendUnauthorizedError extends Error {
   constructor() {

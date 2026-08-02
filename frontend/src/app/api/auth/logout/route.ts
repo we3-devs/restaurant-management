@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { clearAuthCookies, getRefreshToken } from "@/lib/auth/session"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://https://restaurant-management-g6vb.onrender.com"
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 export async function POST() {
   const refreshToken = await getRefreshToken()
