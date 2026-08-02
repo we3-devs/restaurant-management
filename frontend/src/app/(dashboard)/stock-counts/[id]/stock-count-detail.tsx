@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -89,7 +89,7 @@ export function StockCountDetail({ countId }: { countId: number }) {
           <p className="text-sm text-muted-foreground">{count.countDate}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={count.status === "adjusted" ? "secondary" : "outline"}>{count.status}</Badge>
+          <StatusBadge status={count.status} />
           {canCancel && (
             <Button variant="outline" onClick={handleCancel} disabled={cancel.isPending}>
               Cancel

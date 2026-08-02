@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -76,7 +76,7 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
           <p className="text-sm text-muted-foreground">{wastage.wastageDate} · {wastage.reason}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={wastage.status === "approved" ? "secondary" : "outline"}>{wastage.status}</Badge>
+          <StatusBadge status={wastage.status} />
           {isDraft && (
             <>
               <Button variant="outline" onClick={handleCancel} disabled={cancel.isPending}>

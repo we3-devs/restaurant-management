@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner"
 import { CalendarClockIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
@@ -85,11 +85,7 @@ export default function AttendancePage() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === "present" ? "secondary" : row.original.status === "late" ? "outline" : "destructive"}>
-            {row.original.status.replaceAll("_", " ")}
-          </Badge>
-        ),
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
       { id: "workingHours", header: "Hours", cell: ({ row }) => row.original.workingHours.toFixed(2) },
       {

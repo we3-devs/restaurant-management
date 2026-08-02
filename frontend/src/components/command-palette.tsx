@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useCommandPaletteOpen } from "@/hooks/use-command-palette"
 import { visibleNavGroups } from "@/app/(dashboard)/nav-items"
 import {
   CommandDialog,
@@ -17,7 +18,7 @@ import {
 export function CommandPalette() {
   const router = useRouter()
   const { permissions, isSuperadmin } = useCurrentUser()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useCommandPaletteOpen()
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)

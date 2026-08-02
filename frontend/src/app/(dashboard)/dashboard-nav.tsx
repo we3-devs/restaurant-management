@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDown, type LucideIcon } from "lucide-react"
@@ -11,6 +11,11 @@ import { visibleNavGroups } from "./nav-items"
 interface DashboardNavProps {
   permissions: string[]
   isSuperadmin: boolean
+  /** Icon-only rail mode — each group renders as a single icon; clicking one expands the sidebar via onExpandGroup. */
+  collapsed?: boolean
+  onExpandGroup?: (groupLabel: string) => void
+  /** Set right after expanding from the icon rail, so the group that was clicked opens automatically instead of whichever one matches the current route. */
+  forceOpenGroup?: string | null
 }
 
 interface NavLink {
@@ -24,7 +29,13 @@ interface NavGroup {
   links: NavLink[]
 }
 
-export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
+export function DashboardNav({
+  permissions,
+  isSuperadmin,
+  collapsed = false,
+  onExpandGroup,
+  forceOpenGroup,
+}: DashboardNavProps) {
   const pathname = usePathname()
   const groups: NavGroup[] = visibleNavGroups(permissions, isSuperadmin)
 
@@ -32,10 +43,44 @@ export function DashboardNav({ permissions, isSuperadmin }: DashboardNavProps) {
     group.links.some((link) => pathname === link.href || pathname.startsWith(`${link.href}/`)),
   )?.label
 
+  if (collapsed) {
+    return (
+      <nav className="flex h-full flex-col items-center gap-1 overflow-y-auto px-2 py-4">
+        {groups.map((group) => {
+          const Icon = group.icon
+          const active = group.label === activeGroupLabel
+          return (
+            <button
+              key={group.label}
+              type="button"
+              title={group.label}
+              aria-label={`Expand ${group.label}`}
+              onClick={() => onExpandGroup?.(group.label)}
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                active
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="size-4.5" />
+            </button>
+          )
+        })}
+      </nav>
+    )
+  }
+
   return (
     <nav className="flex h-full flex-col gap-1 overflow-y-auto px-3 py-4">
       {groups.map((group) => (
-        <NavSection key={group.label} group={group} pathname={pathname} defaultOpen={group.label === activeGroupLabel} />
+        <NavSection
+          key={group.label}
+          group={group}
+          pathname={pathname}
+          defaultOpen={group.label === activeGroupLabel}
+          forceOpen={group.label === forceOpenGroup}
+        />
       ))}
     </nav>
   )
@@ -45,16 +90,22 @@ function NavSection({
   group,
   pathname,
   defaultOpen,
+  forceOpen,
 }: {
   group: NavGroup
   pathname: string
   defaultOpen: boolean
+  forceOpen: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen || group.links.length <= 3)
   const Icon = group.icon
 
+  useEffect(() => {
+    if (forceOpen) setOpen(true)
+  }, [forceOpen])
+
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" data-nav-group={group.label}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

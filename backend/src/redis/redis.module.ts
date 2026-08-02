@@ -13,13 +13,22 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppConfig>) => {
         const redisConfig = configService.get('redis', { infer: true });
-        return new Redis({
-          host: redisConfig?.host,
-          port: redisConfig?.port,
-          lazyConnect: false,
-          maxRetriesPerRequest: 3,
-          retryStrategy: (times) => Math.min(times * 200, 2000),
-        });
+
+        const redis = redisConfig?.url
+          ? new Redis(redisConfig.url, {
+              lazyConnect: false,
+              maxRetriesPerRequest: 3,
+              retryStrategy: (times) => Math.min(times * 200, 2000),
+            })
+          : new Redis({
+              host: redisConfig?.host,
+              port: redisConfig?.port,
+              lazyConnect: false,
+              maxRetriesPerRequest: 3,
+              retryStrategy: (times) => Math.min(times * 200, 2000),
+            });
+
+        return redis;
       },
     },
   ],

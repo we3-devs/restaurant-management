@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table"
 import { ClipboardListIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -24,16 +24,6 @@ import { PURCHASE_ORDER_STATUSES } from "@/lib/validators/purchase-orders"
 import { CreatePurchaseOrderDialog } from "./create-purchase-order-dialog"
 
 const PAGE_SIZE = 10
-
-const STATUS_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
-  draft: "outline",
-  pending_approval: "secondary",
-  approved: "secondary",
-  partially_received: "secondary",
-  received: "secondary",
-  completed: "secondary",
-  cancelled: "destructive",
-}
 
 export default function PurchaseOrdersPage() {
   const router = useRouter()
@@ -67,9 +57,7 @@ export default function PurchaseOrdersPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={STATUS_VARIANT[row.original.status] ?? "outline"}>
-            {row.original.status.replaceAll("_", " ")}
-          </Badge>
+          <StatusBadge status={row.original.status} />
         ),
       },
       {

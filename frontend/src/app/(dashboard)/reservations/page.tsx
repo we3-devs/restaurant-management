@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-table"
 import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, MoreHorizontalIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import {
@@ -77,7 +77,7 @@ export default function ReservationsPage() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => <Badge variant="secondary">{row.original.status}</Badge>,
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
       { accessorKey: "source", header: "Source" },
       {

@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -97,7 +98,7 @@ export default function SupplierPaymentsPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "cancelled" ? "outline" : "secondary"}>{row.original.status}</Badge>
+          <StatusBadge status={row.original.status} />
         ),
       },
       {

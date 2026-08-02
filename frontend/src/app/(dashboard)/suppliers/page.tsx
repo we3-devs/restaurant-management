@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-table"
 import { ArrowDownIcon, ArrowUpIcon, TruckIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -72,7 +72,7 @@ export default function SuppliersPage() {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "active" ? "secondary" : "outline"}>{row.original.status}</Badge>
+          <StatusBadge status={row.original.status} />
         ),
       },
       {

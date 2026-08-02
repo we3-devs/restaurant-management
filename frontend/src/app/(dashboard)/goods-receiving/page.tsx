@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import {
@@ -87,7 +87,7 @@ export default function GoodsReceivingPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "cancelled" ? "destructive" : "secondary"}>{row.original.status}</Badge>
+          <StatusBadge status={row.original.status} />
         ),
       },
       {

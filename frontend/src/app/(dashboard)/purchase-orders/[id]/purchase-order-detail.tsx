@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -39,16 +39,6 @@ import {
   useSubmitPurchaseOrder,
 } from "@/hooks/use-purchase-orders"
 import { addPurchaseOrderItemSchema, type AddPurchaseOrderItemInput } from "@/lib/validators/purchase-orders"
-
-const STATUS_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
-  draft: "outline",
-  pending_approval: "secondary",
-  approved: "secondary",
-  partially_received: "secondary",
-  received: "secondary",
-  completed: "secondary",
-  cancelled: "destructive",
-}
 
 export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: number }) {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -92,9 +82,7 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
             </p>
           </div>
         </div>
-        <Badge variant={STATUS_VARIANT[po.status] ?? "outline"} className="text-sm">
-          {po.status.replaceAll("_", " ")}
-        </Badge>
+        <StatusBadge status={po.status} className="text-sm" />
       </div>
 
       {canManage && (

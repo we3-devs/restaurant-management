@@ -2,7 +2,7 @@
 
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -34,7 +34,7 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
           <h1 className="text-lg font-semibold">Table Session #{session.id}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">table #{session.diningTableId}</p>
-            <Badge variant="secondary">{session.status}</Badge>
+            <StatusBadge status={session.status} />
           </div>
         </div>
         {isActive && (

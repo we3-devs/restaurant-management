@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -102,7 +103,7 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
           <h1 className="text-lg font-semibold">{supplier.companyName}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">{supplier.supplierNo}</p>
-            <Badge variant={supplier.status === "active" ? "secondary" : "outline"}>{supplier.status}</Badge>
+            <StatusBadge status={supplier.status} />
           </div>
         </div>
         {canManage && (
@@ -198,7 +199,7 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
             {history.recentPurchaseOrders.map((po) => (
               <div key={po.poNo} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{po.poNo}</span>
-                <Badge variant="outline">{po.status}</Badge>
+                <StatusBadge status={po.status} />
                 <span className="text-muted-foreground">{po.grandTotal.toFixed(2)}</span>
                 <span className="text-muted-foreground">{new Date(po.createdAt).toLocaleDateString()}</span>
               </div>

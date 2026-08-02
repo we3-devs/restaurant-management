@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -20,7 +20,7 @@ const columns: ColumnDef<StockIn>[] = [
     id: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge variant={row.original.status === "approved" ? "secondary" : "outline"}>{row.original.status}</Badge>
+      <StatusBadge status={row.original.status} />
     ),
   },
 ]

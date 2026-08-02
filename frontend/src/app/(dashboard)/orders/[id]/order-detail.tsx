@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -98,9 +99,7 @@ export function OrderDetail({ orderId }: { orderId: number }) {
           <h1 className="text-lg font-semibold">{order.orderNumber}</h1>
           <div className="flex items-center gap-1.5">
             <Badge variant="secondary">{order.orderType}</Badge>
-            <Badge variant={order.paymentStatus === "paid" ? "secondary" : "destructive"}>
-              {order.paymentStatus}
-            </Badge>
+            <StatusBadge status={order.paymentStatus} />
           </div>
         </div>
         <div className="w-48">

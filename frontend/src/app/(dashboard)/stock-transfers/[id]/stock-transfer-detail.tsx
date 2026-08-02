@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -82,7 +82,7 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={transfer.status === "approved" ? "secondary" : "outline"}>{transfer.status}</Badge>
+          <StatusBadge status={transfer.status} />
           {isDraft && (
             <>
               <Button variant="outline" onClick={handleCancel} disabled={cancel.isPending}>
