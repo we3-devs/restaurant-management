@@ -17,10 +17,12 @@ export interface TableSession {
   diningTableId: number
   reservationId: number | null
   customerId: number | null
-  // Only populated by the list endpoint (GET /table-sessions), which loads
-  // the customer relation + a batched loyalty-tier lookup for the floor
-  // board — GET /table-sessions/:id doesn't load it, so it's absent there.
+  // Populated by both the list endpoint and GET /table-sessions/:id.
   customer?: TableSessionCustomerSummary | null
+  // Only populated by GET /table-sessions/:id (findOneDetailed) — the list
+  // endpoint's rows already show table/outlet context from their own filters.
+  outletName?: string
+  diningTableName?: string
   guestCount: number
   source: string
   status: string

@@ -40,6 +40,11 @@ export type TableSessionWithCustomer = Omit<TableSession, 'customer'> & {
   customer: TableSessionCustomerSummary | null;
 };
 
+export type TableSessionDetail = TableSessionWithCustomer & {
+  outletName: string;
+  diningTableName: string;
+};
+
 @Injectable()
 export class TableSessionsService {
   constructor(
@@ -133,6 +138,24 @@ export class TableSessionsService {
       throw new NotFoundException(`Table session ${id} not found`);
     }
     return session;
+  }
+
+  /** GET /table-sessions/:id — the guest/outlet/table names a detail page actually needs, not just the raw ids findOne() gives internal callers. */
+  async findOneDetailed(id: number): Promise<TableSessionDetail> {
+    const session = await this.tableSessionsRepository.findOne({
+      where: { id },
+      relations: ['customer', 'diningTable', 'outlet'],
+    });
+    if (!session) {
+      throw new NotFoundException(`Table session ${id} not found`);
+    }
+
+    const [withCustomer] = await this.attachCustomerSummaries([session]);
+    return {
+      ...withCustomer,
+      outletName: session.outlet.name,
+      diningTableName: session.diningTable.name,
+    };
   }
 
   /** The table's current active/billing session, if any — used to decide whether a guest order needs a new session opened first. */

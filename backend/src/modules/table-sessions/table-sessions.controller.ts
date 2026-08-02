@@ -34,9 +34,11 @@ export class TableSessionsController {
 
   @Get(':id')
   @RequirePermissions('table-sessions.view')
-  @ApiOperation({ summary: 'Gets a table session' })
+  @ApiOperation({
+    summary: 'Gets a table session, with outlet/table names and guest (customer) detail resolved',
+  })
   findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.tableSessionsService.findOne(id);
+    return this.tableSessionsService.findOneDetailed(id);
   }
 
   @Post()

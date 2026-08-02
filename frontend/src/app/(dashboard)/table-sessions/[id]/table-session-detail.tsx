@@ -33,7 +33,9 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
         <div>
           <h1 className="text-lg font-semibold">Table Session #{session.id}</h1>
           <div className="flex items-center gap-1.5">
-            <p className="text-sm text-muted-foreground">table #{session.diningTableId}</p>
+            <p className="text-sm text-muted-foreground">
+              {session.diningTableName ?? `table #${session.diningTableId}`}
+            </p>
             <StatusBadge status={session.status} />
           </div>
         </div>
@@ -50,7 +52,12 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            <span className="text-muted-foreground">Outlet:</span> #{session.outletId}
+            <span className="text-muted-foreground">Outlet:</span>{" "}
+            {session.outletName ?? `#${session.outletId}`}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Table:</span>{" "}
+            {session.diningTableName ?? `#${session.diningTableId}`}
           </p>
           <p>
             <span className="text-muted-foreground">Guests:</span> {session.guestCount}
@@ -66,6 +73,30 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
             <span className="text-muted-foreground">Ended:</span>{" "}
             {session.endedAt ? new Date(session.endedAt).toLocaleString() : "—"}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Guest</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {session.customer ? (
+            <>
+              <p>
+                <span className="text-muted-foreground">Name:</span> {session.customer.name}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Phone:</span> {session.customer.phone ?? "—"}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Loyalty tier:</span>{" "}
+                {session.customer.loyaltyTier ?? "—"}
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Walk-in — no customer on record for this session.</p>
+          )}
         </CardContent>
       </Card>
     </div>
