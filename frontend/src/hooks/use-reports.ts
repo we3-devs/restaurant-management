@@ -24,6 +24,13 @@ export type ReportType =
   | "shifts"
   | "staff-performance"
   | "payroll-export"
+  | "settings-changes"
+  | "audit-logs"
+  | "loyalty-top-customers"
+  | "loyalty-points-earned"
+  | "loyalty-points-redeemed"
+  | "loyalty-outstanding"
+  | "loyalty-transactions"
 
 export interface ReportColumn {
   key: string

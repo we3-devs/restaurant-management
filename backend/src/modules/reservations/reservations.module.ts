@@ -21,7 +21,10 @@ import { ReservationsService } from './reservations.service';
     DiningTablesModule,
     forwardRef(() => TableSessionsModule),
     NotificationsModule,
-    KitchenTicketsModule,
+    // Circular: KitchenTicketsModule imports OrdersModule, which imports
+    // TableSessionsModule -> ReservationsModule — without forwardRef this
+    // chain can resolve to `undefined` mid-cycle at module-load time.
+    forwardRef(() => KitchenTicketsModule),
     BullModule.registerQueue({ name: 'reservation-reminders' }),
   ],
   controllers: [ReservationsController],

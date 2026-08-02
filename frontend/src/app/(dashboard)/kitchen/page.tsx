@@ -302,7 +302,7 @@ export default function KitchenPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("orders.manage")
 
-  const { outletId: effectiveOutletId, setOutletId, outlets, showOutletPicker, departmentId } = useActiveOutlet()
+  const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
 
   // Live clock driving the "…m ago" timers so they tick without a refetch.
   const [now, setNow] = useState(() => Date.now())
@@ -318,19 +318,30 @@ export default function KitchenPage() {
   const stations = data?.stations ?? []
   const hasUngrouped = tickets.some((ticket) => ticket.departmentId === null)
 
-  // Filter to one station so each department only sees its own queue. The
-  // outlet is stored alongside the selection so switching outlets resets the
-  // filter without a setState-in-effect (lint forbids those). Defaults to
-  // the active outlet/department context's auto-selected department, if it's
-  // one of this outlet's stations, instead of dumping everyone into "all stations".
+  // Filter to one station so each department only sees its own queue. Both
+  // the outlet AND department are stored alongside the selection so
+  // switching either from the header resets the filter without a
+  // setState-in-effect (lint forbids those) — previously this only keyed off
+  // outletId, so picking a different kitchen from the header nav while
+  // staying on the same outlet silently did nothing. Defaults to the active
+  // outlet/department context's selected department, if it's one of this
+  // outlet's stations, instead of dumping everyone into "all stations".
   const assignedStation = stations.find((s) => s.id === departmentId)
-  const [stationState, setStationState] = useState<{ outletId: number | null; station: string }>({
+  const [stationState, setStationState] = useState<{
+    outletId: number | null
+    departmentId: number | null
+    station: string
+  }>({
     outletId: null,
+    departmentId: null,
     station: "all",
   })
   const station =
-    stationState.outletId === effectiveOutletId ? stationState.station : (assignedStation ? String(assignedStation.id) : "all")
-  const selectStation = (value: string) => setStationState({ outletId: effectiveOutletId, station: value })
+    stationState.outletId === effectiveOutletId && stationState.departmentId === departmentId
+      ? stationState.station
+      : (assignedStation ? String(assignedStation.id) : "all")
+  const selectStation = (value: string) =>
+    setStationState({ outletId: effectiveOutletId, departmentId, station: value })
 
   const visibleTickets = useMemo(() => {
     if (station === "all") return tickets
@@ -355,32 +366,13 @@ export default function KitchenPage() {
           <h1 className="text-lg font-semibold">Kitchen Display</h1>
           <span className="text-sm tabular-nums text-muted-foreground">{clock}</span>
         </div>
-        {showOutletPicker && (
-          <div className="w-56">
-            <Select
-              value={effectiveOutletId ? String(effectiveOutletId) : ""}
-              onValueChange={(value) => setOutletId(value ? Number(value) : null)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an outlet" />
-              </SelectTrigger>
-              <SelectContent>
-                {outlets.map((outlet) => (
-                  <SelectItem key={outlet.id} value={String(outlet.id)}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
       ) : isLoading ? (
         <Skeleton className="h-64 w-full" />
-      ) : tickets.length === 0 ? (
+      ) : tickets.length === 0 && stations.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ChefHatIcon className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">No active kitchen tickets</p>
@@ -402,7 +394,6 @@ export default function KitchenPage() {
             </Button>
             {stations.map((s) => {
               const count = tickets.filter((ticket) => ticket.departmentId === s.id).length
-              if (count === 0) return null
               return (
                 <Button
                   key={s.id}

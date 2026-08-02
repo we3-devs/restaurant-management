@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
@@ -15,6 +15,15 @@ import type {
 } from '../entities/notification.entity';
 
 const PRIORITIES: NotificationPriority[] = ['normal', 'high', 'urgent'];
+
+/**
+ * `@Type(() => Boolean)` runs `Boolean(value)` under the hood, which turns
+ * the string "false" into `true` (any non-empty string is truthy) — so a
+ * query param like `?archived=false` was silently flipped to `archived:
+ * true`. Parses the actual string value instead.
+ */
+const toBoolean = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value === 'true' : value;
 
 export class ListNotificationsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Notifications are outlet-scoped' })
@@ -38,13 +47,13 @@ export class ListNotificationsQueryDto extends PaginationQueryDto {
     description: 'Filter to only read (true) or unread (false)',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toBoolean)
   @IsBoolean()
   read?: boolean;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toBoolean)
   @IsBoolean()
   archived?: boolean = false;
 
@@ -58,7 +67,7 @@ export class ListNotificationsQueryDto extends PaginationQueryDto {
     description: 'Legacy alias for read=false — kept for the header bell',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toBoolean)
   @IsBoolean()
   unreadOnly?: boolean;
 }

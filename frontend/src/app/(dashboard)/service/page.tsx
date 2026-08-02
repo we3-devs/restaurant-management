@@ -4,14 +4,13 @@ import Link from "next/link"
 import { BellRingIcon, PackageCheckIcon, QrCodeIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { ReadyQueue } from "./ready-queue"
 import { ServiceRequestsPanel } from "./service-requests-panel"
 
 export default function ServicePage() {
-  const { outletId: effectiveOutletId, setOutletId, outlets, showOutletPicker } = useActiveOutlet()
+  const { outletId: effectiveOutletId } = useActiveOutlet()
 
   // Pushes ready notifications, service requests and kitchen status changes —
   // the same /kds socket the kitchen board and POS use.
@@ -25,25 +24,6 @@ export default function ServicePage() {
           <Button variant="outline" size="sm" render={<Link href="/floor" />}>
             Floor
           </Button>
-          {showOutletPicker && (
-            <div className="w-56">
-              <Select
-                value={effectiveOutletId ? String(effectiveOutletId) : ""}
-                onValueChange={(value) => setOutletId(value ? Number(value) : null)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select an outlet" />
-                </SelectTrigger>
-                <SelectContent>
-                  {outlets.map((outlet) => (
-                    <SelectItem key={outlet.id} value={String(outlet.id)}>
-                      {outlet.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
       </div>
 
@@ -62,14 +42,6 @@ export default function ServicePage() {
           </section>
         </div>
       )}
-
-      <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        <QrCodeIcon className="size-4 shrink-0" />
-        <span>
-          Guests can call you from their table — print the table&apos;s QR card in the Floor view
-          (tap a table &rarr; <span className="font-medium">Guest card</span>).
-        </span>
-      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { User } from '../users/entities/user.entity';
 import { SettingsCategory } from './entities/global-setting.entity';
 import { SETTINGS_CATEGORIES, SettingsService } from './settings.service';
@@ -41,6 +42,10 @@ export class SettingsController {
   @Put(':category')
   @RequirePermissions('settings.manage')
   @ApiOperation({ summary: 'Partially updates one settings category' })
+  // SettingsService#update already records a settings_change entry with the
+  // real before/after values — the generic interceptor would just add a
+  // redundant, less-informative one.
+  @SkipAudit()
   update(
     @Param('category') category: string,
     @Body() dto: Record<string, unknown>,

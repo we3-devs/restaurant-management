@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -64,12 +66,19 @@ function round4(value: number): number {
  * Happy-path order lifecycle plus "cancelled" reachable from any
  * non-terminal state. `completed`/`cancelled` are terminal (no outgoing
  * edges) — enforced in updateStatus().
+ *
+ * `served` is additionally reachable directly from every non-terminal status
+ * from `accepted` onward (not just `ready`/`partially_served`): nothing
+ * proactively walks Order.status through `preparing`/`ready` as tickets
+ * progress, so a kitchen that finishes fast (or an order with nothing to
+ * track, see OrdersService#maybeAdvanceToServed) can legitimately jump
+ * straight to `served` from wherever it's sitting.
  */
 const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['accepted', 'cancelled'],
-  accepted: ['preparing', 'cancelled'],
-  preparing: ['partially_ready', 'ready', 'cancelled'],
-  partially_ready: ['ready', 'partially_served', 'cancelled'],
+  accepted: ['preparing', 'served', 'cancelled'],
+  preparing: ['partially_ready', 'ready', 'served', 'cancelled'],
+  partially_ready: ['ready', 'partially_served', 'served', 'cancelled'],
   ready: ['partially_served', 'served', 'cancelled'],
   partially_served: ['served', 'cancelled'],
   served: ['completed'],
@@ -96,6 +105,7 @@ export class OrdersService {
     private readonly orderPaymentsRepository: Repository<OrderPayment>,
     @InjectRepository(OrderItemIngredientReservation)
     private readonly reservationsRepository: Repository<OrderItemIngredientReservation>,
+    @Inject(forwardRef(() => KitchenTicketsService))
     private readonly kitchenTicketsService: KitchenTicketsService,
     private readonly gateway: KitchenTicketsGateway,
     private readonly notificationsService: NotificationsService,
@@ -188,7 +198,7 @@ export class OrdersService {
       tableSessionId: dto.tableSessionId ?? null,
       customerId: dto.customerId ?? null,
       reservationId: dto.reservationId ?? null,
-      orderType: dto.orderType ?? 'dine_in',
+      orderType: dto.orderType ?? 'table',
       note: dto.note ?? null,
       orderNumber: this.generateOrderNumber(dto.outletId),
       createdBy,
@@ -217,7 +227,7 @@ export class OrdersService {
       outletId,
       tableSessionId,
       customerId,
-      orderType: 'dine_in',
+      orderType: 'table',
       orderNumber: this.generateOrderNumber(outletId),
       createdBy: null,
       source: 'online',
@@ -428,11 +438,16 @@ export class OrdersService {
   }
 
   /**
-   * Moves every non-held 'stock_reserved' item on the order to
+   * Places the order: moves every non-held 'stock_reserved' item to
    * 'sent_to_kitchen' and groups them into one KitchenTicket per department
-   * represented (items with no preparationDepartmentId share a single
-   * null-department ticket). Held items stay in the cart. If the order is
-   * still 'pending', also advances it to 'accepted'.
+   * represented. Items with no preparationDepartmentId (ready-made, no prep
+   * needed) skip the kitchen queue but not the workflow — they land straight
+   * on the waiter's ready-to-deliver queue ('ready' status, ticket item
+   * created pre-ready) instead of being silently marked 'served' with nobody
+   * having touched them. Held items stay in the cart. If the order is still
+   * 'pending', also advances it to 'accepted'; if everything sent turns out
+   * to already be fully served (e.g. everyone already delivered), advances
+   * it straight to 'served' too.
    */
   async sendToKitchen(
     orderId: number,
@@ -490,13 +505,48 @@ export class OrdersService {
       }
     }
 
-    const tickets = await this.dataSource.transaction(async (manager) => {
+    const ticketResult = await this.dataSource.transaction(async (manager) => {
       const ticketRepo = manager.getRepository(KitchenTicket);
       const ticketItemRepo = manager.getRepository(KitchenTicketItem);
       const itemRepo = manager.getRepository(OrderItem);
 
       const createdTickets: KitchenTicket[] = [];
+      const readyMade: { ticketId: number; itemIds: number[] }[] = [];
+      const now = new Date();
       for (const [departmentId, groupItems] of groups) {
+        if (departmentId === null) {
+          // Ready-made items (drinks, pre-made snacks, ...) — no prep needed,
+          // so they never enter the kitchen queue, but they still go to the
+          // waiter's ready-to-deliver queue rather than being auto-served
+          // with nobody having actually handed them over.
+          const ticket = await ticketRepo.save(
+            ticketRepo.create({
+              orderId: order.id,
+              outletId: order.outletId,
+              departmentId: null,
+              status: 'in_progress',
+              startedAt: now,
+            }),
+          );
+          const itemIds: number[] = [];
+          for (const item of groupItems) {
+            const ticketItem = await ticketItemRepo.save(
+              ticketItemRepo.create({
+                ticketId: ticket.id,
+                orderItemId: item.id,
+                status: 'ready',
+                startedAt: now,
+                readyAt: now,
+              }),
+            );
+            itemIds.push(ticketItem.id);
+            item.status = 'ready';
+            await itemRepo.save(item);
+          }
+          createdTickets.push(ticket);
+          readyMade.push({ ticketId: ticket.id, itemIds });
+          continue;
+        }
         const ticket = await ticketRepo.save(
           ticketRepo.create({
             orderId: order.id,
@@ -518,14 +568,22 @@ export class OrdersService {
         }
         createdTickets.push(ticket);
       }
-      return createdTickets;
+      return { createdTickets, readyMade };
     });
 
     if (order.status === 'pending') {
       await this.updateStatus(order.id, { status: 'accepted' }, changedBy);
     }
+    await this.maybeAdvanceToServed(order.id, changedBy);
 
-    this.kitchenTicketsService.notifyTicketsCreated(tickets);
+    const { createdTickets: tickets, readyMade } = ticketResult;
+    const kitchenBound = tickets.filter((t) => t.departmentId !== null);
+    if (kitchenBound.length > 0) {
+      this.kitchenTicketsService.notifyTicketsCreated(kitchenBound);
+    }
+    for (const { ticketId, itemIds } of readyMade) {
+      await this.kitchenTicketsService.notifyItemsReady(ticketId, itemIds);
+    }
     const notification = await this.notificationsService.create({
       outletId: order.outletId,
       type: 'order_sent',
@@ -536,6 +594,38 @@ export class OrdersService {
     });
     this.gateway.notifyNotificationCreated(notification);
     return tickets;
+  }
+
+  /**
+   * Every non-cancelled OrderItem on the order is 'served' → auto-advance
+   * Order.status to 'served' if it isn't already there or terminal. Called
+   * whenever an item transitions to 'served' via kitchen-ticket progress
+   * (including a waiter delivering a ready-made item off the ready queue).
+   */
+  async maybeAdvanceToServed(
+    orderId: number,
+    changedBy: number | null,
+  ): Promise<void> {
+    const items = await this.orderItemsRepository.find({
+      where: { orderId },
+    });
+    const relevant = items.filter((item) => item.status !== 'cancelled');
+    if (
+      relevant.length === 0 ||
+      !relevant.every((item) => item.status === 'served')
+    ) {
+      return;
+    }
+
+    const order = await this.findOne(orderId);
+    if (
+      order.status === 'served' ||
+      order.status === 'completed' ||
+      order.status === 'cancelled'
+    ) {
+      return;
+    }
+    await this.updateStatus(orderId, { status: 'served' }, changedBy);
   }
 
   // ------------------------------------------------------------ order items
@@ -621,19 +711,36 @@ export class OrdersService {
     }));
   }
 
+  /**
+   * Server-side kitchen routing: resolves a food's departmentType to this
+   * order's outlet's matching prep-capable OutletDepartment. Never blocks
+   * adding an item — falls back to null (no prep routing, ready-made) if the
+   * food has no departmentType, or no matching department exists at this
+   * outlet.
+   */
+  private async resolvePreparationDepartmentId(
+    outletId: number,
+    foodId: number,
+  ): Promise<number | null> {
+    const food = await this.foodsService.findOne(foodId);
+    if (!food.departmentType) {
+      return null;
+    }
+    const departments =
+      await this.outletDepartmentsService.findByOutlet(outletId);
+    const match = departments.find(
+      (d) => d.type === food.departmentType && d.canPrepareOrder,
+    );
+    return match?.id ?? null;
+  }
+
   async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
     const order = await this.findOne(orderId);
 
-    if (dto.preparationDepartmentId !== undefined) {
-      const department = await this.outletDepartmentsService.findOne(
-        dto.preparationDepartmentId,
-      );
-      if (department.outletId !== order.outletId) {
-        throw new BadRequestException(
-          `Department ${dto.preparationDepartmentId} does not belong to outlet ${order.outletId}`,
-        );
-      }
-    }
+    const preparationDepartmentId = await this.resolvePreparationDepartmentId(
+      order.outletId,
+      dto.foodId,
+    );
 
     let unitPrice: number;
     if (dto.foodVariantId !== undefined) {
@@ -661,7 +768,7 @@ export class OrdersService {
       orderId,
       foodId: dto.foodId,
       foodVariantId: dto.foodVariantId ?? null,
-      preparationDepartmentId: dto.preparationDepartmentId ?? null,
+      preparationDepartmentId,
       quantity,
       unitPrice,
       totalAmount: round2(quantity * unitPrice),

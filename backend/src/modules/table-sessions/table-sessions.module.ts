@@ -19,7 +19,10 @@ import { TableSessionsService } from './table-sessions.service';
     CustomersModule,
     forwardRef(() => ReservationsModule),
     NotificationsModule,
-    KitchenTicketsModule,
+    // Circular: KitchenTicketsModule imports OrdersModule, which imports
+    // TableSessionsModule — without forwardRef this chain can resolve to
+    // `undefined` mid-cycle at module-load time.
+    forwardRef(() => KitchenTicketsModule),
   ],
   controllers: [TableSessionsController],
   providers: [TableSessionsService],

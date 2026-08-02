@@ -34,11 +34,9 @@ function useColumnCount() {
 export function FoodGrid({
   orderId,
   categoryId,
-  preparationDepartmentId,
 }: {
   orderId: number
   categoryId: number | null
-  preparationDepartmentId: number | null
 }) {
   const [search, setSearch] = useState("")
   const [variantFood, setVariantFood] = useState<Food | null>(null)
@@ -80,7 +78,6 @@ export function FoodGrid({
     try {
       await addItem.mutateAsync({
         foodId: food.id,
-        preparationDepartmentId: preparationDepartmentId ?? undefined,
         quantity: 1,
       })
     } catch (error) {
@@ -164,7 +161,6 @@ export function FoodGrid({
         <VariantPickerDialog
           food={variantFood}
           orderId={orderId}
-          preparationDepartmentId={preparationDepartmentId}
           onClose={() => setVariantFood(null)}
         />
       )}

@@ -44,7 +44,13 @@ import {
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useUnits } from "@/hooks/use-units"
-import { FOOD_ITEM_TYPES, FOOD_TYPES, updateFoodSchema, type UpdateFoodInput } from "@/lib/validators/foods"
+import {
+  FOOD_ITEM_TYPES,
+  FOOD_TYPES,
+  OUTLET_DEPARTMENT_TYPES,
+  updateFoodSchema,
+  type UpdateFoodInput,
+} from "@/lib/validators/foods"
 
 export function FoodDetail({ foodId }: { foodId: number }) {
   const router = useRouter()
@@ -62,6 +68,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       shortDescription: "",
       description: "",
       itemType: "food",
+      departmentType: undefined,
       basePrice: 0,
       isTaxable: true,
       isDiscountable: true,
@@ -81,6 +88,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
         description: food.description ?? "",
         foodType: (food.foodType as UpdateFoodInput["foodType"]) ?? undefined,
         itemType: food.itemType as UpdateFoodInput["itemType"],
+        departmentType: (food.departmentType as UpdateFoodInput["departmentType"]) ?? undefined,
         basePrice: food.basePrice,
         isTaxable: food.isTaxable,
         isDiscountable: food.isDiscountable,
@@ -221,6 +229,32 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       </SelectTrigger>
                       <SelectContent>
                         {FOOD_ITEM_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="departmentType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select
+                      value={field.value ?? "none"}
+                      onValueChange={(value) => field.onChange(value === "none" ? null : value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="None — ready-made" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None — ready-made</SelectItem>
+                        {OUTLET_DEPARTMENT_TYPES.map((type) => (
                           <SelectItem key={type} value={type}>
                             {type}
                           </SelectItem>

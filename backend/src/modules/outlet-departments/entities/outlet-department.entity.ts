@@ -11,18 +11,21 @@ import {
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { Outlet } from '../../outlets/entities/outlet.entity';
 
-export type OutletDepartmentType =
-  | 'kitchen'
-  | 'bar'
-  | 'grill'
-  | 'pizza'
-  | 'dessert'
-  | 'drinks'
-  | 'counter'
-  | 'store'
-  | 'bakery'
-  | 'housekeeping'
-  | 'other';
+export const OUTLET_DEPARTMENT_TYPES = [
+  'kitchen',
+  'bar',
+  'grill',
+  'pizza',
+  'dessert',
+  'drinks',
+  'counter',
+  'store',
+  'bakery',
+  'housekeeping',
+  'other',
+] as const;
+
+export type OutletDepartmentType = (typeof OUTLET_DEPARTMENT_TYPES)[number];
 
 /**
  * Stub entity — full Outlet Departments domain is out of scope for the

@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
+import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { CustomerAuthService } from './customer-auth.service';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
 import { GuestSessionDto } from './dto/guest-session.dto';
@@ -20,6 +21,10 @@ import type { CustomerJwtPayload } from './types/customer-jwt-payload';
 
 @ApiTags('customer-auth')
 @Controller('customer-auth')
+// verifyOtp already records its own 'login' entry; the other routes here
+// (OTP request, guest session) are high-frequency guest traffic, not staff
+// activity worth an audit row.
+@SkipAudit()
 export class CustomerAuthController {
   constructor(private readonly customerAuthService: CustomerAuthService) {}
 

@@ -39,7 +39,6 @@ import {
   useUpdateOrderStatus,
   type OrderItem,
 } from "@/hooks/use-orders"
-import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import {
   ORDER_ITEM_STATUSES,
   ORDER_PAYMENT_METHODS,
@@ -228,7 +227,7 @@ export function OrderDetail({ orderId }: { orderId: number }) {
 
       {order.customerId && <CustomerSection customerId={order.customerId} outletId={order.outletId} />}
 
-      <OrderItemsSection orderId={orderId} outletId={order.outletId} />
+      <OrderItemsSection orderId={orderId} />
       <OrderTablesSection orderId={orderId} outletId={order.outletId} />
       <OrderPaymentsSection orderId={orderId} />
     </div>
@@ -267,15 +266,14 @@ function CustomerSection({ customerId, outletId }: { customerId: number; outletI
   )
 }
 
-function OrderItemsSection({ orderId, outletId }: { orderId: number; outletId: number }) {
+function OrderItemsSection({ orderId }: { orderId: number }) {
   const { data: items } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
-  const { data: departments } = useOutletDepartments({ outletId, limit: 100 })
   const addItem = useAddOrderItem(orderId)
 
   const form = useForm<CreateOrderItemInput>({
     resolver: zodResolver(createOrderItemSchema),
-    defaultValues: { foodId: 0, foodVariantId: undefined, preparationDepartmentId: 0, quantity: 1 },
+    defaultValues: { foodId: 0, foodVariantId: undefined, quantity: 1 },
   })
   const selectedFoodId = form.watch("foodId")
   const { data: variants } = useFoodVariants({ foodId: selectedFoodId || undefined, limit: 100 })
@@ -284,7 +282,7 @@ function OrderItemsSection({ orderId, outletId }: { orderId: number; outletId: n
     try {
       await addItem.mutateAsync(values)
       toast.success("Item added")
-      form.reset({ foodId: 0, foodVariantId: undefined, preparationDepartmentId: 0, quantity: 1 })
+      form.reset({ foodId: 0, foodVariantId: undefined, quantity: 1 })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add item")
     }
@@ -354,31 +352,6 @@ function OrderItemsSection({ orderId, outletId }: { orderId: number; outletId: n
                       {variants?.data.map((variant) => (
                         <SelectItem key={variant.id} value={String(variant.id)}>
                           {variant.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="preparationDepartmentId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Department</FormLabel>
-                  <Select
-                    value={field.value ? String(field.value) : ""}
-                    onValueChange={(value) => field.onChange(Number(value))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments?.data.map((department) => (
-                        <SelectItem key={department.id} value={String(department.id)}>
-                          {department.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

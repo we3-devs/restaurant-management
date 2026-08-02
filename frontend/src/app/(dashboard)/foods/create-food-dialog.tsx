@@ -18,7 +18,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useCreateFood } from "@/hooks/use-foods"
-import { FOOD_ITEM_TYPES, FOOD_TYPES, createFoodSchema, type CreateFoodInput } from "@/lib/validators/foods"
+import {
+  FOOD_ITEM_TYPES,
+  FOOD_TYPES,
+  OUTLET_DEPARTMENT_TYPES,
+  createFoodSchema,
+  type CreateFoodInput,
+} from "@/lib/validators/foods"
 
 export function CreateFoodDialog() {
   const [open, setOpen] = useState(false)
@@ -33,6 +39,7 @@ export function CreateFoodDialog() {
       slug: "",
       sku: "",
       itemType: "food",
+      departmentType: undefined,
       basePrice: 0,
     },
   })
@@ -47,6 +54,7 @@ export function CreateFoodDialog() {
         slug: "",
         sku: "",
         itemType: "food",
+        departmentType: undefined,
         basePrice: 0,
       })
       setOpen(false)
@@ -151,6 +159,32 @@ export function CreateFoodDialog() {
                     </SelectTrigger>
                     <SelectContent>
                       {FOOD_ITEM_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="departmentType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Department (optional)</FormLabel>
+                  <Select
+                    value={field.value ?? "none"}
+                    onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="None — ready-made" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None — ready-made</SelectItem>
+                      {OUTLET_DEPARTMENT_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>

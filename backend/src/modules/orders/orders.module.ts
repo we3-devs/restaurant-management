@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonsModule } from '../addons/addons.module';
 import { CustomersModule } from '../customers/customers.module';
@@ -56,13 +56,16 @@ import { OrdersService } from './orders.service';
     UnitsModule,
     InventoryStockModule,
     WarehousesModule,
-    // KitchenTicketsModule doesn't depend on OrdersModule, so importing it
-    // (rather than re-registering its repositories here) is safe — gives
-    // OrdersService.sendToKitchen() access to KitchenTicketsService for the
-    // realtime notifyTicketsCreated() push.
-    KitchenTicketsModule,
+    // Circular: KitchenTicketsModule now also imports OrdersModule (so
+    // KitchenTicketsService can call OrdersService#maybeAdvanceToServed()) —
+    // gives OrdersService.sendToKitchen() access to KitchenTicketsService for
+    // the realtime notifyTicketsCreated() push.
+    forwardRef(() => KitchenTicketsModule),
     NotificationsModule,
-    LoyaltyModule,
+    // Circular: LoyaltyModule pulls in KitchenTicketsModule, which imports
+    // OrdersModule — without forwardRef the LoyaltyModule/KitchenTicketsModule
+    // chain can resolve to `undefined` mid-cycle at module-load time.
+    forwardRef(() => LoyaltyModule),
     SettingsModule,
   ],
   controllers: [OrdersController, OrderItemsController],

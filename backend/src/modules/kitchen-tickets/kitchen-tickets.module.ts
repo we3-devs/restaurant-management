@@ -1,9 +1,10 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OrderItem } from '../orders/entities/order-item.entity';
+import { OrdersModule } from '../orders/orders.module';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from './entities/kitchen-ticket.entity';
@@ -30,6 +31,10 @@ import { KitchenTicketsService } from './kitchen-tickets.service';
     AuthModule,
     NotificationsModule,
     BullModule.registerQueue({ name: 'kitchen-delay-alerts' }),
+    // Circular with OrdersModule (which already imports this module for
+    // notifyTicketsCreated()) — needed so KitchenTicketsService can call
+    // OrdersService#maybeAdvanceToServed() when an item is marked served.
+    forwardRef(() => OrdersModule),
   ],
   controllers: [KitchenTicketsController],
   providers: [

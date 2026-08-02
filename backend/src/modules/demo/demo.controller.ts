@@ -3,9 +3,11 @@ import { Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Queue } from 'bullmq';
 import { Public } from '../auth/decorators/public.decorator';
+import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 
 @ApiTags('demo')
 @Controller('demo')
+@SkipAudit()
 export class DemoController {
   constructor(@InjectQueue('demo') private readonly demoQueue: Queue) {}
 

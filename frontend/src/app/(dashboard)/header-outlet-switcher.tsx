@@ -20,12 +20,16 @@ export function HeaderOutletSwitcher() {
   if (!mounted || !showOutletPicker) return null
 
   return (
-    <Select value={outletId ? String(outletId) : ""} onValueChange={(v) => v && setOutletId(Number(v))}>
+    <Select
+      value={outletId ? String(outletId) : "all"}
+      onValueChange={(v) => setOutletId(v && v !== "all" ? Number(v) : null)}
+    >
       <SelectTrigger className="h-8 w-44 border-none bg-transparent text-sm shadow-none hover:bg-muted">
         <StoreIcon className="size-3.5 text-muted-foreground" />
         <SelectValue placeholder="Select outlet" />
       </SelectTrigger>
       <SelectContent>
+        <SelectItem value="all">All Outlets</SelectItem>
         {outlets.map((outlet) => (
           <SelectItem key={outlet.id} value={String(outlet.id)}>
             {outlet.name}

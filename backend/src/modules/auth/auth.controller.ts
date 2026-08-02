@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
 import { REDIS_CLIENT } from '../../redis/redis.module';
+import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { KDS_WS_TICKET_PREFIX } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -26,6 +27,10 @@ const WS_TICKET_TTL_SECONDS = 30;
 
 @ApiTags('auth')
 @Controller('auth')
+// Login/logout already record their own precise audit entry (see
+// AuthService); refresh/ws-ticket are too high-frequency/low-signal to be
+// worth a row each.
+@SkipAudit()
 export class AuthController {
   constructor(
     private readonly authService: AuthService,

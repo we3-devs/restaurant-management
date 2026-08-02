@@ -11,6 +11,7 @@ import {
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 import { FoodCategory } from '../../food-categories/entities/food-category.entity';
+import type { OutletDepartmentType } from '../../outlet-departments/entities/outlet-department.entity';
 
 export type FoodType = 'veg' | 'non_veg' | 'egg' | 'vegan';
 export type FoodItemType = 'food' | 'beverage' | 'combo';
@@ -61,6 +62,10 @@ export class Food {
 
   @Column({ name: 'item_type', type: 'varchar', length: 255, default: 'food' })
   itemType: FoodItemType;
+
+  /** Which outlet-department type prepares this item; null = ready-made, no kitchen prep needed. Resolved per-outlet at order time (see OrdersService#addItem). */
+  @Column({ name: 'department_type', type: 'varchar', length: 255, nullable: true })
+  departmentType: OutletDepartmentType | null;
 
   @Column({
     name: 'base_price',

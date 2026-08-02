@@ -1,5 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLogsController } from './audit-logs.controller';
 import { AuditLogsService } from './audit-logs.service';
@@ -21,6 +22,7 @@ import { AuditLogWriteProcessor } from './processors/audit-log-write.processor';
   providers: [
     AuditLogsService,
     AuditInterceptor,
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     AuditLogWriteProcessor,
     AuditCleanupProcessor,
     AuditCleanupScheduler,

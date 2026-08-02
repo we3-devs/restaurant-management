@@ -8,11 +8,20 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 
 const ACTIVE_OUTLET_STORAGE_KEY = "active-outlet-id"
 const ACTIVE_DEPARTMENT_STORAGE_KEY = "active-department-id"
+const ALL_OUTLETS_SENTINEL = "all"
 
 function readStoredId(key: string): number | null {
   if (typeof window === "undefined") return null
   const stored = localStorage.getItem(key)
-  return stored ? Number(stored) : null
+  if (!stored) return null
+  const n = Number(stored)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Distinguishes "never chosen yet" (null, auto-select kicks in) from "explicitly chose All Outlets" (also null, but sticky). */
+function readStoredOutletWasAll(): boolean {
+  if (typeof window === "undefined") return false
+  return localStorage.getItem(ACTIVE_OUTLET_STORAGE_KEY) === ALL_OUTLETS_SENTINEL
 }
 
 interface ActiveOutletContextValue {
@@ -56,25 +65,37 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   const isLoadingOutlets = isSuperadmin ? allOutletsQuery.isLoading : assignedOutletsQuery.isLoading
   const showOutletPicker = isSuperadmin || outlets.length > 1
 
-  const [outletId, setOutletId] = useState<number | null>(() => readStoredId(ACTIVE_OUTLET_STORAGE_KEY))
+  const [outletId, setOutletIdState] = useState<number | null>(() => readStoredId(ACTIVE_OUTLET_STORAGE_KEY))
+  // Tracks an explicit "All Outlets" pick separately from outletId, since
+  // both are represented as `null` — without this, the auto-select effect
+  // below couldn't tell "never chosen yet" from "chose All on purpose" and
+  // would keep bouncing the user back to a single outlet.
+  const [isAllOutlets, setIsAllOutlets] = useState<boolean>(() => readStoredOutletWasAll())
+
+  function setOutletId(id: number | null) {
+    setIsAllOutlets(id === null)
+    setOutletIdState(id)
+  }
 
   // Validate the stored/current outlet against what's actually available and
   // auto-select the (only, or first) permitted outlet otherwise — covers
   // first login, a stale outlet from a previous session, and a revoked or
-  // deleted outlet.
+  // deleted outlet. Skipped once the user has explicitly chosen "All".
   useEffect(() => {
-    if (isLoadingOutlets || outlets.length === 0) return
+    if (isLoadingOutlets || outlets.length === 0 || isAllOutlets) return
     const stillValid = outletId !== null && outlets.some((o) => o.id === outletId)
-    if (!stillValid) setOutletId(outlets[0].id)
-  }, [outlets, isLoadingOutlets, outletId])
+    if (!stillValid) setOutletIdState(outlets[0].id)
+  }, [outlets, isLoadingOutlets, outletId, isAllOutlets])
 
   useEffect(() => {
-    if (outletId !== null) {
+    if (isAllOutlets) {
+      localStorage.setItem(ACTIVE_OUTLET_STORAGE_KEY, ALL_OUTLETS_SENTINEL)
+    } else if (outletId !== null) {
       localStorage.setItem(ACTIVE_OUTLET_STORAGE_KEY, String(outletId))
     } else {
       localStorage.removeItem(ACTIVE_OUTLET_STORAGE_KEY)
     }
-  }, [outletId])
+  }, [outletId, isAllOutlets])
 
   // Departments for the active outlet — same permission-free, assignment-driven
   // endpoint for every role; it already narrows to the user's own department(s)

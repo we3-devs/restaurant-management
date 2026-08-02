@@ -41,7 +41,7 @@ export interface OrderItem {
   orderId: number
   foodId: number
   foodVariantId: number | null
-  preparationDepartmentId: number
+  preparationDepartmentId: number | null
   quantity: number
   unitPrice: number
   totalAmount: number

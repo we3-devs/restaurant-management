@@ -15,6 +15,7 @@ export interface Food {
   description: string | null
   foodType: string | null
   itemType: string
+  departmentType: string | null
   basePrice: number
   hasVariants: boolean
   hasAddons: boolean

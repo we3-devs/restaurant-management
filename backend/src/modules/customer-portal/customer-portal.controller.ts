@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '@nestjs/common';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
 import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
@@ -48,6 +49,8 @@ export class CustomerPortalController {
 
   @Patch('profile')
   @ApiOperation({ summary: 'Updates profile fields' })
+  // CustomerPortalService#updateProfile already records its own entry with oldValues.
+  @SkipAudit()
   updateProfile(
     @CurrentCustomer() customer: CustomerJwtPayload,
     @Body() dto: UpdateProfileDto,
@@ -60,6 +63,8 @@ export class CustomerPortalController {
 
   @Patch('preferences')
   @ApiOperation({ summary: 'Updates dietary preferences and allergies' })
+  // CustomerPortalService#updatePreferences already records its own entry.
+  @SkipAudit()
   updatePreferences(
     @CurrentCustomer() customer: CustomerJwtPayload,
     @Body() dto: UpdatePreferencesDto,

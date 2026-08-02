@@ -1,15 +1,13 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@/components/status-badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useOutlets } from "@/hooks/use-outlets"
 import { useTableSessions, type TableSession } from "@/hooks/use-table-sessions"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { StartTableSessionDialog } from "./start-table-session-dialog"
 
 const columns: ColumnDef<TableSession>[] = [
@@ -23,11 +21,12 @@ const columns: ColumnDef<TableSession>[] = [
 ]
 
 export default function TableSessionsPage() {
-  const [outletFilter, setOutletFilter] = useState<string>("all")
-  const { data: outlets } = useOutlets({ limit: 100 })
+  // Outlet is a global concept (see the header switcher) — this page just
+  // follows whatever's currently active there instead of asking again.
+  const { outletId } = useActiveOutlet()
   const { data, isLoading } = useTableSessions({
     limit: 100,
-    outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
+    outletId: outletId ?? undefined,
   })
 
   const table = useReactTable({
@@ -41,23 +40,6 @@ export default function TableSessionsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Table Sessions</h1>
         <StartTableSessionDialog />
-      </div>
-
-      <div className="w-64 space-y-1.5">
-        <label className="text-sm font-medium">Filter by outlet</label>
-        <Select value={outletFilter} onValueChange={(value) => setOutletFilter(value ?? "all")}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="All outlets" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All outlets</SelectItem>
-            {outlets?.data.map((outlet) => (
-              <SelectItem key={outlet.id} value={String(outlet.id)}>
-                {outlet.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {isLoading ? (

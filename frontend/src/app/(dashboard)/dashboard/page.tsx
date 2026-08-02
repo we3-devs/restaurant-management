@@ -25,13 +25,12 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { StatCard } from "@/components/stat-card"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDashboardSummary } from "@/hooks/use-dashboard"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -65,8 +64,9 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function DashboardPage() {
   const user = useCurrentUser()
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const [outletId, setOutletId] = useState<number | null>(null)
+  // Outlet is a global concept (see the header switcher) — the dashboard just
+  // follows whatever's currently active there instead of asking again.
+  const { outletId } = useActiveOutlet()
   const [range, setRange] = useState(defaultRange)
 
   const { data, isLoading } = useDashboardSummary({ outletId, ...range })
@@ -88,25 +88,6 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground">Here&apos;s what&apos;s happening across your business</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="w-48 space-y-1.5">
-            <label className="text-sm font-medium">Outlet</label>
-            <Select
-              value={outletId ? String(outletId) : "all"}
-              onValueChange={(v) => setOutletId(v && v !== "all" ? Number(v) : null)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All outlets" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All outlets</SelectItem>
-                {outlets?.data.map((outlet) => (
-                  <SelectItem key={outlet.id} value={String(outlet.id)}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
       </div>

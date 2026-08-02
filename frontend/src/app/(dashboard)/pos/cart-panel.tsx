@@ -44,16 +44,16 @@ export function CartPanel({ orderId }: { orderId: number }) {
   const pendingCount = pendingItems.filter((item) => !item.isHeld).length
   const heldCount = pendingItems.filter((item) => item.isHeld).length
 
-  async function handleSendToKitchen() {
+  async function handlePlaceOrder() {
     if (!isOnline) {
-      toast.error("You're offline — reconnect to send items to the kitchen")
+      toast.error("You're offline — reconnect to place the order")
       return
     }
     try {
       await sendToKitchen.mutateAsync()
-      toast.success(`Sent ${pendingCount} item(s) to the kitchen`)
+      toast.success(`Placed ${pendingCount} item(s) — kitchen items sent to prep, the rest go straight to the waiter`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send to kitchen")
+      toast.error(error instanceof Error ? error.message : "Failed to place order")
     }
   }
 
@@ -95,10 +95,10 @@ export function CartPanel({ orderId }: { orderId: number }) {
       )}
       <Button
         variant="secondary"
-        onClick={handleSendToKitchen}
+        onClick={handlePlaceOrder}
         disabled={pendingCount === 0 || sendToKitchen.isPending || !isOnline}
       >
-        {sendToKitchen.isPending ? "Sending..." : `Send to Kitchen${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
+        {sendToKitchen.isPending ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
       <CheckoutPanel orderId={orderId} />
     </div>

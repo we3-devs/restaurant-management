@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogOutIcon, UserCircleIcon } from "lucide-react"
-import { toast } from "sonner"
+import { LogOutIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,9 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { apiClient } from "@/lib/api/client"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import type { CurrentUser } from "@/lib/auth/dal"
 
 function initials(name: string): string {
   return (
@@ -31,38 +29,17 @@ function initials(name: string): string {
   )
 }
 
-/** Combines the account identity, the /auth/me debug helper, and logout into one profile menu — replaces the row of separate header buttons with a single enterprise-style profile dropdown. */
+/** Combines the account identity and logout into one profile menu — replaces the row of separate header buttons with a single enterprise-style profile dropdown. */
 export function UserMenu() {
   const user = useCurrentUser()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [isDebugging, setIsDebugging] = useState(false)
 
   async function handleLogout() {
     setIsLoggingOut(true)
     await fetch("/api/auth/logout", { method: "POST" })
     router.push("/login")
     router.refresh()
-  }
-
-  async function handleWhoAmI() {
-    setIsDebugging(true)
-    try {
-      const me = await apiClient<CurrentUser>("/auth/me")
-      console.log("[/auth/me]", me)
-      toast.success("GET /auth/me", {
-        description: (
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">
-            {JSON.stringify(me, null, 2)}
-          </pre>
-        ),
-        duration: 15000,
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Request to /auth/me failed")
-    } finally {
-      setIsDebugging(false)
-    }
   }
 
   return (
@@ -81,16 +58,18 @@ export function UserMenu() {
         }
       />
       <DropdownMenuContent align="end" sideOffset={8} className="w-64">
-        <DropdownMenuLabel className="flex flex-col gap-0.5 py-1.5">
-          <span className="text-sm font-medium text-foreground">{user.name}</span>
-          <span className="text-xs font-normal text-muted-foreground">{user.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleWhoAmI} disabled={isDebugging}>
-            <UserCircleIcon />
-            {isDebugging ? "Calling /auth/me..." : "Debug: /auth/me"}
-          </DropdownMenuItem>
+          <DropdownMenuLabel className="flex flex-col gap-1 py-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">{user.name}</span>
+              {user.isSuperadmin && (
+                <Badge variant="secondary" className="text-[10px]">
+                  Superadmin
+                </Badge>
+              )}
+            </div>
+            <span className="text-xs font-normal text-muted-foreground">{user.email}</span>
+          </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={handleLogout} disabled={isLoggingOut}>

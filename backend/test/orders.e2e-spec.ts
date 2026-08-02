@@ -226,7 +226,7 @@ describe('Orders (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/orders')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ outletId, orderType: 'dine_in' })
+      .send({ outletId, orderType: 'table' })
       .expect(201);
 
     const body = response.body as OrderResponseBody;

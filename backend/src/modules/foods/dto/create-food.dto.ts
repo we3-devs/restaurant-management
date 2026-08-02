@@ -12,6 +12,10 @@ import {
   MinLength,
 } from 'class-validator';
 import type { FoodItemType, FoodType } from '../entities/food.entity';
+import {
+  OUTLET_DEPARTMENT_TYPES,
+  type OutletDepartmentType,
+} from '../../outlet-departments/entities/outlet-department.entity';
 
 const FOOD_TYPES: FoodType[] = ['veg', 'non_veg', 'egg', 'vegan'];
 const FOOD_ITEM_TYPES: FoodItemType[] = ['food', 'beverage', 'combo'];
@@ -62,6 +66,15 @@ export class CreateFoodDto {
   @IsOptional()
   @IsIn(FOOD_ITEM_TYPES)
   itemType?: FoodItemType = 'food';
+
+  @ApiPropertyOptional({
+    enum: OUTLET_DEPARTMENT_TYPES,
+    description:
+      'Department that prepares this item; omit for ready-made items needing no kitchen prep. Orders resolve this to the matching department at the order\'s outlet automatically.',
+  })
+  @IsOptional()
+  @IsIn(OUTLET_DEPARTMENT_TYPES)
+  departmentType?: OutletDepartmentType;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()

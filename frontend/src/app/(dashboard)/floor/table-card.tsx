@@ -9,14 +9,14 @@ import type { DiningTable } from "@/hooks/use-dining-tables"
 import { TableActionsDialog } from "./table-actions-dialog"
 
 const STATUS_STYLES: Record<string, string> = {
-  available: "border-secondary bg-secondary/40 text-secondary-foreground",
+  available: "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   occupied: "border-destructive bg-destructive/10 text-destructive",
-  reserved: "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  reserved: "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400",
   cleaning: "border-muted bg-muted text-muted-foreground",
   inactive: "border-muted bg-muted/50 text-muted-foreground opacity-60",
 }
 
-export function TableCard({ table }: { table: DiningTable }) {
+export function TableCard({ table, arrivingAt }: { table: DiningTable; arrivingAt?: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
 
@@ -35,6 +35,11 @@ export function TableCard({ table }: { table: DiningTable }) {
           <span className="text-xs capitalize">{table.status}</span>
           <span className="text-xs opacity-75">seats {table.capacity}</span>
         </button>
+        {arrivingAt && (
+          <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-amber-500/50 bg-amber-500 px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-white shadow-sm">
+            Arriving {new Date(arrivingAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
         <button
           type="button"
           onClick={(e) => {

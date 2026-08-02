@@ -3,6 +3,21 @@ import { z } from "zod"
 export const FOOD_TYPES = ["veg", "non_veg", "egg", "vegan"] as const
 export const FOOD_ITEM_TYPES = ["food", "beverage", "combo"] as const
 
+/** Mirrors backend OUTLET_DEPARTMENT_TYPES (outlet-department.entity.ts). null/omitted = ready-made, no kitchen prep. */
+export const OUTLET_DEPARTMENT_TYPES = [
+  "kitchen",
+  "bar",
+  "grill",
+  "pizza",
+  "dessert",
+  "drinks",
+  "counter",
+  "store",
+  "bakery",
+  "housekeeping",
+  "other",
+] as const
+
 export const createFoodSchema = z.object({
   foodCategoryId: z.number().optional(),
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -13,6 +28,7 @@ export const createFoodSchema = z.object({
   sku: z.string().optional(),
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
+  departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).optional(),
   basePrice: z.number().min(0),
 })
 
@@ -26,6 +42,7 @@ export const updateFoodSchema = z.object({
   description: z.string().optional(),
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
+  departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).nullable().optional(),
   basePrice: z.number().min(0),
   isTaxable: z.boolean(),
   isDiscountable: z.boolean(),

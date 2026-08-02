@@ -15,7 +15,7 @@ import { Reservation } from '../../reservations/entities/reservation.entity';
 import { TableSession } from '../../table-sessions/entities/table-session.entity';
 import { User } from '../../users/entities/user.entity';
 
-export type OrderType = 'dine_in' | 'takeaway' | 'delivery';
+export type OrderType = 'grab_and_go' | 'table' | 'stay' | 'delivery';
 export type OrderSourceChannel =
   'walk_in' | 'phone' | 'online' | 'staff' | 'other';
 export type OrderChannel = 'pos' | 'qr' | 'waiter' | 'online';
@@ -133,7 +133,7 @@ export class Order {
     name: 'order_type',
     type: 'varchar',
     length: 255,
-    default: 'dine_in',
+    default: 'table',
   })
   orderType: OrderType;
 

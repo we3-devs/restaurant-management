@@ -17,12 +17,10 @@ import { useOnlineStatus } from "@/lib/offline/online-status"
 export function VariantPickerDialog({
   food,
   orderId,
-  preparationDepartmentId,
   onClose,
 }: {
   food: Food
   orderId: number
-  preparationDepartmentId: number | null
   onClose: () => void
 }) {
   const { data: variants, isLoading } = useFoodVariants({ foodId: food.id, limit: 100 })
@@ -38,7 +36,6 @@ export function VariantPickerDialog({
       await addItem.mutateAsync({
         foodId: food.id,
         foodVariantId,
-        preparationDepartmentId: preparationDepartmentId ?? undefined,
         quantity: 1,
       })
       onClose()

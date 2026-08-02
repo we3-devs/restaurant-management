@@ -5,6 +5,7 @@ import { JwtModule, JwtModuleOptions, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfig } from '../../config/configuration';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { RolesModule } from '../roles/roles.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
@@ -19,6 +20,7 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
   imports: [
     UsersModule,
     RolesModule,
+    AuditLogsModule,
     TypeOrmModule.forFeature([RefreshToken]),
     PassportModule,
     JwtModule.registerAsync({

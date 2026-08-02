@@ -7,6 +7,7 @@ import { randomBytes, createHash } from 'crypto';
 import { IsNull, Repository } from 'typeorm';
 import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AppConfig } from '../../config/configuration';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 
@@ -23,6 +24,7 @@ export class AuthService {
     private readonly refreshTokensRepository: Repository<RefreshToken>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AppConfig>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async validateCredentials(email: string, password: string): Promise<User> {
@@ -45,6 +47,12 @@ export class AuthService {
   ): Promise<{ tokens: TokenPair; user: User }> {
     const user = await this.validateCredentials(email, password);
     const tokens = await this.issueTokenPair(user);
+    await this.auditLogsService.record({
+      userId: user.id,
+      action: 'login',
+      entityType: 'user',
+      entityId: user.id,
+    });
     return { tokens, user };
   }
 
@@ -84,10 +92,21 @@ export class AuthService {
 
   async logout(rawRefreshToken: string): Promise<void> {
     const tokenHash = this.hashToken(rawRefreshToken);
+    const existing = await this.refreshTokensRepository.findOne({
+      where: { tokenHash, revokedAt: IsNull() },
+    });
+    if (!existing) return;
+
     await this.refreshTokensRepository.update(
       { tokenHash, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+    await this.auditLogsService.record({
+      userId: existing.userId,
+      action: 'logout',
+      entityType: 'user',
+      entityId: existing.userId,
+    });
   }
 
   private async issueTokenPair(user: User): Promise<TokenPair> {

@@ -28,7 +28,7 @@ export function CreateOrderDialog() {
 
   const form = useForm<CreateOrderInput>({
     resolver: zodResolver(createOrderSchema),
-    defaultValues: { outletId: 0, tableSessionId: undefined, orderType: "dine_in" },
+    defaultValues: { outletId: 0, tableSessionId: undefined, orderType: "table" },
   })
 
   const selectedOutletId = form.watch("outletId")
@@ -43,7 +43,7 @@ export function CreateOrderDialog() {
     try {
       await createOrder.mutateAsync(values)
       toast.success("Order created")
-      form.reset({ outletId: 0, tableSessionId: undefined, orderType: "dine_in" })
+      form.reset({ outletId: 0, tableSessionId: undefined, orderType: "table" })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create order")
@@ -109,7 +109,7 @@ export function CreateOrderDialog() {
                 </FormItem>
               )}
             />
-            {orderType === "dine_in" && (
+            {orderType === "table" && (
               <FormField
                 control={form.control}
                 name="tableSessionId"

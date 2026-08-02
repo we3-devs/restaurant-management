@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +11,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
+import { OrdersService } from '../orders/orders.service';
 import { ListKitchenTicketsQueryDto } from './dto/list-kitchen-tickets-query.dto';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import type { KitchenTicketItemStatus } from './entities/kitchen-ticket-item.entity';
@@ -61,6 +64,8 @@ export class KitchenTicketsService {
     private readonly departmentsRepository: Repository<OutletDepartment>,
     private readonly gateway: KitchenTicketsGateway,
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => OrdersService))
+    private readonly ordersService: OrdersService,
   ) {}
 
   async findAll(
@@ -162,6 +167,9 @@ export class KitchenTicketsService {
     if (status === 'ready') {
       await this.notifyItemsReady(ticket.id, [item.id]);
     }
+    if (status === 'served') {
+      await this.ordersService.maybeAdvanceToServed(ticket.orderId, null);
+    }
     this.gateway.notifyTicketUpdated(updatedTicket);
     this.gateway.notifyItemUpdated(updatedTicket.outletId, item);
     return updatedTicket;
@@ -261,7 +269,7 @@ export class KitchenTicketsService {
     fromStatuses: KitchenTicketItemStatus[],
     toStatus: Exclude<KitchenTicketItemStatus, 'sent_to_kitchen'>,
   ): Promise<KitchenTicket> {
-    await this.findOne(ticketId);
+    const ticket = await this.findOne(ticketId);
     const items = await this.ticketItemsRepository.find({
       where: { ticketId },
     });
@@ -291,6 +299,9 @@ export class KitchenTicketsService {
         ticketId,
         eligible.map((item) => item.id),
       );
+    }
+    if (toStatus === 'served') {
+      await this.ordersService.maybeAdvanceToServed(ticket.orderId, null);
     }
     this.gateway.notifyTicketUpdated(updatedTicket);
     for (const item of eligible) {
@@ -418,6 +429,7 @@ export class KitchenTicketsService {
       }
       tickets.push(updated);
     }
+    await this.ordersService.maybeAdvanceToServed(orderId, null);
     return tickets;
   }
 
@@ -425,7 +437,8 @@ export class KitchenTicketsService {
    * Persists + pushes a "Table X — items ready" notification so the POS bell
    * and the waiter service queue pick it up without polling.
    */
-  private async notifyItemsReady(
+  /** Public so OrdersService can push the same "items ready" waiter alert for ready-made items that skip the kitchen entirely (see sendItemsToKitchen). */
+  async notifyItemsReady(
     ticketId: number,
     itemIds: number[],
   ): Promise<void> {

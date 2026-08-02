@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const ORDER_TYPES = ["dine_in", "takeaway", "delivery"] as const
+export const ORDER_TYPES = ["grab_and_go", "table", "stay", "delivery"] as const
 export const ORDER_STATUSES = [
   "pending",
   "accepted",
@@ -17,9 +17,9 @@ export const ORDER_STATUSES = [
 // drives which options the status dropdown offers.
 export const ORDER_STATUS_TRANSITIONS: Record<(typeof ORDER_STATUSES)[number], (typeof ORDER_STATUSES)[number][]> = {
   pending: ["accepted", "cancelled"],
-  accepted: ["preparing", "cancelled"],
-  preparing: ["partially_ready", "ready", "cancelled"],
-  partially_ready: ["ready", "partially_served", "cancelled"],
+  accepted: ["preparing", "served", "cancelled"],
+  preparing: ["partially_ready", "ready", "served", "cancelled"],
+  partially_ready: ["ready", "partially_served", "served", "cancelled"],
   ready: ["partially_served", "served", "cancelled"],
   partially_served: ["served", "cancelled"],
   served: ["completed"],
@@ -66,7 +66,6 @@ export type UpdateOrderInput = z.infer<typeof updateOrderSchema>
 export const createOrderItemSchema = z.object({
   foodId: z.number({ message: "Select a food" }).positive(),
   foodVariantId: z.number().positive().optional(),
-  preparationDepartmentId: z.number().positive().optional(),
   quantity: z.number().min(0.01),
 })
 

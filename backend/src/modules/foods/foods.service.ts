@@ -142,6 +142,7 @@ export class FoodsService {
       description: dto.description ?? null,
       foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'food',
+      departmentType: dto.departmentType ?? null,
       basePrice: dto.basePrice ?? 0,
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
@@ -177,6 +178,9 @@ export class FoodsService {
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.foodType !== undefined && { foodType: dto.foodType }),
       ...(dto.itemType !== undefined && { itemType: dto.itemType }),
+      ...(dto.departmentType !== undefined && {
+        departmentType: dto.departmentType,
+      }),
       ...(dto.basePrice !== undefined && { basePrice: dto.basePrice }),
       ...(dto.isTaxable !== undefined && { isTaxable: dto.isTaxable }),
       ...(dto.isDiscountable !== undefined && {

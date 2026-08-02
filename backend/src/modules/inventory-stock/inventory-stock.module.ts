@@ -1,5 +1,5 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -22,7 +22,10 @@ import { WarehouseIngredientStocksService } from './warehouse-ingredient-stocks.
       IngredientInventoryTransaction,
     ]),
     NotificationsModule,
-    KitchenTicketsModule,
+    // Circular: KitchenTicketsModule imports OrdersModule, which imports
+    // InventoryStockModule — without forwardRef this chain can resolve to
+    // `undefined` mid-cycle at module-load time.
+    forwardRef(() => KitchenTicketsModule),
     BullModule.registerQueue({ name: 'inventory-alerts' }),
   ],
   controllers: [
