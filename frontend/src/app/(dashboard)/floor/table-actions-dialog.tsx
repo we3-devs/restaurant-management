@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { CheckIcon, CopyIcon, DropletIcon, HandIcon, ReceiptIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -15,10 +16,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiClient } from "@/lib/api/client"
+import { queryKeys } from "@/lib/query-keys"
+import { useCustomers } from "@/hooks/use-customers"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
 import { useOrders } from "@/hooks/use-orders"
+import { useCreateReservation, type Reservation } from "@/hooks/use-reservations"
 import {
   useCreateServiceRequest,
   type ServiceRequestType,
@@ -50,6 +57,17 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   const [showTransfer, setShowTransfer] = useState(false)
   const [copied, setCopied] = useState(false)
   const createRequest = useCreateServiceRequest()
+
+  const queryClient = useQueryClient()
+  const { data: customers } = useCustomers({ limit: 100 })
+  const createReservation = useCreateReservation()
+  const [showReserve, setShowReserve] = useState(false)
+  const [reserveCustomerId, setReserveCustomerId] = useState("")
+  const [reserveAt, setReserveAt] = useState("")
+  const [reserveGuestCount, setReserveGuestCount] = useState(table.capacity)
+  const [reserveDepositAmount, setReserveDepositAmount] = useState(0)
+  const [reserveSpecialRequest, setReserveSpecialRequest] = useState("")
+  const [reserveInternalNote, setReserveInternalNote] = useState("")
 
   const guestUrl = table.code ? `/guest?table=${encodeURIComponent(table.code)}` : null
   const fullGuestUrl = guestUrl
@@ -94,6 +112,34 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
       onClose()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to transfer table")
+    }
+  }
+
+  async function handleReserve() {
+    if (!reserveCustomerId || !reserveAt) {
+      toast.error("Pick a customer and a date/time")
+      return
+    }
+    try {
+      const reservation = await createReservation.mutateAsync({
+        outletId: table.outletId,
+        customerId: Number(reserveCustomerId),
+        reservedAt: new Date(reserveAt).toISOString(),
+        guestCount: reserveGuestCount,
+        source: "staff",
+        depositAmount: reserveDepositAmount,
+        specialRequest: reserveSpecialRequest || undefined,
+        internalNote: reserveInternalNote || undefined,
+      })
+      await apiClient<Reservation>(`/reservations/${reservation.id}/tables`, {
+        method: "POST",
+        body: JSON.stringify({ diningTableId: table.id }),
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.reservations.lists() })
+      toast.success(`${table.name} reserved`)
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reserve table")
     }
   }
 
@@ -207,10 +253,89 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
           </div>
         )}
 
-        {table.status === "available" && (
-          <p className="text-sm text-muted-foreground">
-            This table is free. Start a sale from the POS screen and pick this table when seating a walk-in.
-          </p>
+        {table.status === "available" && !showReserve && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or
+              reserve it for later.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
+              Reserve this table
+            </Button>
+          </div>
+        )}
+
+        {table.status === "available" && showReserve && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Customer</Label>
+              <Select value={reserveCustomerId} onValueChange={(value) => setReserveCustomerId(value ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers?.data.map((customer) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {customer.name}
+                      {customer.phone ? ` — ${customer.phone}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Reserved for</Label>
+                <Input
+                  type="datetime-local"
+                  value={reserveAt}
+                  onChange={(e) => setReserveAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Guests</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={reserveGuestCount}
+                  onChange={(e) => setReserveGuestCount(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reservation amount (deposit)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={reserveDepositAmount}
+                onChange={(e) => setReserveDepositAmount(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Special request (optional)</Label>
+              <Input
+                value={reserveSpecialRequest}
+                onChange={(e) => setReserveSpecialRequest(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Internal note (optional)</Label>
+              <Input value={reserveInternalNote} onChange={(e) => setReserveInternalNote(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleReserve}
+                disabled={createReservation.isPending || !reserveCustomerId || !reserveAt}
+              >
+                {createReservation.isPending ? "Reserving..." : "Confirm reservation"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowReserve(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         )}
 
         {table.status !== "occupied" && table.status !== "available" && (
@@ -239,7 +364,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
         )}
 
         <DialogFooter>
-          {table.status === "available" && (
+          {table.status === "available" && !showReserve && (
             <Button
               onClick={() => {
                 onClose()

@@ -127,6 +127,18 @@ export class ReservationsService {
       specialRequest: dto.specialRequest ?? null,
       internalNote: dto.internalNote ?? null,
       depositAmount: dto.depositAmount ?? 0,
+      // A specified deposit amount means one is actually expected — leaving
+      // the default 'not_required' here meant a reservation could carry a
+      // deposit amount that nothing ever flagged as needing collection.
+      depositStatus: dto.depositAmount && dto.depositAmount > 0 ? 'pending' : 'not_required',
+      // There's no guest self-booking path to gate here — every reservation
+      // is entered by a staff member who already has the booking details in
+      // hand, so 'pending' would just be a manual click with nothing to
+      // actually verify. Auto-confirming also means the reminder job
+      // scheduled below isn't scheduled for nothing — the reminder processor
+      // only fires for 'confirmed' reservations.
+      status: 'confirmed',
+      confirmedAt: new Date(),
       createdBy,
       updatedBy: createdBy,
     });
