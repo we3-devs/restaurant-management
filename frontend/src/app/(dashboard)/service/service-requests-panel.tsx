@@ -103,7 +103,7 @@ function RequestCard({ request }: { request: ServiceRequest }) {
   }
 
   return (
-    <Card className="flex items-center gap-3 p-3.5 ring-1 ring-sky-500/30">
+    <Card className="flex-row items-center gap-3 p-3.5 ring-1 ring-sky-500/30">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400">
         <Icon className="size-5" />
       </div>
