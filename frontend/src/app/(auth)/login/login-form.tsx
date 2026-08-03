@@ -41,7 +41,12 @@ export function LoginForm() {
         return
       }
 
-      router.push("/dashboard")
+      // "/" (not "/dashboard") — root page.tsx is what actually decides
+      // dashboard vs staff based on the logged-in user's permissions.
+      // Hardcoding "/dashboard" here sent every login there regardless of
+      // role, so waiters (including via the staff PWA) landed on a page
+      // they don't have permission for instead of /staff.
+      router.push("/")
       router.refresh()
     } finally {
       setIsSubmitting(false)
