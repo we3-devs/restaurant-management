@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, In, Not, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { AddonsService } from '../addons/addons.service';
@@ -167,6 +167,35 @@ export class OrdersService {
     return order;
   }
 
+  /**
+   * The one deliberate exception to Order.status's forward-only rule (see
+   * ORDER_STATUS_SEQUENCE / syncStatusFromItems): a new round of items just
+   * landed on an order that had already reached 'served'/'partially_served'
+   * (e.g. dessert ordered after mains were delivered) — without this, the
+   * order would stay stuck showing "Served" while the kitchen quietly works
+   * a brand new item, since syncStatusFromItems refuses to move status
+   * backward. Bypasses updateStatus()'s transition-table check entirely
+   * (it's not reachable through the normal graph); still logs the same
+   * order_status_histories row a normal transition would.
+   */
+  private async reopenForNewItems(orderId: number, reason: string): Promise<void> {
+    const order = await this.findOne(orderId);
+    const fromStatus = order.status;
+    if (fromStatus !== 'served' && fromStatus !== 'partially_served') return;
+
+    order.status = 'accepted';
+    await this.ordersRepository.save(order);
+    await this.orderStatusHistoriesRepository.save(
+      this.orderStatusHistoriesRepository.create({
+        orderId,
+        changedBy: null,
+        fromStatus,
+        toStatus: 'accepted',
+        note: reason,
+      }),
+    );
+  }
+
   /** Called by KitchenTicketsService after any item-level change — pushes the current order to the guest's own room if it's a guest order (no-op otherwise). */
   async notifyGuestByOrderId(orderId: number): Promise<void> {
     const order = await this.ordersRepository.findOne({ where: { id: orderId } });
@@ -315,6 +344,15 @@ export class OrdersService {
    * `createdBy` — matches the 'online'/'qr' origin columns that already
    * exist on the entity for exactly this case.
    */
+  /**
+   * One shared cart per table visit: if the table session already has an
+   * open order (from this guest, another guest at the same table, or staff
+   * POS), new items land on it instead of spawning a separate order —
+   * "Order sent" for the first round, then every later round is just more
+   * items on the same order/ticket flow. Only opens a fresh order when the
+   * session doesn't have one yet (or its only order(s) are already
+   * completed/cancelled).
+   */
   async createFromGuest(
     outletId: number,
     tableSessionId: number,
@@ -323,17 +361,29 @@ export class OrdersService {
     diningTableId: number,
     tableName: string,
   ): Promise<Order> {
-    const order = this.ordersRepository.create({
-      outletId,
-      tableSessionId,
-      customerId,
-      orderType: 'table',
-      orderNumber: this.generateOrderNumber(outletId),
-      createdBy: null,
-      source: 'online',
-      orderSource: 'qr',
-    });
-    const saved = await this.ordersRepository.save(order);
+    const existing = (
+      await this.findOpenForTableSession(tableSessionId)
+    ).find((order) => order.status !== 'completed');
+
+    const saved = existing ?? (await this.ordersRepository.save(
+      this.ordersRepository.create({
+        outletId,
+        tableSessionId,
+        customerId,
+        orderType: 'table',
+        orderNumber: this.generateOrderNumber(outletId),
+        createdBy: null,
+        source: 'online',
+        orderSource: 'qr',
+      }),
+    ));
+
+    if (existing) {
+      await this.reopenForNewItems(
+        saved.id,
+        'New items added by a guest after this round was already served',
+      );
+    }
 
     for (const item of items) {
       await this.addItem(saved.id, item);
@@ -348,8 +398,8 @@ export class OrdersService {
     const notification = await this.notificationsService.create({
       outletId,
       type: 'guest_order_placed',
-      title: 'New Guest Order',
-      body: `${tableName} placed a new order`,
+      title: existing ? 'Guest Order Updated' : 'New Guest Order',
+      body: `${tableName} ${existing ? 'added items to their order' : 'placed a new order'}`,
       orderId: saved.id,
       tableName,
       data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
@@ -362,20 +412,20 @@ export class OrdersService {
   }
 
   /**
-   * The authenticated guest's own orders on this specific table session,
-   * most recent first — for /guest order tracking. Never accepts a
-   * caller-supplied customerId. Scoped to a tableSessionId (not just
-   * outletId): the same phone number may have dined at this outlet before
-   * on a different table/visit, and those old orders (possibly still
-   * 'pending'/'accepted' if staff never closed them out) must never surface
-   * — or be cancellable — from a guest's current, unrelated table session.
+   * The table's shared order(s) on this specific session, most recent
+   * first — for /guest order tracking. A table session now carries one
+   * shared cart (see createFromGuest), so this is scoped to tableSessionId
+   * alone, not the requesting guest's own customerId: any phone-verified
+   * guest sitting at the table sees and can cancel the same order,
+   * regardless of who on the table actually added which item. Scoped to a
+   * tableSessionId (not just outletId) so a phone number's orders from a
+   * previous, unrelated visit never surface here either.
    */
   async findMineForCustomer(
-    customerId: number,
     tableSessionId: number,
   ): Promise<(Order & { items: OrderItemWithRelations[] })[]> {
     const orders = await this.ordersRepository.find({
-      where: { customerId, tableSessionId },
+      where: { tableSessionId },
       order: { createdAt: 'DESC' },
       take: 20,
     });
@@ -751,6 +801,56 @@ export class OrdersService {
       return;
     }
     await this.updateStatus(orderId, { status: 'served' }, changedBy);
+  }
+
+  /**
+   * Every non-cancelled order on this table session, oldest first — the
+   * basis for "pay for the whole table at once" (OrderPaymentsService#
+   * payForTableSession) and completeAllForTableSession below, now that a
+   * session can carry more than one order.
+   */
+  async findOpenForTableSession(tableSessionId: number): Promise<Order[]> {
+    return this.ordersRepository.find({
+      where: { tableSessionId, status: Not('cancelled') },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Completes every still-open order on a table session in one action, once
+   * every one of them is fully paid — the other half of "pay for the whole
+   * table at once": OrderPaymentsService#payForTableSession settles the
+   * balances (possibly across several orders), this closes them all out
+   * together instead of staff completing each order one at a time. Reuses
+   * updateStatus() per order so loyalty/notifications/table-freeing all fire
+   * exactly as a normal single-order completion would (freeTableForCompletedOrder
+   * already ends the session once its last active order completes).
+   */
+  async completeAllForTableSession(
+    tableSessionId: number,
+    changedBy: number,
+  ): Promise<Order[]> {
+    const orders = await this.findOpenForTableSession(tableSessionId);
+    const payable = orders.filter((order) => order.status !== 'completed');
+    if (payable.length === 0) {
+      throw new BadRequestException(
+        `Table session ${tableSessionId} has no open orders to complete`,
+      );
+    }
+    const unpaid = payable.filter((order) => order.dueAmount > 0);
+    if (unpaid.length > 0) {
+      throw new ConflictException(
+        `Table session ${tableSessionId} still has ${unpaid.length} order(s) with an outstanding balance`,
+      );
+    }
+
+    const completed: Order[] = [];
+    for (const order of payable) {
+      completed.push(
+        await this.updateStatus(order.id, { status: 'completed' }, changedBy),
+      );
+    }
+    return completed;
   }
 
   // ------------------------------------------------------------ order items

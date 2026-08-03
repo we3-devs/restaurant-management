@@ -89,17 +89,19 @@ export class OrdersController {
   @Post('guest/:id/cancel')
   @ApiOperation({
     summary:
-      "Lets a verified guest cancel their own order — only while it's 'pending' or 'accepted' (before the kitchen has made real progress).",
+      "Lets a verified guest cancel the table's shared order — only while it's 'pending' or 'accepted' (before the kitchen has made real progress).",
   })
   async cancelGuestOrder(
     @Param('id', ParseIntPipe) id: number,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    const customerId = requireVerifiedCustomerId(customer, 'to order');
+    // Ownership isn't checked against a single customerId here — the order
+    // is a shared cart for the whole table (see OrdersService.createFromGuest),
+    // so any phone-verified guest at the table can cancel it. The real guard
+    // is the status check below: nobody can cancel once the kitchen has
+    // made real progress.
+    requireVerifiedCustomerId(customer, 'to order');
     const order = await this.ordersService.findOne(id);
-    if (order.customerId !== customerId) {
-      throw new UnauthorizedException('This order does not belong to you');
-    }
     if (!GUEST_CANCELLABLE_STATUSES.includes(order.status)) {
       throw new ConflictException(
         `Order ${id} can no longer be cancelled (status: ${order.status})`,
@@ -113,20 +115,20 @@ export class OrdersController {
   @Get('guest/mine')
   @ApiOperation({
     summary:
-      "The verified guest's own orders (with items) on this table's current visit, most recent first — for /guest order tracking.",
+      "The table's shared order(s) (with items) on this table's current visit, most recent first — for /guest order tracking.",
   })
   async myGuestOrders(
     @Query('tableCode') tableCode: string,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    const customerId = requireVerifiedCustomerId(customer, 'to order');
+    requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(tableCode);
     // Scoped to this table's latest session, not just the outlet — a phone
     // number's orders from a previous, unrelated visit must never surface
     // (or be cancellable) from today's table session. See findMineForCustomer.
     const session = await this.tableSessionsService.findLatestForTable(table.id);
     if (!session) return [];
-    return this.ordersService.findMineForCustomer(customerId, session.id);
+    return this.ordersService.findMineForCustomer(session.id);
   }
 
   @Get()
@@ -177,6 +179,19 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     return this.ordersService.updateStatus(id, dto, user.id);
+  }
+
+  @Post('table-sessions/:id/complete-all')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary:
+      "Completes every open order on a table session at once, once every one of them is fully paid — the other half of 'pay for the whole table at once' (see POST /table-sessions/:id/payments)",
+  })
+  completeAllForTableSession(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.ordersService.completeAllForTableSession(id, user.id);
   }
 
   @Post(':id/send-to-kitchen')

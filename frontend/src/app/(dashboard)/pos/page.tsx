@@ -10,12 +10,16 @@ import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { usePosBootstrap } from "@/hooks/use-bootstrap"
+import { useDiningTable } from "@/hooks/use-dining-tables"
 import { FloorBoard } from "../floor/floor-board"
 import { CategoryTabs } from "./category-tabs"
 import { FloatingCart } from "./floating-cart"
 import { FoodGrid } from "./food-grid"
 import { OrderSwitcher } from "./order-switcher"
 import { StartSaleDialog } from "./start-sale-dialog"
+import { TableOrdersDialog } from "./table-orders-dialog"
+
+const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 
 export default function PosPage() {
   const router = useRouter()
@@ -27,6 +31,7 @@ export default function PosPage() {
     deepLinkOrderId ? Number(deepLinkOrderId) : null,
   )
   const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [chooserDismissedForTableId, setChooserDismissedForTableId] = useState<number | null>(null)
   const { data: deepLinkOrder } = useOrder(activeOrderId && deepLinkOrderId ? activeOrderId : 0)
 
   // The URL (?orderId=) is the single source of truth for which sale is
@@ -40,9 +45,13 @@ export default function PosPage() {
   }, [deepLinkOrderId])
 
   // Arriving via a table-card click on /floor (?tableId=...) — resolve
-  // whether that table already has an active session/order. If it does,
-  // jump straight into it, same as the ?orderId= deep link above. If not,
-  // fall through to StartSaleDialog pre-filled for this table.
+  // whether that table already has an active session, and how many open
+  // orders (not completed/cancelled) it's carrying. A table session can now
+  // carry more than one at once (a guest QR order alongside a staff POS
+  // order, or two POS rounds rung up separately): exactly one -> jump
+  // straight into it, same as the ?orderId= deep link above; zero or
+  // several -> TableOrdersDialog below lets staff pick one or start another
+  // instead of silently landing on whichever happens to be most recent.
   const resolvingTable = !activeOrderId && !deepLinkOrderId && !!deepLinkTableId
   const { data: tableSessionsForDeepLink, isLoading: isLoadingTableSession } = useTableSessions({
     diningTableId: resolvingTable ? Number(deepLinkTableId) : -1,
@@ -52,9 +61,19 @@ export default function PosPage() {
   const deepLinkSession = tableSessionsForDeepLink?.data[0]
   const { data: ordersForDeepLinkSession, isLoading: isLoadingSessionOrder } = useOrders({
     tableSessionId: resolvingTable && deepLinkSession ? deepLinkSession.id : -1,
-    limit: 1,
+    limit: 100,
   })
-  const deepLinkTableOrder = ordersForDeepLinkSession?.data[0]
+  const openOrdersForDeepLinkSession = (ordersForDeepLinkSession?.data ?? []).filter(
+    (order) => !CLOSED_ORDER_STATUSES.has(order.status),
+  )
+  const deepLinkTableOrder =
+    openOrdersForDeepLinkSession.length === 1 ? openOrdersForDeepLinkSession[0] : undefined
+  const needsOrderChooser =
+    resolvingTable &&
+    !!deepLinkSession &&
+    !isLoadingSessionOrder &&
+    openOrdersForDeepLinkSession.length !== 1 &&
+    chooserDismissedForTableId !== Number(deepLinkTableId)
   // Once an order is found, keep treating this as "still resolving" (not
   // "no order — start a sale") until router.replace below actually lands
   // and activeOrderId picks it up — otherwise there's a one-render gap
@@ -71,7 +90,11 @@ export default function PosPage() {
     if (deepLinkTableOrder) router.replace(`/pos?orderId=${deepLinkTableOrder.id}`)
   }, [deepLinkTableOrder, router])
 
-  // Once resolved with no active session/order, this table needs a fresh
+  const { data: deepLinkTableForChooser } = useDiningTable(
+    needsOrderChooser ? Number(deepLinkTableId) : 0,
+  )
+
+  // Once resolved with no active session at all, this table needs a fresh
   // sale — StartSaleDialog opens itself and pre-fills the table.
   const preselectedTableId =
     resolvingTable && !isResolvingTableDeepLink && !deepLinkSession && deepLinkTableId
@@ -147,6 +170,20 @@ export default function PosPage() {
           <FoodGrid orderId={activeOrderId} categoryId={categoryId} />
           <FloatingCart orderId={activeOrderId} />
         </div>
+      )}
+
+      {needsOrderChooser && deepLinkSession && effectiveOutletId && (
+        <TableOrdersDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setChooserDismissedForTableId(Number(deepLinkTableId))
+          }}
+          tableName={deepLinkTableForChooser?.name ?? `Table #${deepLinkTableId}`}
+          tableSessionId={deepLinkSession.id}
+          outletId={effectiveOutletId}
+          orders={openOrdersForDeepLinkSession}
+          onSelectOrder={(orderId) => router.replace(`/pos?orderId=${orderId}`)}
+        />
       )}
     </div>
   )

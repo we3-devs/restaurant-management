@@ -10,9 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@/hooks/use-order-payments"
-import { useOrder, useUpdateOrder, useUpdateOrderStatus } from "@/hooks/use-orders"
+import { useOrder, useOrders, useUpdateOrder, useUpdateOrderStatus } from "@/hooks/use-orders"
 import { useOnlineStatus } from "@/lib/offline/online-status"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@/lib/validators/orders"
+import { TableSessionCheckout } from "./table-session-checkout"
+
+const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 
 export function CheckoutPanel({ orderId }: { orderId: number }) {
   const router = useRouter()
@@ -22,6 +25,20 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
   const updateStatus = useUpdateOrderStatus(orderId)
   const createPayment = useCreateOrderPayment(orderId)
   const isOnline = useOnlineStatus()
+
+  // A table session can carry more than one open order now — if this one
+  // isn't alone, hand off to the combined "pay/complete the whole table"
+  // view below instead of only ever letting staff settle one order at a
+  // time. tableSessionId=-1 (grab-and-go/stay/delivery orders, or before
+  // `order` has loaded) is the codebase's established "don't have a real id
+  // yet" sentinel — see pos/page.tsx's deep-link resolution for the same pattern.
+  const { data: siblingOrders } = useOrders({
+    tableSessionId: order?.tableSessionId ?? -1,
+    limit: 100,
+  })
+  const openSiblingOrders = (siblingOrders?.data ?? []).filter(
+    (candidate) => !CLOSED_ORDER_STATUSES.has(candidate.status),
+  )
 
   const [discountType, setDiscountType] = useState<string>("none")
   const [discountValue, setDiscountValue] = useState(0)
@@ -152,58 +169,68 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
 
       <Separator />
 
-      <div className="space-y-1.5">
-        {(payments?.data ?? []).map((payment) => (
-          <div key={payment.id} className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <Badge variant={payment.type === "refund" ? "destructive" : "secondary"}>{payment.type}</Badge>
-              <span>{payment.method}</span>
-            </div>
-            <span>{payment.amount}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Select
-          value={paymentMethod}
-          onValueChange={(value) => value && setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ORDER_PAYMENT_METHODS.map((method) => (
-              <SelectItem key={method} value={method}>
-                {method}
-              </SelectItem>
+      {openSiblingOrders.length > 1 && order.tableSessionId ? (
+        // This order shares its table session with at least one other open
+        // order (a guest QR order alongside a staff POS order, or two POS
+        // rounds rung up separately) — settle and close the whole table in
+        // one action instead of one order at a time.
+        <TableSessionCheckout tableSessionId={order.tableSessionId} orders={openSiblingOrders} />
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            {(payments?.data ?? []).map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Badge variant={payment.type === "refund" ? "destructive" : "secondary"}>{payment.type}</Badge>
+                  <span>{payment.method}</span>
+                </div>
+                <span>{payment.amount}</span>
+              </div>
             ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="number"
-          step="0.01"
-          value={paymentAmount}
-          onChange={(e) => setPaymentAmount(Number(e.target.value))}
-        />
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleAddPayment}
-        disabled={createPayment.isPending || paymentAmount <= 0 || !isOnline}
-      >
-        {createPayment.isPending ? "Recording..." : "Add payment"}
-      </Button>
+          </div>
 
-      <Button
-        className="w-full"
-        size="lg"
-        onClick={handleCompleteSale}
-        disabled={order.dueAmount > 0 || updateStatus.isPending || !isOnline}
-      >
-        {!isOnline ? "Offline" : order.dueAmount > 0 ? `Due ${order.dueAmount}` : "Complete sale"}
-      </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={paymentMethod}
+              onValueChange={(value) => value && setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ORDER_PAYMENT_METHODS.map((method) => (
+                  <SelectItem key={method} value={method}>
+                    {method}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              step="0.01"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(Number(e.target.value))}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddPayment}
+            disabled={createPayment.isPending || paymentAmount <= 0 || !isOnline}
+          >
+            {createPayment.isPending ? "Recording..." : "Add payment"}
+          </Button>
+
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleCompleteSale}
+            disabled={order.dueAmount > 0 || updateStatus.isPending || !isOnline}
+          >
+            {!isOnline ? "Offline" : order.dueAmount > 0 ? `Due ${order.dueAmount}` : "Complete sale"}
+          </Button>
+        </>
+      )}
     </div>
   )
 }
