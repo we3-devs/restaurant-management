@@ -16,7 +16,16 @@ const STATUS_STYLES: Record<string, string> = {
   inactive: "border-muted bg-muted/50 text-muted-foreground opacity-60",
 }
 
-export function TableCard({ table, arrivingAt }: { table: DiningTable; arrivingAt?: string }) {
+export function TableCard({
+  table,
+  arrivingAt,
+  basePath = "/pos",
+}: {
+  table: DiningTable
+  arrivingAt?: string
+  /** Where tapping the card navigates for order-taking — desktop POS by default, staff mobile passes its own route. */
+  basePath?: string
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
 
@@ -25,7 +34,7 @@ export function TableCard({ table, arrivingAt }: { table: DiningTable; arrivingA
       <div className="relative">
         <button
           type="button"
-          onClick={() => router.push(`/pos?tableId=${table.id}`)}
+          onClick={() => router.push(`${basePath}?tableId=${table.id}`)}
           className={cn(
             "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
             STATUS_STYLES[table.status] ?? STATUS_STYLES.available,

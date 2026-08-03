@@ -9,15 +9,22 @@ import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { usePosBootstrap } from "@/hooks/use-bootstrap"
 import { useOrderDeepLink } from "@/features/waiter/use-order-deep-link"
-import { FloorBoard } from "../floor/floor-board"
-import { CategoryTabs } from "./category-tabs"
-import { FloatingCart } from "./floating-cart"
-import { FoodGrid } from "./food-grid"
-import { OrderSwitcher } from "./order-switcher"
-import { StartSaleDialog } from "./start-sale-dialog"
-import { TableOrdersDialog } from "./table-orders-dialog"
+import { FloorBoard } from "@/app/(dashboard)/floor/floor-board"
+import { CategoryTabs } from "@/app/(dashboard)/pos/category-tabs"
+import { FloatingCart } from "@/app/(dashboard)/pos/floating-cart"
+import { FoodGrid } from "@/app/(dashboard)/pos/food-grid"
+import { StartSaleDialog } from "@/app/(dashboard)/pos/start-sale-dialog"
+import { TableOrdersDialog } from "@/app/(dashboard)/pos/table-orders-dialog"
 
-export default function PosPage() {
+const BASE_PATH = "/staff/waiter/pos"
+
+/**
+ * Mobile counterpart to (dashboard)/pos — same deep-link resolution
+ * (useOrderDeepLink), same table board / category tabs / food grid / cart
+ * components, just without the desktop-only OrderSwitcher and sized for the
+ * staff shell instead of the dashboard header offset.
+ */
+export default function StaffOrderTakingPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const deepLinkOrderId = searchParams.get("orderId")
@@ -35,40 +42,31 @@ export default function PosPage() {
     deepLinkTableForChooser,
     openOrdersForDeepLinkSession,
     setChooserDismissedForTableId,
-  } = useOrderDeepLink({ basePath: "/pos", outletId, deepLinkOrderId, deepLinkTableId })
+  } = useOrderDeepLink({ basePath: BASE_PATH, outletId, deepLinkOrderId, deepLinkTableId })
 
-  // Keep the cart's item status badges live as the kitchen advances items
-  // (Sent -> Preparing -> Ready) — same KDS socket the /kitchen board uses.
   useKitchenRealtime(effectiveOutletId)
-
-  // One request for tables + food categories + addons instead of three; it
-  // also seeds the caches those hooks below read from.
   usePosBootstrap(effectiveOutletId)
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">POS</h1>
-        <div className="flex items-center gap-2">
-          {effectiveOutletId && <OrderSwitcher outletId={effectiveOutletId} activeOrderId={activeOrderId} />}
-          {activeOrderId ? (
-            <Button variant="outline" onClick={() => router.push("/pos")}>
-              New sale
-            </Button>
-          ) : (
-            effectiveOutletId &&
-            !isResolvingTableDeepLink && (
-              // Only needed for grab-and-go/stay/delivery, or picking a table
-              // without leaving this page — starting a table sale normally
-              // happens by tapping a table below.
-              <StartSaleDialog
-                outletId={effectiveOutletId}
-                onSaleStarted={(orderId) => router.push(`/pos?orderId=${orderId}`)}
-                preselectedTableId={preselectedTableId}
-              />
-            )
-          )}
-        </div>
+    <div className="flex flex-1 flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold">
+          {activeOrderId ? "Order" : "Tables"}
+        </h1>
+        {activeOrderId ? (
+          <Button variant="outline" size="sm" onClick={() => router.push(BASE_PATH)}>
+            New sale
+          </Button>
+        ) : (
+          effectiveOutletId &&
+          !isResolvingTableDeepLink && (
+            <StartSaleDialog
+              outletId={effectiveOutletId}
+              onSaleStarted={(orderId) => router.push(`${BASE_PATH}?orderId=${orderId}`)}
+              preselectedTableId={preselectedTableId}
+            />
+          )
+        )}
       </div>
 
       {!effectiveOutletId ? (
@@ -78,10 +76,8 @@ export default function PosPage() {
           <Skeleton className="h-64 w-full max-w-md" />
         </div>
       ) : !activeOrderId ? (
-        // No table/order picked yet — the floor plan doubles as the "start or
-        // continue a sale" screen so there's no separate stop at /floor first.
         <div className="flex-1 overflow-y-auto">
-          <FloorBoard outletId={effectiveOutletId} />
+          <FloorBoard outletId={effectiveOutletId} basePath={BASE_PATH} />
         </div>
       ) : (
         <div className="flex flex-1 flex-col gap-3 overflow-hidden">
@@ -101,7 +97,7 @@ export default function PosPage() {
           tableSessionId={deepLinkSession.id}
           outletId={effectiveOutletId}
           orders={openOrdersForDeepLinkSession}
-          onSelectOrder={(orderId) => router.replace(`/pos?orderId=${orderId}`)}
+          onSelectOrder={(orderId) => router.replace(`${BASE_PATH}?orderId=${orderId}`)}
         />
       )}
     </div>

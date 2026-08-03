@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api/client"
+import { queuableApiClient } from "@/lib/offline/queuable-api-client"
 import { queryKeys } from "@/lib/query-keys"
+import { applyBulkTransition, applyItemStatus } from "@/features/kitchen/optimistic-bootstrap"
 import type { OutletDepartment } from "./use-outlet-departments"
 
 export interface KitchenTicketOrderItem {
@@ -63,15 +65,36 @@ export function useKdsBootstrap(outletId: number | null) {
   })
 }
 
+/**
+ * The item-status PATCH and the ticket-level bulk actions below are
+ * transition-based, not absolute-value — replaying one after it already
+ * applied (e.g. the response was lost after a flaky kitchen wifi hop) gets
+ * a 400 from the server instead of a no-op. queuableApiClient's
+ * convergentOnBadRequest flag tells the offline replay loop to treat that
+ * specific case as "already converged" and drop the entry instead of
+ * getting stuck — see mutation-queue.ts.
+ */
 export function useUpdateKitchenTicketItemStatus(outletId: number | null) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ ticketId, itemId, status }: { ticketId: number; itemId: number; status: string }) =>
-      apiClient<KitchenTicket>(`/kitchen-tickets/${ticketId}/items/${itemId}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => {
+    mutationFn: ({ ticketId, itemId, status }: { ticketId: number; itemId: number; status: KitchenTicketItem["status"] }) =>
+      queuableApiClient<KitchenTicket>(
+        `/kitchen-tickets/${ticketId}/items/${itemId}/status`,
+        { method: "PATCH", body: JSON.stringify({ status }) },
+        "Update kitchen ticket item status",
+        { convergentOnBadRequest: true },
+      ),
+    onMutate: async ({ ticketId, itemId, status }) => {
+      const key = queryKeys.kitchenTickets.bootstrap(outletId)
+      await queryClient.cancelQueries({ queryKey: key })
+      const previous = queryClient.getQueryData<KdsBootstrap>(key)
+      if (previous) queryClient.setQueryData<KdsBootstrap>(key, applyItemStatus(previous, ticketId, itemId, status))
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.kitchenTickets.bootstrap(outletId), context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
     },
@@ -83,12 +106,32 @@ export function useUpdateKitchenTicketItemStatus(outletId: number | null) {
  * mark-served). Invalidates the KDS bootstrap AND all order queries so a
  * POS screen watching the same order flips its item status badges live.
  */
-function useKitchenTicketAction(outletId: number | null, pathSuffix: string) {
+function useKitchenTicketAction(
+  outletId: number | null,
+  pathSuffix: string,
+  fromStatuses: KitchenTicketItem["status"][],
+  toStatus: KitchenTicketItem["status"],
+) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (ticketId: number) =>
-      apiClient<KitchenTicket>(`/kitchen-tickets/${ticketId}${pathSuffix}`, { method: "POST" }),
-    onSuccess: () => {
+      queuableApiClient<KitchenTicket>(
+        `/kitchen-tickets/${ticketId}${pathSuffix}`,
+        { method: "POST" },
+        `Kitchen ticket${pathSuffix.replace("/", " ").replace("-", " ")}`,
+        { convergentOnBadRequest: true },
+      ),
+    onMutate: async (ticketId) => {
+      const key = queryKeys.kitchenTickets.bootstrap(outletId)
+      await queryClient.cancelQueries({ queryKey: key })
+      const previous = queryClient.getQueryData<KdsBootstrap>(key)
+      if (previous) queryClient.setQueryData<KdsBootstrap>(key, applyBulkTransition(previous, ticketId, fromStatuses, toStatus))
+      return { previous }
+    },
+    onError: (_err, _ticketId, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.kitchenTickets.bootstrap(outletId), context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
     },
@@ -96,15 +139,15 @@ function useKitchenTicketAction(outletId: number | null, pathSuffix: string) {
 }
 
 export function useStartKitchenTicket(outletId: number | null) {
-  return useKitchenTicketAction(outletId, "/start")
+  return useKitchenTicketAction(outletId, "/start", ["sent_to_kitchen"], "preparing")
 }
 
 export function useMarkKitchenTicketReady(outletId: number | null) {
-  return useKitchenTicketAction(outletId, "/mark-ready")
+  return useKitchenTicketAction(outletId, "/mark-ready", ["sent_to_kitchen", "preparing"], "ready")
 }
 
 export function useMarkKitchenTicketServed(outletId: number | null) {
-  return useKitchenTicketAction(outletId, "/mark-served")
+  return useKitchenTicketAction(outletId, "/mark-served", ["ready"], "served")
 }
 
 export function useUpdateKitchenTicketPriority(outletId: number | null) {

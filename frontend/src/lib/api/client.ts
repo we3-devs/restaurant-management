@@ -1,3 +1,13 @@
+/** Same as Error, plus the HTTP status — lets callers (e.g. the offline mutation queue) distinguish a 400 from a 404/500 without reparsing the message. */
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
 /**
  * Browser-side fetch wrapper. Always hits the same-origin proxy at
  * /api/backend/*, never the NestJS origin directly — the proxy attaches the
@@ -11,7 +21,7 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
 
   if (!response.ok) {
     const body = await response.json().catch(() => null)
-    throw new Error(body?.message ?? `Request to ${path} failed with ${response.status}`)
+    throw new ApiError(body?.message ?? `Request to ${path} failed with ${response.status}`, response.status)
   }
 
   if (response.status === 204) {

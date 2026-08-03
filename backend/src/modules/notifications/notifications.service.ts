@@ -83,7 +83,10 @@ export class NotificationsService {
           await this.smsService.send(user.phone, `${notification.title}: ${body}`);
         }
         if (preference.pushEnabled) {
-          await this.pushService.sendToUser(user.id, notification.title, body);
+          await this.pushService.sendToUser(user.id, notification.title, body, {
+            type: notification.type,
+            orderId: notification.orderId,
+          });
         }
       }),
     );

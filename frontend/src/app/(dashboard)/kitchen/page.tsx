@@ -1,16 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import {
-  CheckCircle2Icon,
-  CheckIcon,
-  ChefHatIcon,
-  ClockIcon,
-  FlameIcon,
-  PlayIcon,
-  RotateCcwIcon,
-  XIcon,
-} from "lucide-react"
+import { CheckCircle2Icon, CheckIcon, ChefHatIcon, PlayIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -44,14 +35,14 @@ import {
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { KITCHEN_TICKET_PRIORITIES } from "@/lib/validators/kitchen-tickets"
 import { cn } from "@/lib/utils"
+import { ItemStatusIcon } from "@/features/kitchen/item-status-icon"
+import { elapsedMinutes, formatTime, ticketStage, type TicketStage } from "@/features/kitchen/ticket-stage"
 
 const COLUMNS: { stage: TicketStage; label: string; dot: string }[] = [
   { stage: "incoming", label: "Incoming", dot: "bg-amber-500" },
   { stage: "preparing", label: "Preparing", dot: "bg-sky-500" },
   { stage: "ready", label: "Ready", dot: "bg-emerald-500" },
 ]
-
-type TicketStage = "incoming" | "preparing" | "ready"
 
 const PRIORITY_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
   normal: "secondary",
@@ -63,48 +54,6 @@ const STAGE_VARIANT: Record<TicketStage, "default" | "outline" | "secondary"> = 
   incoming: "default",
   preparing: "outline",
   ready: "secondary",
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-}
-
-function elapsedMinutes(since: string, now: number): number {
-  return Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000))
-}
-
-/**
- * A ticket lives in one column at a time, derived from the statuses of its
- * items. Ticket-level Start/Mark Ready move every item together, so tickets
- * progress uniformly — per-item edge cases (recall/cancel) just shift the
- * dominant stage.
- */
-function ticketStage(ticket: KitchenTicket): TicketStage {
-  const items = ticket.items ?? []
-  const active = items.filter((item) => item.status !== "cancelled")
-  const statuses = new Set(active.map((item) => item.status))
-  // Sent items still wait to be started, so any of them keeps the ticket in
-  // Incoming — even alongside already-ready items (reachable via order-detail
-  // item edits) — otherwise a stranded sent item would sit invisible under a
-  // "ready" ticket. Mark Ready will bulk-move both sent + preparing anyway.
-  if (statuses.has("sent_to_kitchen")) return "incoming"
-  if (statuses.has("preparing")) return "preparing"
-  return "ready"
-}
-
-function ItemStatusIcon({ status }: { status: KitchenTicketItem["status"] }) {
-  switch (status) {
-    case "sent_to_kitchen":
-      return <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
-    case "preparing":
-      return <FlameIcon className="size-3.5 shrink-0 text-amber-500" />
-    case "ready":
-      return <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-500" />
-    case "served":
-      return <CheckIcon className="size-3.5 shrink-0 text-emerald-600" />
-    case "cancelled":
-      return <XIcon className="size-3.5 shrink-0 text-destructive" />
-  }
 }
 
 function TicketCard({

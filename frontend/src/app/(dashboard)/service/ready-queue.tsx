@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import { CheckCircle2Icon, ChefHatIcon, ClockIcon, PackageCheckIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,64 +8,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useMarkOrderReadyItemsServed } from "@/hooks/use-orders"
-
-interface ReadyGroup {
-  orderId: number
-  tableName: string
-  orderNumber: string
-  itemLabels: { id: number; label: string; readyAt: string | null }[]
-  earliestReadyAt: string
-}
-
-function elapsedMinutes(since: string, now: number): number {
-  return Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000))
-}
+import { useReadyQueueGroups, type ReadyGroup } from "@/features/waiter/use-ready-queue"
+import { elapsedMinutes } from "@/features/kitchen/ticket-stage"
 
 export function ReadyQueue({ outletId }: { outletId: number }) {
-  const { data, isLoading } = useKdsBootstrap(outletId)
-  const [now, setNow] = useState(() => Date.now())
-
-  // Live clock so "…m ago" ticks without a refetch.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  const groups = useMemo<ReadyGroup[]>(() => {
-    const byOrder = new Map<number, ReadyGroup>()
-    for (const ticket of data?.tickets ?? []) {
-      const readyItems = (ticket.items ?? []).filter((item) => item.status === "ready")
-      if (readyItems.length === 0) continue
-      const existing = byOrder.get(ticket.orderId)
-      const tableName = ticket.order?.tableSession?.diningTable?.name ?? "Takeaway"
-      const orderNumber = ticket.order?.orderNumber ?? `#${ticket.orderId}`
-      const labels = readyItems.map((item) => ({
-        id: item.id,
-        label: `${item.orderItem?.food?.name ?? "Item"} ×${item.orderItem?.quantity ?? 1}`,
-        readyAt: item.readyAt,
-      }))
-      if (existing) {
-        existing.itemLabels.push(...labels)
-        existing.earliestReadyAt = minReadyAt(existing.earliestReadyAt, labels)
-      } else {
-        byOrder.set(ticket.orderId, {
-          orderId: ticket.orderId,
-          tableName,
-          orderNumber,
-          itemLabels: labels,
-          earliestReadyAt: labels.reduce(
-            (min, l) => (l.readyAt && (!min || l.readyAt < min) ? l.readyAt : min),
-            "" as string,
-          ),
-        })
-      }
-    }
-    return [...byOrder.values()].sort((a, b) => a.earliestReadyAt.localeCompare(b.earliestReadyAt))
-  }, [data])
-
-  const readyCount = groups.reduce((sum, g) => sum + g.itemLabels.length, 0)
+  const { groups, readyCount, now, isLoading } = useReadyQueueGroups(outletId)
 
   if (isLoading) {
     return (
@@ -100,13 +48,6 @@ export function ReadyQueue({ outletId }: { outletId: number }) {
         <ReadyGroupCard key={group.orderId} group={group} now={now} outletId={outletId} />
       ))}
     </div>
-  )
-}
-
-function minReadyAt(current: string, labels: { readyAt: string | null }[]): string {
-  return labels.reduce(
-    (min, l) => (l.readyAt && (!min || l.readyAt < min) ? l.readyAt : min),
-    current,
   )
 }
 

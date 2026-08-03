@@ -51,7 +51,7 @@ function useArrivingSoonByTable(outletId: number): Map<number, string> {
   return byTable
 }
 
-export function FloorBoard({ outletId }: { outletId: number }) {
+export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?: string }) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
   const arrivingSoonByTable = useArrivingSoonByTable(outletId)
 
@@ -68,6 +68,7 @@ export function FloorBoard({ outletId }: { outletId: number }) {
           areaId={area.id}
           areaName={area.name}
           arrivingSoonByTable={arrivingSoonByTable}
+          basePath={basePath}
         />
       ))}
     </div>
@@ -79,11 +80,13 @@ function AreaSection({
   areaId,
   areaName,
   arrivingSoonByTable,
+  basePath,
 }: {
   outletId: number
   areaId: number
   areaName: string
   arrivingSoonByTable: Map<number, string>
+  basePath?: string
 }) {
   const { data: tables } = useDiningTables({ outletId, diningAreaId: areaId, limit: 100 })
 
@@ -92,7 +95,7 @@ function AreaSection({
       <h2 className="text-sm font-semibold">{areaName}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         {tables?.data.map((table) => (
-          <TableCard key={table.id} table={table} arrivingAt={arrivingSoonByTable.get(table.id)} />
+          <TableCard key={table.id} table={table} arrivingAt={arrivingSoonByTable.get(table.id)} basePath={basePath} />
         ))}
       </div>
     </div>

@@ -7,6 +7,14 @@ export interface QueuedMutation {
   body: unknown
   label: string
   createdAt: number
+  /**
+   * Set for action-style endpoints (e.g. kitchen ticket start/mark-ready)
+   * that aren't a plain absolute-value PATCH: replaying them after they've
+   * already applied throws a 400 ("no eligible items") instead of a no-op.
+   * When true, a 400 on replay is treated as "already converged" and the
+   * entry is dropped instead of blocking the rest of the queue.
+   */
+  convergentOnBadRequest?: boolean
 }
 
 interface OfflineDB extends DBSchema {

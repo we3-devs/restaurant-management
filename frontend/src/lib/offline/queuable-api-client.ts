@@ -24,6 +24,7 @@ export async function queuableApiClient<T>(
   path: string,
   init: { method: string; body?: string },
   label: string,
+  options: { convergentOnBadRequest?: boolean } = {},
 ): Promise<T> {
   const offline = typeof navigator !== "undefined" && !navigator.onLine
 
@@ -40,6 +41,7 @@ export async function queuableApiClient<T>(
     method: init.method,
     body: init.body !== undefined ? JSON.parse(init.body) : undefined,
     label,
+    convergentOnBadRequest: options.convergentOnBadRequest,
   })
   return undefined as T
 }

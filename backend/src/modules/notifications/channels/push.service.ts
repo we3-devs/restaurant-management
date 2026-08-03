@@ -52,10 +52,15 @@ export class PushService {
     await this.subscriptionRepo.delete({ endpoint });
   }
 
-  async sendToUser(userId: number, title: string, body: string): Promise<void> {
+  async sendToUser(
+    userId: number,
+    title: string,
+    body: string,
+    data?: { type?: string; orderId?: number | null },
+  ): Promise<void> {
     if (!this.configured) return;
     const subscriptions = await this.subscriptionRepo.find({ where: { userId } });
-    const payload = JSON.stringify({ title, body });
+    const payload = JSON.stringify({ title, body, data });
 
     await Promise.all(
       subscriptions.map(async (sub) => {

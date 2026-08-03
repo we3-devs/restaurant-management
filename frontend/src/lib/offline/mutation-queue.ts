@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { QueryClient } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api/client"
+import { apiClient, ApiError } from "@/lib/api/client"
 import { queryKeys } from "@/lib/query-keys"
 import { getOfflineDb, type QueuedMutation } from "./db"
 
@@ -54,9 +54,21 @@ export async function replayQueuedMutations(queryClient?: QueryClient) {
       await store.delete("mutation-queue", entry.id)
       replayedAny = true
       notifyListeners()
-    } catch {
-      // Stop here — still offline, or the server rejected it. Either way,
-      // leave this and later entries queued for the next reconnect attempt.
+    } catch (error) {
+      // Action-style endpoints (kitchen ticket start/mark-ready/mark-served,
+      // item status transitions) throw a 400 if the request actually reached
+      // the server before its response was lost — the action already
+      // applied, so the ticket/item is already past this transition. That's
+      // convergence, not failure: drop the entry and keep draining instead
+      // of leaving it (and everything queued after it) stuck forever.
+      if (entry.convergentOnBadRequest && error instanceof ApiError && error.status === 400) {
+        await store.delete("mutation-queue", entry.id)
+        replayedAny = true
+        notifyListeners()
+        continue
+      }
+      // Otherwise: still offline, or a genuine server rejection. Leave this
+      // and later entries queued for the next reconnect attempt.
       break
     }
   }
@@ -65,7 +77,10 @@ export async function replayQueuedMutations(queryClient?: QueryClient) {
   // React Query's own paused-fetch resume on reconnect. One explicit
   // invalidation after a successful drain guarantees the UI reflects the
   // server's final state instead of relying on that ordering.
-  if (replayedAny) queryClient?.invalidateQueries({ queryKey: queryKeys.orders.all })
+  if (replayedAny) {
+    queryClient?.invalidateQueries({ queryKey: queryKeys.orders.all })
+    queryClient?.invalidateQueries({ queryKey: queryKeys.kitchenTickets.all })
+  }
 }
 
 export function useQueuedMutationCount() {
