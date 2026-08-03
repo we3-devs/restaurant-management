@@ -21,19 +21,23 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isAuth = isAuthRoute(pathname)
 
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL(hasSession ? "/dashboard" : "/login", request.url))
-  }
-
   if (!hasSession && !isAuth) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
+  // "/" itself renders app/page.tsx, which does the real (backend-verified)
+  // permission check and sends admins/superadmins to /dashboard, everyone
+  // else to /staff — proxy can't make that call itself, it only knows a
+  // cookie is present.
   if (hasSession && isAuth) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(new URL("/", request.url))
   }
 
-  return NextResponse.next()
+  // Forward the pathname to server components (layout.tsx route guards read
+  // it via headers()) since there's no other reliable way to get it there.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-pathname", pathname)
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {

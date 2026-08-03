@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth/dal"
+import { getLandingPath } from "@/lib/auth/route-access"
 
-// proxy.ts already redirects "/" based on session presence; this is a
-// defense-in-depth fallback in case the matcher ever excludes this route.
-export default function RootPage() {
-  redirect("/login")
+// proxy.ts only does a cookie-presence check and sends unauthenticated hits
+// to /login; a real session lands here, where getCurrentUser() (the actual
+// backend-verified check) tells us the user's permissions so we can route
+// admins/superadmins to the desktop dashboard and everyone else to the staff
+// PWA, instead of proxy guessing from the cookie alone.
+export default async function RootPage() {
+  const user = await getCurrentUser()
+  redirect(getLandingPath(user))
 }

@@ -75,6 +75,22 @@ async function upsertRolePermission(
   }
 }
 
+/** Removes a stale role->permission grant, e.g. a slug a role used to need before its permissions were split more finely. Unlike the upserts above, this makes the seed script also fix already-provisioned databases, not just fresh ones. */
+async function revokeRolePermissionBySlug(
+  permissionRepo: Repository<Permission>,
+  rolePermissionRepo: Repository<RolePermission>,
+  roleId: number,
+  slug: string,
+): Promise<void> {
+  const permission = await permissionRepo.findOne({ where: { slug } });
+  if (!permission) return;
+  const existing = await rolePermissionRepo.findOne({ where: { roleId, permissionId: permission.id } });
+  if (existing) {
+    await rolePermissionRepo.remove(existing);
+    logger.log(`Revoked permission "${slug}" from role ${roleId}`);
+  }
+}
+
 async function upsertModulePermissions(
   permissionRepo: Repository<Permission>,
   rolePermissionRepo: Repository<RolePermission>,
@@ -175,6 +191,8 @@ interface RoleSeed {
   fullModules: string[];
   /** Grants a single already-namespaced permission slug, e.g. "dashboard.view". */
   singlePermissions: string[];
+  /** Removes a permission slug this role used to have, so re-running the seed against an already-provisioned DB actually tightens it. */
+  revokePermissions?: string[];
   position: { name: string; slug: string; description: string };
 }
 
@@ -195,7 +213,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     ],
     singlePermissions: [
       'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view',
-      'outlets.view', 'warehouses.view', 'outlet-departments.view',
+      'outlets.view', 'warehouses.view', 'outlet-departments.view', 'kitchen-tickets.manage',
     ],
     position: { name: 'Manager', slug: 'manager', description: 'Runs day-to-day outlet operations.' },
   },
@@ -223,7 +241,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     rank: 50,
     description: 'Bar orders and drink service.',
     fullModules: ['orders', 'order-payments'],
-    singlePermissions: ['ingredients.view', 'dining-tables.view'],
+    singlePermissions: ['ingredients.view', 'dining-tables.view', 'kitchen-tickets.manage'],
     position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
   },
   {
@@ -240,8 +258,15 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Cook',
     rank: 50,
     description: 'Kitchen staff — prepares food and logs ingredient wastage.',
-    fullModules: ['ingredient-wastages', 'orders'],
-    singlePermissions: ['ingredients.view', 'ingredient-categories.view', 'inventory-stock.view', 'stock-outs.view', 'units.view'],
+    // Not fullModules: ['orders'] — that grants orders.manage, which is for
+    // taking/editing orders at the POS, not for running the KDS board. Cooks
+    // get orders.view (see tickets) + kitchen-tickets.manage (act on them).
+    fullModules: ['ingredient-wastages'],
+    singlePermissions: [
+      'orders.view', 'kitchen-tickets.manage',
+      'ingredients.view', 'ingredient-categories.view', 'inventory-stock.view', 'stock-outs.view', 'units.view',
+    ],
+    revokePermissions: ['orders.manage'],
     position: { name: 'Cook', slug: 'cook', description: 'Prepares kitchen orders.' },
   },
   {
@@ -278,6 +303,9 @@ async function seedOperationalRolesAndPositions(
     }
     for (const slug of seed.singlePermissions) {
       await grantPermissionSlug(permissionRepo, rolePermissionRepo, role.id, slug, titleCase(slug.split('.')[0]));
+    }
+    for (const slug of seed.revokePermissions ?? []) {
+      await revokeRolePermissionBySlug(permissionRepo, rolePermissionRepo, role.id, slug);
     }
 
     await upsertPosition(positionRepo, { ...seed.position, defaultRoleId: role.id });

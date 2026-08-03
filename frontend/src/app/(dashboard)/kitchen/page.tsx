@@ -249,7 +249,7 @@ function TicketCard({
 
 export default function KitchenPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
-  const canManage = isSuperadmin || permissions.includes("orders.manage")
+  const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
 
   const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
 

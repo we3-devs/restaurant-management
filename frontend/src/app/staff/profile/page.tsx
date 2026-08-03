@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { MyDeliveryPreferences } from "@/components/my-delivery-preferences"
+import { APP_VERSION } from "@/lib/app-version"
 
 function initials(name: string): string {
   return (
@@ -47,6 +48,7 @@ export default function StaffProfilePage() {
         </div>
       </Card>
       <MyDeliveryPreferences />
+      <p className="text-center text-xs text-muted-foreground">App version {APP_VERSION}</p>
     </div>
   )
 }

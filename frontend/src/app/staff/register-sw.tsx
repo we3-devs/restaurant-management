@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { DownloadIcon, XIcon } from "lucide-react"
+import { DownloadIcon, RefreshCwIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
@@ -30,6 +30,7 @@ function isStandalone(): boolean {
  */
 export function RegisterStaffServiceWorker() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
   // Lazy initializer, not an effect — this only ever needs to reflect
   // localStorage as it was when the component first mounted on the client.
   const [dismissed, setDismissed] = useState(
@@ -38,9 +39,27 @@ export function RegisterStaffServiceWorker() {
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Non-fatal — push notifications and offline caching just won't be available this session.
-    })
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        // sw.js's own install handler calls skipWaiting() unconditionally, so
+        // a newer worker becomes active on its own — this just tells the
+        // *already-open* tab a fresh one landed, since the JS already
+        // running in memory doesn't swap itself out without a reload. Only
+        // fires for a genuine update (registration.active already existed);
+        // the very first install on a device is not "available", it's just installing.
+        registration.addEventListener("updatefound", () => {
+          const installing = registration.installing
+          if (!installing || !registration.active) return
+          installing.addEventListener("statechange", () => {
+            if (installing.state === "installed") setUpdateAvailable(true)
+          })
+        })
+      })
+      .catch(() => {
+        // Non-fatal — push notifications and offline caching just won't be available this session.
+      })
 
     if (isStandalone() || dismissed) return
     const visits = Number(localStorage.getItem(VISIT_COUNT_KEY) ?? "0") + 1
@@ -56,8 +75,6 @@ export function RegisterStaffServiceWorker() {
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
   }, [dismissed])
 
-  if (!installEvent || dismissed) return null
-
   async function handleInstall() {
     if (!installEvent) return
     await installEvent.prompt()
@@ -69,6 +86,20 @@ export function RegisterStaffServiceWorker() {
     localStorage.setItem(INSTALL_DISMISSED_KEY, "1")
     setDismissed(true)
   }
+
+  if (updateAvailable) {
+    return (
+      <div className="flex items-center gap-2 border-b border-border bg-primary/10 px-3 py-2 text-sm">
+        <RefreshCwIcon className="size-4 shrink-0 text-primary" />
+        <p className="flex-1">A new version is ready.</p>
+        <Button size="sm" className="h-9" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      </div>
+    )
+  }
+
+  if (!installEvent || dismissed) return null
 
   return (
     <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-2 text-sm">

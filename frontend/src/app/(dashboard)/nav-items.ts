@@ -123,6 +123,9 @@ export const navGroupDefs: NavGroupDef[] = [
   },
 ]
 
+/** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
+export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
+
 export function visibleNavGroups(permissions: string[], isSuperadmin: boolean) {
   const has = (permission: string | true) => permission === true || isSuperadmin || permissions.includes(permission)
 

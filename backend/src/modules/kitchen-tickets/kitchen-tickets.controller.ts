@@ -16,9 +16,13 @@ import { UpdateKitchenTicketItemStatusDto } from './dto/update-kitchen-ticket-it
 import { UpdateKitchenTicketPriorityDto } from './dto/update-kitchen-ticket-priority.dto';
 import { KitchenTicketsService } from './kitchen-tickets.service';
 
-// Guarded by the same orders.view/orders.manage permissions as OrdersController
-// — kitchen tickets are a projection of orders, created solely as a side
-// effect of OrdersService.sendToKitchen().
+// Reads share orders.view with OrdersController (kitchen tickets are a
+// projection of orders, created solely as a side effect of
+// OrdersService.sendToKitchen()). Mutations require kitchen-tickets.manage
+// instead of orders.manage — that slug is for taking/editing orders at the
+// POS (waiters need it) and is deliberately separate from running the KDS
+// board (cooks need it), so a waiter with POS access doesn't also get
+// start/prepare/serve/cancel/recall buttons on the kitchen screen.
 @ApiTags('kitchen-tickets')
 @ApiBearerAuth()
 @Controller('kitchen-tickets')
@@ -60,7 +64,7 @@ export class KitchenTicketsController {
   }
 
   @Patch(':id/items/:itemId/status')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({
     summary:
       'Advances a kitchen ticket item through sent_to_kitchen -> preparing -> ready -> served (or -> cancelled)',
@@ -74,7 +78,7 @@ export class KitchenTicketsController {
   }
 
   @Patch(':id/priority')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({ summary: "Sets a kitchen ticket's priority" })
   updatePriority(
     @Param('id', ParseIntPipe) id: number,
@@ -84,7 +88,7 @@ export class KitchenTicketsController {
   }
 
   @Post(':id/start')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({
     summary:
       "Ticket-level 'Start': bulk-moves every sent_to_kitchen item to preparing",
@@ -94,7 +98,7 @@ export class KitchenTicketsController {
   }
 
   @Post(':id/mark-ready')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({
     summary:
       "Ticket-level 'Mark Ready': bulk-moves every sent/preparing item to ready",
@@ -104,7 +108,7 @@ export class KitchenTicketsController {
   }
 
   @Post(':id/mark-served')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({
     summary:
       "Ticket-level 'Mark Served': bulk-moves every ready item to served",
@@ -114,14 +118,14 @@ export class KitchenTicketsController {
   }
 
   @Post(':id/cancel')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({ summary: 'Cancels a kitchen ticket and its open items' })
   cancelTicket(@Param('id', ParseIntPipe) id: number) {
     return this.kitchenTicketsService.cancelTicket(id);
   }
 
   @Post(':id/items/:itemId/recall')
-  @RequirePermissions('orders.manage')
+  @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({
     summary: 'Reopens a "ready"/"served" item back to "preparing"',
   })

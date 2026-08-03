@@ -1,11 +1,15 @@
+import { headers } from "next/headers"
 import { getCurrentUser } from "@/lib/auth/dal"
 import { CurrentUserProvider } from "@/lib/auth/current-user-context"
+import { findRequiredPermission, hasRoutePermission } from "@/lib/auth/route-access"
 import { ActiveOutletProvider } from "@/lib/outlet/active-outlet-context"
+import { AccessDenied } from "@/components/access-denied"
 import { HeaderDepartmentSwitcher } from "./header-department-switcher"
 import { HeaderOutletSwitcher } from "./header-outlet-switcher"
 import { HeaderSearchButton } from "./header-search-button"
 import { MobileNavToggle } from "./mobile-nav-toggle"
 import { NotificationBell } from "./notification-bell"
+import { navRoutePermissions } from "./nav-items"
 import { SidebarShell } from "./sidebar-shell"
 import { UserMenu } from "./user-menu"
 import { RealtimeInvalidationProvider } from "./realtime-invalidation-provider"
@@ -19,6 +23,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // is the only /auth/me call in the tree; everything below reads the result
   // from CurrentUserProvider instead of fetching it again.
   const user = await getCurrentUser()
+
+  // Route-level RBAC: the sidebar already hides links a user can't reach,
+  // but that's UI-only — this is what stops someone hitting the URL directly.
+  const pathname = (await headers()).get("x-pathname") ?? ""
+  const requiredPermission = findRequiredPermission(pathname, navRoutePermissions)
+  const allowed = hasRoutePermission(user, requiredPermission)
 
   return (
     <CurrentUserProvider user={user}>
@@ -42,7 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <UserMenu />
               </div>
             </header>
-            <main className="flex flex-1 flex-col p-4 sm:p-6">{children}</main>
+            <main className="flex flex-1 flex-col p-4 sm:p-6">{allowed ? children : <AccessDenied />}</main>
           </div>
         </SidebarShell>
       </div>

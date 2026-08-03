@@ -41,6 +41,18 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
   },
 ]
 
+/** Routes reachable only via deep link (not a tab), so they're not in STAFF_NAV_ITEMS, but still need gating — same slug as the desktop /pos page. */
+const STAFF_DEEP_LINK_ROUTES = [{ href: "/staff/waiter/pos", permission: "orders.manage" as const }]
+
+/** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
+export const staffRoutePermissions = [
+  ...STAFF_NAV_ITEMS.map((item) => ({
+    href: item.href,
+    permission: item.requires ?? (true as const),
+  })),
+  ...STAFF_DEEP_LINK_ROUTES,
+]
+
 export function canSeeStaffNavItem(
   item: StaffNavItem,
   user: { isSuperadmin: boolean; permissions: string[] },
