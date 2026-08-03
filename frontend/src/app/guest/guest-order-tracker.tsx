@@ -129,7 +129,7 @@ function GuestOrderCard({ order, tableCode }: { order: GuestOrder; tableCode: st
   return (
     <div className="w-full rounded-xl border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">Order #{order.orderNumber}</p>
+        <p className="text-xs font-medium text-muted-foreground">Bill No: {order.billNumber ?? order.orderNumber}</p>
         {canCancel && (
           <Button
             variant="ghost"

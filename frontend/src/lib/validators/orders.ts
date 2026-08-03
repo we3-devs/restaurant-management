@@ -78,12 +78,6 @@ export const createOrderItemAddonSchema = z.object({
 
 export type CreateOrderItemAddonInput = z.infer<typeof createOrderItemAddonSchema>
 
-export const assignOrderTableSchema = z.object({
-  diningTableId: z.number({ message: "Select a table" }).positive(),
-})
-
-export type AssignOrderTableInput = z.infer<typeof assignOrderTableSchema>
-
 export const createOrderPaymentSchema = z.object({
   type: z.enum(ORDER_PAYMENT_TYPES),
   method: z.enum(ORDER_PAYMENT_METHODS),

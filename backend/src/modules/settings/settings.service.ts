@@ -65,6 +65,8 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     serviceChargePercent: 0,
     defaultTaxPercent: 0,
     defaultPaymentMethod: 'cash',
+    billNumberDigits: 4,
+    billNumberResetPeriod: 'daily',
   },
   kitchen: {
     ticketTimeoutMinutes: 20,

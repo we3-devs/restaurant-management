@@ -22,7 +22,6 @@ import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
-import { OrderTable } from './entities/order-table.entity';
 import { Order } from './entities/order.entity';
 import { OrderItemsController } from './order-items.controller';
 import { OrdersController } from './orders.controller';
@@ -34,7 +33,6 @@ import { OrdersService } from './orders.service';
       Order,
       OrderItem,
       OrderItemAddon,
-      OrderTable,
       OrderStatusHistory,
       OrderItemIngredientReservation,
       // OrderPayment "belongs" to OrderPaymentsModule, but OrdersService needs

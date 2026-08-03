@@ -54,11 +54,29 @@ export class BusinessSettingsDto {
   currency?: string;
 }
 
+const BILL_NUMBER_RESET_PERIODS = ['never', 'daily', 'monthly', 'yearly'] as const;
+
 export class PosSettingsDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: "Prefix for guest-facing bill numbers, e.g. 'BILL' -> BILL-20260803-0007",
+  })
   @IsOptional()
   @IsString()
   receiptPrefix?: string;
+
+  @ApiPropertyOptional({ description: 'Zero-padding width for the sequence portion of the bill number, e.g. 4 -> 0007' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  billNumberDigits?: number;
+
+  @ApiPropertyOptional({
+    enum: BILL_NUMBER_RESET_PERIODS,
+    description: 'How often the bill number sequence resets back to 1 — never, or on a daily/monthly/yearly boundary',
+  })
+  @IsOptional()
+  @IsIn(BILL_NUMBER_RESET_PERIODS)
+  billNumberResetPeriod?: (typeof BILL_NUMBER_RESET_PERIODS)[number];
 
   @ApiPropertyOptional()
   @IsOptional()

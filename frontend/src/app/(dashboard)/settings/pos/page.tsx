@@ -10,10 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type PosSettings } from "@/hooks/use-settings"
 import { posSettingsSchema, type PosSettingsInput } from "@/lib/validators/settings"
+
+const BILL_NUMBER_RESET_PERIODS = ["never", "daily", "monthly", "yearly"] as const
 
 const defaultValues: PosSettingsInput = {
   receiptPrefix: "",
@@ -23,6 +26,28 @@ const defaultValues: PosSettingsInput = {
   serviceChargePercent: 0,
   defaultTaxPercent: 0,
   defaultPaymentMethod: "",
+  billNumberDigits: 4,
+  billNumberResetPeriod: "daily",
+}
+
+/** Illustrative only — mirrors OrdersService#generateBillNumber's format, not its actual sequence (which needs a real order count). */
+function formatBillNumberPreview(
+  prefix: string | undefined,
+  digits: number | undefined,
+  resetPeriod: string | undefined,
+): string {
+  const now = new Date()
+  const sequence = "1".padStart(digits || 4, "0")
+  const periodTag =
+    resetPeriod === "daily"
+      ? now.toISOString().slice(0, 10).replace(/-/g, "")
+      : resetPeriod === "monthly"
+        ? now.toISOString().slice(0, 7).replace("-", "")
+        : resetPeriod === "yearly"
+          ? String(now.getFullYear())
+          : ""
+  const parts = [prefix || "BILL", periodTag, sequence].filter(Boolean)
+  return parts.join("-")
 }
 
 export default function PosSettingsPage() {
@@ -76,12 +101,59 @@ export default function PosSettingsPage() {
                   name="receiptPrefix"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Receipt prefix</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <FormLabel>Bill number prefix</FormLabel>
+                      <FormControl disabled={!canManage} placeholder="BILL" {...field} />
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="billNumberDigits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bill number digits</FormLabel>
+                      <FormControl
+                        type="number"
+                        step="1"
+                        min="1"
+                        disabled={!canManage}
+                        value={field.value ?? 4}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="billNumberResetPeriod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bill number resets</FormLabel>
+                      <Select
+                        value={field.value ?? "daily"}
+                        onValueChange={field.onChange}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BILL_NUMBER_RESET_PERIODS.map((period) => (
+                            <SelectItem key={period} value={period}>
+                              {period}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  Preview: {formatBillNumberPreview(form.watch("receiptPrefix"), form.watch("billNumberDigits"), form.watch("billNumberResetPeriod"))}
+                </p>
                 <FormField
                   control={form.control}
                   name="defaultPaymentMethod"

@@ -86,7 +86,7 @@ function GuestItemsInner() {
 function OrderItemsCard({ order }: { order: GuestOrder }) {
   return (
     <Card className="w-full p-4 sm:p-6">
-      <p className="text-xs font-medium text-muted-foreground">Order #{order.orderNumber}</p>
+      <p className="text-xs font-medium text-muted-foreground">Bill No: {order.billNumber ?? order.orderNumber}</p>
       <ul className="mt-3 flex flex-col gap-2">
         {order.items.map((item) => (
           <li key={item.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">

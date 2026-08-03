@@ -8,7 +8,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, ILike, In, Not, Repository } from 'typeorm';
+import {
+  DataSource,
+  FindOptionsWhere,
+  ILike,
+  In,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { AddonsService } from '../addons/addons.service';
@@ -32,7 +40,6 @@ import { SettingsService } from '../settings/settings.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { UnitsService } from '../units/units.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
-import { AssignOrderTableDto } from './dto/assign-order-table.dto';
 import { CreateOrderItemAddonDto } from './dto/create-order-item-addon.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -45,7 +52,6 @@ import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
-import { OrderTable } from './entities/order-table.entity';
 import { Order } from './entities/order.entity';
 import type { OrderStatus } from './entities/order.entity';
 
@@ -97,8 +103,6 @@ export class OrdersService {
     private readonly orderItemsRepository: Repository<OrderItem>,
     @InjectRepository(OrderItemAddon)
     private readonly orderItemAddonsRepository: Repository<OrderItemAddon>,
-    @InjectRepository(OrderTable)
-    private readonly orderTablesRepository: Repository<OrderTable>,
     @InjectRepository(OrderStatusHistory)
     private readonly orderStatusHistoriesRepository: Repository<OrderStatusHistory>,
     @InjectRepository(OrderPayment)
@@ -333,7 +337,7 @@ export class OrdersService {
       createdBy,
     });
 
-    return this.ordersRepository.save(order);
+    return this.saveWithBillNumber(order, dto.outletId);
   }
 
   /**
@@ -365,18 +369,21 @@ export class OrdersService {
       await this.findOpenForTableSession(tableSessionId)
     ).find((order) => order.status !== 'completed');
 
-    const saved = existing ?? (await this.ordersRepository.save(
-      this.ordersRepository.create({
+    const saved =
+      existing ??
+      (await this.saveWithBillNumber(
+        this.ordersRepository.create({
+          outletId,
+          tableSessionId,
+          customerId,
+          orderType: 'table',
+          orderNumber: this.generateOrderNumber(outletId),
+          createdBy: null,
+          source: 'online',
+          orderSource: 'qr',
+        }),
         outletId,
-        tableSessionId,
-        customerId,
-        orderType: 'table',
-        orderNumber: this.generateOrderNumber(outletId),
-        createdBy: null,
-        source: 'online',
-        orderSource: 'qr',
-      }),
-    ));
+      ));
 
     if (existing) {
       await this.reopenForNewItems(
@@ -1134,49 +1141,6 @@ export class OrdersService {
     return this.reservationsRepository.find({ where: { orderItemId } });
   }
 
-  // ------------------------------------------------------------- order tables
-
-  async listTables(orderId: number): Promise<OrderTable[]> {
-    await this.findOne(orderId);
-    return this.orderTablesRepository.find({ where: { orderId } });
-  }
-
-  async assignTable(
-    orderId: number,
-    dto: AssignOrderTableDto,
-    assignedBy: number,
-  ): Promise<OrderTable> {
-    const order = await this.findOne(orderId);
-    OrdersService.assertMutable(order);
-    const table = await this.diningTablesService.findOne(dto.diningTableId);
-    if (table.outletId !== order.outletId) {
-      throw new BadRequestException(
-        `Dining table ${dto.diningTableId} does not belong to outlet ${order.outletId}`,
-      );
-    }
-
-    const existing = await this.orderTablesRepository.findOne({
-      where: { orderId, diningTableId: dto.diningTableId },
-    });
-    if (existing) {
-      return existing; // idempotent
-    }
-
-    return this.orderTablesRepository.save(
-      this.orderTablesRepository.create({
-        orderId,
-        diningTableId: dto.diningTableId,
-        assignmentType: dto.assignmentType ?? 'added_on_arrival',
-        assignedBy,
-      }),
-    );
-  }
-
-  async unassignTable(orderId: number, diningTableId: number): Promise<void> {
-    OrdersService.assertMutable(await this.findOne(orderId));
-    await this.orderTablesRepository.delete({ orderId, diningTableId });
-  }
-
   // --------------------------------------------------------------- payments
 
   /** Called by OrderPaymentsService after saving a new completed payment/refund row. */
@@ -1313,6 +1277,61 @@ export class OrdersService {
 
   private generateOrderNumber(outletId: number): string {
     return generateDocumentNumber('ORD', outletId);
+  }
+
+  /**
+   * The guest-facing bill number — distinct from orderNumber (an internal
+   * reference, never meant to be read by a guest). Format comes from the
+   * "pos" settings category: {receiptPrefix}-[{periodTag}-]{sequence padded
+   * to billNumberDigits}, e.g. BILL-20260803-0007. The sequence is the count
+   * of this outlet's orders since the configured reset period's start
+   * (never/daily/monthly/yearly) + 1 — a count, not a real atomic counter,
+   * same tradeoff generateOrderNumber's random suffix makes; the unique
+   * constraint on orders.bill_number plus one retry (see the two call
+   * sites) catches the rare concurrent-collision case.
+   */
+  private async generateBillNumber(outletId: number): Promise<string> {
+    const posSettings = await this.settingsService.getPosSettings();
+    const prefix = (posSettings.receiptPrefix as string) || 'INV';
+    const digits = Number(posSettings.billNumberDigits ?? 4);
+    const resetPeriod = (posSettings.billNumberResetPeriod as string) ?? 'daily';
+
+    const now = new Date();
+    let periodStart: Date | null = null;
+    let periodTag = '';
+    if (resetPeriod === 'daily') {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      periodTag = periodStart.toISOString().slice(0, 10).replace(/-/g, '');
+    } else if (resetPeriod === 'monthly') {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodTag = periodStart.toISOString().slice(0, 7).replace('-', '');
+    } else if (resetPeriod === 'yearly') {
+      periodStart = new Date(now.getFullYear(), 0, 1);
+      periodTag = String(now.getFullYear());
+    }
+
+    const count = await this.ordersRepository.count({
+      where: periodStart
+        ? { outletId, createdAt: MoreThanOrEqual(periodStart) }
+        : { outletId },
+    });
+    const sequence = String(count + 1).padStart(digits, '0');
+
+    return periodTag ? `${prefix}-${periodTag}-${sequence}` : `${prefix}-${sequence}`;
+  }
+
+  /** Assigns a bill number and saves a brand-new (not-yet-persisted) order, retrying with a freshly generated number on the rare concurrent collision (Postgres unique_violation, code 23505) against orders.bill_number's unique constraint. */
+  private async saveWithBillNumber(order: Order, outletId: number): Promise<Order> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      order.billNumber = await this.generateBillNumber(outletId);
+      try {
+        return await this.ordersRepository.save(order);
+      } catch (error) {
+        const isUniqueViolation = (error as { code?: string })?.code === '23505';
+        if (!isUniqueViolation || attempt === 2) throw error;
+      }
+    }
+    throw new Error('Failed to generate a unique bill number');
   }
 
   /**

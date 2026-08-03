@@ -22,6 +22,9 @@ export class OrderResponseDto {
   @ApiProperty()
   orderNumber: string;
 
+  @ApiProperty({ required: false, nullable: true, description: 'Guest-facing bill number — see OrdersService#generateBillNumber' })
+  billNumber: string | null;
+
   @ApiProperty()
   orderType: OrderType;
 

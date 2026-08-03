@@ -13,7 +13,6 @@ import { Food } from '../src/modules/foods/entities/food.entity';
 import { OrderItemAddon } from '../src/modules/orders/entities/order-item-addon.entity';
 import { OrderItem } from '../src/modules/orders/entities/order-item.entity';
 import { OrderStatusHistory } from '../src/modules/orders/entities/order-status-history.entity';
-import { OrderTable } from '../src/modules/orders/entities/order-table.entity';
 import { Order } from '../src/modules/orders/entities/order.entity';
 import { OutletDepartment } from '../src/modules/outlet-departments/entities/outlet-department.entity';
 import { Outlet } from '../src/modules/outlets/entities/outlet.entity';
@@ -49,7 +48,6 @@ describe('Orders (e2e)', () => {
   let orderRepo: Repository<Order>;
   let orderItemRepo: Repository<OrderItem>;
   let orderItemAddonRepo: Repository<OrderItemAddon>;
-  let orderTableRepo: Repository<OrderTable>;
   let orderStatusHistoryRepo: Repository<OrderStatusHistory>;
 
   let adminToken: string;
@@ -91,7 +89,6 @@ describe('Orders (e2e)', () => {
     orderRepo = moduleFixture.get(getRepositoryToken(Order));
     orderItemRepo = moduleFixture.get(getRepositoryToken(OrderItem));
     orderItemAddonRepo = moduleFixture.get(getRepositoryToken(OrderItemAddon));
-    orderTableRepo = moduleFixture.get(getRepositoryToken(OrderTable));
     orderStatusHistoryRepo = moduleFixture.get(
       getRepositoryToken(OrderStatusHistory),
     );
@@ -212,7 +209,6 @@ describe('Orders (e2e)', () => {
         });
       }
       await orderItemRepo.delete({ orderId });
-      await orderTableRepo.delete({ orderId });
       await orderStatusHistoryRepo.delete({ orderId });
       await orderRepo.delete(createdOrderIds);
     }
@@ -275,26 +271,6 @@ describe('Orders (e2e)', () => {
       .expect(200);
     expect((order.body as OrderResponseBody).subtotal).toBe(expectedSubtotal);
     expect((order.body as OrderResponseBody).grandTotal).toBe(expectedSubtotal);
-  });
-
-  it('POST /api/orders/:id/tables assigns a dining table (idempotent)', async () => {
-    await request(app.getHttpServer())
-      .post(`/api/orders/${orderId}/tables`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ diningTableId: tableId })
-      .expect(201);
-
-    await request(app.getHttpServer())
-      .post(`/api/orders/${orderId}/tables`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ diningTableId: tableId })
-      .expect(201);
-
-    const list = await request(app.getHttpServer())
-      .get(`/api/orders/${orderId}/tables`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect(list.body).toHaveLength(1);
   });
 
   it('PATCH /api/orders/:id/status transitions status and logs order_status_histories', async () => {

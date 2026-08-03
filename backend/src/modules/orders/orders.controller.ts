@@ -2,7 +2,6 @@ import {
   Body,
   ConflictException,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -27,7 +26,6 @@ import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
-import { AssignOrderTableDto } from './dto/assign-order-table.dto';
 import { CreateGuestOrderDto } from './dto/create-guest-order.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -254,32 +252,4 @@ export class OrdersController {
     return this.ordersService.addItem(id, dto);
   }
 
-  @Get(':id/tables')
-  @RequirePermissions('orders.view')
-  @ApiOperation({ summary: 'Lists dining tables assigned to this order' })
-  listTables(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.listTables(id);
-  }
-
-  @Post(':id/tables')
-  @RequirePermissions('orders.manage')
-  @ApiOperation({ summary: 'Assigns a dining table to the order (idempotent)' })
-  assignTable(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AssignOrderTableDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.ordersService.assignTable(id, dto, user.id);
-  }
-
-  @Delete(':id/tables/:diningTableId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions('orders.manage')
-  @ApiOperation({ summary: 'Unassigns a dining table from the order' })
-  unassignTable(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('diningTableId', ParseIntPipe) diningTableId: number,
-  ) {
-    return this.ordersService.unassignTable(id, diningTableId);
-  }
 }

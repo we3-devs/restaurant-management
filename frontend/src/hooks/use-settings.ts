@@ -26,6 +26,7 @@ export interface BusinessSettings {
 }
 
 export interface PosSettings {
+  /** Bill number prefix, e.g. "BILL" -> BILL-20260803-0007 — see OrdersService#generateBillNumber. */
   receiptPrefix?: string
   receiptFooter?: string
   receiptHeader?: string
@@ -33,6 +34,10 @@ export interface PosSettings {
   serviceChargePercent?: number
   defaultTaxPercent?: number
   defaultPaymentMethod?: string
+  /** Zero-padding width for the bill number's sequence portion, e.g. 4 -> 0007. */
+  billNumberDigits?: number
+  /** How often the bill number sequence resets back to 1. */
+  billNumberResetPeriod?: "never" | "daily" | "monthly" | "yearly"
 }
 
 export interface KitchenSettings {

@@ -4,7 +4,6 @@ import { queuableApiClient } from "@/lib/offline/queuable-api-client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
 import type {
-  AssignOrderTableInput,
   CreateOrderInput,
   CreateOrderItemAddonInput,
   CreateOrderItemInput,
@@ -18,6 +17,8 @@ export interface Order {
   customerId: number | null
   reservationId: number | null
   orderNumber: string
+  /** Guest-facing bill number, formatted per Settings > POS — see OrdersService#generateBillNumber. Null for orders created before this field existed. */
+  billNumber: string | null
   orderType: string
   status: string
   paymentStatus: string
@@ -71,13 +72,6 @@ export interface OrderItemIngredientReservation {
   reservedQuantity: number
   consumedQuantity: number
   status: "reserved" | "consumed" | "released"
-}
-
-export interface OrderTableAssignment {
-  id: number
-  orderId: number
-  diningTableId: number
-  assignmentType: string
 }
 
 export interface ListOrdersParams {
@@ -344,32 +338,6 @@ export function useRemoveOrderItemAddon(orderId: number, itemId: number) {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
     },
-  })
-}
-
-export function useOrderTables(orderId: number) {
-  return useQuery({
-    queryKey: queryKeys.orders.tables(orderId),
-    queryFn: () => apiClient<OrderTableAssignment[]>(`/orders/${orderId}/tables`),
-    enabled: orderId > 0,
-  })
-}
-
-export function useAssignOrderTable(orderId: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: AssignOrderTableInput) =>
-      apiClient<OrderTableAssignment>(`/orders/${orderId}/tables`, { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.tables(orderId) }),
-  })
-}
-
-export function useUnassignOrderTable(orderId: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (diningTableId: number) =>
-      apiClient<void>(`/orders/${orderId}/tables/${diningTableId}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.tables(orderId) }),
   })
 }
 
