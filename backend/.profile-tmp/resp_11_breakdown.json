@@ -1,0 +1,1 @@
+{"ordersOverview":[{"status":"completed","count":8},{"status":"cancelled","count":2},{"status":"pending","count":3},{"status":"partially_served","count":1},{"status":"accepted","count":2},{"status":"served","count":1}],"reservationsSummary":[{"status":"cancelled","count":1}],"paymentBreakdown":[{"method":"cash","amount":2120}]}

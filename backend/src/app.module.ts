@@ -1,10 +1,12 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
+import { DataSource } from 'typeorm';
+import { DashboardCacheSubscriber } from './common/subscribers/dashboard-cache.subscriber';
 import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.subscriber';
 import { TimestampSubscriber } from './common/subscribers/timestamp.subscriber';
 import configuration, { AppConfig } from './config/configuration';
@@ -20,6 +22,7 @@ import { BusinessOperationsModule } from './modules/business-operations/business
 import { CustomerAuthModule } from './modules/customer-auth/customer-auth.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { DashboardCacheModule } from './modules/dashboard-cache/dashboard-cache.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { GoodsReceivingModule } from './modules/goods-receiving/goods-receiving.module';
@@ -96,7 +99,34 @@ import { RedisModule } from './redis/redis.module';
           // TypeORM 0.3.x no longer sets create/update-date columns
           // client-side unless the DB column has its own DEFAULT — the
           // Laravel schema has none, so this subscriber does it instead.
-          subscribers: [TimestampSubscriber, RealtimeChangeSubscriber],
+          subscribers: [
+            TimestampSubscriber,
+            RealtimeChangeSubscriber,
+            DashboardCacheSubscriber,
+          ],
+          // The DB is a remote pooler (Seoul) — profiling showed ~150-200ms
+          // per query even warm, but ~1.1-1.4s to establish a *new* pooled
+          // connection (TCP+TLS+auth). `min` does NOT proactively open
+          // connections in pg-pool (it only stops the pool from closing
+          // idle ones below that count once they exist) — actual proactive
+          // warm-up is AppModule.onApplicationBootstrap's repeating ping,
+          // which keeps 4 connections open (matching the dashboard's 4
+          // concurrent endpoint calls). `min` here just keeps those from
+          // being closed the moment they go idle.
+          //
+          // `max` MUST stay comfortably under Supabase's PgBouncer
+          // session-mode ceiling (pool_size: 15 on this project) — a higher
+          // `max` doesn't buy more real capacity, it just means the app asks
+          // PgBouncer for sessions it will refuse once traffic pushes past
+          // 15 concurrent, which surfaces as EMAXCONNSESSION errors (500s)
+          // rather than the app-side queuing pg-pool would otherwise do.
+          // 10 leaves 5 sessions of headroom for restart overlap, a
+          // concurrent seed/migration run, or Supabase's own overhead.
+          extra: {
+            max: 10,
+            min: 4,
+            idleTimeoutMillis: 60_000,
+          },
         };
       },
     }),
@@ -154,6 +184,7 @@ import { RedisModule } from './redis/redis.module';
     DemoModule,
     BootstrapModule,
     DashboardModule,
+    DashboardCacheModule,
     ReportsModule,
     SettingsModule,
     AuditLogsModule,
@@ -162,4 +193,44 @@ import { RedisModule } from './redis/redis.module';
     CustomerPortalModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationBootstrap {
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+
+  /**
+   * Fires 4 trivial queries in parallel — at boot, and then on a repeating
+   * interval — so the connection pool keeps 4 warm connections established
+   * at all times. Without this, whichever request can't reuse an
+   * already-open connection pays the ~1.1-1.4s TCP+TLS+auth cost of opening
+   * a fresh one to the remote DB pooler.
+   *
+   * 4, not 2 (`min` above): the dashboard page fires 4 endpoints
+   * concurrently (stats/charts/breakdown/inventory-activity) — with only 2
+   * connections warm, 2 of those 4 always lost the race and paid the full
+   * connect cost, which is exactly why charts/breakdown (whichever two
+   * didn't grab a warm connection) measured 1.5-2.1s despite their own
+   * queries taking ~150ms once actually connected.
+   *
+   * Repeating, not one-shot: `pg.Pool`'s `min` option does NOT proactively
+   * keep connections open — it only stops the pool from closing idle ones
+   * below that count once they exist (pg-pool reads `min` solely in
+   * `_isAboveMin()`, which gates removal, never creation). So a one-time
+   * boot warm-up decays the moment `idleTimeoutMillis` (60s) passes with no
+   * DB traffic — normal between dashboard page loads — and the next burst
+   * of concurrent requests is back to paying the connect tax. Pinging every
+   * 45s (under the 60s idle timeout) keeps the 4 connections from ever
+   * aging out.
+   */
+  async onApplicationBootstrap() {
+    const warmConnections = 4;
+    const pingAll = () =>
+      Promise.all(
+        Array.from({ length: warmConnections }, () =>
+          this.dataSource.query('SELECT 1'),
+        ),
+      );
+    await pingAll();
+    setInterval(() => {
+      pingAll().catch(() => undefined);
+    }, 45_000).unref();
+  }
+}

@@ -67,6 +67,7 @@ export class RolesService {
       level: dto.level ?? 'global',
       rank: dto.rank ?? 100,
       isAssignable: dto.isAssignable ?? true,
+      portal: dto.portal ?? 'dashboard',
       isSystem: false,
       description: dto.description ?? null,
     });
@@ -95,6 +96,7 @@ export class RolesService {
       ...(dto.rank !== undefined && { rank: dto.rank }),
       ...(dto.isAssignable !== undefined && { isAssignable: dto.isAssignable }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.portal !== undefined && { portal: dto.portal }),
       ...(dto.description !== undefined && { description: dto.description }),
     });
 

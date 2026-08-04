@@ -64,11 +64,12 @@ export interface ListFoodsParams {
   foodCategoryId?: number
 }
 
-export function useFoods(params: ListFoodsParams = {}) {
+export function useFoods(params: ListFoodsParams = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.foods.list(params),
     queryFn: () => apiClient<PaginatedResponse<Food>>(`/foods${toQueryString(params)}`),
     placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
   })
 }
 

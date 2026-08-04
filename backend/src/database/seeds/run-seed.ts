@@ -8,6 +8,7 @@ import { AppConfig } from '../../config/configuration';
 import { Position } from '../../modules/employees/entities/position.entity';
 import { Permission } from '../../modules/roles/entities/permission.entity';
 import { RolePermission } from '../../modules/roles/entities/role-permission.entity';
+import type { PortalAccess } from '../../modules/roles/entities/portal-access';
 import { Role } from '../../modules/roles/entities/role.entity';
 import type { ScopeLevel } from '../../modules/roles/entities/scope-level';
 import { UserRoleAssignment } from '../../modules/roles/entities/user-role-assignment.entity';
@@ -122,7 +123,14 @@ function titleCase(slug: string): string {
 
 async function upsertOperationalRole(
   repo: Repository<Role>,
-  input: { slug: string; name: string; rank: number; description: string; level?: ScopeLevel },
+  input: {
+    slug: string;
+    name: string;
+    rank: number;
+    description: string;
+    level?: ScopeLevel;
+    portal: PortalAccess;
+  },
 ): Promise<Role> {
   let role = await repo.findOne({ where: { slug: input.slug } });
   if (!role) {
@@ -132,12 +140,20 @@ async function upsertOperationalRole(
       level: input.level ?? 'outlet',
       rank: input.rank,
       isAssignable: true,
+      portal: input.portal,
       isSystem: false,
       isActive: true,
       description: input.description,
     });
     role = await repo.save(role);
     logger.log(`Created role "${role.slug}"`);
+  } else if (role.portal !== input.portal) {
+    // Re-running the seed against an already-provisioned DB should still fix
+    // the portal on roles that predate this column, same as revokePermissions
+    // above tightens permissions on re-run.
+    role.portal = input.portal;
+    role = await repo.save(role);
+    logger.log(`Updated role "${role.slug}" portal -> ${input.portal}`);
   } else {
     logger.log(`Role "${role.slug}" already exists, skipping`);
   }
@@ -187,6 +203,8 @@ interface RoleSeed {
   name: string;
   rank: number;
   description: string;
+  /** Which frontend app holders of this role land in after login. */
+  portal: PortalAccess;
   /** Grants both {module}.view and {module}.manage. */
   fullModules: string[];
   /** Grants a single already-namespaced permission slug, e.g. "dashboard.view". */
@@ -202,6 +220,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Manager',
     rank: 20,
     description: 'Outlet manager — full operational access short of user/role administration.',
+    portal: 'dashboard',
     fullModules: [
       'orders', 'order-payments', 'table-sessions', 'dining-tables', 'dining-areas',
       'reservations', 'customers', 'employees', 'shifts', 'attendance',
@@ -222,6 +241,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Cashier',
     rank: 40,
     description: 'Front-of-house billing and payment collection.',
+    portal: 'dashboard',
     fullModules: ['order-payments', 'orders', 'loyalty'],
     singlePermissions: ['customers.view', 'dining-tables.view', 'dashboard.view'],
     position: { name: 'Cashier', slug: 'cashier', description: 'Handles billing, payments and loyalty redemption at the counter.' },
@@ -231,6 +251,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Waiter',
     rank: 50,
     description: 'Front-of-house service — takes orders, manages tables, settles bills.',
+    portal: 'staff',
     fullModules: ['orders', 'order-payments', 'table-sessions', 'reservations'],
     singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view'],
     position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
@@ -240,6 +261,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Bartender',
     rank: 50,
     description: 'Bar orders and drink service.',
+    portal: 'staff',
     fullModules: ['orders', 'order-payments'],
     singlePermissions: ['ingredients.view', 'dining-tables.view', 'kitchen-tickets.manage'],
     position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
@@ -249,6 +271,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Host / Hostess',
     rank: 50,
     description: 'Guest seating and reservation management.',
+    portal: 'staff',
     fullModules: ['reservations', 'table-sessions'],
     singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view'],
     position: { name: 'Host/Hostess', slug: 'host-hostess', description: 'Greets guests, manages the seating queue and reservations.' },
@@ -258,6 +281,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Cook',
     rank: 50,
     description: 'Kitchen staff — prepares food and logs ingredient wastage.',
+    portal: 'staff',
     // Not fullModules: ['orders'] — that grants orders.manage, which is for
     // taking/editing orders at the POS, not for running the KDS board. Cooks
     // get orders.view (see tickets) + kitchen-tickets.manage (act on them).
@@ -274,6 +298,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Housekeeping',
     rank: 60,
     description: 'Table and dining-area upkeep between seatings.',
+    portal: 'staff',
     fullModules: ['dining-tables'],
     singlePermissions: ['dining-areas.view', 'table-sessions.view', 'attendance.view', 'shifts.view'],
     position: { name: 'Housekeeping Staff', slug: 'housekeeping', description: 'Cleans and resets tables and dining areas between seatings.' },
@@ -283,6 +308,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Kitchen Helper',
     rank: 70,
     description: 'Dishwashing and kitchen support.',
+    portal: 'staff',
     fullModules: [],
     singlePermissions: ['orders.view', 'attendance.view', 'shifts.view'],
     position: { name: 'Dishwasher', slug: 'dishwasher', description: 'Kitchen support — dishwashing and cleaning.' },

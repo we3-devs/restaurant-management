@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAssignPermission, useDeleteRole, useRole, useUnassignPermission, useUpdateRole } from "@/hooks/use-roles"
@@ -38,7 +39,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
 
   const form = useForm<UpdateRoleInput>({
     resolver: zodResolver(updateRoleSchema),
-    defaultValues: { name: "", description: "", isAssignable: true, isActive: true },
+    defaultValues: { name: "", description: "", isAssignable: true, isActive: true, portal: "dashboard" },
   })
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
         description: role.description ?? "",
         isAssignable: role.isAssignable,
         isActive: role.isActive,
+        portal: role.portal,
       })
     }
   }, [role, form])
@@ -158,6 +160,29 @@ export function RoleDetail({ roleId }: { roleId: number }) {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl disabled={readOnly} {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="portal"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Portal access</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={readOnly}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select portal access" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dashboard">Dashboard only</SelectItem>
+                        <SelectItem value="staff">Staff app only</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Which app holders of this role land in after login.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

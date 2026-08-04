@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
+import type { PortalAccess } from './portal-access';
 import type { ScopeLevel } from './scope-level';
 
 @Entity({ name: 'roles' })
@@ -28,6 +29,10 @@ export class Role {
 
   @Column({ type: 'int', default: 100 })
   rank: number;
+
+  /** Which frontend app (staff PWA vs desktop dashboard) holders of this role land in after login — see PortalAccess. */
+  @Column({ type: 'varchar', length: 20, default: 'dashboard' })
+  portal: PortalAccess;
 
   @Column({ name: 'is_assignable', type: 'boolean', default: true })
   isAssignable: boolean;

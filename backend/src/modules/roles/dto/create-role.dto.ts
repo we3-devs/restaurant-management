@@ -43,6 +43,15 @@ export class CreateRoleDto {
   @IsBoolean()
   isAssignable?: boolean = true;
 
+  @ApiPropertyOptional({
+    enum: ['dashboard', 'staff', 'both'],
+    default: 'dashboard',
+    description: 'Which frontend app holders of this role land in after login',
+  })
+  @IsOptional()
+  @IsIn(['dashboard', 'staff', 'both'])
+  portal?: 'dashboard' | 'staff' | 'both' = 'dashboard' as const;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

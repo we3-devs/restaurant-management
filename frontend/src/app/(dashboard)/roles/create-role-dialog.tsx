@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCreateRole } from "@/hooks/use-roles"
 import { createRoleSchema, type CreateRoleInput } from "@/lib/validators/roles"
 
@@ -24,7 +25,7 @@ export function CreateRoleDialog() {
 
   const form = useForm<CreateRoleInput>({
     resolver: zodResolver(createRoleSchema),
-    defaultValues: { name: "", slug: "", description: "" },
+    defaultValues: { name: "", slug: "", description: "", portal: "dashboard" },
   })
 
   async function onSubmit(values: CreateRoleInput) {
@@ -76,6 +77,29 @@ export function CreateRoleDialog() {
                 <FormItem>
                   <FormLabel>Description (optional)</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="portal"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Portal access</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select portal access" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dashboard">Dashboard only</SelectItem>
+                      <SelectItem value="staff">Staff app only</SelectItem>
+                      <SelectItem value="both">Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Which app holders of this role land in after login.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

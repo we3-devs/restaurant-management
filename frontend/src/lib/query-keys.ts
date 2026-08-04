@@ -130,7 +130,10 @@ export const queryKeys = {
   },
   dashboard: {
     all: ["dashboard"] as const,
-    summary: (params?: unknown) => [...queryKeys.dashboard.all, "summary", params] as const,
+    stats: (params?: unknown) => [...queryKeys.dashboard.all, "stats", params] as const,
+    charts: (params?: unknown) => [...queryKeys.dashboard.all, "charts", params] as const,
+    breakdown: (params?: unknown) => [...queryKeys.dashboard.all, "breakdown", params] as const,
+    inventoryActivity: (params?: unknown) => [...queryKeys.dashboard.all, "inventory-activity", params] as const,
   },
   reports: {
     all: ["reports"] as const,

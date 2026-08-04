@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { acquireKdsSocket, releaseKdsSocket } from "@/lib/realtime/kds-socket"
 import { RESOURCE_QUERY_MAP } from "@/lib/realtime/resource-query-map"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 interface ResourceChangedPayload {
   resource: string
@@ -19,11 +19,17 @@ interface ResourceChangedPayload {
  * `resource.changed` broadcast (see backend RealtimeChangeSubscriber) — this
  * is what makes every list view in the app live without each page wiring
  * its own socket listener.
+ *
+ * Reuses ActiveOutletProvider's outlet list instead of fetching its own:
+ * that hook already resolves the correct source per role (`/outlets` for
+ * superadmins, `/outlets/assigned` — which non-superadmins are actually
+ * permitted to call — for everyone else), so calling `useOutlets` directly
+ * here would both duplicate the request and 403 for non-superadmins.
  */
 export function RealtimeInvalidationProvider() {
   const queryClient = useQueryClient()
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const outletIds = outlets?.data.map((o) => o.id).join(",") ?? ""
+  const { outlets } = useActiveOutlet()
+  const outletIds = outlets.map((o) => o.id).join(",")
 
   useEffect(() => {
     if (!outletIds) return

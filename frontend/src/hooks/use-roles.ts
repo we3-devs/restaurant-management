@@ -11,6 +11,7 @@ export interface Role {
   slug: string
   level: string
   rank: number
+  portal: "dashboard" | "staff" | "both"
   isAssignable: boolean
   isSystem: boolean
   isActive: boolean

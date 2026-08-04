@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { PortalAccess } from '../entities/portal-access';
 import type { ScopeLevel } from '../entities/scope-level';
 
 export class RoleResponseDto {
@@ -16,6 +17,9 @@ export class RoleResponseDto {
 
   @ApiProperty()
   rank: number;
+
+  @ApiProperty({ enum: ['dashboard', 'staff', 'both'] })
+  portal: PortalAccess;
 
   @ApiProperty()
   isAssignable: boolean;

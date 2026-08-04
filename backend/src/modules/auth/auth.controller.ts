@@ -77,16 +77,20 @@ export class AuthController {
     summary: 'Returns the current user plus their resolved global permissions',
   })
   async me(@CurrentUser() user: User) {
-    const [permissions, outletIds, departmentIds] = await Promise.all([
+    const [permissions, outletIds, departmentIds, portal] = await Promise.all([
       this.permissionsService.getPermissionSlugs(user.id),
       this.permissionsService.getAccessibleOutletIds(user.id),
       this.permissionsService.getAccessibleOutletDepartmentIds(user.id),
+      user.isSuperadmin
+        ? Promise.resolve('dashboard' as const)
+        : this.permissionsService.getPortalAccess(user.id),
     ]);
     return {
       ...this.toAuthUser(user),
       permissions: Array.from(permissions),
       outletIds,
       departmentIds,
+      portal,
     };
   }
 

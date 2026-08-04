@@ -32,11 +32,19 @@ export function hasRoutePermission(user: PermissionCheckable, permission: string
   return permission === undefined || permission === true || user.isSuperadmin || user.permissions.includes(permission)
 }
 
-/** Permission slugs the staff PWA (kitchen/waiter) grants — anything beyond these implies back-office/admin access. */
-const STAFF_ONLY_PERMISSIONS = new Set(["orders.view", "orders.manage"])
+export interface PortalCheckable {
+  isSuperadmin: boolean
+  /**
+   * Which app the backend resolved this user into, aggregated server-side
+   * (see PermissionsService#getPortalAccess) from the explicit `portal` field
+   * on each of the user's active role assignments. Permissions are fully
+   * admin-configurable per role, so which app a role belongs to can't be
+   * inferred from its permission set — it has to be this explicit value.
+   */
+  portal: "dashboard" | "staff"
+}
 
-/** Where "/" should land a signed-in user: superadmins and anyone with a permission outside the staff app's scope go to the desktop dashboard, everyone else (kitchen/waiter-only, or no role yet) goes to the staff PWA. */
-export function getLandingPath(user: PermissionCheckable): "/dashboard" | "/staff" {
-  const isDashboardUser = user.isSuperadmin || user.permissions.some((permission) => !STAFF_ONLY_PERMISSIONS.has(permission))
-  return isDashboardUser ? "/dashboard" : "/staff"
+/** Where "/" should land a signed-in user. */
+export function getLandingPath(user: PortalCheckable): "/dashboard" | "/staff" {
+  return user.isSuperadmin || user.portal === "dashboard" ? "/dashboard" : "/staff"
 }

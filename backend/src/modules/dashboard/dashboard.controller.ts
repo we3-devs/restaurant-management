@@ -10,13 +10,43 @@ import { DashboardQueryDto } from './dto/dashboard-query.dto';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @Get('summary')
+  @Get('stats')
   @RequirePermissions('dashboard.view')
   @ApiOperation({
     summary:
-      'One-call management dashboard: sales/revenue trend, orders, active sessions, reservations, kitchen, inventory, wastage, payments, best sellers, recent activity. Cached ~60s per outlet/date-range.',
+      'Top stat cards: sales, active table sessions, orders, kitchen, wastage total, payments total, low/out-of-stock counts. Cached ~60s per outlet/date-range.',
   })
-  getSummary(@Query() query: DashboardQueryDto) {
-    return this.dashboardService.getSummary(query);
+  getStats(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getStats(query);
+  }
+
+  @Get('charts')
+  @RequirePermissions('dashboard.view')
+  @ApiOperation({
+    summary:
+      'Revenue trend and best-selling foods, for the two dashboard chart cards. Cached ~60s per outlet/date-range.',
+  })
+  getCharts(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getCharts(query);
+  }
+
+  @Get('breakdown')
+  @RequirePermissions('dashboard.view')
+  @ApiOperation({
+    summary:
+      'Orders-by-status, reservations, and payment-method breakdowns. Cached ~60s per outlet/date-range.',
+  })
+  getBreakdown(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getBreakdown(query);
+  }
+
+  @Get('inventory-activity')
+  @RequirePermissions('dashboard.view')
+  @ApiOperation({
+    summary:
+      'Low-stock ingredient list and recent activity feed. Cached ~60s per outlet/date-range.',
+  })
+  getInventoryActivity(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getInventoryActivity(query);
   }
 }

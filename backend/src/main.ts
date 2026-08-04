@@ -12,6 +12,14 @@ import { AppConfig } from './config/configuration';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
+  // Without this, NestJS never runs its shutdown lifecycle on SIGTERM/SIGINT,
+  // so TypeOrmModule never calls dataSource.destroy() — every restart (dev
+  // --watch reload, deploy, manual kill) abandons the pool's connections to
+  // the DB instead of closing them, leaking them until the DB's own
+  // idle-connection reaper notices. Directly implicated in connection-pool
+  // exhaustion observed during profiling.
+  app.enableShutdownHooks();
+
   const configService = app.get(ConfigService<AppConfig>);
 
   app.useLogger(app.get(Logger));

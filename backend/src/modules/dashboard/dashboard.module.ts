@@ -1,16 +1,10 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { Order } from '../orders/entities/order.entity';
+import { DashboardCacheModule } from '../dashboard-cache/dashboard-cache.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, KitchenTicket]),
-    NotificationsModule,
-  ],
+  imports: [DashboardCacheModule],
   controllers: [DashboardController],
   providers: [DashboardService],
   exports: [DashboardService],

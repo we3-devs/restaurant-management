@@ -10,6 +10,8 @@ export interface CurrentUser {
   email: string
   isSuperadmin: boolean
   permissions: string[]
+  /** Which app this user lands in after login — aggregated server-side from their role assignments' explicit `portal` field. */
+  portal: "dashboard" | "staff"
   /** Outlets this user holds an outlet-scoped role assignment for. Empty means global/unscoped access — treat as "every outlet". */
   outletIds: number[]
   /** Outlet-departments this user holds a department-scoped role assignment for. Empty means no specific department assignment. */

@@ -49,6 +49,37 @@ export class PermissionsService {
   }
 
   /**
+   * Which frontend app the user should land in after login, aggregated across
+   * every active, in-window role assignment. A role explicitly marked
+   * 'dashboard' or 'both' wins over 'staff' — someone holding a back-office
+   * role alongside a staff one still needs the desktop app reachable. Users
+   * with no active role assignment yet default to 'staff' (the safer, more
+   * restricted landing).
+   */
+  async getPortalAccess(userId: number): Promise<'dashboard' | 'staff'> {
+    const rows = await this.assignmentsRepository.manager
+      .createQueryBuilder()
+      .select('DISTINCT roles.portal', 'portal')
+      .from('user_role_assignments', 'ura')
+      .innerJoin(
+        'roles',
+        'roles',
+        'roles.id = ura.role_id AND roles.is_active = true',
+      )
+      .where('ura.user_id = :userId', { userId })
+      .andWhere('ura.is_active = true')
+      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
+      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
+      .getRawMany<{ portal: string }>();
+
+    const portals = rows.map((row) => row.portal);
+    if (portals.length === 0) return 'staff';
+    return portals.some((portal) => portal === 'dashboard' || portal === 'both')
+      ? 'dashboard'
+      : 'staff';
+  }
+
+  /**
    * Distinct outlet IDs the user has an active, in-window role assignment
    * scoped to. Read-only lookup for the frontend's outlet picker — does not
    * change how PermissionsGuard evaluates access (see class doc above); an
