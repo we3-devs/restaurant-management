@@ -35,16 +35,20 @@ export function useOrderDeepLink({
   const { data: deepLinkOrder } = useOrder(activeOrderId && deepLinkOrderId ? activeOrderId : 0)
 
   const resolvingTable = !activeOrderId && !deepLinkOrderId && !!deepLinkTableId
-  const { data: tableSessionsForDeepLink, isLoading: isLoadingTableSession } = useTableSessions({
-    diningTableId: resolvingTable ? Number(deepLinkTableId) : -1,
-    status: "active",
-    limit: 1,
-  })
+  const { data: tableSessionsForDeepLink, isLoading: isLoadingTableSession } = useTableSessions(
+    { diningTableId: resolvingTable ? Number(deepLinkTableId) : undefined, status: "active", limit: 1 },
+    // Gated (not just given a meaningless param) so this doesn't fire a
+    // wasted GET /table-sessions once resolvingTable goes false — e.g. right
+    // after StartSaleDialog navigates to ?orderId=, this query has nothing
+    // left to resolve but a bare `enabled: false` param wouldn't have
+    // stopped a request from going out under the old `-1` placeholder.
+    { enabled: resolvingTable },
+  )
   const deepLinkSession = tableSessionsForDeepLink?.data[0]
-  const { data: ordersForDeepLinkSession, isLoading: isLoadingSessionOrder } = useOrders({
-    tableSessionId: resolvingTable && deepLinkSession ? deepLinkSession.id : -1,
-    limit: 100,
-  })
+  const { data: ordersForDeepLinkSession, isLoading: isLoadingSessionOrder } = useOrders(
+    { tableSessionId: resolvingTable && deepLinkSession ? deepLinkSession.id : undefined, limit: 100 },
+    { enabled: resolvingTable && !!deepLinkSession },
+  )
   const openOrdersForDeepLinkSession = (ordersForDeepLinkSession?.data ?? []).filter(
     (order) => !CLOSED_ORDER_STATUSES.has(order.status),
   )

@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateOrder } from "@/hooks/use-orders"
 import { useCustomers } from "@/hooks/use-customers"
 import type { DiningTable } from "@/hooks/use-dining-tables"
-import { useStartTableSession, useTableSessions } from "@/hooks/use-table-sessions"
+import { useOpenTableSession, useTableSessions } from "@/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@/lib/validators/orders"
 
 type OrderType = (typeof ORDER_TYPES)[number]
@@ -75,7 +75,7 @@ export function StartSaleDialog({
   const availableTables = tables.filter((table) => table.status === "available")
   const preselectedTable = tables.find((table) => table.id === preselectedTableId)
   const { data: customers } = useCustomers({ limit: 100 })
-  const startSession = useStartTableSession()
+  const openTableSession = useOpenTableSession()
   const createOrder = useCreateOrder()
 
   function reset() {
@@ -88,40 +88,45 @@ export function StartSaleDialog({
 
   async function handleStart() {
     try {
-      let resolvedSessionId: number | undefined
+      let orderId: number
 
-      if (orderType === "table") {
-        if (tableSessionId) {
-          resolvedSessionId = Number(tableSessionId)
-        } else if (newTableId) {
-          const session = await startSession.mutateAsync({
-            outletId,
-            diningTableId: Number(newTableId),
-            guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount,
-            customerId: customerId ? Number(customerId) : undefined,
-          })
-          resolvedSessionId = session.id
-        } else {
+      if (orderType === "table" && !tableSessionId) {
+        if (!newTableId) {
           toast.error("Pick an active table or seat a walk-in table first")
           return
         }
+        // Seating a brand-new walk-in table: one atomic request opens the
+        // table session and creates its first order together, so there's
+        // never a session id without a matching order to navigate to.
+        const result = await openTableSession.mutateAsync({
+          outletId,
+          diningTableId: Number(newTableId),
+          guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount,
+          customerId: customerId ? Number(customerId) : undefined,
+          orderType,
+        })
+        orderId = result.orderId
+      } else {
+        // orderType !== "table" (no session needed), or an already-seated
+        // table was picked from the dropdown (session already exists).
+        const order = await createOrder.mutateAsync({
+          outletId,
+          tableSessionId: tableSessionId ? Number(tableSessionId) : undefined,
+          orderType,
+        })
+        orderId = order.id
       }
 
-      const order = await createOrder.mutateAsync({
-        outletId,
-        tableSessionId: resolvedSessionId,
-        orderType,
-      })
       toast.success("Sale started")
       reset()
       onOpenChange(false)
-      onSaleStarted(order.id)
+      onSaleStarted(orderId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start sale")
     }
   }
 
-  const busy = startSession.isPending || createOrder.isPending
+  const busy = openTableSession.isPending || createOrder.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

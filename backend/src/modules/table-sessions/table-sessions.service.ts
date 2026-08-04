@@ -18,6 +18,7 @@ import {
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { DiningTable } from '../dining-tables/entities/dining-table.entity';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -266,18 +267,16 @@ export class TableSessionsService {
     return this.attachCustomerIfMissing(existing.id, customerId);
   }
 
-  /** startedBy is null for guest-opened (source: 'qr_order') sessions — no staff member initiated it. */
-  async create(
-    dto: CreateTableSessionDto,
-    startedBy: number | null,
-  ): Promise<TableSession> {
-    const requestStart = Date.now();
-
-    // --- Validation: outlet/table/customer/reservation existence checks
-    // have no dependency on each other, so they run as one round trip
-    // instead of up to four serialized ones. `diningTable` is kept (not
-    // re-fetched later) purely to read its `.name` for the notification.
-    const validationStart = Date.now();
+  /**
+   * create()'s outlet/table/customer/reservation existence checks, split out
+   * so a caller that embeds session creation inside a larger transaction
+   * (see OrdersService#openTableWithOrder) can run the same validation up
+   * front without duplicating it. They have no dependency on each other, so
+   * they run as one round trip instead of up to four serialized ones.
+   * `diningTable` is returned (not re-fetched later) purely to read its
+   * `.name` for the notification in runPostCreateSideEffects().
+   */
+  async validateCreateInputs(dto: CreateTableSessionDto): Promise<DiningTable> {
     const [, diningTable] = await Promise.all([
       this.outletsService.findOne(dto.outletId),
       this.diningTablesService.findOne(dto.diningTableId),
@@ -288,38 +287,55 @@ export class TableSessionsService {
         ? this.reservationsService.findOne(dto.reservationId)
         : Promise.resolve(null),
     ]);
-    const validationMs = Date.now() - validationStart;
+    return diningTable;
+  }
 
-    // --- Transaction: kept to exactly the two statements that must be
-    // atomic (the open-session check and the insert) — everything else
-    // below is a separate, independent write that doesn't need to share
-    // this transaction's isolation.
-    const transactionStart = Date.now();
-    const saved = await this.dataSource.transaction(async (manager) => {
-      await this.assertNoOpenSession(dto.diningTableId, manager);
+  /**
+   * The two statements of create() that must be atomic (the open-session
+   * check and the insert), taking the manager as a parameter so a caller
+   * can run this inside its *own* `dataSource.transaction()` alongside other
+   * writes that need to commit together with it (see
+   * OrdersService#openTableWithOrder, which inserts the session's first
+   * order in the same transaction).
+   */
+  async insertSession(
+    manager: EntityManager,
+    dto: CreateTableSessionDto,
+    startedBy: number | null,
+  ): Promise<TableSession> {
+    await this.assertNoOpenSession(dto.diningTableId, manager);
 
-      const session = manager.create(TableSession, {
-        outletId: dto.outletId,
-        diningTableId: dto.diningTableId,
-        guestCount: dto.guestCount ?? 1,
-        source: dto.source ?? 'staff',
-        customerId: dto.customerId ?? null,
-        reservationId: dto.reservationId ?? null,
-        status: 'active',
-        startedAt: new Date(),
-        startedBy,
-      });
-      return manager.save(session);
+    const session = manager.create(TableSession, {
+      outletId: dto.outletId,
+      diningTableId: dto.diningTableId,
+      guestCount: dto.guestCount ?? 1,
+      source: dto.source ?? 'staff',
+      customerId: dto.customerId ?? null,
+      reservationId: dto.reservationId ?? null,
+      status: 'active',
+      startedAt: new Date(),
+      startedBy,
     });
-    const transactionMs = Date.now() - transactionStart;
+    return manager.save(session);
+  }
 
-    // --- Post-commit: three independent writes (table status, customer
-    // visit stats, notification row) — none reads another's result, so they
-    // run concurrently. All three are awaited because each is required for
-    // correctness the client can observe immediately after this response
-    // (table status on the next floor-board fetch, visit count on the next
-    // customer lookup, the notification row existing before it's broadcast).
-    const postCommitStart = Date.now();
+  /**
+   * Post-commit work for a session insertSession() just committed: three
+   * independent writes (table status, customer visit stats, notification
+   * row) — none reads another's result, so they run concurrently. All three
+   * are awaited because each is required for correctness the client can
+   * observe immediately after this response (table status on the next
+   * floor-board fetch, visit count on the next customer lookup, the
+   * notification row existing before it's broadcast). The realtime push
+   * itself is fire-and-forget — wrapped so a broadcast failure logs instead
+   * of surfacing as a 500 for a session that's already durably committed.
+   */
+  async runPostCreateSideEffects(
+    dto: CreateTableSessionDto,
+    saved: TableSession,
+    diningTable: DiningTable,
+    startedBy: number | null,
+  ): Promise<void> {
     const [, , notification] = await Promise.all([
       this.diningTablesService.setStatus(dto.diningTableId, 'occupied'),
       dto.customerId !== undefined
@@ -340,13 +356,7 @@ export class TableSessionsService {
         data: JSON.stringify({ tableSessionId: saved.id }),
       }),
     ]);
-    const postCommitMs = Date.now() - postCommitStart;
 
-    // --- Background: the realtime push doesn't gate the HTTP response —
-    // the client that just created the session doesn't need its own
-    // websocket round trip to know it succeeded (it has `saved` already).
-    // Wrapped so a broadcast failure logs instead of surfacing as a 500 for
-    // a session that's already durably committed.
     try {
       this.gateway.notifyNotificationCreated(notification);
     } catch (error) {
@@ -354,9 +364,23 @@ export class TableSessionsService {
         `Failed to broadcast notification for table session ${saved.id}: ${(error as Error).message}`,
       );
     }
+  }
+
+  /** startedBy is null for guest-opened (source: 'qr_order') sessions — no staff member initiated it. */
+  async create(
+    dto: CreateTableSessionDto,
+    startedBy: number | null,
+  ): Promise<TableSession> {
+    const requestStart = Date.now();
+
+    const diningTable = await this.validateCreateInputs(dto);
+    const saved = await this.dataSource.transaction((manager) =>
+      this.insertSession(manager, dto, startedBy),
+    );
+    await this.runPostCreateSideEffects(dto, saved, diningTable, startedBy);
 
     this.logger.debug(
-      `create() timing (ms): validation=${validationMs} transaction=${transactionMs} postCommit=${postCommitMs} total=${Date.now() - requestStart}`,
+      `create(${saved.id}) total=${Date.now() - requestStart}ms`,
     );
 
     return saved;

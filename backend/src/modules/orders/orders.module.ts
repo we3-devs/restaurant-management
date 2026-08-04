@@ -26,6 +26,7 @@ import { Order } from './entities/order.entity';
 import { OrderItemsController } from './order-items.controller';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { TableSessionOpenController } from './table-session-open.controller';
 
 @Module({
   imports: [
@@ -66,7 +67,7 @@ import { OrdersService } from './orders.service';
     forwardRef(() => LoyaltyModule),
     SettingsModule,
   ],
-  controllers: [OrdersController, OrderItemsController],
+  controllers: [OrdersController, OrderItemsController, TableSessionOpenController],
   providers: [OrdersService],
   exports: [TypeOrmModule, OrdersService],
 })

@@ -22,6 +22,9 @@ import { generateDocumentNumber } from '../../common/utils/document-number.util'
 import { AddonsService } from '../addons/addons.service';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { CreateTableSessionDto } from '../table-sessions/dto/create-table-session.dto';
+import { OpenTableSessionDto } from '../table-sessions/dto/open-table-session.dto';
+import { TableSession } from '../table-sessions/entities/table-session.entity';
 import { FoodVariantsService } from '../food-variants/food-variants.service';
 import { FoodsService } from '../foods/foods.service';
 import { IngredientsService } from '../ingredients/ingredients.service';
@@ -338,6 +341,153 @@ export class OrdersService {
     });
 
     return this.saveWithBillNumber(order, dto.outletId);
+  }
+
+  /**
+   * POST /table-sessions/open — opens a table session and inserts its first
+   * order in one transaction (see TableSessionOpenController), then returns
+   * immediately once that transaction commits. Every stage up to the commit
+   * is timed separately and every SQL statement run against the
+   * transaction's queryRunner is logged, purely to find out which stage of
+   * a reported ~3s response is actually slow.
+   *
+   * Everything after the commit that isn't required to build the response
+   * (table status, customer visit stats, notification + realtime broadcast)
+   * runs as fire-and-forget background work via
+   * TableSessionsService#runPostCreateSideEffects — the session/order are
+   * already durably committed by that point, so a background failure there
+   * must never change the response already sent to the client.
+   */
+  async openTableWithOrder(
+    dto: OpenTableSessionDto,
+    startedBy: number,
+  ): Promise<{ session: TableSession; order: Order }> {
+    const totalStart = process.hrtime.bigint();
+    const stageMs: Record<string, number> = {};
+    const sqlLog: { sql: string; ms: number }[] = [];
+    const mark = (label: string, start: bigint) => {
+      stageMs[label] = Number(process.hrtime.bigint() - start) / 1e6;
+    };
+
+    const sessionDto: CreateTableSessionDto = {
+      outletId: dto.outletId,
+      diningTableId: dto.diningTableId,
+      guestCount: dto.guestCount,
+      source: dto.source,
+      customerId: dto.customerId,
+      reservationId: dto.reservationId,
+    };
+
+    const validationStart = process.hrtime.bigint();
+    const diningTable = await this.tableSessionsService.validateCreateInputs(
+      sessionDto,
+    );
+    mark('validation', validationStart);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    // Wrap the queryRunner's own query() — every save()/find()/count() call
+    // made through queryRunner.manager funnels through this, so it captures
+    // BEGIN/COMMIT/ROLLBACK plus every statement in between without
+    // touching the global TypeORM logger (which would log every request,
+    // not just this one).
+    const originalQuery = queryRunner.query.bind(queryRunner);
+    queryRunner.query = (async (...args: Parameters<typeof originalQuery>) => {
+      const queryStart = process.hrtime.bigint();
+      try {
+        return await originalQuery(...args);
+      } finally {
+        sqlLog.push({
+          sql: String(args[0]),
+          ms: Number(process.hrtime.bigint() - queryStart) / 1e6,
+        });
+      }
+    }) as typeof queryRunner.query;
+
+    const beginStart = process.hrtime.bigint();
+    await queryRunner.startTransaction();
+    mark('beginTransaction', beginStart);
+
+    let session: TableSession;
+    let order: Order;
+    try {
+      const insertSessionStart = process.hrtime.bigint();
+      session = await this.tableSessionsService.insertSession(
+        queryRunner.manager,
+        sessionDto,
+        startedBy,
+      );
+      mark('insertSession', insertSessionStart);
+
+      const billNumberStart = process.hrtime.bigint();
+      const billNumber = await this.generateBillNumber(dto.outletId);
+      mark('generateBillNumber', billNumberStart);
+
+      const insertOrderStart = process.hrtime.bigint();
+      const orderEntity = queryRunner.manager.create(Order, {
+        outletId: dto.outletId,
+        tableSessionId: session.id,
+        customerId: dto.customerId ?? null,
+        reservationId: dto.reservationId ?? null,
+        orderType: dto.orderType ?? 'table',
+        note: dto.note ?? null,
+        orderNumber: this.generateOrderNumber(dto.outletId),
+        billNumber,
+        createdBy: startedBy,
+      });
+      order = await queryRunner.manager.save(orderEntity);
+      mark('insertOrder', insertOrderStart);
+
+      const commitStart = process.hrtime.bigint();
+      await queryRunner.commitTransaction();
+      mark('commit', commitStart);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    const result = { session, order };
+
+    const criticalPathMs = Number(process.hrtime.bigint() - totalStart) / 1e6;
+    const stageLine = Object.entries(stageMs)
+      .map(([label, ms]) => `${label}=${ms.toFixed(1)}ms`)
+      .join(' ');
+    this.logger.log(
+      `openTableWithOrder(${session.id}) ${stageLine} criticalPathMs=${criticalPathMs.toFixed(1)}ms ` +
+        `sqlStatements=${sqlLog.length} sequentialRoundTrips=${sqlLog.length}`,
+    );
+    sqlLog.forEach((q, i) => {
+      this.logger.debug(
+        `  [tx query ${i + 1}/${sqlLog.length}] ${q.ms.toFixed(1)}ms: ${q.sql}`,
+      );
+    });
+
+    // Fire-and-forget: session/order are already committed, so nothing here
+    // may change the response we're about to return. Failures are logged,
+    // never thrown back into the request path.
+    const backgroundStart = process.hrtime.bigint();
+    this.tableSessionsService
+      .runPostCreateSideEffects(sessionDto, session, diningTable, startedBy)
+      .then(() => {
+        const backgroundWorkMs =
+          Number(process.hrtime.bigint() - backgroundStart) / 1e6;
+        this.logger.log(
+          `openTableWithOrder(${session.id}) backgroundWorkMs=${backgroundWorkMs.toFixed(1)}ms`,
+        );
+      })
+      .catch((error) => {
+        const backgroundWorkMs =
+          Number(process.hrtime.bigint() - backgroundStart) / 1e6;
+        this.logger.error(
+          `openTableWithOrder(${session.id}) background side effects failed after backgroundWorkMs=${backgroundWorkMs.toFixed(1)}ms: ${(error as Error).message}`,
+          (error as Error).stack,
+        );
+      });
+
+    return result;
   }
 
   /**
