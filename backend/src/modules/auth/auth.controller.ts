@@ -1,18 +1,7 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Inject,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type Redis from 'ioredis';
-import { randomUUID } from 'node:crypto';
-import { REDIS_CLIENT } from '../../redis/redis.module';
+import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
-import { KDS_WS_TICKET_PREFIX } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
@@ -35,7 +24,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly permissionsService: PermissionsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly wsTickets: WsTicketsService,
   ) {}
 
   @Public()
@@ -102,11 +91,9 @@ export class AuthController {
       'Mints a short-lived, one-time ticket used to authenticate a WebSocket connection (browsers only ever hold an httpOnly auth cookie, never the JWT itself)',
   })
   async issueWsTicket(@CurrentUser() user: User): Promise<{ ticket: string }> {
-    const ticket = randomUUID();
-    await this.redis.set(
-      `${KDS_WS_TICKET_PREFIX}${ticket}`,
-      JSON.stringify({ userId: user.id, isSuperadmin: user.isSuperadmin }),
-      'EX',
+    const ticket = await this.wsTickets.issue(
+      'staff',
+      { userId: user.id, isSuperadmin: user.isSuperadmin },
       WS_TICKET_TTL_SECONDS,
     );
     return { ticket };

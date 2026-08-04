@@ -1,39 +1,47 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
-import { registerDashboardCacheQueue } from './dashboard-cache-bridge';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { registerDashboardCacheRebuilder } from './dashboard-cache-bridge';
+import { DashboardCacheService } from './dashboard-cache.service';
 
-const HOUR = 60 * 60_000;
+const DAY = 24 * 60 * 60_000;
 
 /**
- * Registers the nightly full-cache reconciliation job (see
- * BusinessOperationsScheduler for the base pattern). This is what keeps the
- * cached default range's rolling 30-day window correct on outlets with no
- * writes overnight — event-driven invalidation alone can't catch a window
- * boundary silently moving forward with the calendar.
+ * Registers the in-process debounce bridge's rebuild callback and the
+ * nightly full-cache reconciliation sweep — replaces the old BullMQ-backed
+ * `dashboard-cache-jobs` queue (nightly `upsertJobScheduler` + the
+ * event-driven invalidation jobs the bridge used to enqueue). This is what
+ * keeps the cached default range's rolling 30-day window correct on
+ * outlets with no writes overnight — event-driven invalidation alone can't
+ * catch a window boundary silently moving forward with the calendar.
  */
 @Injectable()
 export class DashboardCacheScheduler implements OnModuleInit {
-  constructor(
-    @InjectQueue('dashboard-cache-jobs') private readonly queue: Queue,
-  ) {}
+  private readonly logger = new Logger(DashboardCacheScheduler.name);
+
+  constructor(private readonly cacheService: DashboardCacheService) {}
 
   async onModuleInit(): Promise<void> {
-    registerDashboardCacheQueue(this.queue);
-    await this.queue.upsertJobScheduler(
-      'dashboard-cache-nightly-rebuild',
-      { every: 24 * HOUR },
-      { name: 'rebuild-all' },
+    registerDashboardCacheRebuilder((outletId, sections) =>
+      this.cacheService.rebuildSections(outletId, sections),
     );
-    // A newly-added outlet (or a first deploy of these cache tables) has no
-    // row yet, so its first real request falls through to a full live
-    // recompute instead of the single indexed SELECT the cache exists for.
-    // Warm every outlet once on boot so that gap only ever exists between
-    // an outlet being created and the next app restart, not indefinitely.
-    await this.queue.add(
-      'rebuild-all',
-      {},
-      { jobId: 'dashboard-cache-boot-warm', removeOnComplete: true, removeOnFail: true },
-    );
+    // Warms a newly-added outlet (or a fresh deploy of these cache tables)
+    // immediately rather than leaving it uncached until the next write or
+    // the next nightly sweep — see AppModule's connection-pool warm-up for
+    // the analogous "don't make the first real request pay a cold-start
+    // cost" reasoning.
+    try {
+      await this.cacheService.rebuildAll();
+    } catch (err) {
+      this.logger.error(`Boot-time dashboard cache warm failed: ${(err as Error).message}`);
+    }
+  }
+
+  @Interval(DAY)
+  async runNightlyRebuild(): Promise<void> {
+    try {
+      await this.cacheService.rebuildAll();
+    } catch (err) {
+      this.logger.error(`Nightly dashboard cache rebuild failed: ${(err as Error).message}`);
+    }
   }
 }

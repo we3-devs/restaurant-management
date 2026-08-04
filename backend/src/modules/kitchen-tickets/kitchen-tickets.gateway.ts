@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,17 +8,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
-import { REDIS_CLIENT } from '../../redis/redis.module';
+import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { registerRealtimeServer } from '../../realtime/realtime-bus';
 import type { Notification } from '../notifications/entities/notification.entity';
 import type { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from './entities/kitchen-ticket.entity';
-
-export const KDS_WS_TICKET_PREFIX = 'kds-ws-ticket:';
-export const GUEST_WS_TICKET_PREFIX = 'guest-ws-ticket:';
 
 interface KdsSocketData {
   userId?: number;
@@ -41,9 +37,10 @@ export interface GuestOrderUpdate {
  * frontend/src/lib/auth/session.ts / customer-session.ts), so clients redeem
  * a short-lived one-time ticket on connect instead — see handleConnection().
  * Staff tickets (minted by AuthController#wsTicket) and guest tickets
- * (minted by CustomerAuthController#wsTicket) are two disjoint Redis
- * keyspaces, so a guest ticket can never resolve to a staff identity or vice
- * versa: guest sockets only ever get `data.customerId` set and are only ever
+ * (minted by CustomerAuthController#wsTicket) are two disjoint `kind`s in
+ * the ws_tickets table (see WsTicketsService), so a guest ticket can never
+ * resolve to a staff identity or vice versa: guest sockets only ever get
+ * `data.customerId` set and are only ever
  * joined to their own `customer:<id>` room, never an outlet room — they
  * can't reach subscribe-outlet (guarded by `data.userId`) or anything
  * broadcast to outlet rooms.
@@ -61,7 +58,7 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
   @WebSocketServer()
   server: Server;
 
-  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+  constructor(private readonly wsTickets: WsTicketsService) {}
 
   /** Hands the live Socket.IO server to RealtimeChangeSubscriber, which TypeORM instantiates outside Nest's DI graph and so can't inject this gateway directly. */
   afterInit(server: Server): void {
@@ -75,17 +72,14 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       return;
     }
 
-    const staffKey = `${KDS_WS_TICKET_PREFIX}${ticket}`;
-    const staffRaw = await this.redis.get(staffKey);
-    if (staffRaw) {
-      await this.redis.del(staffKey);
-      let payload: { userId: number; isSuperadmin: boolean };
-      try {
-        payload = JSON.parse(staffRaw) as { userId: number; isSuperadmin: boolean };
-      } catch {
-        client.disconnect(true);
-        return;
-      }
+    const redeemed = await this.wsTickets.redeem(ticket);
+    if (!redeemed) {
+      client.disconnect(true);
+      return;
+    }
+
+    if (redeemed.kind === 'staff') {
+      const payload = redeemed.payload as { userId: number; isSuperadmin: boolean };
       // No further permission check: this namespace was originally KDS/POS-only
       // (orders.view / orders.manage), but it's now also the sole delivery
       // channel for notification.created — which spans every module
@@ -98,17 +92,8 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       return;
     }
 
-    const guestKey = `${GUEST_WS_TICKET_PREFIX}${ticket}`;
-    const guestRaw = await this.redis.get(guestKey);
-    if (guestRaw) {
-      await this.redis.del(guestKey);
-      let payload: { customerId: number };
-      try {
-        payload = JSON.parse(guestRaw) as { customerId: number };
-      } catch {
-        client.disconnect(true);
-        return;
-      }
+    if (redeemed.kind === 'guest') {
+      const payload = redeemed.payload as { customerId: number };
       client.data.customerId = payload.customerId;
       // Auto-joined (unlike staff, which explicitly subscribe-outlet after
       // choosing one) since the room is fully determined by the ticket —

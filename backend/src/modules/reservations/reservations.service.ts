@@ -1,4 +1,3 @@
-import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   forwardRef,
@@ -7,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Queue } from 'bullmq';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CustomersService } from '../customers/customers.service';
@@ -24,8 +22,6 @@ import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { ReservationTable } from './entities/reservation-table.entity';
 import { Reservation } from './entities/reservation.entity';
 
-const REMINDER_OFFSET_MS = 30 * 60_000;
-
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -40,33 +36,7 @@ export class ReservationsService {
     private readonly tableSessionsService: TableSessionsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
-    @InjectQueue('reservation-reminders')
-    private readonly reminderQueue: Queue,
   ) {}
-
-  private reminderJobId(reservationId: number): string {
-    return `reservation-reminder-${reservationId}`;
-  }
-
-  /** No-op once the reservation is already inside the reminder window / in the past. */
-  private async scheduleReminder(reservation: Reservation): Promise<void> {
-    const delay =
-      new Date(reservation.reservedAt).getTime() -
-      REMINDER_OFFSET_MS -
-      Date.now();
-    if (delay <= 0) {
-      return;
-    }
-    await this.reminderQueue.add(
-      'remind',
-      { reservationId: reservation.id },
-      { jobId: this.reminderJobId(reservation.id), delay },
-    );
-  }
-
-  private async cancelReminder(reservationId: number): Promise<void> {
-    await this.reminderQueue.remove(this.reminderJobId(reservationId));
-  }
 
   async findAll(
     query: ListReservationsQueryDto,
@@ -134,9 +104,9 @@ export class ReservationsService {
       // There's no guest self-booking path to gate here — every reservation
       // is entered by a staff member who already has the booking details in
       // hand, so 'pending' would just be a manual click with nothing to
-      // actually verify. Auto-confirming also means the reminder job
-      // scheduled below isn't scheduled for nothing — the reminder processor
-      // only fires for 'confirmed' reservations.
+      // actually verify. Auto-confirming also means the reminder scan
+      // (ReservationReminderScheduler) isn't skipping this reservation for
+      // nothing — it only fires for 'confirmed' reservations.
       status: 'confirmed',
       confirmedAt: new Date(),
       createdBy,
@@ -145,7 +115,6 @@ export class ReservationsService {
     const saved = await this.reservationsRepository.save(reservation);
 
     await this.customersService.upsertVisit(dto.customerId, dto.outletId);
-    await this.scheduleReminder(saved);
 
     const notification = await this.notificationsService.create({
       outletId: saved.outletId,
@@ -234,11 +203,9 @@ export class ReservationsService {
 
     const saved = await this.reservationsRepository.save(reservation);
 
-    if (dto.status !== 'pending' && dto.status !== 'confirmed') {
-      // Terminal-ish states (seated/completed/cancelled/no_show) no longer
-      // need a pre-arrival reminder.
-      await this.cancelReminder(saved.id);
-    }
+    // Terminal-ish states (seated/completed/cancelled/no_show) no longer
+    // need a pre-arrival reminder — ReservationReminderScheduler's scan
+    // filters on status='confirmed', so nothing further is needed here.
     if (dto.status === 'cancelled') {
       const notification = await this.notificationsService.create({
         outletId: saved.outletId,

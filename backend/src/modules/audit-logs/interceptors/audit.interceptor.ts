@@ -1,10 +1,9 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Injectable, Logger, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Queue } from 'bullmq';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuthenticatedRequest } from '../../auth/types/authenticated-request';
+import { AuditLogsService } from '../audit-logs.service';
 import { AUDIT_KEY, AuditMetadata } from '../decorators/audit.decorator';
 import { SKIP_AUDIT_KEY } from '../decorators/skip-audit.decorator';
 import { AuditAction } from '../entities/audit-log.entity';
@@ -59,9 +58,11 @@ function entityTypeFromController(controllerName: string): string {
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuditInterceptor.name);
+
   constructor(
     private readonly reflector: Reflector,
-    @InjectQueue('audit-log-write') private readonly queue: Queue,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -102,15 +103,17 @@ export class AuditInterceptor implements NestInterceptor {
           response?.id ?? (request.params?.id as string | undefined) ?? null;
         const newValues = sanitize(response);
         const serialized = newValues ? JSON.stringify(newValues) : null;
-        void this.queue.add('write', {
-          userId,
-          action,
-          entityType,
-          entityId,
-          newValues: serialized && serialized.length > MAX_JSON_LENGTH ? { truncated: true } : newValues,
-          ipAddress,
-          userAgent,
-        });
+        void this.auditLogsService
+          .record({
+            userId,
+            action,
+            entityType,
+            entityId,
+            newValues: serialized && serialized.length > MAX_JSON_LENGTH ? { truncated: true } : newValues,
+            ipAddress,
+            userAgent,
+          })
+          .catch((err: Error) => this.logger.error(`Audit write failed: ${err.message}`));
       }),
     );
   }

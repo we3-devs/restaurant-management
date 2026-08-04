@@ -1,4 +1,3 @@
-import { BullModule } from '@nestjs/bullmq';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
@@ -7,7 +6,6 @@ import { OutletsModule } from '../outlets/outlets.module';
 import { SettingsModule } from '../settings/settings.module';
 import { LoyaltyAccount } from './entities/loyalty-account.entity';
 import { LoyaltyTransaction } from './entities/loyalty-transaction.entity';
-import { LoyaltyJobsProcessor } from './processors/loyalty-jobs.processor';
 import { LoyaltyJobsScheduler } from './jobs/loyalty-jobs.scheduler';
 import { LoyaltyController } from './loyalty.controller';
 import { LoyaltyService } from './loyalty.service';
@@ -15,7 +13,6 @@ import { LoyaltyService } from './loyalty.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([LoyaltyAccount, LoyaltyTransaction]),
-    BullModule.registerQueue({ name: 'loyalty-jobs' }),
     SettingsModule,
     NotificationsModule,
     OutletsModule,
@@ -25,7 +22,7 @@ import { LoyaltyService } from './loyalty.service';
     forwardRef(() => KitchenTicketsModule),
   ],
   controllers: [LoyaltyController],
-  providers: [LoyaltyService, LoyaltyJobsScheduler, LoyaltyJobsProcessor],
+  providers: [LoyaltyService, LoyaltyJobsScheduler],
   exports: [LoyaltyService],
 })
 export class LoyaltyModule {}

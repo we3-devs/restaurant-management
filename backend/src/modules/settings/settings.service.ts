@@ -1,13 +1,11 @@
-import { InjectQueue } from '@nestjs/bullmq';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
+import type { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletsService } from '../outlets/outlets.service';
-import { REDIS_CLIENT } from '../../redis/redis.module';
 import {
   AppearanceSettingsDto,
   BusinessSettingsDto,
@@ -124,7 +122,7 @@ export class SettingsService {
     private readonly auditLogsService: AuditLogsService,
     private readonly notificationsService: NotificationsService,
     private readonly outletsService: OutletsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   private assertKnownCategory(category: string): asserts category is SettingsCategory {
@@ -136,17 +134,12 @@ export class SettingsService {
   }
 
   async get(category: SettingsCategory): Promise<Record<string, unknown>> {
-    const cached = await this.redis.get(cacheKey(category));
-    if (cached) return JSON.parse(cached) as Record<string, unknown>;
+    const cached = await this.cache.get<Record<string, unknown>>(cacheKey(category));
+    if (cached) return cached;
 
     const row = await this.settingsRepository.findOne({ where: { category } });
     const merged = { ...CATEGORY_DEFAULTS[category], ...(row?.data ?? {}) };
-    await this.redis.set(
-      cacheKey(category),
-      JSON.stringify(merged),
-      'EX',
-      CACHE_TTL_SECONDS,
-    );
+    await this.cache.set(cacheKey(category), merged, CACHE_TTL_SECONDS * 1000);
     return merged;
   }
 
@@ -181,7 +174,7 @@ export class SettingsService {
     row.updatedByUserId = userId;
     await this.settingsRepository.save(row);
 
-    await this.redis.del(cacheKey(category));
+    await this.cache.del(cacheKey(category));
 
     await this.auditLogsService.record({
       userId,

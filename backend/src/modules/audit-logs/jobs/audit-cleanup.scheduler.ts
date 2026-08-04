@@ -1,19 +1,27 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { AuditLogsService } from '../audit-logs.service';
 
 const DAY = 24 * 60 * 60_000;
 
-/** Registers the repeatable audit-log retention sweep once on boot (see BusinessOperationsScheduler for the base pattern). */
-@Injectable()
-export class AuditCleanupScheduler implements OnModuleInit {
-  constructor(@InjectQueue('audit-cleanup') private readonly queue: Queue) {}
+// Fixed 90-day retention default — reading this from SettingsService would
+// create a circular dependency between AuditLogsModule and SettingsModule.
+const RETENTION_DAYS = 90;
 
-  async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'audit-cleanup-scan',
-      { every: DAY },
-      { name: 'cleanup' },
-    );
+/** Daily audit-log retention sweep — replaces the old `audit-cleanup` BullMQ queue. */
+@Injectable()
+export class AuditCleanupScheduler {
+  private readonly logger = new Logger(AuditCleanupScheduler.name);
+
+  constructor(private readonly auditLogsService: AuditLogsService) {}
+
+  @Interval(DAY)
+  async cleanup(): Promise<void> {
+    try {
+      const { deleted } = await this.auditLogsService.purgeOlderThan(RETENTION_DAYS);
+      if (deleted) this.logger.log(`Purged ${deleted} audit log row(s)`);
+    } catch (err) {
+      this.logger.error(`Audit cleanup failed: ${(err as Error).message}`);
+    }
   }
 }

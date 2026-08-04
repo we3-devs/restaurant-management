@@ -1,24 +1,33 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { LoyaltyService } from '../loyalty.service';
 
 const DAY = 24 * 60 * 60_000;
 
-/** Registers the repeatable loyalty background scans once on boot (see BusinessOperationsScheduler for the base pattern). */
+/** Daily loyalty background scans — replaces the old `loyalty-jobs` BullMQ queue. */
 @Injectable()
-export class LoyaltyJobsScheduler implements OnModuleInit {
-  constructor(@InjectQueue('loyalty-jobs') private readonly queue: Queue) {}
+export class LoyaltyJobsScheduler {
+  private readonly logger = new Logger(LoyaltyJobsScheduler.name);
 
-  async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'birthday-bonus-scan',
-      { every: DAY },
-      { name: 'birthday-bonus' },
-    );
-    await this.queue.upsertJobScheduler(
-      'point-expiry-scan',
-      { every: DAY },
-      { name: 'point-expiry' },
-    );
+  constructor(private readonly loyaltyService: LoyaltyService) {}
+
+  @Interval(DAY)
+  async runBirthdayBonusScan(): Promise<void> {
+    try {
+      const { granted } = await this.loyaltyService.grantBirthdayBonuses();
+      if (granted) this.logger.log(`Granted birthday bonus to ${granted} customer(s)`);
+    } catch (err) {
+      this.logger.error(`Birthday bonus scan failed: ${(err as Error).message}`);
+    }
+  }
+
+  @Interval(DAY)
+  async runPointExpiryScan(): Promise<void> {
+    try {
+      const { processed } = await this.loyaltyService.expirePoints();
+      if (processed) this.logger.log(`Processed point expiry for ${processed} account(s)`);
+    } catch (err) {
+      this.logger.error(`Point expiry scan failed: ${(err as Error).message}`);
+    }
   }
 }

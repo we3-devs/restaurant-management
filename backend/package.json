@@ -25,7 +25,6 @@
     "migration:revert": "npm run typeorm -- migration:revert"
   },
   "dependencies": {
-    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.3",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
@@ -40,7 +39,6 @@
     "@nestjs/typeorm": "^11.0.3",
     "@nestjs/websockets": "^11.1.28",
     "bcrypt": "^6.0.0",
-    "bullmq": "^5.81.1",
     "cache-manager": "^7.2.9",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
@@ -48,7 +46,6 @@
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
     "helmet": "^8.3.0",
-    "ioredis": "^5.11.1",
     "multer": "^2.2.0",
     "nestjs-pino": "^4.6.1",
     "nodemailer": "^9.0.3",

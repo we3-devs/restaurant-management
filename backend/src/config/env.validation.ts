@@ -3,8 +3,6 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
-  IsOptional,
-  IsUrl,
   Max,
   Min,
   validateSync,
@@ -39,23 +37,6 @@ class EnvironmentVariables {
 
   @IsString()
   DB_PASSWORD: string;
-
-  @IsOptional()
-  @IsUrl({
-    protocols: ['redis', 'rediss'],
-    require_protocol: true,
-  })
-  REDIS_URL?: string;
-
-  @IsOptional()
-  @IsString()
-  REDIS_HOST?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(65535)
-  REDIS_PORT?: number;
 
   @IsString()
   @IsNotEmpty()

@@ -1,17 +1,15 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import type Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { AppConfig } from '../../config/configuration';
-import { REDIS_CLIENT } from '../../redis/redis.module';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { Customer } from '../customers/entities/customer.entity';
@@ -21,19 +19,17 @@ import { CustomerJwtPayload } from './types/customer-jwt-payload';
 const OTP_TTL_SECONDS = 5 * 60;
 const OTP_RESEND_LOCK_SECONDS = 60;
 const OTP_MAX_VERIFY_ATTEMPTS = 5;
+const OTP_CLEANUP_INTERVAL_MS = 10 * 60_000;
 const GUEST_SESSION_EXPIRES_IN = '12h';
 const CUSTOMER_SESSION_EXPIRES_IN = '30d';
 
-function otpKey(identifier: string): string {
-  return `customer-otp:${identifier}`;
-}
-function otpLockKey(identifier: string): string {
-  return `customer-otp-lock:${identifier}`;
-}
-function otpAttemptsKey(identifier: string): string {
-  return `customer-otp-attempts:${identifier}`;
-}
-
+/**
+ * Postgres-backed replacement for the old Redis OTP flow (`SET NX EX`
+ * resend-lock, `SET EX` code, `INCR`+`EXPIRE` attempts). One row per
+ * identifier in `customer_otps`; every operation below is a single
+ * statement so concurrent requests for the same identifier can't race —
+ * see each method's comment for the specific atomicity guarantee.
+ */
 @Injectable()
 export class CustomerAuthService {
   private readonly logger = new Logger(CustomerAuthService.name);
@@ -41,13 +37,23 @@ export class CustomerAuthService {
   constructor(
     @InjectRepository(Customer)
     private readonly customersRepository: Repository<Customer>,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AppConfig>,
     private readonly auditLogsService: AuditLogsService,
     private readonly diningTablesService: DiningTablesService,
     private readonly smsService: SmsService,
   ) {}
+
+  @Interval(OTP_CLEANUP_INTERVAL_MS)
+  async cleanupExpiredOtps(): Promise<void> {
+    try {
+      await this.customersRepository.manager.query(
+        `DELETE FROM customer_otps WHERE expires_at < now()`,
+      );
+    } catch (err) {
+      this.logger.warn(`customer_otps cleanup failed: ${(err as Error).message}`);
+    }
+  }
 
   private resolveIdentifier(phone?: string, email?: string): string {
     if (!phone && !email) {
@@ -61,24 +67,31 @@ export class CustomerAuthService {
     email?: string,
   ): Promise<{ sent: true; devCode?: string }> {
     const identifier = this.resolveIdentifier(phone, email);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const locked = await this.redis.set(
-      otpLockKey(identifier),
-      '1',
-      'EX',
-      OTP_RESEND_LOCK_SECONDS,
-      'NX',
+    // Single conditional upsert: replaces SET NX EX (resend lock) + SET EX
+    // (code) + DEL (reset attempts) as one atomic statement. The WHERE
+    // clause only lets the write through if there's no row yet or its lock
+    // has expired — same guarantee SET NX gave (0 rows back = still
+    // locked), just expressed as an UPSERT that Postgres serializes against
+    // concurrent callers for the same identifier.
+    const rows = await this.customersRepository.manager.query(
+      `INSERT INTO customer_otps (identifier, code, expires_at, attempts, lock_until)
+       VALUES ($1, $2, now() + make_interval(secs => $3), 0, now() + make_interval(secs => $4))
+       ON CONFLICT (identifier) DO UPDATE SET
+         code = EXCLUDED.code,
+         expires_at = EXCLUDED.expires_at,
+         attempts = 0,
+         lock_until = EXCLUDED.lock_until
+       WHERE customer_otps.lock_until IS NULL OR customer_otps.lock_until < now()
+       RETURNING identifier`,
+      [identifier, code, OTP_TTL_SECONDS, OTP_RESEND_LOCK_SECONDS],
     );
-    if (!locked) {
+    if (rows.length === 0) {
       throw new BadRequestException(
         'An OTP was already sent recently — please wait before requesting another',
       );
     }
-
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redis.set(otpKey(identifier), code, 'EX', OTP_TTL_SECONDS);
-    // A fresh code means a fresh set of verify attempts.
-    await this.redis.del(otpAttemptsKey(identifier));
 
     if (phone && this.smsService.isConfigured) {
       await this.smsService.send(phone, `Your verification code is ${code}`);
@@ -107,22 +120,37 @@ export class CustomerAuthService {
   ): Promise<{ accessToken: string; customer: Customer } > {
     const identifier = this.resolveIdentifier(phone, email);
 
-    const attempts = await this.redis.incr(otpAttemptsKey(identifier));
-    if (attempts === 1) {
-      await this.redis.expire(otpAttemptsKey(identifier), OTP_TTL_SECONDS);
+    // Atomic increment (replaces INCR+EXPIRE) — the row's own expires_at is
+    // the TTL now, no separate expiry needed on the counter.
+    // TypeORM's raw query() returns [rows, affectedCount] for DELETE/UPDATE
+    // (unlike INSERT, which returns rows directly) — confirmed empirically,
+    // not documented consistently. Destructure, don't just check .length.
+    const [attemptRows]: [{ attempts: number }[], number] =
+      await this.customersRepository.manager.query(
+        `UPDATE customer_otps SET attempts = attempts + 1 WHERE identifier = $1 RETURNING attempts`,
+        [identifier],
+      );
+    if (attemptRows.length === 0) {
+      throw new UnauthorizedException('Invalid or expired code');
     }
-    if (attempts > OTP_MAX_VERIFY_ATTEMPTS) {
+    if (attemptRows[0].attempts > OTP_MAX_VERIFY_ATTEMPTS) {
       throw new UnauthorizedException(
         'Too many incorrect attempts — request a new code',
       );
     }
 
-    const storedCode = await this.redis.get(otpKey(identifier));
-    if (!storedCode || storedCode !== code) {
+    // Atomic consume: a wrong code affects 0 rows and leaves the row (and
+    // attempt count) intact for the next try; a correct code both verifies
+    // and deletes in one statement, so of two concurrent requests with the
+    // right code, only the first to reach Postgres finds the row still
+    // there — the second gets 0 rows back, same as a wrong code.
+    const [consumed]: [unknown[], number] = await this.customersRepository.manager.query(
+      `DELETE FROM customer_otps WHERE identifier = $1 AND code = $2 AND expires_at > now() RETURNING identifier`,
+      [identifier, code],
+    );
+    if (consumed.length === 0) {
       throw new UnauthorizedException('Invalid or expired code');
     }
-    await this.redis.del(otpKey(identifier));
-    await this.redis.del(otpAttemptsKey(identifier));
 
     const customer = await this.findOrCreateCustomer(phone, email, name);
     customer.lastLoginAt = new Date();

@@ -26,7 +26,6 @@ import { DashboardCacheModule } from './modules/dashboard-cache/dashboard-cache.
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { GoodsReceivingModule } from './modules/goods-receiving/goods-receiving.module';
-import { DemoModule } from './modules/demo/demo.module';
 import { DiningAreasModule } from './modules/dining-areas/dining-areas.module';
 import { DiningTablesModule } from './modules/dining-tables/dining-tables.module';
 import { FoodCategoriesModule } from './modules/food-categories/food-categories.module';
@@ -63,8 +62,7 @@ import { TableSessionsModule } from './modules/table-sessions/table-sessions.mod
 import { UnitsModule } from './modules/units/units.module';
 import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
-import { QueueModule } from './queue/queue.module';
-import { RedisModule } from './redis/redis.module';
+import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 
 @Module({
   imports: [
@@ -137,8 +135,7 @@ import { RedisModule } from './redis/redis.module';
     // customer-auth/dining-tables/orders/service-requests controllers), so
     // authenticated staff APIs are completely untouched by this.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 20 }]),
-    RedisModule,
-    QueueModule,
+    WsTicketsModule,
     UsersModule,
     RolesModule,
     OutletsModule,
@@ -181,7 +178,6 @@ import { RedisModule } from './redis/redis.module';
     StockCountsModule,
     AuthModule,
     HealthModule,
-    DemoModule,
     BootstrapModule,
     DashboardModule,
     DashboardCacheModule,

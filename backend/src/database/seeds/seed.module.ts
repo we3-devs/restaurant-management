@@ -12,8 +12,8 @@ import { UsersModule } from '../../modules/users/users.module';
 import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
 
 /**
- * Minimal bootstrap for the seed script — DB access only, no Redis/BullMQ,
- * so seeding doesn't require the whole app's infra (Redis) to be running.
+ * Minimal bootstrap for the seed script — DB access only, none of the rest
+ * of the app's module graph, so seeding stays fast and side-effect-free.
  */
 @Module({
   imports: [

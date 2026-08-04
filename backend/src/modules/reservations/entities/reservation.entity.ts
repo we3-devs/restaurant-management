@@ -102,6 +102,10 @@ export class Reservation {
   @Column({ name: 'no_show_at', type: 'timestamp', nullable: true })
   noShowAt: Date | null;
 
+  /** Stamped by ReservationReminderScheduler once the pre-arrival reminder has been sent, so its 1-minute scan never double-sends. */
+  @Column({ name: 'reminder_sent_at', type: 'timestamp', nullable: true })
+  reminderSentAt: Date | null;
+
   @Column({
     name: 'created_by',
     type: 'bigint',

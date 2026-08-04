@@ -1,6 +1,5 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletsService } from '../outlets/outlets.service';
@@ -8,6 +7,10 @@ import { PurchaseOrdersService } from '../purchase-orders/purchase-orders.servic
 import { ShiftsService } from '../shifts/shifts.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 const SHIFT_REMINDER_WINDOW_MINUTES = 15;
 
@@ -25,13 +28,14 @@ function timeStringToMinutes(time: string): number {
 }
 
 /**
- * Single consolidated queue for the low-frequency procurement/staff background
- * scans (see BusinessOperationsScheduler for the repeatable job registrations).
- * Kept as one processor rather than one-per-job to match how sparse and
- * lightweight each individual scan is.
+ * Low-frequency procurement/staff background scans, each on its own
+ * `@Interval` (replaces the old `business-operations` BullMQ queue's 6
+ * repeatable jobs — same schedules, same scan logic, direct calls instead
+ * of job dispatch). Kept as one class rather than one-per-scan to match how
+ * sparse and lightweight each individual scan is.
  */
-@Processor('business-operations')
-export class BusinessOperationsProcessor extends WorkerHost {
+@Injectable()
+export class BusinessOperationsProcessor {
   private readonly logger = new Logger(BusinessOperationsProcessor.name);
 
   constructor(
@@ -42,27 +46,44 @@ export class BusinessOperationsProcessor extends WorkerHost {
     private readonly outletsService: OutletsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
-  ) {
-    super();
+  ) {}
+
+  private async guarded(name: string, fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      this.logger.error(`${name} scan failed: ${(err as Error).message}`);
+    }
   }
 
-  async process(job: Job): Promise<void> {
-    switch (job.name) {
-      case 'overdue-purchase-orders':
-        return this.scanOverduePurchaseOrders();
-      case 'upcoming-deliveries':
-        return this.scanUpcomingDeliveries();
-      case 'shift-reminders':
-        return this.scanShiftReminders();
-      case 'attendance-summary':
-        return this.runAttendanceSummary();
-      case 'daily-purchase-summary':
-        return this.runDailyPurchaseSummary();
-      case 'outstanding-supplier-alerts':
-        return this.scanOutstandingSupplierAlerts();
-      default:
-        this.logger.warn(`Unknown business-operations job: ${job.name}`);
-    }
+  @Interval(30 * MINUTE)
+  runOverduePurchaseOrders(): Promise<void> {
+    return this.guarded('overdue-purchase-orders', () => this.scanOverduePurchaseOrders());
+  }
+
+  @Interval(HOUR)
+  runUpcomingDeliveries(): Promise<void> {
+    return this.guarded('upcoming-deliveries', () => this.scanUpcomingDeliveries());
+  }
+
+  @Interval(15 * MINUTE)
+  runShiftReminders(): Promise<void> {
+    return this.guarded('shift-reminders', () => this.scanShiftReminders());
+  }
+
+  @Interval(DAY)
+  runAttendanceSummaryJob(): Promise<void> {
+    return this.guarded('attendance-summary', () => this.runAttendanceSummary());
+  }
+
+  @Interval(DAY)
+  runDailyPurchaseSummaryJob(): Promise<void> {
+    return this.guarded('daily-purchase-summary', () => this.runDailyPurchaseSummary());
+  }
+
+  @Interval(6 * HOUR)
+  runOutstandingSupplierAlertsJob(): Promise<void> {
+    return this.guarded('outstanding-supplier-alerts', () => this.scanOutstandingSupplierAlerts());
   }
 
   private async scanOverduePurchaseOrders(): Promise<void> {

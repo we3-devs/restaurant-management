@@ -1,7 +1,6 @@
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Job, Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -25,8 +24,8 @@ interface LowStockRow {
  * levels — NotificationsModule stays a thin, generic feed so it doesn't have
  * to depend on every domain module.
  */
-@Processor('inventory-alerts')
-export class InventoryAlertsProcessor extends WorkerHost {
+@Injectable()
+export class InventoryAlertsProcessor {
   private readonly logger = new Logger(InventoryAlertsProcessor.name);
 
   constructor(
@@ -34,12 +33,20 @@ export class InventoryAlertsProcessor extends WorkerHost {
     private readonly stockRepository: Repository<WarehouseIngredientStock>,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
-  ) {
-    super();
+  ) {}
+
+  @Interval(SCAN_INTERVAL_MS)
+  async scan(): Promise<{ notified: number }> {
+    try {
+      return await this.runScan();
+    } catch (err) {
+      this.logger.error(`Inventory alerts scan failed: ${(err as Error).message}`);
+      return { notified: 0 };
+    }
   }
 
-  async process(job: Job): Promise<{ notified: number }> {
-    this.logger.debug(`Running inventory alerts scan (job ${job.id})`);
+  private async runScan(): Promise<{ notified: number }> {
+    this.logger.debug('Running inventory alerts scan');
     const rows = await this.stockRepository.manager
       .createQueryBuilder()
       .select('ingredient.id', 'ingredientId')
@@ -96,18 +103,5 @@ export class InventoryAlertsProcessor extends WorkerHost {
       this.logger.log(`Inventory scan flagged ${notified} ingredient(s)`);
     }
     return { notified };
-  }
-}
-
-@Injectable()
-export class InventoryAlertsScheduler implements OnModuleInit {
-  constructor(@InjectQueue('inventory-alerts') private readonly queue: Queue) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'inventory-alerts-scan',
-      { every: SCAN_INTERVAL_MS },
-      { name: 'scan' },
-    );
   }
 }

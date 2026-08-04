@@ -1,4 +1,3 @@
-import { BullModule } from '@nestjs/bullmq';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
@@ -8,10 +7,7 @@ import { OrdersModule } from '../orders/orders.module';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from './entities/kitchen-ticket.entity';
-import {
-  KitchenDelayScanProcessor,
-  KitchenDelayScanScheduler,
-} from './kitchen-delay-scan.processor';
+import { KitchenDelayScanProcessor } from './kitchen-delay-scan.processor';
 import { KitchenTicketsController } from './kitchen-tickets.controller';
 import { KitchenTicketsGateway } from './kitchen-tickets.gateway';
 import { KitchenTicketsService } from './kitchen-tickets.service';
@@ -30,19 +26,13 @@ import { KitchenTicketsService } from './kitchen-tickets.service';
     ]),
     AuthModule,
     NotificationsModule,
-    BullModule.registerQueue({ name: 'kitchen-delay-alerts' }),
     // Circular with OrdersModule (which already imports this module for
     // notifyTicketsCreated()) — needed so KitchenTicketsService can call
     // OrdersService#maybeAdvanceToServed() when an item is marked served.
     forwardRef(() => OrdersModule),
   ],
   controllers: [KitchenTicketsController],
-  providers: [
-    KitchenTicketsService,
-    KitchenTicketsGateway,
-    KitchenDelayScanProcessor,
-    KitchenDelayScanScheduler,
-  ],
+  providers: [KitchenTicketsService, KitchenTicketsGateway, KitchenDelayScanProcessor],
   exports: [TypeOrmModule, KitchenTicketsService, KitchenTicketsGateway],
 })
 export class KitchenTicketsModule {}

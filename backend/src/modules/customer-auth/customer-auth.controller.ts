@@ -4,18 +4,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Inject,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import type Redis from 'ioredis';
-import { randomUUID } from 'node:crypto';
-import { REDIS_CLIENT } from '../../redis/redis.module';
+import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
-import { GUEST_WS_TICKET_PREFIX } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { CustomerAuthService } from './customer-auth.service';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
 import { GuestSessionDto } from './dto/guest-session.dto';
@@ -36,7 +32,7 @@ const WS_TICKET_TTL_SECONDS = 30;
 export class CustomerAuthController {
   constructor(
     private readonly customerAuthService: CustomerAuthService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly wsTickets: WsTicketsService,
   ) {}
 
   @Public()
@@ -106,13 +102,7 @@ export class CustomerAuthController {
     @CurrentCustomer() customer: CustomerJwtPayload,
   ): Promise<{ ticket: string }> {
     const customerId = requireVerifiedCustomerId(customer, 'to track your order');
-    const ticket = randomUUID();
-    await this.redis.set(
-      `${GUEST_WS_TICKET_PREFIX}${ticket}`,
-      JSON.stringify({ customerId }),
-      'EX',
-      WS_TICKET_TTL_SECONDS,
-    );
+    const ticket = await this.wsTickets.issue('guest', { customerId }, WS_TICKET_TTL_SECONDS);
     return { ticket };
   }
 }
