@@ -44,7 +44,12 @@ export default function PosPage() {
 
   // One request for tables + food categories + addons instead of three; it
   // also seeds the caches those hooks below read from.
-  usePosBootstrap(effectiveOutletId)
+  const bootstrap = usePosBootstrap(effectiveOutletId)
+
+  // Lazy: StartSaleDialog (and its table-sessions/customers requests) isn't
+  // mounted until the button below is tapped or preselectedTableId forces it
+  // open — see useStartSaleDialogState.
+  const startSale = useStartSaleDialogState(preselectedTableId)
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
@@ -62,11 +67,9 @@ export default function PosPage() {
               // Only needed for grab-and-go/stay/delivery, or picking a table
               // without leaving this page — starting a table sale normally
               // happens by tapping a table below.
-              <StartSaleDialog
-                outletId={effectiveOutletId}
-                onSaleStarted={(orderId) => router.push(`/pos?orderId=${orderId}`)}
-                preselectedTableId={preselectedTableId}
-              />
+              <Button size="lg" onClick={startSale.openDialog}>
+                Start sale
+              </Button>
             )
           )}
         </div>
@@ -103,6 +106,17 @@ export default function PosPage() {
           outletId={effectiveOutletId}
           orders={openOrdersForDeepLinkSession}
           onSelectOrder={(orderId) => router.replace(`/pos?orderId=${orderId}`)}
+        />
+      )}
+
+      {startSale.mounted && effectiveOutletId && (
+        <StartSaleDialog
+          open={startSale.open}
+          onOpenChange={startSale.onOpenChange}
+          outletId={effectiveOutletId}
+          onSaleStarted={(orderId) => router.push(`/pos?orderId=${orderId}`)}
+          preselectedTableId={preselectedTableId}
+          tables={bootstrap.data?.tables ?? []}
         />
       )}
     </div>

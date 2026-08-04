@@ -1,38 +1,52 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCreateOrder } from "@/hooks/use-orders"
 import { useCustomers } from "@/hooks/use-customers"
-import { useDiningTable, useDiningTables } from "@/hooks/use-dining-tables"
+import type { DiningTable } from "@/hooks/use-dining-tables"
 import { useStartTableSession, useTableSessions } from "@/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@/lib/validators/orders"
 
 type OrderType = (typeof ORDER_TYPES)[number]
 
+/**
+ * Only ever rendered by its parent page once opening is actually intended
+ * (the "Start sale" button click, or a preselected-table deep link) — see
+ * useStartSaleDialogState. Mounting this component is what fires its data
+ * hooks (table-sessions/customers below), so it must never be present in
+ * the tree "just in case"; `open`/`onOpenChange` are owned by the parent
+ * instead of local state so the parent can lazily mount it and still fully
+ * control it.
+ */
 export function StartSaleDialog({
+  open,
+  onOpenChange,
   outletId,
   onSaleStarted,
   preselectedTableId,
+  tables,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   outletId: number
   onSaleStarted: (orderId: number) => void
   preselectedTableId?: number
+  /** Already-loaded outlet tables (from usePosBootstrap) — avoids a redundant dining-tables request just to list available ones / resolve the preselected table's name. */
+  tables: DiningTable[]
 }) {
-  const [open, setOpen] = useState(Boolean(preselectedTableId))
   const [orderType, setOrderType] = useState<OrderType>("table")
   const [tableSessionId, setTableSessionId] = useState<string>("")
   const [newTableId, setNewTableId] = useState<string>(
@@ -43,19 +57,23 @@ export function StartSaleDialog({
 
   // Arriving via a table-card click on /floor (?tableId=...) — jump straight
   // into the walk-in form pre-filled for that table instead of making the
-  // user re-pick it from the dropdown.
-  useEffect(() => {
-    if (preselectedTableId) {
-      setOpen(true)
-      setOrderType("table")
-      setTableSessionId("")
-      setNewTableId(String(preselectedTableId))
-    }
-  }, [preselectedTableId])
+  // user re-pick it from the dropdown. Opening itself is the parent's job
+  // (it mounts this component in response to the same preselectedTableId);
+  // this only owns the form fields. Adjusts state during render (not an
+  // effect) — same idiom as useStartSaleDialogState/CheckoutPanel.
+  const [seededTableId, setSeededTableId] = useState<number | undefined>(
+    preselectedTableId,
+  )
+  if (preselectedTableId !== undefined && preselectedTableId !== seededTableId) {
+    setSeededTableId(preselectedTableId)
+    setOrderType("table")
+    setTableSessionId("")
+    setNewTableId(String(preselectedTableId))
+  }
 
   const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
-  const { data: availableTables } = useDiningTables({ outletId, status: "available", limit: 100 })
-  const { data: preselectedTable } = useDiningTable(preselectedTableId ?? 0)
+  const availableTables = tables.filter((table) => table.status === "available")
+  const preselectedTable = tables.find((table) => table.id === preselectedTableId)
   const { data: customers } = useCustomers({ limit: 100 })
   const startSession = useStartTableSession()
   const createOrder = useCreateOrder()
@@ -96,7 +114,7 @@ export function StartSaleDialog({
       })
       toast.success("Sale started")
       reset()
-      setOpen(false)
+      onOpenChange(false)
       onSaleStarted(order.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start sale")
@@ -106,8 +124,7 @@ export function StartSaleDialog({
   const busy = startSession.isPending || createOrder.isPending
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="lg">Start sale</Button>} />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start a sale</DialogTitle>
@@ -188,7 +205,7 @@ export function StartSaleDialog({
                             <SelectValue placeholder="Select an available table" />
                           </SelectTrigger>
                           <SelectContent>
-                            {availableTables?.data.map((table) => (
+                            {availableTables.map((table) => (
                               <SelectItem key={table.id} value={String(table.id)}>
                                 {table.name}
                               </SelectItem>

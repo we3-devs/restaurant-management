@@ -9,6 +9,7 @@ import { useKitchenRealtime } from "@/hooks/use-kitchen-realtime"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { usePosBootstrap } from "@/hooks/use-bootstrap"
 import { useOrderDeepLink } from "@/features/waiter/use-order-deep-link"
+import { useStartSaleDialogState } from "@/features/waiter/use-start-sale-dialog"
 import { FloorBoard } from "@/app/(dashboard)/floor/floor-board"
 import { CategoryTabs } from "@/app/(dashboard)/pos/category-tabs"
 import { FloatingCart } from "@/app/(dashboard)/pos/floating-cart"
@@ -45,7 +46,12 @@ export default function StaffOrderTakingPage() {
   } = useOrderDeepLink({ basePath: BASE_PATH, outletId, deepLinkOrderId, deepLinkTableId })
 
   useKitchenRealtime(effectiveOutletId)
-  usePosBootstrap(effectiveOutletId)
+  const bootstrap = usePosBootstrap(effectiveOutletId)
+
+  // Lazy: StartSaleDialog (and its table-sessions/customers requests) isn't
+  // mounted until the button below is tapped or preselectedTableId forces it
+  // open — see useStartSaleDialogState.
+  const startSale = useStartSaleDialogState(preselectedTableId)
 
   return (
     <div className="flex flex-1 flex-col gap-3">
@@ -60,11 +66,9 @@ export default function StaffOrderTakingPage() {
         ) : (
           effectiveOutletId &&
           !isResolvingTableDeepLink && (
-            <StartSaleDialog
-              outletId={effectiveOutletId}
-              onSaleStarted={(orderId) => router.push(`${BASE_PATH}?orderId=${orderId}`)}
-              preselectedTableId={preselectedTableId}
-            />
+            <Button size="sm" onClick={startSale.openDialog}>
+              Start sale
+            </Button>
           )
         )}
       </div>
@@ -98,6 +102,17 @@ export default function StaffOrderTakingPage() {
           outletId={effectiveOutletId}
           orders={openOrdersForDeepLinkSession}
           onSelectOrder={(orderId) => router.replace(`${BASE_PATH}?orderId=${orderId}`)}
+        />
+      )}
+
+      {startSale.mounted && effectiveOutletId && (
+        <StartSaleDialog
+          open={startSale.open}
+          onOpenChange={startSale.onOpenChange}
+          outletId={effectiveOutletId}
+          onSaleStarted={(orderId) => router.push(`${BASE_PATH}?orderId=${orderId}`)}
+          preselectedTableId={preselectedTableId}
+          tables={bootstrap.data?.tables ?? []}
         />
       )}
     </div>
