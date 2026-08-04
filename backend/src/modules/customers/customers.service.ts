@@ -86,7 +86,9 @@ export class CustomersService {
 
     try {
       const loyaltySettings = await this.settingsService.getLoyaltySettings();
-      const welcomeBonusPoints = Number(loyaltySettings.welcomeBonusPoints ?? 0);
+      const welcomeBonusPoints = Number(
+        loyaltySettings.welcomeBonusPoints ?? 0,
+      );
       if (welcomeBonusPoints > 0) {
         await this.loyaltyService.earnPoints(
           saved.id,
@@ -163,28 +165,46 @@ export class CustomersService {
   async upsertVisit(
     customerId: number,
     outletId: number,
+    options?: { skipOutletValidation?: boolean },
   ): Promise<CustomerOutlet> {
-    await this.outletsService.findOne(outletId);
+    const start = Date.now();
+    // Callers that already validated outletId this request (e.g.
+    // TableSessionsService.create, which loads the outlet in its own
+    // validation batch) can skip this — avoids a redundant round trip for
+    // an id we already know is good.
+    if (!options?.skipOutletValidation) {
+      await this.outletsService.findOne(outletId);
+    }
+    const lookupOutletMs = Date.now() - start;
+
+    const findStart = Date.now();
     const existing = await this.customerOutletsRepository.findOne({
       where: { customerId, outletId },
     });
+    const findMs = Date.now() - findStart;
     const now = new Date();
 
-    if (!existing) {
-      return this.customerOutletsRepository.save(
-        this.customerOutletsRepository.create({
-          customerId,
-          outletId,
-          firstVisitedAt: now,
-          lastVisitedAt: now,
-          visitCount: 1,
-        }),
-      );
-    }
-
-    existing.visitCount += 1;
-    existing.lastVisitedAt = now;
-    return this.customerOutletsRepository.save(existing);
+    const saveStart = Date.now();
+    const result = !existing
+      ? await this.customerOutletsRepository.save(
+          this.customerOutletsRepository.create({
+            customerId,
+            outletId,
+            firstVisitedAt: now,
+            lastVisitedAt: now,
+            visitCount: 1,
+          }),
+        )
+      : await this.customerOutletsRepository.save(
+          Object.assign(existing, {
+            visitCount: existing.visitCount + 1,
+            lastVisitedAt: now,
+          }),
+        );
+    this.logger.debug(
+      `upsertVisit(${customerId}, ${outletId}) timing (ms): lookupOutlet=${lookupOutletMs} findExisting=${findMs} save=${Date.now() - saveStart} total=${Date.now() - start}`,
+    );
+    return result;
   }
 
   private mapUniqueViolation(error: unknown): unknown {

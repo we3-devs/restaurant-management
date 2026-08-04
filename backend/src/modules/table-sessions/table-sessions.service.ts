@@ -4,6 +4,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -45,8 +46,37 @@ export type TableSessionDetail = TableSessionWithCustomer & {
   diningTableName: string;
 };
 
+/**
+ * Columns POS/floor board list rows actually use. `relations: ['customer']`
+ * without this pulls the customer's jsonb blobs (addresses, allergies,
+ * dietaryPreferences, favoriteFoodIds) on every row just to read a name and
+ * phone number.
+ */
+const LIST_SELECT = {
+  id: true,
+  outletId: true,
+  diningTableId: true,
+  reservationId: true,
+  customerId: true,
+  guestCount: true,
+  source: true,
+  status: true,
+  startedAt: true,
+  billingStartedAt: true,
+  endedAt: true,
+  startedBy: true,
+  endedBy: true,
+  transferredBy: true,
+  transferredAt: true,
+  createdAt: true,
+  updatedAt: true,
+  customer: { id: true, name: true, phone: true },
+} as const;
+
 @Injectable()
 export class TableSessionsService {
+  private readonly logger = new Logger(TableSessionsService.name);
+
   constructor(
     @InjectRepository(TableSession)
     private readonly tableSessionsRepository: Repository<TableSession>,
@@ -65,6 +95,7 @@ export class TableSessionsService {
   async findAll(
     query: ListTableSessionsQueryDto,
   ): Promise<PaginatedResponse<TableSessionWithCustomer>> {
+    const methodStart = Date.now();
     const { page, limit, outletId, diningTableId, status } = query;
     const where: FindOptionsWhere<TableSession> = {};
     if (outletId !== undefined) {
@@ -77,16 +108,24 @@ export class TableSessionsService {
       where.status = status;
     }
 
+    const queryStart = Date.now();
     const [sessions, total] = await this.tableSessionsRepository.findAndCount({
       where,
       relations: ['customer'],
+      select: LIST_SELECT,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
+    const queryMs = Date.now() - queryStart;
+
+    const data = await this.attachCustomerSummaries(sessions);
+    this.logger.debug(
+      `findAll query=${queryMs}ms total=${Date.now() - methodStart}ms rows=${sessions.length}`,
+    );
 
     return {
-      data: await this.attachCustomerSummaries(sessions),
+      data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -142,15 +181,24 @@ export class TableSessionsService {
 
   /** GET /table-sessions/:id — the guest/outlet/table names a detail page actually needs, not just the raw ids findOne() gives internal callers. */
   async findOneDetailed(id: number): Promise<TableSessionDetail> {
+    const methodStart = Date.now();
     const session = await this.tableSessionsRepository.findOne({
       where: { id },
       relations: ['customer', 'diningTable', 'outlet'],
+      select: {
+        ...LIST_SELECT,
+        diningTable: { id: true, name: true },
+        outlet: { id: true, name: true },
+      },
     });
     if (!session) {
       throw new NotFoundException(`Table session ${id} not found`);
     }
 
     const [withCustomer] = await this.attachCustomerSummaries([session]);
+    this.logger.debug(
+      `findOneDetailed(${id}) total=${Date.now() - methodStart}ms`,
+    );
     return {
       ...withCustomer,
       outletName: session.outlet.name,
@@ -223,15 +271,30 @@ export class TableSessionsService {
     dto: CreateTableSessionDto,
     startedBy: number | null,
   ): Promise<TableSession> {
-    await this.outletsService.findOne(dto.outletId);
-    await this.diningTablesService.findOne(dto.diningTableId);
-    if (dto.customerId !== undefined) {
-      await this.customersService.findOne(dto.customerId);
-    }
-    if (dto.reservationId !== undefined) {
-      await this.reservationsService.findOne(dto.reservationId);
-    }
+    const requestStart = Date.now();
 
+    // --- Validation: outlet/table/customer/reservation existence checks
+    // have no dependency on each other, so they run as one round trip
+    // instead of up to four serialized ones. `diningTable` is kept (not
+    // re-fetched later) purely to read its `.name` for the notification.
+    const validationStart = Date.now();
+    const [, diningTable] = await Promise.all([
+      this.outletsService.findOne(dto.outletId),
+      this.diningTablesService.findOne(dto.diningTableId),
+      dto.customerId !== undefined
+        ? this.customersService.findOne(dto.customerId)
+        : Promise.resolve(null),
+      dto.reservationId !== undefined
+        ? this.reservationsService.findOne(dto.reservationId)
+        : Promise.resolve(null),
+    ]);
+    const validationMs = Date.now() - validationStart;
+
+    // --- Transaction: kept to exactly the two statements that must be
+    // atomic (the open-session check and the insert) — everything else
+    // below is a separate, independent write that doesn't need to share
+    // this transaction's isolation.
+    const transactionStart = Date.now();
     const saved = await this.dataSource.transaction(async (manager) => {
       await this.assertNoOpenSession(dto.diningTableId, manager);
 
@@ -248,26 +311,53 @@ export class TableSessionsService {
       });
       return manager.save(session);
     });
+    const transactionMs = Date.now() - transactionStart;
 
-    await this.diningTablesService.setStatus(dto.diningTableId, 'occupied');
+    // --- Post-commit: three independent writes (table status, customer
+    // visit stats, notification row) — none reads another's result, so they
+    // run concurrently. All three are awaited because each is required for
+    // correctness the client can observe immediately after this response
+    // (table status on the next floor-board fetch, visit count on the next
+    // customer lookup, the notification row existing before it's broadcast).
+    const postCommitStart = Date.now();
+    const [, , notification] = await Promise.all([
+      this.diningTablesService.setStatus(dto.diningTableId, 'occupied'),
+      dto.customerId !== undefined
+        ? // First time this session gets a customer of record — counts as
+          // one dine-in visit (mirrors the guard in attachCustomerIfMissing()).
+          // outletId was already validated above — skip upsertVisit's own check.
+          this.customersService.upsertVisit(dto.customerId, dto.outletId, {
+            skipOutletValidation: true,
+          })
+        : Promise.resolve(null),
+      this.notificationsService.create({
+        outletId: dto.outletId,
+        type: 'system',
+        title: `${diningTable.name} — guests checked in`,
+        body: `${saved.guestCount} guest(s)`,
+        tableName: diningTable.name,
+        actorUserId: startedBy,
+        data: JSON.stringify({ tableSessionId: saved.id }),
+      }),
+    ]);
+    const postCommitMs = Date.now() - postCommitStart;
 
-    if (dto.customerId !== undefined) {
-      // First time this session gets a customer of record — counts as one
-      // dine-in visit (mirrors the guard in attachCustomerIfMissing()).
-      await this.customersService.upsertVisit(dto.customerId, dto.outletId);
+    // --- Background: the realtime push doesn't gate the HTTP response —
+    // the client that just created the session doesn't need its own
+    // websocket round trip to know it succeeded (it has `saved` already).
+    // Wrapped so a broadcast failure logs instead of surfacing as a 500 for
+    // a session that's already durably committed.
+    try {
+      this.gateway.notifyNotificationCreated(notification);
+    } catch (error) {
+      this.logger.error(
+        `Failed to broadcast notification for table session ${saved.id}: ${(error as Error).message}`,
+      );
     }
 
-    const table = await this.diningTablesService.findOne(dto.diningTableId);
-    const notification = await this.notificationsService.create({
-      outletId: dto.outletId,
-      type: 'system',
-      title: `${table.name} — guests checked in`,
-      body: `${saved.guestCount} guest(s)`,
-      tableName: table.name,
-      actorUserId: startedBy,
-      data: JSON.stringify({ tableSessionId: saved.id }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    this.logger.debug(
+      `create() timing (ms): validation=${validationMs} transaction=${transactionMs} postCommit=${postCommitMs} total=${Date.now() - requestStart}`,
+    );
 
     return saved;
   }
