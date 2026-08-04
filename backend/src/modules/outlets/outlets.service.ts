@@ -22,12 +22,19 @@ export class OutletsService {
     query: ListOutletsQueryDto,
   ): Promise<PaginatedResponse<Outlet>> {
     const { page, limit, search } = query;
-    const [outlets, total] = await this.outletsRepository.findAndCount({
-      where: search ? { name: ILike(`%${search}%`) } : {},
-      order: { name: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const where = search ? { name: ILike(`%${search}%`) } : {};
+
+    // Two independent round trips (rows + count) — run concurrently instead
+    // of TypeORM's findAndCount(), which issues them one after another.
+    const [outlets, total] = await Promise.all([
+      this.outletsRepository.find({
+        where,
+        order: { name: 'ASC' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.outletsRepository.count({ where }),
+    ]);
 
     return {
       data: outlets,

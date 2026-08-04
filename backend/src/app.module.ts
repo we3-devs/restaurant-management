@@ -118,11 +118,22 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
           // PgBouncer for sessions it will refuse once traffic pushes past
           // 15 concurrent, which surfaces as EMAXCONNSESSION errors (500s)
           // rather than the app-side queuing pg-pool would otherwise do.
-          // 10 leaves 5 sessions of headroom for restart overlap, a
-          // concurrent seed/migration run, or Supabase's own overhead.
+          //
+          // Raised from 10/4 to 12/8: the dashboard shell fires more than
+          // just the 4 dashboard-widget endpoints concurrently on every page
+          // load — ws-ticket, notifications, outlets(/assigned),
+          // outlet-departments/assigned and the orders/dining-tables
+          // background prefetch all race the same instant the active outlet
+          // resolves (see AppModule.onApplicationBootstrap below). With only
+          // 4 warm connections, the requests that lost that race each paid
+          // the full ~1.1-1.4s cold-connect cost (measured: ws-ticket
+          // 1.24s, notifications 1.02s), even though their own queries only
+          // take ~150-200ms once connected. 12 leaves 3 sessions of
+          // headroom for restart overlap, a concurrent seed/migration run,
+          // or Supabase's own overhead.
           extra: {
-            max: 10,
-            min: 4,
+            max: 12,
+            min: 8,
             idleTimeoutMillis: 60_000,
           },
         };
@@ -193,18 +204,21 @@ export class AppModule implements OnApplicationBootstrap {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   /**
-   * Fires 4 trivial queries in parallel — at boot, and then on a repeating
-   * interval — so the connection pool keeps 4 warm connections established
+   * Fires 8 trivial queries in parallel — at boot, and then on a repeating
+   * interval — so the connection pool keeps 8 warm connections established
    * at all times. Without this, whichever request can't reuse an
    * already-open connection pays the ~1.1-1.4s TCP+TLS+auth cost of opening
    * a fresh one to the remote DB pooler.
    *
-   * 4, not 2 (`min` above): the dashboard page fires 4 endpoints
-   * concurrently (stats/charts/breakdown/inventory-activity) — with only 2
-   * connections warm, 2 of those 4 always lost the race and paid the full
-   * connect cost, which is exactly why charts/breakdown (whichever two
-   * didn't grab a warm connection) measured 1.5-2.1s despite their own
-   * queries taking ~150ms once actually connected.
+   * 8, not 4: the dashboard shell fires more than just the 4 dashboard-
+   * widget endpoints (stats/charts/breakdown/inventory-activity) the moment
+   * the active outlet resolves — it also kicks off ws-ticket, notifications,
+   * outlet-departments/assigned, and an orders/dining-tables background
+   * prefetch, all in the same tick. With only 4 connections warm, the
+   * requests that lost that race (typically ws-ticket and notifications,
+   * since they're gated behind the outlet fetch resolving first) paid the
+   * full connect cost, which is exactly why they measured ~1.0-1.25s
+   * despite their own queries taking ~150-300ms once actually connected.
    *
    * Repeating, not one-shot: `pg.Pool`'s `min` option does NOT proactively
    * keep connections open — it only stops the pool from closing idle ones
@@ -213,11 +227,11 @@ export class AppModule implements OnApplicationBootstrap {
    * boot warm-up decays the moment `idleTimeoutMillis` (60s) passes with no
    * DB traffic — normal between dashboard page loads — and the next burst
    * of concurrent requests is back to paying the connect tax. Pinging every
-   * 45s (under the 60s idle timeout) keeps the 4 connections from ever
+   * 45s (under the 60s idle timeout) keeps the 8 connections from ever
    * aging out.
    */
   async onApplicationBootstrap() {
-    const warmConnections = 4;
+    const warmConnections = 8;
     const pingAll = () =>
       Promise.all(
         Array.from({ length: warmConnections }, () =>

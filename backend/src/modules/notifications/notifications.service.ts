@@ -135,19 +135,26 @@ export class NotificationsService {
       );
     }
 
-    const [data, total] = await qb
-      .orderBy('notification.created_at', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
-
-    const unreadCount = await this.notificationsRepository.count({
-      where: {
-        ...(outletId !== undefined ? { outletId } : {}),
-        readAt: IsNull(),
-        archivedAt: IsNull(),
-      },
-    });
+    // Three independent round trips run concurrently, not
+    // qb.getManyAndCount() (rows then count sequentially, since it's one
+    // method call awaiting internally) + a separate count call — that
+    // pattern still serializes the two heaviest queries against each other.
+    const [data, total, unreadCount] = await Promise.all([
+      qb
+        .clone()
+        .orderBy('notification.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany(),
+      qb.clone().getCount(),
+      this.notificationsRepository.count({
+        where: {
+          ...(outletId !== undefined ? { outletId } : {}),
+          readAt: IsNull(),
+          archivedAt: IsNull(),
+        },
+      }),
+    ]);
 
     return {
       data,

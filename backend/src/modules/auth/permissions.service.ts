@@ -1,14 +1,74 @@
-import { Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
+
+interface ActiveAssignmentRow {
+  slug: string | null;
+  portal: string | null;
+  outletId: string | null;
+  outletDepartmentId: string | null;
+}
+
+// Every method below reads from the same underlying active-role-assignment
+// set for a user, and used to run as 4 independent, uncached queries against
+// user_role_assignments (each ~150-200ms against the remote DB). Callers
+// like AuthController.me and PermissionsGuard often need 2+ of them for a
+// single request, so this fetches the whole set once and derives every
+// result from the cached rows in memory. Same TTL/revocation tradeoff as
+// JwtAccessStrategy's user cache (see USER_CACHE_TTL_MS there).
+const ASSIGNMENTS_CACHE_TTL_MS = 15_000;
 
 @Injectable()
 export class PermissionsService {
   constructor(
     @InjectRepository(UserRoleAssignment)
     private readonly assignmentsRepository: Repository<UserRoleAssignment>,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
+
+  private async getActiveAssignmentRows(
+    userId: number,
+  ): Promise<ActiveAssignmentRow[]> {
+    const cacheKey = `auth:assignments:${userId}`;
+    const cached = await this.cache.get<ActiveAssignmentRow[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const rows = await this.assignmentsRepository.manager
+      .createQueryBuilder()
+      .select('permissions.slug', 'slug')
+      .addSelect('roles.portal', 'portal')
+      .addSelect('ura.outlet_id', 'outletId')
+      .addSelect('ura.outlet_department_id', 'outletDepartmentId')
+      .from('user_role_assignments', 'ura')
+      .innerJoin(
+        'roles',
+        'roles',
+        'roles.id = ura.role_id AND roles.is_active = true',
+      )
+      .leftJoin(
+        'role_permissions',
+        'role_permissions',
+        'role_permissions.role_id = ura.role_id',
+      )
+      .leftJoin(
+        'permissions',
+        'permissions',
+        'permissions.id = role_permissions.permission_id AND permissions.is_active = true',
+      )
+      .where('ura.user_id = :userId', { userId })
+      .andWhere('ura.is_active = true')
+      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
+      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
+      .getRawMany<ActiveAssignmentRow>();
+
+    await this.cache.set(cacheKey, rows, ASSIGNMENTS_CACHE_TTL_MS);
+    return rows;
+  }
 
   /**
    * Resolves the set of permission slugs granted to a user via any active,
@@ -20,32 +80,12 @@ export class PermissionsService {
    * consumes this as a plain string array with no scope dimension.
    */
   async getPermissionSlugs(userId: number): Promise<Set<string>> {
-    const rows = await this.assignmentsRepository.manager
-      .createQueryBuilder()
-      .select('DISTINCT permissions.slug', 'slug')
-      .from('user_role_assignments', 'ura')
-      .innerJoin(
-        'roles',
-        'roles',
-        'roles.id = ura.role_id AND roles.is_active = true',
-      )
-      .innerJoin(
-        'role_permissions',
-        'role_permissions',
-        'role_permissions.role_id = ura.role_id',
-      )
-      .innerJoin(
-        'permissions',
-        'permissions',
-        'permissions.id = role_permissions.permission_id AND permissions.is_active = true',
-      )
-      .where('ura.user_id = :userId', { userId })
-      .andWhere('ura.is_active = true')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
-      .getRawMany<{ slug: string }>();
-
-    return new Set(rows.map((row) => row.slug));
+    const rows = await this.getActiveAssignmentRows(userId);
+    return new Set(
+      rows
+        .map((row) => row.slug)
+        .filter((slug): slug is string => slug !== null),
+    );
   }
 
   /**
@@ -57,24 +97,10 @@ export class PermissionsService {
    * restricted landing).
    */
   async getPortalAccess(userId: number): Promise<'dashboard' | 'staff'> {
-    const rows = await this.assignmentsRepository.manager
-      .createQueryBuilder()
-      .select('DISTINCT roles.portal', 'portal')
-      .from('user_role_assignments', 'ura')
-      .innerJoin(
-        'roles',
-        'roles',
-        'roles.id = ura.role_id AND roles.is_active = true',
-      )
-      .where('ura.user_id = :userId', { userId })
-      .andWhere('ura.is_active = true')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
-      .getRawMany<{ portal: string }>();
-
-    const portals = rows.map((row) => row.portal);
-    if (portals.length === 0) return 'staff';
-    return portals.some((portal) => portal === 'dashboard' || portal === 'both')
+    const rows = await this.getActiveAssignmentRows(userId);
+    const portals = new Set(rows.map((row) => row.portal));
+    if (portals.size === 0) return 'staff';
+    return portals.has('dashboard') || portals.has('both')
       ? 'dashboard'
       : 'staff';
   }
@@ -87,17 +113,15 @@ export class PermissionsService {
    * should be treated as having access to every outlet.
    */
   async getAccessibleOutletIds(userId: number): Promise<number[]> {
-    const rows = await this.assignmentsRepository
-      .createQueryBuilder('ura')
-      .select('DISTINCT ura.outlet_id', 'outletId')
-      .where('ura.user_id = :userId', { userId })
-      .andWhere('ura.is_active = true')
-      .andWhere('ura.outlet_id IS NOT NULL')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
-      .getRawMany<{ outletId: string }>();
-
-    return rows.map((row) => Number(row.outletId));
+    const rows = await this.getActiveAssignmentRows(userId);
+    return [
+      ...new Set(
+        rows
+          .map((row) => row.outletId)
+          .filter((id): id is string => id !== null)
+          .map(Number),
+      ),
+    ];
   }
 
   /**
@@ -108,16 +132,14 @@ export class PermissionsService {
    * filter) instead of defaulting to "all"/first.
    */
   async getAccessibleOutletDepartmentIds(userId: number): Promise<number[]> {
-    const rows = await this.assignmentsRepository
-      .createQueryBuilder('ura')
-      .select('DISTINCT ura.outlet_department_id', 'outletDepartmentId')
-      .where('ura.user_id = :userId', { userId })
-      .andWhere('ura.is_active = true')
-      .andWhere('ura.outlet_department_id IS NOT NULL')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
-      .getRawMany<{ outletDepartmentId: string }>();
-
-    return rows.map((row) => Number(row.outletDepartmentId));
+    const rows = await this.getActiveAssignmentRows(userId);
+    return [
+      ...new Set(
+        rows
+          .map((row) => row.outletDepartmentId)
+          .filter((id): id is string => id !== null)
+          .map(Number),
+      ),
+    ];
   }
 }

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
-import { LessThan, Repository } from 'typeorm';
+import { LessThan, QueryDeepPartialEntity, Repository } from 'typeorm';
 import { WsTicket, WsTicketKind } from './ws-ticket.entity';
 
 const CLEANUP_INTERVAL_MS = 5 * 60_000;
@@ -30,13 +30,19 @@ export class WsTicketsService {
     ttlSeconds: number,
   ): Promise<string> {
     const ticket = randomUUID();
-    const entity = this.repository.create({
+    // .insert(), not .save(): the primary key (`ticket`) is a client-
+    // generated random UUID, never an existing row, but .save() can't tell
+    // that — with a manually-assigned PK it always issues a pre-check
+    // SELECT plus an explicit transaction wrapper around the INSERT (4
+    // round trips total) to decide insert-vs-update. That's ~650ms+ against
+    // this remote pooler even though the actual INSERT is ~160ms. .insert()
+    // skips the existence check entirely and runs the single INSERT.
+    await this.repository.insert({
       ticket,
       kind,
       payload,
       expiresAt: new Date(Date.now() + ttlSeconds * 1000),
-    });
-    await this.repository.save(entity);
+    } satisfies Partial<WsTicket> as QueryDeepPartialEntity<WsTicket>);
     return ticket;
   }
 
