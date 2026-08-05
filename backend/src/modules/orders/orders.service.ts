@@ -470,7 +470,9 @@ export class OrdersService {
     // never thrown back into the request path.
     const backgroundStart = process.hrtime.bigint();
     this.tableSessionsService
-      .runPostCreateSideEffects(sessionDto, session, diningTable, startedBy)
+      .runPostCreateSideEffects(sessionDto, session, diningTable, startedBy, {
+        sequential: true,
+      })
       .then(() => {
         const backgroundWorkMs =
           Number(process.hrtime.bigint() - backgroundStart) / 1e6;
