@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session"
 
-// Routes that must be reachable without a (staff) session: the login page
-// and the whole /guest subtree — the QR ordering/tracking flow guests use
-// has its own, separate customer-JWT auth (see customer-session.ts) and
-// never carries a staff cookie.
-const AUTH_ROUTES = ["/login", "/guest"]
+// Routes that must be reachable without a (staff) session. /guest (QR
+// ordering, its own customer-JWT auth) moved to operational-web along with
+// the rest of the customer-facing flows, so only /login remains here.
+const AUTH_ROUTES = ["/login"]
 
 function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
