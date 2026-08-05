@@ -10,10 +10,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
+  EntityManager,
   FindOptionsWhere,
   ILike,
   In,
-  MoreThanOrEqual,
   Not,
   Repository,
 } from 'typeorm';
@@ -329,18 +329,21 @@ export class OrdersService {
       }
     }
 
-    const order = this.ordersRepository.create({
-      outletId: dto.outletId,
-      tableSessionId: dto.tableSessionId ?? null,
-      customerId: dto.customerId ?? null,
-      reservationId: dto.reservationId ?? null,
-      orderType: dto.orderType ?? 'table',
-      note: dto.note ?? null,
-      orderNumber: this.generateOrderNumber(dto.outletId),
-      createdBy,
-    });
-
-    return this.saveWithBillNumber(order, dto.outletId);
+    return this.dataSource.transaction((manager) =>
+      this.insertOrderWithBillNumber(manager, dto.outletId, (billNumber) =>
+        manager.create(Order, {
+          outletId: dto.outletId,
+          tableSessionId: dto.tableSessionId ?? null,
+          customerId: dto.customerId ?? null,
+          reservationId: dto.reservationId ?? null,
+          orderType: dto.orderType ?? 'table',
+          note: dto.note ?? null,
+          orderNumber: this.generateOrderNumber(dto.outletId),
+          billNumber,
+          createdBy,
+        }),
+      ),
+    );
   }
 
   /**
@@ -420,23 +423,23 @@ export class OrdersService {
       );
       mark('insertSession', insertSessionStart);
 
-      const billNumberStart = process.hrtime.bigint();
-      const billNumber = await this.generateBillNumber(dto.outletId);
-      mark('generateBillNumber', billNumberStart);
-
       const insertOrderStart = process.hrtime.bigint();
-      const orderEntity = queryRunner.manager.create(Order, {
-        outletId: dto.outletId,
-        tableSessionId: session.id,
-        customerId: dto.customerId ?? null,
-        reservationId: dto.reservationId ?? null,
-        orderType: dto.orderType ?? 'table',
-        note: dto.note ?? null,
-        orderNumber: this.generateOrderNumber(dto.outletId),
-        billNumber,
-        createdBy: startedBy,
-      });
-      order = await queryRunner.manager.save(orderEntity);
+      order = await this.insertOrderWithBillNumber(
+        queryRunner.manager,
+        dto.outletId,
+        (billNumber) =>
+          queryRunner.manager.create(Order, {
+            outletId: dto.outletId,
+            tableSessionId: session.id,
+            customerId: dto.customerId ?? null,
+            reservationId: dto.reservationId ?? null,
+            orderType: dto.orderType ?? 'table',
+            note: dto.note ?? null,
+            orderNumber: this.generateOrderNumber(dto.outletId),
+            billNumber,
+            createdBy: startedBy,
+          }),
+      );
       mark('insertOrder', insertOrderStart);
 
       const commitStart = process.hrtime.bigint();
@@ -523,18 +526,20 @@ export class OrdersService {
 
     const saved =
       existing ??
-      (await this.saveWithBillNumber(
-        this.ordersRepository.create({
-          outletId,
-          tableSessionId,
-          customerId,
-          orderType: 'table',
-          orderNumber: this.generateOrderNumber(outletId),
-          createdBy: null,
-          source: 'online',
-          orderSource: 'qr',
-        }),
-        outletId,
+      (await this.dataSource.transaction((manager) =>
+        this.insertOrderWithBillNumber(manager, outletId, (billNumber) =>
+          manager.create(Order, {
+            outletId,
+            tableSessionId,
+            customerId,
+            orderType: 'table',
+            orderNumber: this.generateOrderNumber(outletId),
+            createdBy: null,
+            source: 'online',
+            orderSource: 'qr',
+            billNumber,
+          }),
+        ),
       ));
 
     if (existing) {
@@ -1432,58 +1437,130 @@ export class OrdersService {
   }
 
   /**
+   * The (outletId, periodKey) row's next sequence value, via a single
+   * atomic `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` against
+   * bill_number_counters (see migration CreateBillNumberCounters). Postgres
+   * serializes concurrent callers on the row itself — there is no
+   * read-then-write gap for two requests to race through, unlike the
+   * `orders.count()` approach this replaces. Must run against the same
+   * transactional `manager` that will insert the order (see
+   * insertOrderWithBillNumber) so the increment rolls back together with a
+   * failed insert instead of burning a sequence number.
+   */
+  private async nextBillSequence(
+    manager: EntityManager,
+    outletId: number,
+    periodKey: string,
+  ): Promise<number> {
+    const rows: { last_number: number }[] = await manager.query(
+      `INSERT INTO bill_number_counters (outlet_id, period_key, last_number, updated_at)
+       VALUES ($1, $2, 1, now())
+       ON CONFLICT (outlet_id, period_key)
+       DO UPDATE SET last_number = bill_number_counters.last_number + 1, updated_at = now()
+       RETURNING last_number`,
+      [outletId, periodKey],
+    );
+    return Number(rows[0].last_number);
+  }
+
+  /**
    * The guest-facing bill number — distinct from orderNumber (an internal
    * reference, never meant to be read by a guest). Format comes from the
    * "pos" settings category: {receiptPrefix}-[{periodTag}-]{sequence padded
-   * to billNumberDigits}, e.g. BILL-20260803-0007. The sequence is the count
-   * of this outlet's orders since the configured reset period's start
-   * (never/daily/monthly/yearly) + 1 — a count, not a real atomic counter,
-   * same tradeoff generateOrderNumber's random suffix makes; the unique
-   * constraint on orders.bill_number plus one retry (see the two call
-   * sites) catches the rare concurrent-collision case.
+   * to billNumberDigits}, e.g. BILL-20260803-0007. `periodKey` is the
+   * counter row's key: the same as periodTag when the reset period resets
+   * the visible number too (daily/monthly/yearly), or a fixed 'all' when
+   * resetPeriod is 'never' (no periodTag, one counter per outlet forever).
+   * Only ever called from insertOrderWithBillNumber — see that method's
+   * comment for why this must never be called standalone.
    */
-  private async generateBillNumber(outletId: number): Promise<string> {
+  private async generateBillNumber(
+    manager: EntityManager,
+    outletId: number,
+  ): Promise<string> {
     const posSettings = await this.settingsService.getPosSettings();
     const prefix = (posSettings.receiptPrefix as string) || 'INV';
     const digits = Number(posSettings.billNumberDigits ?? 4);
     const resetPeriod = (posSettings.billNumberResetPeriod as string) ?? 'daily';
 
     const now = new Date();
-    let periodStart: Date | null = null;
     let periodTag = '';
     if (resetPeriod === 'daily') {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      periodTag = periodStart.toISOString().slice(0, 10).replace(/-/g, '');
+      periodTag = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, '');
     } else if (resetPeriod === 'monthly') {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      periodTag = periodStart.toISOString().slice(0, 7).replace('-', '');
+      periodTag = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString()
+        .slice(0, 7)
+        .replace('-', '');
     } else if (resetPeriod === 'yearly') {
-      periodStart = new Date(now.getFullYear(), 0, 1);
       periodTag = String(now.getFullYear());
     }
 
-    const count = await this.ordersRepository.count({
-      where: periodStart
-        ? { outletId, createdAt: MoreThanOrEqual(periodStart) }
-        : { outletId },
-    });
-    const sequence = String(count + 1).padStart(digits, '0');
-
-    return periodTag ? `${prefix}-${periodTag}-${sequence}` : `${prefix}-${sequence}`;
+    const sequence = await this.nextBillSequence(
+      manager,
+      outletId,
+      periodTag || 'all',
+    );
+    const padded = String(sequence).padStart(digits, '0');
+    return periodTag ? `${prefix}-${periodTag}-${padded}` : `${prefix}-${padded}`;
   }
 
-  /** Assigns a bill number and saves a brand-new (not-yet-persisted) order, retrying with a freshly generated number on the rare concurrent collision (Postgres unique_violation, code 23505) against orders.bill_number's unique constraint. */
-  private async saveWithBillNumber(order: Order, outletId: number): Promise<Order> {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      order.billNumber = await this.generateBillNumber(outletId);
+  /**
+   * THE single authoritative order-insert path. Every flow that creates an
+   * order — staff POS (create()), guest self-ordering (createFromGuest()),
+   * and "open a table + its first order" (openTableWithOrder()) — must
+   * route its insert through this method rather than calling
+   * generateBillNumber()/manager.save(Order, ...) directly. Centralizing
+   * this is deliberate: a previous incident shipped openTableWithOrder()
+   * with its own hand-rolled bill-number/insert logic that had no retry at
+   * all, which is exactly the kind of regression this method exists to make
+   * impossible — there is nowhere else in the codebase a caller can get an
+   * Order row into the database without going through here (verified: grep
+   * for `manager.create(Order` / `ordersRepository.create(` across
+   * backend/src turns up only the three call sites above, all routed
+   * through this method).
+   *
+   * Generates a bill number and inserts `buildOrder(billNumber)` inside the
+   * given transactional `manager`, retrying up to 3 times on a Postgres
+   * unique_violation (23505) against orders_bill_number_key. The atomic
+   * counter in generateBillNumber already makes same-instance collisions
+   * effectively impossible, but this stays as defensive-in-depth (e.g. a
+   * bill_number hand-edited elsewhere). Each attempt is wrapped in a
+   * SAVEPOINT so a failed insert only unwinds that attempt — not the whole
+   * transaction (e.g. openTableWithOrder's session insert that already
+   * landed earlier in the same transaction).
+   */
+  private async insertOrderWithBillNumber(
+    manager: EntityManager,
+    outletId: number,
+    buildOrder: (billNumber: string) => Order,
+  ): Promise<Order> {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await manager.query('SAVEPOINT bill_number_attempt');
       try {
-        return await this.ordersRepository.save(order);
+        const billNumber = await this.generateBillNumber(manager, outletId);
+        const order = await manager.save(buildOrder(billNumber));
+        await manager.query('RELEASE SAVEPOINT bill_number_attempt');
+        this.logger.debug(
+          `insertOrderWithBillNumber: order ${order.id} inserted with bill_number=${billNumber} (outlet ${outletId}, attempt ${attempt}/3)`,
+        );
+        return order;
       } catch (error) {
-        const isUniqueViolation = (error as { code?: string })?.code === '23505';
-        if (!isUniqueViolation || attempt === 2) throw error;
+        await manager.query('ROLLBACK TO SAVEPOINT bill_number_attempt');
+        const isBillNumberCollision =
+          (error as { code?: string })?.code === '23505' &&
+          (error as { constraint?: string })?.constraint ===
+            'orders_bill_number_key';
+        if (!isBillNumberCollision || attempt === 3) throw error;
+        this.logger.warn(
+          `insertOrderWithBillNumber: bill_number collision on attempt ${attempt}/3 for outlet ${outletId}, retrying — ${(error as Error).message}`,
+        );
       }
     }
-    throw new Error('Failed to generate a unique bill number');
+    throw new Error('Failed to generate a unique bill number after 3 attempts');
   }
 
   /**
