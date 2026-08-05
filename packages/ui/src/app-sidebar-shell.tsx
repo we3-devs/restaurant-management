@@ -3,26 +3,22 @@
 import { useState } from "react"
 import { ChevronsLeftIcon, ChevronsRightIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed"
-import { DashboardNav } from "./dashboard-nav"
+import { Button } from "./button"
+import { useSidebarCollapsed } from "./use-sidebar-collapsed"
+import { AppSidebarNav, type NavGroup } from "./app-sidebar-nav"
 
 /**
  * Owns the sidebar's collapsed/expanded width and the icon-rail nav swap —
  * lifted into its own client component because layout.tsx is a server
  * component (it awaits getCurrentUser()) and collapsing needs real React
  * state, not just a CSS class toggle (the rail renders fundamentally
- * different content than the full nav, see DashboardNav's `collapsed` prop).
+ * different content than the full nav, see AppSidebarNav's `collapsed` prop).
  */
-export function SidebarShell({
-  permissions,
-  isSuperadmin,
-  roleSlugs,
+export function AppSidebarShell({
+  groups,
   children,
 }: {
-  permissions: string[]
-  isSuperadmin: boolean
-  roleSlugs: string[]
+  groups: NavGroup[]
   children: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = useSidebarCollapsed()
@@ -46,10 +42,8 @@ export function SidebarShell({
           {!collapsed && <span className="font-semibold tracking-tight text-sidebar-foreground">RMS</span>}
         </div>
         <div className="h-[calc(100%-3.5rem-3rem)] ">
-          <DashboardNav
-            permissions={permissions}
-            isSuperadmin={isSuperadmin}
-            roleSlugs={roleSlugs}
+          <AppSidebarNav
+            groups={groups}
             collapsed={collapsed}
             onExpandGroup={expandGroup}
             forceOpenGroup={forceOpenGroup}

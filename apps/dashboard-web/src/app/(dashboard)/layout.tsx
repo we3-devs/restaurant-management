@@ -5,13 +5,13 @@ import { CurrentUserProvider } from "@/lib/auth/current-user-context"
 import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@/lib/auth/route-access"
 import { ActiveOutletProvider } from "@/lib/outlet/active-outlet-context"
 import { AccessDenied } from "@/components/access-denied"
+import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
+import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderDepartmentSwitcher } from "./header-department-switcher"
 import { HeaderOutletSwitcher } from "./header-outlet-switcher"
 import { HeaderSearchButton } from "./header-search-button"
-import { MobileNavToggle } from "./mobile-nav-toggle"
 import { NotificationBell } from "./notification-bell"
-import { navRoutePermissions } from "./nav-items"
-import { SidebarShell } from "./sidebar-shell"
+import { navRoutePermissions, visibleNavGroups } from "./nav-items"
 import { UserMenu } from "./user-menu"
 import { RealtimeInvalidationProvider } from "./realtime-invalidation-provider"
 import { DashboardBackgroundPrefetch } from "./dashboard-background-prefetch"
@@ -41,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // but that's UI-only — this is what stops someone hitting the URL directly.
   const requiredPermission = findRequiredPermission(pathname, navRoutePermissions)
   const allowed = hasRoutePermission(user, requiredPermission)
+  const groups = visibleNavGroups(user.permissions, user.isSuperadmin, user.roleSlugs)
 
   return (
     <CurrentUserProvider user={user}>
@@ -49,7 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <DashboardBackgroundPrefetch />
       <CommandPalette />
       <div className="flex min-h-screen">
-        <SidebarShell permissions={user.permissions} isSuperadmin={user.isSuperadmin} roleSlugs={user.roleSlugs}>
+        <AppSidebarShell groups={groups}>
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-6">
               <MobileNavToggle />
@@ -67,7 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </header>
             <main className="flex flex-1 flex-col p-4 sm:p-6">{allowed ? children : <AccessDenied />}</main>
           </div>
-        </SidebarShell>
+        </AppSidebarShell>
       </div>
       </ActiveOutletProvider>
     </CurrentUserProvider>

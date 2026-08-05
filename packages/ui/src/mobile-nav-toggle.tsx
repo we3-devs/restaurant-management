@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { MenuIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "./button"
 
 function setOpen(open: boolean) {
   document.getElementById("dashboard-sidebar")?.classList.toggle("-translate-x-full", !open)

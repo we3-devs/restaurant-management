@@ -6,6 +6,7 @@
   "exports": {
     "./*": "./src/*.tsx",
     "./cn": "./src/cn.ts",
+    "./use-sidebar-collapsed": "./src/use-sidebar-collapsed.ts",
     "./theme-provider": "./src/theme-provider.tsx",
     "./globals.css": "./src/globals.css"
   },

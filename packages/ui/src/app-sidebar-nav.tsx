@@ -5,13 +5,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDown, type LucideIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { visibleNavGroups } from "./nav-items"
+import { cn } from "./cn"
 
-interface DashboardNavProps {
-  permissions: string[]
-  isSuperadmin: boolean
-  roleSlugs: string[]
+interface AppSidebarNavProps {
+  /** Already permission-filtered nav groups — each app computes this itself (e.g. via its own visibleNavGroups()) since which groups/links exist differs per app. */
+  groups: NavGroup[]
   /** Icon-only rail mode — each group renders as a single icon; clicking one expands the sidebar via onExpandGroup. */
   collapsed?: boolean
   onExpandGroup?: (groupLabel: string) => void
@@ -19,27 +17,24 @@ interface DashboardNavProps {
   forceOpenGroup?: string | null
 }
 
-interface NavLink {
+export interface NavLink {
   href: string
   label: string
 }
 
-interface NavGroup {
+export interface NavGroup {
   label: string
   icon: LucideIcon
   links: NavLink[]
 }
 
-export function DashboardNav({
-  permissions,
-  isSuperadmin,
-  roleSlugs,
+export function AppSidebarNav({
+  groups,
   collapsed = false,
   onExpandGroup,
   forceOpenGroup,
-}: DashboardNavProps) {
+}: AppSidebarNavProps) {
   const pathname = usePathname()
-  const groups: NavGroup[] = visibleNavGroups(permissions, isSuperadmin, roleSlugs)
 
   const activeGroupLabel = groups.find((group) =>
     group.links.some((link) => pathname === link.href || pathname.startsWith(`${link.href}/`)),
