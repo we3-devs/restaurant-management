@@ -3,8 +3,8 @@
 import * as React from "react"
 import { SearchIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { cn } from "./cn"
+import { Dialog, DialogContent } from "./dialog"
 
 function CommandDialog({
   className,

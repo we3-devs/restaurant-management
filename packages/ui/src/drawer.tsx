@@ -4,8 +4,8 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer"
 import { XIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { cn } from "./cn"
+import { Button } from "./button"
 
 function Drawer({ swipeDirection = "right", ...props }: DrawerPrimitive.Root.Props) {
   return <DrawerPrimitive.Root data-slot="drawer" swipeDirection={swipeDirection} {...props} />

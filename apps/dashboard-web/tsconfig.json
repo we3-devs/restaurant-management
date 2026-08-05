@@ -19,6 +19,9 @@
       }
     ],
     "paths": {
+      "@/lib/validators/*": ["../../packages/validators/src/*"],
+      "@/lib/utils": ["../../packages/ui/src/cn"],
+      "@/components/ui/*": ["../../packages/ui/src/*"],
       "@/*": ["./src/*"]
     }
   },
