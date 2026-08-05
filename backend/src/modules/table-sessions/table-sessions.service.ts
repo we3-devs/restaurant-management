@@ -21,6 +21,7 @@ import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { DiningTable } from '../dining-tables/entities/dining-table.entity';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
+import { Notification } from '../notifications/entities/notification.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { ReservationsService } from '../reservations/reservations.service';
@@ -322,22 +323,39 @@ export class TableSessionsService {
   /**
    * Post-commit work for a session insertSession() just committed: three
    * independent writes (table status, customer visit stats, notification
-   * row) — none reads another's result, so they run concurrently. All three
-   * are awaited because each is required for correctness the client can
-   * observe immediately after this response (table status on the next
-   * floor-board fetch, visit count on the next customer lookup, the
-   * notification row existing before it's broadcast). The realtime push
-   * itself is fire-and-forget — wrapped so a broadcast failure logs instead
-   * of surfacing as a 500 for a session that's already durably committed.
+   * row) — none reads another's result.
+   *
+   * By default they run concurrently (three pool connections at once),
+   * because for TableSessionsService#create() this is awaited *before* the
+   * response is sent — each is required for correctness the client can
+   * observe immediately after (table status on the next floor-board fetch,
+   * visit count on the next customer lookup, the notification row existing
+   * before it's broadcast), so the extra concurrency is worth it there to
+   * keep the response fast.
+   *
+   * `sequential: true` is for callers that already returned their response
+   * and are running this fire-and-forget (see
+   * OrdersService#openTableWithOrder): nothing is waiting on these writes
+   * anymore, so there's no latency reason to hold 3 pool connections at
+   * once — and doing so was racing the client's own post-response refetch
+   * burst for the same limited PgBouncer session pool (see app.module.ts's
+   * `max`/`min` comment), tipping it over the ceiling and surfacing as 500s
+   * on unrelated concurrent requests. One connection at a time avoids that.
+   *
+   * The realtime push itself is always fire-and-forget — wrapped so a
+   * broadcast failure logs instead of surfacing as a 500 for a session
+   * that's already durably committed.
    */
   async runPostCreateSideEffects(
     dto: CreateTableSessionDto,
     saved: TableSession,
     diningTable: DiningTable,
     startedBy: number | null,
+    options?: { sequential?: boolean },
   ): Promise<void> {
-    const [, , notification] = await Promise.all([
-      this.diningTablesService.setStatus(dto.diningTableId, 'occupied'),
+    const setStatus = () =>
+      this.diningTablesService.setStatus(dto.diningTableId, 'occupied');
+    const upsertVisit = () =>
       dto.customerId !== undefined
         ? // First time this session gets a customer of record — counts as
           // one dine-in visit (mirrors the guard in attachCustomerIfMissing()).
@@ -345,7 +363,8 @@ export class TableSessionsService {
           this.customersService.upsertVisit(dto.customerId, dto.outletId, {
             skipOutletValidation: true,
           })
-        : Promise.resolve(null),
+        : Promise.resolve(null);
+    const createNotification = () =>
       this.notificationsService.create({
         outletId: dto.outletId,
         type: 'system',
@@ -354,8 +373,20 @@ export class TableSessionsService {
         tableName: diningTable.name,
         actorUserId: startedBy,
         data: JSON.stringify({ tableSessionId: saved.id }),
-      }),
-    ]);
+      });
+
+    let notification: Notification;
+    if (options?.sequential) {
+      await setStatus();
+      await upsertVisit();
+      notification = await createNotification();
+    } else {
+      [, , notification] = await Promise.all([
+        setStatus(),
+        upsertVisit(),
+        createNotification(),
+      ]);
+    }
 
     try {
       this.gateway.notifyNotificationCreated(notification);
