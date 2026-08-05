@@ -2,7 +2,7 @@
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { OfflineIndicator } from "@/components/offline-indicator"
-import { UserMenu } from "@/app/(dashboard)/user-menu"
+import { UserMenu } from "@rms/ui/user-menu"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 /** Compact header for the staff mobile shell — no sidebar, no command palette, no switchers a phone-sized screen has no room for. */

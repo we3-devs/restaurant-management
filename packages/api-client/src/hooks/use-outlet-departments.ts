@@ -1,0 +1,87 @@
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { apiClient } from "../client"
+import { toQueryString, type PaginatedResponse } from "../types"
+import { queryKeys } from "../query-keys"
+import { STALE_TIME } from "../query-config"
+import type {
+  CreateOutletDepartmentInput,
+  UpdateOutletDepartmentInput,
+} from "@rms/validators/outlet-departments"
+
+export interface OutletDepartment {
+  id: number
+  outletId: number
+  name: string
+  code: string | null
+  type: string
+  description: string | null
+  isActive: boolean
+  canPrepareOrder: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ListOutletDepartmentsParams {
+  page?: number
+  limit?: number
+  search?: string
+  outletId?: number
+}
+
+export function useOutletDepartments(params: ListOutletDepartmentsParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.outletDepartments.list(params),
+    queryFn: () =>
+      apiClient<PaginatedResponse<OutletDepartment>>(`/outlet-departments${toQueryString(params)}`),
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.departments,
+  })
+}
+
+/** Departments at one outlet, scoped to the current user's own assignments — no `outlet-departments.view` permission required. */
+export function useAssignedOutletDepartments(outletId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.outletDepartments.assigned(outletId),
+    queryFn: () => apiClient<OutletDepartment[]>(`/outlet-departments/assigned?outletId=${outletId}`),
+    enabled: outletId !== null && outletId > 0,
+    staleTime: STALE_TIME.departments,
+  })
+}
+
+export function useOutletDepartment(id: number) {
+  return useQuery({
+    queryKey: queryKeys.outletDepartments.detail(id),
+    queryFn: () => apiClient<OutletDepartment>(`/outlet-departments/${id}`),
+    enabled: id > 0,
+    staleTime: STALE_TIME.departments,
+  })
+}
+
+export function useCreateOutletDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateOutletDepartmentInput) =>
+      apiClient<OutletDepartment>("/outlet-departments", { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.lists() }),
+  })
+}
+
+export function useUpdateOutletDepartment(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UpdateOutletDepartmentInput) =>
+      apiClient<OutletDepartment>(`/outlet-departments/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.detail(id) })
+    },
+  })
+}
+
+export function useDeleteOutletDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiClient<void>(`/outlet-departments/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.lists() }),
+  })
+}
