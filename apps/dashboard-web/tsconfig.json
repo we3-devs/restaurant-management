@@ -29,6 +29,8 @@
       "@/lib/query-keys": ["../../packages/api-client/src/query-keys"],
       "@/lib/query-config": ["../../packages/api-client/src/query-config"],
       "@/lib/realtime/*": ["../../packages/websocket/src/*"],
+      "@/components/providers/query-provider": ["../../packages/api-client/src/query-provider"],
+      "@/components/providers/theme-provider": ["../../packages/ui/src/theme-provider"],
       "@/*": ["./src/*"]
     }
   },
