@@ -1,7 +1,8 @@
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import { getCurrentUser } from "@rms/auth/dal"
 import { CurrentUserProvider } from "@rms/auth/current-user-context"
-import { findRequiredPermission, hasRoutePermission } from "@rms/auth/route-access"
+import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@rms/auth/route-access"
 import { ActiveOutletProvider } from "@rms/api-client/outlet/active-outlet-context"
 import { AccessDenied } from "@rms/ui/access-denied"
 import { StaffHeader } from "./staff-header"
@@ -23,6 +24,16 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const user = await getCurrentUser()
 
   const pathname = (await headers()).get("x-pathname") ?? ""
+
+  // Mirrors (dashboard)/layout.tsx's cross-app bounce, other direction: a
+  // dashboard-portal user (or superadmin) who lands on "/staff" — the entry
+  // point root page.tsx redirects everyone to — belongs in dashboard-web
+  // instead. Deep links into other staff/* routes are unaffected, same as
+  // the dashboard-web equivalent.
+  if (pathname === "/staff" && getLandingPath(user) === "/dashboard") {
+    redirect(`${process.env.DASHBOARD_WEB_URL ?? "http://localhost:3000"}/`)
+  }
+
   const requiredPermission = findRequiredPermission(pathname, staffRoutePermissions)
   const allowed = hasRoutePermission(user, requiredPermission)
 

@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation"
 
-// Placeholder landing redirect — refined once the portal-access gate (see
-// packages/auth/src/route-access.ts getLandingPath) is wired for the
-// cross-app split, so a dashboard-only user landing here gets bounced back
-// to dashboard-web instead of hitting AccessDenied.
+// staff/layout.tsx does the real (backend-verified) session check and the
+// portal-based cross-app landing decision (bouncing dashboard-portal users
+// to dashboard-web) — mirrors dashboard-web's app/page.tsx exactly, see the
+// comment there for why this doesn't call getCurrentUser() itself.
 export default function RootPage() {
   redirect("/staff")
 }

@@ -14,7 +14,6 @@ import { NotificationBell } from "@rms/ui/notification-bell"
 import { navRoutePermissions, visibleNavGroups } from "./nav-items"
 import { UserMenu } from "@rms/ui/user-menu"
 import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidation-provider"
-import { DashboardBackgroundPrefetch } from "./dashboard-background-prefetch"
 import { CommandPalette } from "@rms/ui/command-palette"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { ThemeToggle } from "@rms/ui/theme-toggle"
@@ -33,8 +32,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // here when they actually landed on "/dashboard" itself and belong in the
   // staff PWA instead — deep links into other (dashboard)-group routes (e.g.
   // an admin's /orders bookmark) are unaffected, same as before this change.
+  // operational-web is a separate deployment now, so this is a cross-origin
+  // redirect rather than a local one — see AUTH_COOKIE_DOMAIN in
+  // packages/auth/src/session.ts for how the session survives the hop.
   if (pathname === "/dashboard" && getLandingPath(user) === "/staff") {
-    redirect("/staff")
+    redirect(`${process.env.OPERATIONAL_WEB_URL ?? "http://localhost:3100"}/`)
   }
 
   // Route-level RBAC: the sidebar already hides links a user can't reach,
@@ -47,7 +49,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <CurrentUserProvider user={user}>
       <ActiveOutletProvider>
       <RealtimeInvalidationProvider />
-      <DashboardBackgroundPrefetch />
       <CommandPalette groups={groups} />
       <div className="flex min-h-screen">
         <AppSidebarShell groups={groups}>

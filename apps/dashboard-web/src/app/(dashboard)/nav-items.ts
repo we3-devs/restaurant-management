@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Sparkles,
   Truck,
-  UtensilsCrossed,
 } from "lucide-react"
 
 export interface NavLinkDef {
@@ -31,22 +30,6 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard", label: "Dashboard", permission: true },
       { href: "/reports", label: "Reports", permission: "reports.view" },
       { href: "/notifications", label: "Notifications", permission: true },
-    ],
-  },
-  {
-    label: "Operations",
-    icon: UtensilsCrossed,
-    links: [
-      { href: "/pos", label: "POS", permission: "orders.manage" },
-      { href: "/kitchen", label: "Kitchen", permission: "orders.view" },
-      { href: "/service", label: "Service", permission: "orders.view" },
-      { href: "/floor", label: "Floor", permission: "table-sessions.view" },
-      { href: "/orders", label: "Orders", permission: "orders.view" },
-      { href: "/table-sessions", label: "Table Sessions", permission: "table-sessions.view" },
-      { href: "/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
-      { href: "/dining-tables", label: "Dining Tables", permission: "dining-tables.view" },
-      { href: "/reservations", label: "Reservations", permission: "reservations.view" },
-      { href: "/customers", label: "Customers", permission: "customers.view" },
     ],
   },
   {
@@ -111,6 +94,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/outlets", label: "Outlets", permission: "outlets.view" },
       { href: "/outlet-departments", label: "Departments", permission: "outlet-departments.view" },
       { href: "/warehouses", label: "Warehouses", permission: "warehouses.view" },
+      { href: "/customers", label: "Customers", permission: "customers.view" },
     ],
   },
   {
@@ -126,8 +110,8 @@ export const navGroupDefs: NavGroupDef[] = [
 /** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
 export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
 
-/** Sidebar-only restriction (permissions/API access are untouched) — the "admin" role only ever sees these groups, regardless of what its permissions would otherwise reveal. */
-const ADMIN_ROLE_VISIBLE_GROUPS = new Set(['Overview', 'Operations'])
+/** Sidebar-only restriction (permissions/API access are untouched) — the "admin" role only ever sees these groups, regardless of what its permissions would otherwise reveal. Operations moved to operational-web entirely, so only Overview remains here. */
+const ADMIN_ROLE_VISIBLE_GROUPS = new Set(['Overview'])
 
 export function visibleNavGroups(permissions: string[], isSuperadmin: boolean, roleSlugs: string[] = []) {
   const has = (permission: string | true) => permission === true || isSuperadmin || permissions.includes(permission)
