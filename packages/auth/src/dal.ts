@@ -2,7 +2,7 @@ import "server-only"
 
 import { cache } from "react"
 import { redirect } from "next/navigation"
-import { backendFetch, BackendUnauthorizedError } from "@/lib/server/backend-client"
+import { backendFetch, BackendUnauthorizedError } from "./server/backend-client"
 
 export interface CurrentUser {
   id: number

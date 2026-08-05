@@ -1,4 +1,4 @@
-import { queryKeys } from "@/lib/query-keys"
+import { queryKeys } from "@rms/api-client/query-keys"
 
 type QueryKeyPrefix = readonly unknown[]
 

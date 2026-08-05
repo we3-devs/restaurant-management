@@ -1,5 +1,5 @@
 import { io, type Socket } from "socket.io-client"
-import { customerApiClient } from "@/lib/api/customer-client"
+import { customerApiClient } from "@rms/api-client/customer-client"
 
 const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "https://restaurant-management-g6vb.onrender.com"
 

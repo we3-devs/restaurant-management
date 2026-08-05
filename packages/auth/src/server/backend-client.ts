@@ -1,6 +1,6 @@
 import "server-only"
 
-import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "@/lib/auth/session"
+import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "../session"
 
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 

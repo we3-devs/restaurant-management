@@ -2,7 +2,7 @@ import "server-only"
 
 import { cache } from "react"
 import { redirect } from "next/navigation"
-import { customerBackendFetch, CustomerUnauthorizedError } from "@/lib/server/customer-backend-client"
+import { customerBackendFetch, CustomerUnauthorizedError } from "./server/customer-backend-client"
 
 export interface CurrentCustomer {
   sub: number | null

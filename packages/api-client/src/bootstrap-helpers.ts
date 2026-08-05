@@ -1,4 +1,4 @@
-import type { PaginatedResponse } from "@/lib/api/types"
+import type { PaginatedResponse } from "./types"
 
 /** Wraps an already-fetched array as a PaginatedResponse so it can seed the
  * query cache for hooks that expect the list shape (single page, no more). */

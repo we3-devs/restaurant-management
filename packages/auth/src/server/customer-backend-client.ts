@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getCustomerToken } from "@/lib/auth/customer-session"
+import { getCustomerToken } from "../customer-session"
 
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
