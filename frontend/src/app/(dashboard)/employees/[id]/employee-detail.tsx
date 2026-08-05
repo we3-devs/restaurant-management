@@ -24,7 +24,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import { useOutlet } from "@/hooks/use-outlets"
+import { useOutlet, useOutlets } from "@/hooks/use-outlets"
 import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import { useUsers } from "@/hooks/use-users"
 import {
@@ -44,11 +44,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
   const { data: employee, isLoading } = useEmployee(employeeId)
   const { data: positions } = usePositions()
   const { data: users } = useUsers({ limit: 100 })
+  const { data: outlets } = useOutlets({ limit: 100 })
   const { data: outlet } = useOutlet(employee?.outletId ?? 0)
-  const { data: departments } = useOutletDepartments({ outletId: employee?.outletId, limit: 100 })
   const { data: performance } = useEmployeePerformance(employeeId)
   const linkedUser = users?.data.find((u) => u.id === employee?.userId)
-  const currentDepartment = departments?.data.find((d) => d.id === employee?.departmentId)
   const updateEmployee = useUpdateEmployee(employeeId)
   const deleteEmployee = useDeleteEmployee()
 
@@ -60,6 +59,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
       phone: "",
       userId: undefined,
       positionId: undefined,
+      outletId: undefined,
       departmentId: undefined,
       joiningDate: "",
       employmentStatus: "active",
@@ -68,6 +68,9 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
       emergencyContactRelation: "",
     },
   })
+  const selectedOutletId = form.watch("outletId")
+  const { data: departments } = useOutletDepartments({ outletId: selectedOutletId, limit: 100 })
+  const currentDepartment = departments?.data.find((d) => d.id === employee?.departmentId)
 
   useEffect(() => {
     if (employee) {
@@ -77,6 +80,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
         phone: employee.phone ?? "",
         userId: employee.userId ?? undefined,
         positionId: employee.positionId ?? undefined,
+        outletId: employee.outletId,
         departmentId: employee.departmentId ?? undefined,
         joiningDate: employee.joiningDate ?? "",
         employmentStatus: employee.employmentStatus,
@@ -239,6 +243,36 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
               />
               <FormField
                 control={form.control}
+                name="outletId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Outlet</FormLabel>
+                    <Select
+                      items={outlets?.data.map((o) => ({ value: String(o.id), label: o.name }))}
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(v) => {
+                        field.onChange(Number(v))
+                        form.setValue("departmentId", undefined)
+                      }}
+                      disabled={!canManage}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an outlet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {outlets?.data.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="departmentId"
                 render={({ field }) => (
                   <FormItem>
@@ -250,10 +284,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                       ]}
                       value={field.value ? String(field.value) : "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
-                      disabled={!canManage}
+                      disabled={!canManage || !selectedOutletId}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a department" />
+                        <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No department</SelectItem>

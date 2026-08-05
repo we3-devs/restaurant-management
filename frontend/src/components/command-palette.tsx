@@ -17,13 +17,16 @@ import {
 
 export function CommandPalette() {
   const router = useRouter()
-  const { permissions, isSuperadmin } = useCurrentUser()
+  const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const [open, setOpen] = useCommandPaletteOpen()
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const groups = useMemo(() => visibleNavGroups(permissions, isSuperadmin), [permissions, isSuperadmin])
+  const groups = useMemo(
+    () => visibleNavGroups(permissions, isSuperadmin, roleSlugs),
+    [permissions, isSuperadmin, roleSlugs],
+  )
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()

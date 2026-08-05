@@ -24,6 +24,7 @@ export class UpdateEmployeeDto {
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() userId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() positionId?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() outletId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() departmentId?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() photoUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsISO8601({ strict: true }) joiningDate?: string;

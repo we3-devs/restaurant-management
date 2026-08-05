@@ -126,10 +126,15 @@ export const navGroupDefs: NavGroupDef[] = [
 /** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
 export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
 
-export function visibleNavGroups(permissions: string[], isSuperadmin: boolean) {
+/** Sidebar-only restriction (permissions/API access are untouched) — the "admin" role only ever sees these groups, regardless of what its permissions would otherwise reveal. */
+const ADMIN_ROLE_VISIBLE_GROUPS = new Set(['Overview', 'Operations'])
+
+export function visibleNavGroups(permissions: string[], isSuperadmin: boolean, roleSlugs: string[] = []) {
   const has = (permission: string | true) => permission === true || isSuperadmin || permissions.includes(permission)
+  const restrictToAdminGroups = !isSuperadmin && roleSlugs.includes('admin')
 
   return navGroupDefs
+    .filter((group) => !restrictToAdminGroups || ADMIN_ROLE_VISIBLE_GROUPS.has(group.label))
     .map((group) => ({
       ...group,
       links: group.links.filter((link) => has(link.permission)),

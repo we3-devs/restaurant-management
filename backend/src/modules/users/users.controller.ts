@@ -10,12 +10,15 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { CreateRoleAssignmentDto } from './dto/create-role-assignment.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { SetSuperadminDto } from './dto/set-superadmin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -53,6 +56,20 @@ export class UsersController {
   @ApiOperation({ summary: "Updates a user's name/email" })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
+  }
+
+  @Patch(':id/superadmin')
+  @UseGuards(SuperadminGuard)
+  @RequirePermissions('users.manage')
+  @ApiOperation({
+    summary:
+      "Grants or revokes a user's superadmin flag (superadmin bypasses all permission checks) — callable only by an existing superadmin",
+  })
+  setSuperadmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetSuperadminDto,
+  ) {
+    return this.usersService.setSuperadmin(id, dto.isSuperadmin);
   }
 
   @Patch(':id/deactivate')

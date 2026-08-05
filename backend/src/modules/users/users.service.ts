@@ -109,6 +109,14 @@ export class UsersService {
     }
   }
 
+  async setSuperadmin(id: number, isSuperadmin: boolean): Promise<UserResponseDto> {
+    const user = await this.getUserOrThrow(id);
+    user.isSuperadmin = isSuperadmin;
+    const saved = await this.usersRepository.save(user);
+    const activeUserIds = await this.getActiveUserIds([id]);
+    return this.toResponse(saved, activeUserIds.has(id));
+  }
+
   /**
    * "Deactivating" a user means revoking every one of their role
    * assignments — `users` has no is_active/deleted_at column, so this is

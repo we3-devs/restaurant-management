@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useOutletDepartments } from "@/hooks/use-outlet-departments"
-import { useUsers } from "@/hooks/use-users"
+import { useCreateUser, useUsers } from "@/hooks/use-users"
 import { useCreateEmployee, usePositions } from "@/hooks/use-employees"
 import { createEmployeeSchema, type CreateEmployeeInput } from "@/lib/validators/employees"
 
@@ -28,6 +28,8 @@ const defaultValues: CreateEmployeeInput = {
   phone: "",
   outletId: 0,
   employmentStatus: "active",
+  loginMode: "none",
+  password: "",
 }
 
 export function CreateEmployeeDialog() {
@@ -35,6 +37,7 @@ export function CreateEmployeeDialog() {
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: positions } = usePositions()
   const { data: users } = useUsers({ limit: 100 })
+  const createUser = useCreateUser()
   const createEmployee = useCreateEmployee()
 
   const form = useForm<CreateEmployeeInput>({
@@ -42,11 +45,22 @@ export function CreateEmployeeDialog() {
     defaultValues,
   })
   const selectedOutletId = form.watch("outletId")
+  const loginMode = form.watch("loginMode")
   const { data: departments } = useOutletDepartments({ outletId: selectedOutletId || undefined, limit: 100 })
 
   async function onSubmit(values: CreateEmployeeInput) {
+    const { loginMode, password, userId, ...employeeFields } = values
     try {
-      await createEmployee.mutateAsync({ ...values, email: values.email || undefined })
+      let resolvedUserId = loginMode === "existing" ? userId : undefined
+      if (loginMode === "new") {
+        const user = await createUser.mutateAsync({ name: values.name, email: values.email!, password: password! })
+        resolvedUserId = user.id
+      }
+      await createEmployee.mutateAsync({
+        ...employeeFields,
+        userId: resolvedUserId,
+        email: values.email || undefined,
+      })
       toast.success("Employee created")
       form.reset(defaultValues)
       setOpen(false)
@@ -167,36 +181,6 @@ export function CreateEmployeeDialog() {
             />
             <FormField
               control={form.control}
-              name="userId"
-              render={({ field }) => (
-                <FormItem className="col-span-2">
-                  <FormLabel>Linked user account</FormLabel>
-                  <Select
-                    items={[
-                      { value: "none", label: "No login account" },
-                      ...(users?.data.map((user) => ({ value: String(user.id), label: `${user.name} (${user.email})` })) ?? []),
-                    ]}
-                    value={field.value ? String(field.value) : "none"}
-                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No login account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No login account</SelectItem>
-                      {users?.data.map((user) => (
-                        <SelectItem key={user.id} value={String(user.id)}>
-                          {user.name} ({user.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="phone"
               render={({ field }) => (
                 <FormItem>
@@ -217,6 +201,83 @@ export function CreateEmployeeDialog() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="loginMode"
+              render={({ field }) => (
+                <FormItem className="col-span-2">
+                  <FormLabel>Login access</FormLabel>
+                  <Select
+                    items={[
+                      { value: "none", label: "No login (can't sign in)" },
+                      { value: "new", label: "Create a login now" },
+                      { value: "existing", label: "Link an existing account" },
+                    ]}
+                    value={field.value}
+                    onValueChange={(v) => {
+                      field.onChange(v)
+                      form.setValue("userId", undefined)
+                      form.setValue("password", "")
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No login (can&apos;t sign in)</SelectItem>
+                      <SelectItem value="new">Create a login now</SelectItem>
+                      <SelectItem value="existing">Link an existing account</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    What they can do once signed in comes from their position, not this.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {loginMode === "new" && (
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Login password</FormLabel>
+                    <FormControl type="password" {...field} />
+                    <p className="text-xs text-muted-foreground">Uses the email above as the login username.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {loginMode === "existing" && (
+              <FormField
+                control={form.control}
+                name="userId"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Account to link</FormLabel>
+                    <Select
+                      items={users?.data.map((user) => ({ value: String(user.id), label: `${user.name} (${user.email})` }))}
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users?.data.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>
+                            {user.name} ({user.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="joiningDate"

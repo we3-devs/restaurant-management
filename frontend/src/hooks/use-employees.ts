@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api/client"
 import { toQueryString, type PaginatedResponse } from "@/lib/api/types"
 import { queryKeys } from "@/lib/query-keys"
 import type {
-  CreateEmployeeInput,
+  CreateEmployeeApiInput,
   CreatePositionInput,
   UpdateEmployeeInput,
   UpdatePositionInput,
@@ -72,7 +72,7 @@ export function useEmployee(id: number) {
 export function useCreateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: CreateEmployeeInput) =>
+    mutationFn: (input: CreateEmployeeApiInput) =>
       apiClient<Employee>("/employees", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.lists() }),
   })

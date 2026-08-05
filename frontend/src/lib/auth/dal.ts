@@ -10,6 +10,8 @@ export interface CurrentUser {
   email: string
   isSuperadmin: boolean
   permissions: string[]
+  /** Slugs of every role held via an active assignment — used to tailor UI (e.g. narrowing the sidebar for "admin") beyond what the flat permission set expresses. */
+  roleSlugs: string[]
   /** Which app this user lands in after login — aggregated server-side from their role assignments' explicit `portal` field. */
   portal: "dashboard" | "staff"
   /** Outlets this user holds an outlet-scoped role assignment for. Empty means global/unscoped access — treat as "every outlet". */

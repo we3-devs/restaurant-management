@@ -10,6 +10,7 @@ interface ActiveAssignmentRow {
   portal: string | null;
   outletId: string | null;
   outletDepartmentId: string | null;
+  roleSlug: string | null;
 }
 
 // Every method below reads from the same underlying active-role-assignment
@@ -44,6 +45,7 @@ export class PermissionsService {
       .addSelect('roles.portal', 'portal')
       .addSelect('ura.outlet_id', 'outletId')
       .addSelect('ura.outlet_department_id', 'outletDepartmentId')
+      .addSelect('roles.slug', 'roleSlug')
       .from('user_role_assignments', 'ura')
       .innerJoin(
         'roles',
@@ -120,6 +122,23 @@ export class PermissionsService {
           .map((row) => row.outletId)
           .filter((id): id is string => id !== null)
           .map(Number),
+      ),
+    ];
+  }
+
+  /**
+   * Distinct slugs of every role the user holds an active, in-window
+   * assignment for — used by the frontend to tell roles apart for UI
+   * purposes (e.g. narrowing the sidebar for "admin") beyond what the flat
+   * permission set alone can express.
+   */
+  async getRoleSlugs(userId: number): Promise<string[]> {
+    const rows = await this.getActiveAssignmentRows(userId);
+    return [
+      ...new Set(
+        rows
+          .map((row) => row.roleSlug)
+          .filter((slug): slug is string => slug !== null),
       ),
     ];
   }

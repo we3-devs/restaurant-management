@@ -19,12 +19,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions, type Permission } from "@/hooks/use-permissions"
 import { useAssignPermission, useDeleteRole, useRole, useUnassignPermission, useUpdateRole } from "@/hooks/use-roles"
 import { updateRoleSchema, type UpdateRoleInput } from "@/lib/validators/roles"
 
@@ -55,7 +53,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
   }, [role, form])
 
   const permissionsByModule = useMemo(() => {
-    const groups = new Map<string, typeof permissions>()
+    const groups = new Map<string, Permission[]>()
     for (const permission of permissions ?? []) {
       const list = groups.get(permission.module) ?? []
       list.push(permission)
@@ -73,15 +71,45 @@ export function RoleDetail({ roleId }: { roleId: number }) {
     }
   }
 
-  async function handleTogglePermission(permissionId: number, checked: boolean) {
+  /**
+   * Every module in this system only ever has a "view" and/or "manage"
+   * permission (verified against the seed data) — so instead of a raw
+   * checkbox per permission slug, each module gets one dropdown collapsing
+   * that into "No access / View only / Full access". "Full access" grants
+   * both, since view and manage are checked independently by the API (manage
+   * alone wouldn't unlock read-only screens gated on `.view`).
+   */
+  type AccessLevel = "none" | "view" | "full"
+
+  function moduleAccessLevel(modulePermissions: Permission[]): AccessLevel {
+    const granted = new Set(role?.permissions ?? [])
+    const managePerm = modulePermissions.find((p) => p.action === "manage")
+    const viewPerm = modulePermissions.find((p) => p.action === "view")
+    if (managePerm && granted.has(managePerm.slug)) return "full"
+    if (viewPerm && granted.has(viewPerm.slug)) return "view"
+    return "none"
+  }
+
+  async function handleModuleAccessChange(modulePermissions: Permission[], level: AccessLevel) {
+    const granted = new Set(role?.permissions ?? [])
+    const viewPerm = modulePermissions.find((p) => p.action === "view")
+    const managePerm = modulePermissions.find((p) => p.action === "manage")
+    const wantView = level === "view" || level === "full"
+    const wantManage = level === "full"
+
     try {
-      if (checked) {
-        await assignPermission.mutateAsync(permissionId)
-      } else {
-        await unassignPermission.mutateAsync(permissionId)
+      if (viewPerm) {
+        const has = granted.has(viewPerm.slug)
+        if (wantView && !has) await assignPermission.mutateAsync(viewPerm.id)
+        if (!wantView && has) await unassignPermission.mutateAsync(viewPerm.id)
+      }
+      if (managePerm) {
+        const has = granted.has(managePerm.slug)
+        if (wantManage && !has) await assignPermission.mutateAsync(managePerm.id)
+        if (!wantManage && has) await unassignPermission.mutateAsync(managePerm.id)
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update permission")
+      toast.error(error instanceof Error ? error.message : "Failed to update access")
     }
   }
 
@@ -197,28 +225,36 @@ export function RoleDetail({ roleId }: { roleId: number }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Permissions</CardTitle>
+          <CardTitle>Access</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {[...permissionsByModule.entries()].map(([module, modulePermissions]) => (
-            <div key={module} className="space-y-2">
-              <h3 className="text-sm font-medium capitalize">{module}</h3>
-              <div className="space-y-2">
-                {modulePermissions?.map((permission) => (
-                  <div key={permission.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`permission-${permission.id}`}
-                      checked={role.permissions?.includes(permission.slug) ?? false}
-                      disabled={readOnly}
-                      onCheckedChange={(checked) => handleTogglePermission(permission.id, checked === true)}
-                    />
-                    <Label htmlFor={`permission-${permission.id}`}>{permission.name}</Label>
-                    <span className="text-xs text-muted-foreground">{permission.slug}</span>
-                  </div>
-                ))}
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Set how much this role can do in each area. &quot;Full access&quot; includes viewing.
+          </p>
+          {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
+            const hasView = modulePermissions.some((p) => p.action === "view")
+            const hasManage = modulePermissions.some((p) => p.action === "manage")
+            const level = moduleAccessLevel(modulePermissions)
+            return (
+              <div key={module} className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0">
+                <span className="text-sm font-medium capitalize">{module.replace(/-/g, " ")}</span>
+                <Select
+                  value={level}
+                  onValueChange={(v) => handleModuleAccessChange(modulePermissions, v as AccessLevel)}
+                  disabled={readOnly}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No access</SelectItem>
+                    {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
+                    {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </CardContent>
       </Card>
     </div>

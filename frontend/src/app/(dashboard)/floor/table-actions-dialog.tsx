@@ -41,7 +41,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   })
   const activeSession = sessions?.data[0]
   const { data: orders } = useOrders({
-    tableSessionId: activeSession?.id ?? -1,
+    tableSessionId: activeSession?.id,
     limit: 1,
   })
   const activeOrder = orders?.data[0]

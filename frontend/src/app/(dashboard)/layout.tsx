@@ -49,7 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <DashboardBackgroundPrefetch />
       <CommandPalette />
       <div className="flex min-h-screen">
-        <SidebarShell permissions={user.permissions} isSuperadmin={user.isSuperadmin}>
+        <SidebarShell permissions={user.permissions} isSuperadmin={user.isSuperadmin} roleSlugs={user.roleSlugs}>
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-6">
               <MobileNavToggle />

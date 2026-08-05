@@ -11,6 +11,7 @@ import { visibleNavGroups } from "./nav-items"
 interface DashboardNavProps {
   permissions: string[]
   isSuperadmin: boolean
+  roleSlugs: string[]
   /** Icon-only rail mode — each group renders as a single icon; clicking one expands the sidebar via onExpandGroup. */
   collapsed?: boolean
   onExpandGroup?: (groupLabel: string) => void
@@ -32,12 +33,13 @@ interface NavGroup {
 export function DashboardNav({
   permissions,
   isSuperadmin,
+  roleSlugs,
   collapsed = false,
   onExpandGroup,
   forceOpenGroup,
 }: DashboardNavProps) {
   const pathname = usePathname()
-  const groups: NavGroup[] = visibleNavGroups(permissions, isSuperadmin)
+  const groups: NavGroup[] = visibleNavGroups(permissions, isSuperadmin, roleSlugs)
 
   const activeGroupLabel = groups.find((group) =>
     group.links.some((link) => pathname === link.href || pathname.startsWith(`${link.href}/`)),

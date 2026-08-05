@@ -96,6 +96,27 @@ export function useAssignRole(userId: number) {
   })
 }
 
+/** Creates the user, then immediately assigns a role if one was picked — one form action instead of "create, then go find them again to assign a role". */
+export function useCreateUserWithRole() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ roleId, ...input }: CreateUserInput & { roleId?: number }) => {
+      const user = await apiClient<User>("/users", { method: "POST", body: JSON.stringify(input) })
+      if (roleId) {
+        await apiClient<void>(`/users/${user.id}/role-assignments`, {
+          method: "POST",
+          body: JSON.stringify({ roleId }),
+        })
+      }
+      return user
+    },
+    onSuccess: (user) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.roleAssignments(user.id) })
+    },
+  })
+}
+
 export function useRevokeRoleAssignment(userId: number) {
   const queryClient = useQueryClient()
   return useMutation({

@@ -17,10 +17,12 @@ import { DashboardNav } from "./dashboard-nav"
 export function SidebarShell({
   permissions,
   isSuperadmin,
+  roleSlugs,
   children,
 }: {
   permissions: string[]
   isSuperadmin: boolean
+  roleSlugs: string[]
   children: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = useSidebarCollapsed()
@@ -47,6 +49,7 @@ export function SidebarShell({
           <DashboardNav
             permissions={permissions}
             isSuperadmin={isSuperadmin}
+            roleSlugs={roleSlugs}
             collapsed={collapsed}
             onExpandGroup={expandGroup}
             forceOpenGroup={forceOpenGroup}
