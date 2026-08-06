@@ -16,7 +16,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { getLandingPath } from "@rms/auth/route-access"
 import { loginSchema, type LoginInput } from "@/lib/validators/auth"
+
+const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL ?? "http://localhost:3100"
 
 export function LoginForm() {
   const router = useRouter()
@@ -37,18 +40,26 @@ export function LoginForm() {
         body: JSON.stringify(values),
       })
 
+      const body = await response.json().catch(() => null)
+
       if (!response.ok) {
-        const body = await response.json().catch(() => null)
         toast.error(body?.message ?? "Invalid email or password")
         return
       }
 
-      // "/" (not "/dashboard") — root page.tsx is what actually decides
-      // dashboard vs staff based on the logged-in user's permissions.
-      // Hardcoding "/dashboard" here sent every login there regardless of
-      // role, so waiters (including via the staff PWA) landed on a page
-      // they don't have permission for instead of /staff.
-      router.push("/")
+      // The login response already tells us isSuperadmin + portal (same
+      // fields /auth/me resolves this from), so we can pick the final
+      // destination right here instead of bouncing through "/" → "/dashboard"
+      // → (cross-origin) "/" → "/staff" to work it out server-side one hop
+      // at a time. Server-side layouts still re-verify and bounce on
+      // mismatch (see (dashboard)/layout.tsx and staff/layout.tsx) — this is
+      // just choosing the right first stop, not replacing that check.
+      if (getLandingPath(body.user) === "/staff") {
+        window.location.href = `${OPERATIONAL_WEB_URL}/staff`
+        return
+      }
+
+      router.push("/dashboard")
       router.refresh()
     } finally {
       setIsSubmitting(false)

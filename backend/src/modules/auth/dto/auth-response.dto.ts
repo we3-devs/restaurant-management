@@ -12,6 +12,9 @@ export class AuthUserDto {
 
   @ApiProperty()
   isSuperadmin: boolean;
+
+  @ApiProperty({ enum: ['dashboard', 'staff'] })
+  portal: 'dashboard' | 'staff';
 }
 
 export class AuthResponseDto {
