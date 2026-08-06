@@ -13,7 +13,7 @@ import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { Skeleton } from "@rms/ui/skeleton"
-import { useCreateOrderPayment } from "@rms/api-client/hooks/use-order-payments"
+import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useUpdateOrder, type Order } from "@rms/api-client/hooks/use-orders"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
@@ -92,7 +92,6 @@ function BillCard({ orderId }: { orderId: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bill</CardTitle>
       </CardHeader>
       <CardContent>
         <BillReceipt orderId={orderId} />
@@ -112,6 +111,7 @@ function PaymentSummaryCard({
 }) {
   const createPayment = useCreateOrderPayment(orderId)
   const updateOrder = useUpdateOrder(orderId)
+  const { data: payments } = useOrderPayments(orderId)
 
   const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [amount, setAmount] = useState(0)
@@ -168,9 +168,7 @@ function PaymentSummaryCard({
     <Card>
       <CardHeader className="flex-row w-full items-center">
         <div className=" w-full flex items-center justify-between ">
-          <CardTitle>Payment</CardTitle>
           <StatusBadge status={order.paymentStatus} />
-        </div>
         {!isLocked && (
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -195,8 +193,9 @@ function PaymentSummaryCard({
             </Button>
           </div>
         )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex h-full flex-col space-y-4">
         {editingTotals && !isLocked && (
           <div className="space-y-2 border-b border-input  py-4">
             <div className="grid grid-cols-2 gap-2">
@@ -242,8 +241,7 @@ function PaymentSummaryCard({
         )}       
 
         {formMode !== "none" && (
-          <div className="space-y-2 border-b border-input py-4">
-            <Separator />
+          <div className="space-y-2">
             <p className="text-sm font-medium capitalize">{formMode}</p>
             <div className="grid grid-cols-2 gap-2">
               <Select value={method} onValueChange={(value) => value && setMethod(value as typeof method)}>
@@ -276,22 +274,35 @@ function PaymentSummaryCard({
           </div>
         )}
         
-        <div className="grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
-          <span className="text-muted-foreground">Subtotal</span>
+        {payments && payments.data.length > 0 && (
+          <div className="mt-auto space-y-1  border-b border-t border-input py-4">
+            {payments.data.map((payment) => (
+              <div key={payment.id} className="flex justify-between text-sm">
+                <span className="text-muted-foreground capitalize">
+                  {payment.type} &middot; {payment.method}
+                </span>
+                <span className={payment.type === "refund" ? "text-destructive" : ""}>{payment.amount}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className=" grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
+          <span className="text-muted-foreground">Subtotal :</span>
           <span className="text-right sm:text-left">{order.subtotal}</span>
-          <span className="text-muted-foreground">Discount</span>
+          <span className="text-muted-foreground">Discount  :</span>
           <span className="text-right sm:text-left">{order.discountAmount}</span>
-          <span className="text-muted-foreground">Tax</span>
+          <span className="text-muted-foreground">Tax :</span>
           <span className="text-right sm:text-left">{order.taxAmount}</span>
-          <span className="text-muted-foreground">Service charge</span>
+          <span className="text-muted-foreground">Service charge :</span>
           <span className="text-right sm:text-left">{order.serviceChargeAmount}</span>
-          <span className="font-medium">Grand Total</span>
+          <span className="font-medium">Grand Total :</span>
           <span className="text-right font-medium sm:text-left">{order.grandTotal}</span>
-          <span className="text-muted-foreground">Paid</span>
+          <span className="text-muted-foreground">Paid :</span>
           <span className="text-right text-emerald-500 sm:text-left">{order.paidAmount}</span>
-          <span className="font-medium">Due</span>
+          <span className="font-medium">Due :</span>
           <span className="text-right font-medium text-destructive sm:text-left">{order.dueAmount}</span>
-          <span className="text-muted-foreground">Refunded</span>
+          <span className="text-muted-foreground">Refunded :</span>
           <span className="text-right sm:text-left">{order.refundedAmount}</span>
         </div>
       </CardContent>
