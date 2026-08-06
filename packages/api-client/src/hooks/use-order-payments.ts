@@ -16,11 +16,15 @@ export interface OrderPayment {
   id: number
   outletId: number
   orderId: number
+  receivedBy: number | null
   paymentNumber: string
   type: string
   method: string
+  provider: string | null
+  transactionReference: string | null
   amount: number
   status: string
+  paidAt: string | null
   note: string | null
   createdAt: string
 }

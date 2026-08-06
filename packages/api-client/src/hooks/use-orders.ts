@@ -7,6 +7,7 @@ import type {
   CreateOrderInput,
   CreateOrderItemAddonInput,
   CreateOrderItemInput,
+  CreateOrderItemsBatchInput,
   UpdateOrderInput,
 } from "@rms/validators/orders"
 
@@ -16,12 +17,18 @@ export interface Order {
   tableSessionId: number | null
   customerId: number | null
   reservationId: number | null
+  createdBy: number | null
   orderNumber: string
   /** Guest-facing bill number, formatted per Settings > POS — see OrdersService#generateBillNumber. Null for orders created before this field existed. */
   billNumber: string | null
   orderType: string
+  /** Who placed it: walk_in/phone/online/staff/other. */
+  source: string
+  /** Which surface it came through: pos/qr/waiter/online. */
+  orderSource: string
   status: string
   paymentStatus: string
+  completedAt: string | null
   note: string | null
   subtotal: number
   discountType: string | null
@@ -92,6 +99,25 @@ export function useOrders(params: ListOrdersParams = {}, options?: { enabled?: b
   })
 }
 
+export interface OrderStatusHistoryEntry {
+  id: number
+  orderId: number
+  changedBy: number | null
+  fromStatus: string | null
+  toStatus: string
+  note: string | null
+  createdAt: string
+}
+
+/** Every recorded status transition for an order, oldest first. */
+export function useOrderStatusHistory(orderId: number) {
+  return useQuery({
+    queryKey: queryKeys.orders.statusHistory(orderId),
+    queryFn: () => apiClient<OrderStatusHistoryEntry[]>(`/orders/${orderId}/status-history`),
+    enabled: orderId > 0,
+  })
+}
+
 export function useOrder(id: number) {
   return useQuery({
     queryKey: queryKeys.orders.detail(id),
@@ -107,6 +133,19 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: (input: CreateOrderInput) => apiClient<Order>("/orders", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() }),
+  })
+}
+
+/** Pushes a locally-built POS cart (items + their addons) in one request — see orders.service#addItemsBatch. */
+export function useAddOrderItemsBatch(orderId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateOrderItemsBatchInput) =>
+      apiClient<OrderItem[]>(`/orders/${orderId}/items/batch`, { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+    },
   })
 }
 

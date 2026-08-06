@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BellIcon, BellRingIcon, CheckCheckIcon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
+import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "./badge"
@@ -41,6 +41,8 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
   switch (notification.type) {
     case "kitchen_ready":
       return <SoupIcon className={cn(className, "text-emerald-500")} />
+    case "order_served":
+      return <CheckCircle2Icon className={cn(className, "text-emerald-500")} />
     case "service_request":
       return notification.tableName ? <DropletIcon className={cn(className, "text-sky-500")} /> : <HandIcon className={cn(className, "text-sky-500")} />
     default:

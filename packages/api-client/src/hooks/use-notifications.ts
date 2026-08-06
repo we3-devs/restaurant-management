@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner"
 import { apiClient } from "../client"
 import { acquireKdsSocket, releaseKdsSocket } from "../realtime/kds-socket"
+import { playNotificationChime } from "../realtime/notification-sound"
 import { queryKeys } from "../query-keys"
 import { toQueryString, type PaginatedResponse } from "../types"
 import {
@@ -192,6 +193,7 @@ export function useNotificationsRealtime(outletId: number | null, currentUserId?
       if (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type)) {
         return
       }
+      playNotificationChime()
       const variant = NOTIFICATION_TOAST_VARIANT[notification.type] ?? "info"
       toast[variant](notification.title, { description: notification.body ?? undefined })
     }

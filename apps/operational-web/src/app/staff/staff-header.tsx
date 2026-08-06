@@ -1,6 +1,7 @@
 "use client"
 
 import { ThemeToggle } from "@rms/ui/theme-toggle"
+import { NotificationBell } from "@rms/ui/notification-bell"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { UserMenu } from "@rms/ui/user-menu"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
@@ -20,6 +21,7 @@ export function StaffHeader() {
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <OfflineIndicator />
+        <NotificationBell />
         <ThemeToggle />
         <UserMenu />
       </div>

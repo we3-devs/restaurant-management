@@ -4,7 +4,7 @@
 // file). Versioned so a deploy can invalidate stale shell/image caches — bump
 // this AND src/lib/app-version.ts's APP_VERSION together on any deploy that
 // changes staff-PWA code, otherwise installed clients keep the old cached JS.
-const CACHE_VERSION = "v2"
+const CACHE_VERSION = "v3"
 const SHELL_CACHE = `rms-shell-${CACHE_VERSION}`
 const IMAGE_CACHE = `rms-images-${CACHE_VERSION}`
 const API_CACHE = `rms-api-${CACHE_VERSION}`
@@ -129,6 +129,8 @@ function staffDeepLinkFor(data) {
   if (!data || typeof data.type !== "string") return "/staff"
   if (KITCHEN_STAFF_NOTIFICATION_TYPES.has(data.type)) return "/staff/kitchen"
   if (data.type === "kitchen_ready") return "/staff/waiter/ready"
+  // Order's fully delivered — billing is the next waiter action on it.
+  if (data.type === "order_served") return "/staff/waiter/pos"
   return "/staff"
 }
 

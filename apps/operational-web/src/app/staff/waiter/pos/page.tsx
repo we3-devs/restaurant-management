@@ -14,6 +14,7 @@ import { FloorBoard } from "@/app/(operational)/floor/floor-board"
 import { CategoryTabs } from "@/app/(operational)/pos/category-tabs"
 import { FloatingCart } from "@/app/(operational)/pos/floating-cart"
 import { FoodGrid } from "@/app/(operational)/pos/food-grid"
+import { LocalCartProvider } from "@/app/(operational)/pos/local-cart-context"
 import { StartSaleDialog } from "@/app/(operational)/pos/start-sale-dialog"
 import { TableOrdersDialog } from "@/app/(operational)/pos/table-orders-dialog"
 
@@ -84,11 +85,13 @@ export default function StaffOrderTakingPage() {
           <FloorBoard outletId={effectiveOutletId} basePath={BASE_PATH} />
         </div>
       ) : (
-        <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-          <CategoryTabs categoryId={categoryId} onSelect={setCategoryId} />
-          <FoodGrid orderId={activeOrderId} categoryId={categoryId} />
-          <FloatingCart orderId={activeOrderId} />
-        </div>
+        <LocalCartProvider orderId={activeOrderId}>
+          <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+            <CategoryTabs categoryId={categoryId} onSelect={setCategoryId} />
+            <FoodGrid categoryId={categoryId} />
+            <FloatingCart orderId={activeOrderId} />
+          </div>
+        </LocalCartProvider>
       )}
 
       {needsOrderChooser && deepLinkSession && effectiveOutletId && (

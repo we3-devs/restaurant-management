@@ -174,6 +174,15 @@ export class OrdersService {
     return order;
   }
 
+  /** Every recorded status transition for an order, oldest first — written by updateStatus/reopenForNewItems, never previously read anywhere. */
+  async listStatusHistory(orderId: number): Promise<OrderStatusHistory[]> {
+    await this.findOne(orderId);
+    return this.orderStatusHistoriesRepository.find({
+      where: { orderId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   /**
    * The one deliberate exception to Order.status's forward-only rule (see
    * ORDER_STATUS_SEQUENCE / syncStatusFromItems): a new round of items just
@@ -725,6 +734,20 @@ export class OrdersService {
     if (dto.status === 'completed') {
       await this.consumeReservationsForOrder(id, changedBy as number);
       await this.freeTableForCompletedOrder(saved, changedBy as number);
+    } else if (dto.status === 'served' && fromStatus !== 'served') {
+      // Closes the loop the waiter-facing push flow needs: placed
+      // (order_sent) -> ready (kitchen_ready) -> served. Fires once, on the
+      // actual transition into 'served' — both the explicit "Mark
+      // Delivered" route and maybeAdvanceToServed's auto-advance land here,
+      // and the fromStatus guard keeps a redundant same-status save quiet.
+      const notification = await this.notificationsService.create({
+        outletId: saved.outletId,
+        type: 'order_served',
+        title: `Order ${saved.orderNumber} served`,
+        orderId: saved.id,
+        actorUserId: changedBy,
+      });
+      this.gateway.notifyNotificationCreated(notification);
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
       await this.kitchenTicketsService.cancelAllForOrder(id);
@@ -1187,6 +1210,30 @@ export class OrdersService {
       await this.orderItemsRepository.remove(saved);
       await this.recalculateTotals(orderId);
       throw error;
+    }
+    return saved;
+  }
+
+  /**
+   * POS "Place order" pushes the whole local cart in one request instead of
+   * one round-trip per tap — same per-item work as addItem/addItemAddon
+   * (price snapshot + ingredient reservation), just looped server-side so
+   * the client only waits on one request. Not wrapped in a single DB
+   * transaction: matches createFromGuest's existing item-loop behavior,
+   * where an item that fails to reserve stock is rolled back individually
+   * (addItem already does this) while items already added stay added.
+   */
+  async addItemsBatch(
+    orderId: number,
+    items: (CreateOrderItemDto & { addons?: CreateOrderItemAddonDto[] })[],
+  ): Promise<OrderItem[]> {
+    const saved: OrderItem[] = [];
+    for (const { addons, ...itemDto } of items) {
+      const item = await this.addItem(orderId, itemDto);
+      for (const addon of addons ?? []) {
+        await this.addItemAddon(item.id, addon);
+      }
+      saved.push(item);
     }
     return saved;
   }

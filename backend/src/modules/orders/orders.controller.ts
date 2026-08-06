@@ -28,6 +28,7 @@ import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
 import { CreateGuestOrderDto } from './dto/create-guest-order.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
+import { CreateOrderItemsBatchDto } from './dto/create-order-item-batch.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { RedeemLoyaltyPointsDto } from './dto/redeem-loyalty-points.dto';
@@ -146,6 +147,13 @@ export class OrdersController {
     return this.ordersService.findOne(id);
   }
 
+  @Get(':id/status-history')
+  @RequirePermissions('orders.view')
+  @ApiOperation({ summary: "Every recorded status transition for an order, oldest first" })
+  listStatusHistory(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.listStatusHistory(id);
+  }
+
   @Post()
   @RequirePermissions('orders.manage')
   @ApiOperation({
@@ -250,6 +258,19 @@ export class OrdersController {
     @Body() dto: CreateOrderItemDto,
   ) {
     return this.ordersService.addItem(id, dto);
+  }
+
+  @Post(':id/items/batch')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary:
+      'Adds multiple items (each with optional addons) in one request — used by the POS to push a locally-built cart in one round-trip',
+  })
+  addItemsBatch(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateOrderItemsBatchDto,
+  ) {
+    return this.ordersService.addItemsBatch(id, dto.items);
   }
 
 }

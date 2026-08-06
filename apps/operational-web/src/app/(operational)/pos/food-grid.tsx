@@ -1,16 +1,20 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { SearchIcon, UtensilsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
 import { Card, CardContent } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
-import { useAddOrderItem } from "@rms/api-client/hooks/use-orders"
+import { apiClient } from "@rms/api-client/client"
 import { useFoods, type Food } from "@rms/api-client/hooks/use-foods"
-import { useOnlineStatus } from "@rms/api-client/offline/online-status"
+import { queryKeys } from "@rms/api-client/query-keys"
+import { STALE_TIME } from "@rms/api-client/query-config"
+import { toQueryString, type PaginatedResponse } from "@rms/api-client/types"
+import type { FoodVariant } from "@rms/api-client/hooks/use-food-variants"
+import { useLocalCartContext } from "./local-cart-context"
 import { VariantPickerDialog } from "./variant-picker-dialog"
 
 const ROW_HEIGHT = 208
@@ -31,13 +35,7 @@ function useColumnCount() {
   return columns
 }
 
-export function FoodGrid({
-  orderId,
-  categoryId,
-}: {
-  orderId: number
-  categoryId: number | null
-}) {
+export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   const [search, setSearch] = useState("")
   const [variantFood, setVariantFood] = useState<Food | null>(null)
   const { data: foods, isLoading } = useFoods({
@@ -45,8 +43,8 @@ export function FoodGrid({
     foodCategoryId: categoryId ?? undefined,
     limit: 60,
   })
-  const addItem = useAddOrderItem(orderId)
-  const isOnline = useOnlineStatus()
+  const localCart = useLocalCartContext()
+  const queryClient = useQueryClient()
 
   const columns = useColumnCount()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -66,23 +64,33 @@ export function FoodGrid({
     overscan: 4,
   })
 
-  async function handleAdd(food: Food) {
-    if (!isOnline) {
-      toast.error("You're offline — reconnect to add items to the order")
-      return
-    }
+  // Cart-building is entirely local/offline — the order only ever hits the
+  // network once, in a single batch, when "Place order" is tapped.
+  function handleAdd(food: Food) {
     if (food.hasVariants) {
       setVariantFood(food)
       return
     }
-    try {
-      await addItem.mutateAsync({
-        foodId: food.id,
-        quantity: 1,
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add item")
-    }
+    localCart.addItem({
+      foodId: food.id,
+      foodName: food.name,
+      foodVariantId: null,
+      variantName: null,
+      unitPrice: food.basePrice,
+    })
+  }
+
+  // Warms the variant-picker's query cache the moment a press starts (not
+  // on click, which fires after the click completes) so the dialog that
+  // opens a beat later already has its options instead of showing a
+  // fetch-then-populate flash.
+  function prefetchVariants(foodId: number) {
+    const params = { foodId, limit: 100 }
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.foodVariants.list(params),
+      queryFn: () => apiClient<PaginatedResponse<FoodVariant>>(`/food-variants${toQueryString(params)}`),
+      staleTime: STALE_TIME.foodVariants,
+    })
   }
 
   return (
@@ -118,6 +126,7 @@ export function FoodGrid({
                     key={food.id}
                     className="flex h-full cursor-pointer flex-col overflow-hidden p-0 transition-colors hover:bg-muted/50"
                     onClick={() => handleAdd(food)}
+                    onPointerDown={food.hasVariants ? () => prefetchVariants(food.id) : undefined}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
                       <UtensilsIcon className="size-8 text-muted-foreground/50" />
@@ -160,7 +169,16 @@ export function FoodGrid({
       {variantFood && (
         <VariantPickerDialog
           food={variantFood}
-          orderId={orderId}
+          onPick={(variant) => {
+            localCart.addItem({
+              foodId: variantFood.id,
+              foodName: variantFood.name,
+              foodVariantId: variant.id,
+              variantName: variant.name,
+              unitPrice: variant.price,
+            })
+            setVariantFood(null)
+          }}
           onClose={() => setVariantFood(null)}
         />
       )}
