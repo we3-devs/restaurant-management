@@ -1367,7 +1367,7 @@ export class OrdersService {
       where: { orderId, status: 'completed' },
     });
 
-    const paidAmount = round2(
+    const grossPaid = round2(
       payments
         .filter((p) => p.type === 'payment')
         .reduce((sum, p) => sum + p.amount, 0),
@@ -1377,12 +1377,13 @@ export class OrdersService {
         .filter((p) => p.type === 'refund')
         .reduce((sum, p) => sum + p.amount, 0),
     );
+    const paidAmount = round2(grossPaid - refundedAmount);
 
     order.paidAmount = paidAmount;
     order.refundedAmount = refundedAmount;
     order.dueAmount = Math.max(round2(order.grandTotal - paidAmount), 0);
 
-    if (refundedAmount > 0 && refundedAmount >= paidAmount) {
+    if (refundedAmount > 0 && refundedAmount >= grossPaid) {
       order.paymentStatus = 'refunded';
     } else if (paidAmount <= 0) {
       order.paymentStatus = 'unpaid';
