@@ -638,8 +638,21 @@ export class OrdersService {
     const order = await this.findOne(id);
     const fromStatus = order.status;
 
+    // A "pending" order that never had anything added to it (customer sat
+    // down and left, or staff started a sale by mistake) has nothing to
+    // send to kitchen or serve — the normal pending -> accepted -> ... ->
+    // served -> completed path can never fire for it, which would trap
+    // the table it's attached to as permanently occupied. Skip straight to
+    // completed, but only when there's truly nothing on the order — any
+    // order with real items still has to go through the normal flow.
+    const isEmptyPendingCompletion =
+      fromStatus === 'pending' &&
+      dto.status === 'completed' &&
+      (await this.orderItemsRepository.count({ where: { orderId: id } })) === 0;
+
     if (
       dto.status !== fromStatus &&
+      !isEmptyPendingCompletion &&
       !ORDER_STATUS_TRANSITIONS[fromStatus].includes(dto.status)
     ) {
       throw new ConflictException(

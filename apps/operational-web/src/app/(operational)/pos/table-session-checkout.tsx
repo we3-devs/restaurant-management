@@ -64,8 +64,15 @@ export function TableSessionCheckout({
     }
     try {
       const completed = await completeAll.mutateAsync()
-      toast.success("Table closed out")
-      router.push(`/pos/receipt/${completed[0].id}`)
+      // Nothing was ordered on any of this table's orders — there's no bill
+      // to show or print, just close out the table.
+      if (completed.every((order) => order.subtotal === 0)) {
+        toast.success("Table closed — no sale")
+        router.push("/floor")
+      } else {
+        toast.success("Table closed out")
+        router.push(`/pos/receipt/${completed[0].id}`)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete the table")
     }

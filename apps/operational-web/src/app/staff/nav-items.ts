@@ -1,4 +1,4 @@
-import { ChefHatIcon, LayoutGridIcon, PackageCheckIcon, UserIcon } from "lucide-react"
+import { ChefHatIcon, LayoutGridIcon, PackageCheckIcon, ReceiptIcon, UserIcon } from "lucide-react"
 
 export interface StaffNavItem {
   href: string
@@ -41,6 +41,13 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     requires: "dining-tables.view",
   },
   {
+    href: "/staff/waiter/pos",
+    label: "Billing",
+    description: "Open orders and take payment",
+    icon: ReceiptIcon,
+    requires: "orders.manage",
+  },
+  {
     href: "/staff/profile",
     label: "Profile",
     description: "Account and notification settings",
@@ -49,17 +56,11 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
   },
 ]
 
-/** Routes reachable only via deep link (not a tab), so they're not in STAFF_NAV_ITEMS, but still need gating — same slug as the desktop /pos page. */
-const STAFF_DEEP_LINK_ROUTES = [{ href: "/staff/waiter/pos", permission: "orders.manage" as const }]
-
 /** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
-export const staffRoutePermissions = [
-  ...STAFF_NAV_ITEMS.map((item) => ({
-    href: item.href,
-    permission: item.requires ?? (true as const),
-  })),
-  ...STAFF_DEEP_LINK_ROUTES,
-]
+export const staffRoutePermissions = STAFF_NAV_ITEMS.map((item) => ({
+  href: item.href,
+  permission: item.requires ?? (true as const),
+}))
 
 export function canSeeStaffNavItem(
   item: StaffNavItem,
