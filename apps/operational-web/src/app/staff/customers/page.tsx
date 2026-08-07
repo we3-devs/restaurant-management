@@ -17,6 +17,7 @@ import {
 import { Input } from "@rms/ui/input"
 import { Label } from "@rms/ui/label"
 import { Skeleton } from "@rms/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useLoyaltyAccount } from "@rms/api-client/hooks/use-loyalty"
 import {
@@ -64,29 +65,43 @@ export default function StaffCustomersPage() {
         </p>
       )}
 
-      <div className="space-y-2">
-        {customers.map((customer) => (
-          <button
-            key={customer.id}
-            type="button"
-            onClick={() => setSelected(customer)}
-            className="flex w-full items-center justify-between rounded-lg border border-input p-3 text-left transition-colors hover:bg-muted"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{customer.name}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {customer.phone ?? customer.email ?? "No contact info"}
-              </p>
-            </div>
-            <Badge variant={customer.isActive ? "secondary" : "destructive"}>
-              {customer.isActive ? "active" : "inactive"}
-            </Badge>
-          </button>
-        ))}
-      </div>
+      {!isLoading && customers.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Number</TableHead>
+              <TableHead>Loyalty points</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {customers.map((customer) => (
+              <CustomerRow key={customer.id} customer={customer} onSelect={() => setSelected(customer)} />
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       {selected && <CustomerDetailDialog customer={selected} onClose={() => setSelected(null)} />}
     </div>
+  )
+}
+
+function CustomerRow({ customer, onSelect }: { customer: Customer; onSelect: () => void }) {
+  const { data: loyalty } = useLoyaltyAccount(customer.id)
+
+  return (
+    <TableRow className="cursor-pointer" onClick={onSelect}>
+      <TableCell className="font-medium">{customer.name}</TableCell>
+      <TableCell className="text-muted-foreground">{customer.phone ?? customer.email ?? "—"}</TableCell>
+      <TableCell>{loyalty?.currentPoints ?? 0}</TableCell>
+      <TableCell>
+        <Badge variant={customer.isActive ? "secondary" : "destructive"}>
+          {customer.isActive ? "active" : "inactive"}
+        </Badge>
+      </TableCell>
+    </TableRow>
   )
 }
 
