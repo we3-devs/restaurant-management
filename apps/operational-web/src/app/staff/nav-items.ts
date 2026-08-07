@@ -15,6 +15,14 @@ export interface StaffNavItem {
    * matches their actual duties.
    */
   requires: "kitchen-tickets.manage" | "dining-tables.view" | "orders.manage" | "customers.view" | null
+  /**
+   * Role slugs that should never see this item even though they hold
+   * `requires` — for cases the flat permission set can't express. Cashier
+   * holds `dining-tables.view` (to see the floor and call a waiter) but
+   * doesn't run food from the kitchen, so it's excluded here rather than by
+   * introducing a new permission just for this one tab.
+   */
+  excludeRoleSlugs?: string[]
 }
 
 /** Single source of truth for what staff can reach — shared by the tab bar and the landing page so they never drift. */
@@ -39,6 +47,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     description: "Items the kitchen has finished",
     icon: PackageCheckIcon,
     requires: "dining-tables.view",
+    excludeRoleSlugs: ["cashier"],
   },
   {
     href: "/staff/orders",
@@ -87,7 +96,23 @@ export const staffRoutePermissions = [
 
 export function canSeeStaffNavItem(
   item: StaffNavItem,
-  user: { isSuperadmin: boolean; permissions: string[] },
+  user: { isSuperadmin: boolean; permissions: string[]; roleSlugs: string[] },
 ): boolean {
-  return !item.requires || user.isSuperadmin || user.permissions.includes(item.requires)
+  const hasPermission = !item.requires || user.isSuperadmin || user.permissions.includes(item.requires)
+  const isExcluded =
+    !user.isSuperadmin && item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug))
+  return hasPermission && !isExcluded
+}
+
+/** Mirrors canSeeStaffNavItem's role exclusion for the server-side route guard in layout.tsx, which only has a pathname (not a resolved nav item) to work from. */
+export function isStaffRouteBlockedForRole(
+  pathname: string,
+  user: { isSuperadmin: boolean; roleSlugs: string[] },
+): boolean {
+  if (user.isSuperadmin) return false
+  return STAFF_NAV_ITEMS.some(
+    (item) =>
+      item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug)) &&
+      (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  )
 }
