@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { BellIcon, BellOffIcon, BellRingIcon, CheckIcon } from "lucide-react"
+import { BellIcon, BellOffIcon } from "lucide-react"
 
-import { Badge } from "@rms/ui/badge"
-import { Button } from "@rms/ui/button"
-import { Card } from "@rms/ui/card"
+import { Button } from "./button"
 import {
   usePushPublicKey,
   useSubscribePush,
@@ -23,15 +21,12 @@ async function hasExistingSubscription(): Promise<boolean> {
 }
 
 /**
- * Push is no longer opt-in for staff (see profile page redesign) — order/
- * kitchen alerts need to reach the device they're working on, so this
- * enforces a subscription instead of offering a checkbox. Still needs one
- * user click to satisfy the browser's permission-prompt gesture requirement
- * when permission hasn't been decided yet; once granted it silently
- * re-confirms the subscription (and the server-side pushEnabled flag) on
- * every visit without bothering the user again.
+ * Compact "enable push" prompt for the notification bell dropdown — replaces
+ * the old dedicated card on the profile page. Only renders when this device
+ * actually needs the user to act (a permission prompt or a blocked/failed
+ * subscription); silent once push is enabled, same as before.
  */
-export function PushNotificationsRequired() {
+export function PushNotificationsBanner() {
   const { data: pushKey } = usePushPublicKey()
   const subscribePush = useSubscribePush()
   const updatePreferences = useUpdateNotificationPreferences()
@@ -91,63 +86,30 @@ export function PushNotificationsRequired() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pushKey])
 
+  if (status === "checking" || status === "enabled" || status === "unsupported" || status === "enabling") {
+    return null
+  }
+
   return (
-    <Card className="gap-3 rounded-2xl border-border/60 p-4 shadow-none">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BellRingIcon className="size-4 text-primary" />
-          <p className="text-sm font-medium">Push notifications</p>
-        </div>
-        <Badge variant="outline" className="text-[10px]">
-          Required
-        </Badge>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Order and kitchen alerts are delivered to this device via push — it can&apos;t be turned off.
-      </p>
-
-      {status === "checking" && <p className="text-sm text-muted-foreground">Checking this device…</p>}
-
-      {status === "enabled" && (
-        <div className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
-          <CheckIcon className="size-4" />
-          Enabled on this device
-        </div>
+    <div className="flex items-start gap-2 rounded-lg bg-muted/60 p-2">
+      {status === "denied" ? (
+        <>
+          <BellOffIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p className="text-xs text-muted-foreground">
+            Notifications are blocked in this browser. Allow them for this site in your browser settings, then reload.
+          </p>
+        </>
+      ) : (
+        <>
+          <BellIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-xs text-muted-foreground">Enable push notifications to get alerts on this device.</p>
+            <Button size="sm" className="h-7 text-xs" onClick={() => void enable()}>
+              Enable
+            </Button>
+          </div>
+        </>
       )}
-
-      {status === "prompt" && (
-        <Button onClick={() => void enable()} className="w-full">
-          <BellIcon />
-          Enable push notifications
-        </Button>
-      )}
-
-      {status === "enabling" && (
-        <Button disabled className="w-full">
-          <BellIcon />
-          Enabling…
-        </Button>
-      )}
-
-      {status === "denied" && (
-        <div className="flex items-start gap-1.5 text-sm text-destructive">
-          <BellOffIcon className="mt-0.5 size-4 shrink-0" />
-          Blocked in this browser. Allow notifications for this site in your browser settings, then reload.
-        </div>
-      )}
-
-      {status === "unsupported" && (
-        <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
-          <BellOffIcon className="mt-0.5 size-4 shrink-0" />
-          This browser doesn&apos;t support push notifications.
-        </div>
-      )}
-
-      {status === "error" && (
-        <Button variant="outline" onClick={() => void enable()} className="w-full">
-          Retry
-        </Button>
-      )}
-    </Card>
+    </div>
   )
 }

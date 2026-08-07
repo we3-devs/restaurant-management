@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu"
 import { Skeleton } from "./skeleton"
+import { PushNotificationsBanner } from "./push-notifications-banner"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import {
@@ -108,6 +109,9 @@ export function NotificationBell() {
             )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        <div className="px-2 pb-1">
+          <PushNotificationsBanner />
+        </div>
         <DropdownMenuSeparator />
 
         <div className="max-h-80 space-y-1 overflow-y-auto p-1">

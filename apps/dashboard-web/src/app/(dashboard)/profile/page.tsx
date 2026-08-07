@@ -4,12 +4,11 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { LogOutIcon, MailIcon, ShieldCheckIcon } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@rms/ui/avatar"
-import { Card } from "@rms/ui/card"
-import { SettingsRow, SettingsRowGroup } from "@rms/ui/settings-row"
-import { DarkModeRow } from "@rms/ui/dark-mode-row"
-import { useCurrentUser } from "@rms/auth/current-user-context"
-import { APP_VERSION } from "@/lib/app-version"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Card } from "@/components/ui/card"
+import { SettingsRow, SettingsRowGroup } from "@/components/ui/settings-row"
+import { DarkModeRow } from "@/components/ui/dark-mode-row"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 
 function initials(name: string): string {
   return (
@@ -30,7 +29,7 @@ function titleCase(slug: string): string {
     .join(" ")
 }
 
-export default function StaffProfilePage() {
+export default function ProfilePage() {
   const user = useCurrentUser()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -49,7 +48,9 @@ export default function StaffProfilePage() {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col space-y-4">
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col space-y-4">
+      <h1 className="text-lg font-semibold">Profile</h1>
+
       <Card className="gap-0 overflow-hidden rounded-2xl border-border/60 p-0 shadow-none">
         <div className="h-28 bg-linear-to-br from-accent via-accent to-primary/20" />
         <div className="flex flex-col items-center gap-1 px-6 pb-6">
@@ -71,19 +72,15 @@ export default function StaffProfilePage() {
         <DarkModeRow />
       </SettingsRowGroup>
 
-      <div className="mt-auto space-y-3">
-        <SettingsRowGroup>
-          <SettingsRow
-            icon={LogOutIcon}
-            label={isLoggingOut ? "Logging out…" : "Log out"}
-            destructive
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-          />
-        </SettingsRowGroup>
-
-        <p className="text-center text-xs text-muted-foreground">App version {APP_VERSION}</p>
-      </div>
+      <SettingsRowGroup className="mt-auto">
+        <SettingsRow
+          icon={LogOutIcon}
+          label={isLoggingOut ? "Logging out…" : "Log out"}
+          destructive
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+        />
+      </SettingsRowGroup>
     </div>
   )
 }

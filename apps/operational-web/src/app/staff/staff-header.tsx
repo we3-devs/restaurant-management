@@ -23,7 +23,7 @@ export function StaffHeader() {
         <OfflineIndicator />
         <NotificationBell />
         <ThemeToggle />
-        <UserMenu />
+        <UserMenu profileHref="/staff/profile" />
       </div>
     </header>
   )
