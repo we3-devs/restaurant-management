@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BellIcon, BellRingIcon, CheckCheckIcon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
+import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "./badge"
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu"
 import { Skeleton } from "./skeleton"
+import { PushNotificationsBanner } from "./push-notifications-banner"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import {
@@ -41,6 +42,8 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
   switch (notification.type) {
     case "kitchen_ready":
       return <SoupIcon className={cn(className, "text-emerald-500")} />
+    case "order_served":
+      return <CheckCircle2Icon className={cn(className, "text-emerald-500")} />
     case "service_request":
       return notification.tableName ? <DropletIcon className={cn(className, "text-sky-500")} /> : <HandIcon className={cn(className, "text-sky-500")} />
     default:
@@ -106,6 +109,9 @@ export function NotificationBell() {
             )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        <div className="px-2 pb-1">
+          <PushNotificationsBanner />
+        </div>
         <DropdownMenuSeparator />
 
         <div className="max-h-80 space-y-1 overflow-y-auto p-1">

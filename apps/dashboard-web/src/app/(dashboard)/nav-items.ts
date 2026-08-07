@@ -28,6 +28,8 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: Gauge,
     links: [
       { href: "/dashboard", label: "Dashboard", permission: true },
+      { href: "/tables", label: "Tables", permission: "dining-tables.view" },
+      { href: "/orders", label: "Orders", permission: "orders.view" },
       { href: "/reports", label: "Reports", permission: "reports.view" },
       { href: "/notifications", label: "Notifications", permission: true },
     ],

@@ -16,7 +16,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@rms/ui/form"
+import { getLandingPath } from "@rms/auth/route-access"
 import { loginSchema, type LoginInput } from "@rms/validators/auth"
+
+const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL ?? "http://localhost:3000"
 
 export function LoginForm() {
   const router = useRouter()
@@ -37,13 +40,23 @@ export function LoginForm() {
         body: JSON.stringify(values),
       })
 
+      const body = await response.json().catch(() => null)
+
       if (!response.ok) {
-        const body = await response.json().catch(() => null)
         toast.error(body?.message ?? "Invalid email or password")
         return
       }
 
-      router.push("/")
+      // Same reasoning as dashboard-web's login form: the login response
+      // already carries isSuperadmin + portal, so we can go straight to the
+      // right app instead of "/" → (cross-origin) "/dashboard" one hop at a
+      // time. staff/layout.tsx still re-verifies and bounces on mismatch.
+      if (getLandingPath(body.user) === "/dashboard") {
+        window.location.href = `${DASHBOARD_WEB_URL}/dashboard`
+        return
+      }
+
+      router.push("/staff")
       router.refresh()
     } finally {
       setIsSubmitting(false)

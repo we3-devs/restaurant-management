@@ -95,14 +95,23 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
   }
 
   async function handleCompleteSale() {
+    if (!order) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to complete the sale")
       return
     }
+    const subtotal = order.subtotal
     try {
       await updateStatus.mutateAsync("completed")
-      toast.success("Sale complete")
-      router.push(`/pos/receipt/${orderId}`)
+      // Nothing was ever ordered — there's no bill to show or print, just
+      // close out the table.
+      if (subtotal === 0) {
+        toast.success("Table closed — no sale")
+        router.push("/floor")
+      } else {
+        toast.success("Sale complete")
+        router.push(`/pos/receipt/${orderId}`)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete sale")
     }

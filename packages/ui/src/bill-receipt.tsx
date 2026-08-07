@@ -2,7 +2,6 @@ import { Separator } from "./separator"
 import { useAddons } from "@rms/api-client/hooks/use-addons"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
-import { useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOutlet } from "@rms/api-client/hooks/use-outlets"
 import { useOrder, useOrderItems, type OrderItem } from "@rms/api-client/hooks/use-orders"
 import { useSettingsCategory, type PosSettings } from "@rms/api-client/hooks/use-settings"
@@ -18,7 +17,6 @@ import { useSettingsCategory, type PosSettings } from "@rms/api-client/hooks/use
 export function BillReceipt({ orderId }: { orderId: number }) {
   const { data: order } = useOrder(orderId)
   const { data: items } = useOrderItems(orderId)
-  const { data: payments } = useOrderPayments(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: customer } = useCustomer(order?.customerId ?? 0)
@@ -75,14 +73,6 @@ export function BillReceipt({ orderId }: { orderId: number }) {
       <Separator />
 
       <div className="space-y-1">
-        {payments?.data.map((payment) => (
-          <div key={payment.id} className="flex justify-between text-xs">
-            <span>
-              {payment.type} &middot; {payment.method}
-            </span>
-            <span>{payment.amount}</span>
-          </div>
-        ))}
         <div className="flex justify-between font-medium">
           <span>Paid</span>
           <span>{order.paidAmount}</span>

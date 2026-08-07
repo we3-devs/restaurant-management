@@ -27,12 +27,13 @@ export interface ListDiningTablesParams {
   status?: string
 }
 
-export function useDiningTables(params: ListDiningTablesParams = {}) {
+export function useDiningTables(params: ListDiningTablesParams = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.diningTables.list(params),
     queryFn: () => apiClient<PaginatedResponse<DiningTable>>(`/dining-tables${toQueryString(params)}`),
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME.tables,
+    enabled: options?.enabled,
   })
 }
 

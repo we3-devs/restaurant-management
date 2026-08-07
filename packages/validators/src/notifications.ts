@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = [
   "kitchen_cancelled",
   "order_sent",
   "order_ready",
+  "order_served",
   "order_cancelled",
   "guest_order_placed",
   "payment_received",
@@ -37,7 +38,7 @@ export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number]
 
 export const NOTIFICATION_CATEGORY_GROUPS: Record<string, NotificationType[]> = {
   Kitchen: ["kitchen_ready", "kitchen_delayed", "kitchen_recalled", "kitchen_cancelled"],
-  Orders: ["order_sent", "order_ready", "order_cancelled", "guest_order_placed"],
+  Orders: ["order_sent", "order_ready", "order_served", "order_cancelled", "guest_order_placed"],
   Payments: ["payment_received"],
   Reservations: ["reservation_created", "reservation_cancelled", "reservation_reminder"],
   Inventory: ["low_stock", "out_of_stock", "stock_adjustment"],
@@ -63,6 +64,7 @@ export const NOTIFICATION_TOAST_VARIANT: Record<NotificationType, "success" | "e
   kitchen_cancelled: "error",
   order_sent: "info",
   order_ready: "success",
+  order_served: "success",
   order_cancelled: "error",
   guest_order_placed: "info",
   payment_received: "success",
