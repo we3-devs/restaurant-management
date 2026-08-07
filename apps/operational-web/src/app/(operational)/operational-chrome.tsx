@@ -1,5 +1,6 @@
 "use client"
 
+import { AccessDenied } from "@rms/ui/access-denied"
 import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
 import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderDepartmentSwitcher } from "@rms/ui/header-department-switcher"
@@ -11,14 +12,14 @@ import { CommandPalette } from "@rms/ui/command-palette"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { Separator } from "@rms/ui/separator"
-import { AccessDenied } from "@rms/ui/access-denied"
 import { visibleNavGroups } from "./nav-items"
 
 /**
  * Client component so visibleNavGroups() (whose result embeds Lucide icon
  * components) runs on the client instead of being computed in the server
- * layout and passed down as a prop — mirrors dashboard-web's
- * dashboard-chrome.tsx exactly, see the comment there for why.
+ * layout and passed down as a prop — Server->Client props must be plain
+ * serializable data, and icon components aren't. permissions/isSuperadmin
+ * are plain data, so those are what actually cross the boundary.
  */
 export function OperationalChrome({
   permissions,

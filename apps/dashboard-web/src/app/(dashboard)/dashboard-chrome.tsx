@@ -1,5 +1,6 @@
 "use client"
 
+import { AccessDenied } from "@rms/ui/access-denied"
 import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
 import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderDepartmentSwitcher } from "@rms/ui/header-department-switcher"
@@ -11,7 +12,6 @@ import { CommandPalette } from "@rms/ui/command-palette"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { Separator } from "@/components/ui/separator"
-import { AccessDenied } from "@rms/ui/access-denied"
 import { visibleNavGroups } from "./nav-items"
 
 /**
