@@ -9,7 +9,7 @@ import { StaffHeader } from "./staff-header"
 import { StaffTabBar } from "./staff-tab-bar"
 import { StaffOfflineBanner } from "./staff-offline-banner"
 import { RegisterStaffServiceWorker } from "./register-sw"
-import { staffRoutePermissions } from "./nav-items"
+import { isStaffRouteBlockedForRole, staffRoutePermissions } from "./nav-items"
 
 /**
  * Mobile-first shell for kitchen/waiter staff — separate from
@@ -35,7 +35,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   }
 
   const requiredPermission = findRequiredPermission(pathname, staffRoutePermissions)
-  const allowed = hasRoutePermission(user, requiredPermission)
+  const allowed = hasRoutePermission(user, requiredPermission) && !isStaffRouteBlockedForRole(pathname, user)
 
   return (
     <CurrentUserProvider user={user}>
