@@ -3,10 +3,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { CheckIcon, CopyIcon, DropletIcon, HandIcon, ReceiptIcon } from "lucide-react"
+import { DropletIcon, HandIcon, ReceiptIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { QrCode } from "@rms/ui/qr-code"
+import { useCurrentUser } from "@rms/auth/current-user-context"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import {
@@ -32,8 +32,25 @@ import {
 } from "@rms/api-client/hooks/use-service-requests"
 import { useEndTableSession, useTableSessions, useTransferTableSession } from "@rms/api-client/hooks/use-table-sessions"
 
+function formatSeatedFor(startedAt: string | null): string | null {
+  if (!startedAt) return null
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000))
+  if (minutes < 1) return "just seated"
+  if (minutes < 60) return `seated ${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return `seated ${hours}h${remainder ? ` ${remainder}m` : ""} ago`
+}
+
 export function TableActionsDialog({ table, onClose }: { table: DiningTable; onClose: () => void }) {
   const router = useRouter()
+  const user = useCurrentUser()
+  // Cashiers see the table and can call a waiter, but don't start/end/
+  // transfer sessions, reserve tables, or take orders — that's the waiter's
+  // job. See table-card.tsx for why this is keyed off the role rather than
+  // a permission (cashier shares orders.manage with bartender/waiter, who
+  // do need the order-taking flow this dialog otherwise gates).
+  const isCashier = !user.isSuperadmin && user.roleSlugs.includes("cashier")
   const { data: sessions } = useTableSessions({
     diningTableId: table.id,
     status: "active",
@@ -55,7 +72,6 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   })
   const [transferTargetId, setTransferTargetId] = useState("")
   const [showTransfer, setShowTransfer] = useState(false)
-  const [copied, setCopied] = useState(false)
   const createRequest = useCreateServiceRequest()
 
   const queryClient = useQueryClient()
@@ -69,28 +85,12 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   const [reserveSpecialRequest, setReserveSpecialRequest] = useState("")
   const [reserveInternalNote, setReserveInternalNote] = useState("")
 
-  const guestUrl = table.code ? `/guest?table=${encodeURIComponent(table.code)}` : null
-  const fullGuestUrl = guestUrl
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}${guestUrl}`
-    : null
-
   async function handleCallWaiter(type: ServiceRequestType) {
     try {
       await createRequest.mutateAsync({ diningTableId: table.id, type })
       toast.success("Request sent to the service queue")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to send request")
-    }
-  }
-
-  async function handleCopyGuestLink() {
-    if (!fullGuestUrl) return
-    try {
-      await navigator.clipboard.writeText(fullGuestUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      toast.error("Could not copy — select the link manually")
     }
   }
 
@@ -162,58 +162,76 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
 
         {table.status === "occupied" && activeSession && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {activeSession.guestCount} guest{activeSession.guestCount === 1 ? "" : "s"} &middot; session #
-              {activeSession.id}
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{activeSession.customer?.name ?? "Walk-in guest"}</p>
+              <p className="text-sm text-muted-foreground">
+                {activeSession.guestCount} of {table.capacity} seat{table.capacity === 1 ? "" : "s"} &middot; session #
+                {activeSession.id}
+              </p>
+              {formatSeatedFor(activeSession.startedAt) && (
+                <p className="text-sm text-muted-foreground">{formatSeatedFor(activeSession.startedAt)}</p>
+              )}
+            </div>
 
-            {activeSession.customer && (
+            {activeSession.customer && (activeSession.customer.phone || activeSession.customer.loyaltyTier) && (
               <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium">{activeSession.customer.name}</p>
-                  {activeSession.customer.phone && (
-                    <p className="text-xs text-muted-foreground">{activeSession.customer.phone}</p>
-                  )}
-                </div>
+                {activeSession.customer.phone ? (
+                  <p className="text-muted-foreground">{activeSession.customer.phone}</p>
+                ) : (
+                  <span />
+                )}
                 {activeSession.customer.loyaltyTier && (
                   <Badge variant="secondary">{activeSession.customer.loyaltyTier}</Badge>
                 )}
               </div>
             )}
 
-            {showTransfer ? (
-              <div className="space-y-2">
-                <Select value={transferTargetId} onValueChange={(value) => setTransferTargetId(value ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a free table" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTables?.data.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  size="sm"
-                  onClick={handleTransfer}
-                  disabled={!transferTargetId || transferSession.isPending}
-                >
-                  {transferSession.isPending ? "Transferring..." : "Confirm transfer"}
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={handleViewOrder}>View / add items</Button>
-                <Button variant="outline" onClick={() => setShowTransfer(true)}>
-                  Transfer table
-                </Button>
-                <Button variant="destructive" onClick={handleEnd} disabled={endSession.isPending}>
-                  {endSession.isPending ? "Ending..." : "End session"}
-                </Button>
+            {activeOrder && (
+              <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Order so far</span>
+                <div className="text-right">
+                  <p className="font-medium">{activeOrder.grandTotal.toFixed(2)}</p>
+                  {activeOrder.dueAmount > 0 && (
+                    <p className="text-xs text-muted-foreground">{activeOrder.dueAmount.toFixed(2)} due</p>
+                  )}
+                </div>
               </div>
             )}
+
+            {!isCashier &&
+              (showTransfer ? (
+                <div className="space-y-2">
+                  <Select value={transferTargetId} onValueChange={(value) => setTransferTargetId(value ?? "")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a free table" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTables?.data.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={handleTransfer}
+                    disabled={!transferTargetId || transferSession.isPending}
+                  >
+                    {transferSession.isPending ? "Transferring..." : "Confirm transfer"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleViewOrder}>View / add items</Button>
+                  <Button variant="outline" onClick={() => setShowTransfer(true)}>
+                    Transfer table
+                  </Button>
+                  <Button variant="destructive" onClick={handleEnd} disabled={endSession.isPending}>
+                    {endSession.isPending ? "Ending..." : "End session"}
+                  </Button>
+                </div>
+              ))}
 
             <Separator />
 
@@ -256,16 +274,19 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
         {table.status === "available" && !showReserve && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or
-              reserve it for later.
+              {isCashier
+                ? "This table is free."
+                : "This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or reserve it for later."}
             </p>
-            <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
-              Reserve this table
-            </Button>
+            {!isCashier && (
+              <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
+                Reserve this table
+              </Button>
+            )}
           </div>
         )}
 
-        {table.status === "available" && showReserve && (
+        {!isCashier && table.status === "available" && showReserve && (
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>Customer</Label>
@@ -339,32 +360,15 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
         )}
 
         {table.status !== "occupied" && table.status !== "available" && (
-          <p className="text-sm text-muted-foreground">Status: {table.status}</p>
+          <p className="text-sm text-muted-foreground">
+            {table.status === "reserved" && "This table is reserved for an upcoming booking."}
+            {table.status === "cleaning" && "This table is being cleaned and isn't ready for guests yet."}
+            {table.status === "inactive" && "This table isn't in service right now."}
+          </p>
         )}
 
-        {/*
-          Guest QR card — /guest looks the table up by its static `code`, not
-          by session, so the link works identically whether the table is
-          occupied or free. Shown for both statuses; other statuses (e.g.
-          cleaning, reserved) fall back to the plain "Status: X" message above
-          with no card, matching how those statuses are handled elsewhere.
-        */}
-        {fullGuestUrl && (table.status === "occupied" || table.status === "available") && (
-          <div className="mt-4 flex items-center gap-4 rounded-lg border border-dashed p-3">
-            <QrCode value={fullGuestUrl} size={88} />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <p className="text-sm font-medium">Guest card</p>
-              <p className="break-all text-xs text-muted-foreground">{fullGuestUrl}</p>
-              <Button variant="outline" size="sm" onClick={handleCopyGuestLink}>
-                {copied ? <CheckIcon className="text-emerald-500" /> : <CopyIcon />}
-                {copied ? "Copied" : "Copy link"}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter>
-          {table.status === "available" && !showReserve && (
+        {!isCashier && table.status === "available" && !showReserve && (
+          <DialogFooter>
             <Button
               onClick={() => {
                 onClose()
@@ -373,8 +377,8 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
             >
               Go to POS
             </Button>
-          )}
-        </DialogFooter>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

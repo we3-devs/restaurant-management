@@ -241,9 +241,20 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     name: 'Cashier',
     rank: 40,
     description: 'Front-of-house billing and payment collection.',
-    portal: 'dashboard',
+    portal: 'staff',
     fullModules: ['order-payments', 'orders', 'loyalty'],
-    singlePermissions: ['customers.view', 'dining-tables.view', 'dashboard.view'],
+    // dining-areas.view (FloorBoard's area filter), table-sessions.view
+    // (StartSaleDialog's active-session lookup) and foods/food-categories/
+    // food-variants.view (FoodGrid, CategoryTabs, VariantPickerDialog on the
+    // Billing screen) are all read by the same order-taking flow every
+    // orders.manage role goes through — see waiter/bartender below.
+    singlePermissions: [
+      'customers.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'dashboard.view',
+      'foods.view', 'food-categories.view', 'food-variants.view',
+    ],
+    // Stale grants from an earlier version of this role definition, unused by
+    // any cashier-reachable screen.
+    revokePermissions: ['outlet-departments.view', 'shifts.view'],
     position: { name: 'Cashier', slug: 'cashier', description: 'Handles billing, payments and loyalty redemption at the counter.' },
   },
   {
@@ -253,7 +264,12 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     description: 'Front-of-house service — takes orders, manages tables, settles bills.',
     portal: 'staff',
     fullModules: ['orders', 'order-payments', 'table-sessions', 'reservations'],
-    singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view'],
+    // foods/food-categories/food-variants.view — same order-taking flow as
+    // cashier above (FoodGrid, CategoryTabs, VariantPickerDialog).
+    singlePermissions: [
+      'dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view',
+      'foods.view', 'food-categories.view', 'food-variants.view',
+    ],
     position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
   },
   {
@@ -263,7 +279,13 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     description: 'Bar orders and drink service.',
     portal: 'staff',
     fullModules: ['orders', 'order-payments'],
-    singlePermissions: ['ingredients.view', 'dining-tables.view', 'kitchen-tickets.manage'],
+    // dining-areas/table-sessions/foods/food-categories/food-variants.view —
+    // same order-taking flow as cashier/waiter above (FloorBoard, FoodGrid,
+    // CategoryTabs, VariantPickerDialog, StartSaleDialog).
+    singlePermissions: [
+      'ingredients.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'kitchen-tickets.manage',
+      'foods.view', 'food-categories.view', 'food-variants.view',
+    ],
     position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
   },
   {
@@ -290,7 +312,16 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'orders.view', 'kitchen-tickets.manage',
       'ingredients.view', 'ingredient-categories.view', 'inventory-stock.view', 'stock-outs.view', 'units.view',
     ],
-    revokePermissions: ['orders.manage'],
+    // foods/food-categories/food-variants — leftover menu-management grants
+    // from an earlier role definition; the KDS board (staff/kitchen) never
+    // reads the menu, only kitchen-tickets, so a cook editing the menu was
+    // never intentional.
+    revokePermissions: [
+      'orders.manage',
+      'foods.manage', 'foods.view',
+      'food-categories.manage', 'food-categories.view',
+      'food-variants.manage', 'food-variants.view',
+    ],
     position: { name: 'Cook', slug: 'cook', description: 'Prepares kitchen orders.' },
   },
   {

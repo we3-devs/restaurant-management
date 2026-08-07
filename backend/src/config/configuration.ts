@@ -1,7 +1,7 @@
 export interface AppConfig {
   app: {
     port: number;
-    frontendUrl: string;
+    frontendUrls: string[];
   };
   database: {
     host: string;
@@ -27,7 +27,13 @@ export interface AppConfig {
 export default (): AppConfig => ({
   app: {
     port: parseInt(process.env.PORT ?? '3001', 10),
-    frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    // FRONTEND_URL may be a comma-separated list — dashboard-web and
+    // operational-web are two different origins in dev (ports 3000/3100)
+    // that both need to pass the /kds websocket's CORS check.
+    frontendUrls: (process.env.FRONTEND_URL ?? 'http://localhost:3000')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
   },
   database: {
     host: process.env.DB_HOST ?? '127.0.0.1',

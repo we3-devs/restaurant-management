@@ -48,7 +48,15 @@ export interface GuestOrderUpdate {
 @WebSocketGateway({
   namespace: '/kds',
   cors: {
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    // FRONTEND_URL may be a comma-separated list — dashboard-web and
+    // operational-web are two different origins in dev (ports 3000/3100),
+    // and both need their /kds handshake to pass CORS. Read directly from
+    // process.env (not ConfigService) since gateway decorator options are
+    // evaluated at class-definition time, before Nest's DI container exists.
+    origin: (process.env.FRONTEND_URL ?? 'http://localhost:3000')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
     credentials: true,
   },
 })

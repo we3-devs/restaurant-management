@@ -23,6 +23,7 @@ export type NotificationType =
   | 'kitchen_cancelled'
   | 'order_sent'
   | 'order_ready'
+  | 'order_served'
   | 'order_cancelled'
   | 'guest_order_placed'
   | 'payment_received'

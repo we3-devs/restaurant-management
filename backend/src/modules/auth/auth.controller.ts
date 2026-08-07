@@ -38,7 +38,7 @@ export class AuthController {
       dto.email,
       dto.password,
     );
-    return { ...tokens, user: this.toAuthUser(user) };
+    return { ...tokens, user: await this.toAuthUser(user) };
   }
 
   @Public()
@@ -49,7 +49,7 @@ export class AuthController {
   })
   async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
     const { tokens, user } = await this.authService.refresh(dto.refreshToken);
-    return { ...tokens, user: this.toAuthUser(user) };
+    return { ...tokens, user: await this.toAuthUser(user) };
   }
 
   @Public()
@@ -76,11 +76,10 @@ export class AuthController {
       this.permissionsService.getRoleSlugs(user.id),
     ]);
     return {
-      ...this.toAuthUser(user),
+      ...(await this.toAuthUser(user, portal)),
       permissions: Array.from(permissions),
       outletIds,
       departmentIds,
-      portal,
       roleSlugs,
     };
   }
@@ -112,12 +111,23 @@ export class AuthController {
     return { ok: true };
   }
 
-  private toAuthUser(user: User) {
+  // Includes `portal` (same resolution as /auth/me) so the login response
+  // alone is enough for the client to pick its landing app, without a
+  // separate /auth/me round trip just to make that decision. `me()` already
+  // resolves portal itself (alongside permissions/outlets/roles in one
+  // Promise.all) and passes it in to avoid resolving it twice.
+  private async toAuthUser(user: User, portal?: 'dashboard' | 'staff') {
+    const resolvedPortal =
+      portal ??
+      (user.isSuperadmin
+        ? ('dashboard' as const)
+        : await this.permissionsService.getPortalAccess(user.id));
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       isSuperadmin: user.isSuperadmin,
+      portal: resolvedPortal,
     };
   }
 }

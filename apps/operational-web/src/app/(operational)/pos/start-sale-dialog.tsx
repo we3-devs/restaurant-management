@@ -105,7 +105,8 @@ export function StartSaleDialog({
           customerId: customerId ? Number(customerId) : undefined,
           orderType,
         })
-        orderId = result.orderId
+        if (!result?.order) throw new Error("Table session opened but no order was returned")
+        orderId = result.order.id
       } else {
         // orderType !== "table" (no session needed), or an already-seated
         // table was picked from the dropdown (session already exists).

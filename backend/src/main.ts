@@ -27,7 +27,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
   app.enableCors({
-    origin: [configService.get('app', { infer: true })!.frontendUrl],
+    origin: configService.get('app', { infer: true })!.frontendUrls,
     credentials: true,
   });
   app.useGlobalPipes(

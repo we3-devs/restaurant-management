@@ -7,6 +7,7 @@ import { Button } from "@rms/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@rms/ui/dialog"
 import { useOrderItems } from "@rms/api-client/hooks/use-orders"
 import { CartPanel } from "./cart-panel"
+import { useLocalCartContext } from "./local-cart-context"
 
 /**
  * Floating bubble per FRONTEND_DESIGN_SYSTEM.md's POS spec — the cart is
@@ -15,7 +16,9 @@ import { CartPanel } from "./cart-panel"
 export function FloatingCart({ orderId }: { orderId: number }) {
   const [open, setOpen] = useState(false)
   const { data: items } = useOrderItems(orderId)
-  const itemCount = items?.data.reduce((sum, item) => sum + item.quantity, 0) ?? 0
+  const localCart = useLocalCartContext()
+  const localCount = localCart.items.reduce((sum, item) => sum + item.quantity, 0)
+  const itemCount = (items?.data.reduce((sum, item) => sum + item.quantity, 0) ?? 0) + localCount
 
   return (
     <>

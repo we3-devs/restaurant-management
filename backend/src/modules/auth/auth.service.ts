@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -18,6 +18,8 @@ export interface TokenPair {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User) private readonly usersRepository: Repository<User>,
     @InjectRepository(RefreshToken)
@@ -45,14 +47,32 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
-    const user = await this.validateCredentials(email, password);
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email })
+      .getOne();
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     const tokens = await this.issueTokenPair(user);
-    await this.auditLogsService.record({
-      userId: user.id,
-      action: 'login',
-      entityType: 'user',
-      entityId: user.id,
-    });
+
+    // Fire-and-forget, matching AuditInterceptor's pattern for every other
+    // mutating route — the response doesn't depend on the audit row being
+    // committed, so there's no reason to block login on it.
+    void this.auditLogsService
+      .record({
+        userId: user.id,
+        action: 'login',
+        entityType: 'user',
+        entityId: user.id,
+      })
+      .catch((error: Error) =>
+        this.logger.error(`Audit write failed: ${error.message}`),
+      );
+
     return { tokens, user };
   }
 
@@ -101,12 +121,18 @@ export class AuthService {
       { tokenHash, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
-    await this.auditLogsService.record({
-      userId: existing.userId,
-      action: 'logout',
-      entityType: 'user',
-      entityId: existing.userId,
-    });
+
+    // Same fire-and-forget treatment as login() — see the comment there.
+    void this.auditLogsService
+      .record({
+        userId: existing.userId,
+        action: 'logout',
+        entityType: 'user',
+        entityId: existing.userId,
+      })
+      .catch((error: Error) =>
+        this.logger.error(`Audit write failed: ${error.message}`),
+      );
   }
 
   private async issueTokenPair(user: User): Promise<TokenPair> {
@@ -121,12 +147,17 @@ export class AuthService {
       infer: true,
     })!.refreshExpiresIn;
 
-    const refreshTokenEntity = this.refreshTokensRepository.create({
+    // .insert() instead of .create()+.save(): same entity listeners/
+    // subscribers run either way (TypeORM's InsertQueryBuilder calls them
+    // regardless — see callListeners, on by default), but .insert() skips
+    // the transaction .save() wraps a single new entity in (useTransaction
+    // defaults to false for .insert(), true for .save()), cutting 3 network
+    // round trips down to 1 on this remote DB.
+    await this.refreshTokensRepository.insert({
       userId: user.id,
       tokenHash: this.hashToken(rawRefreshToken),
       expiresAt: new Date(Date.now() + parseDurationToMs(refreshExpiresIn)),
     });
-    await this.refreshTokensRepository.save(refreshTokenEntity);
 
     return { accessToken, refreshToken: rawRefreshToken };
   }

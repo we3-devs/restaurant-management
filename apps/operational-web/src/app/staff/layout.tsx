@@ -4,12 +4,13 @@ import { getCurrentUser } from "@rms/auth/dal"
 import { CurrentUserProvider } from "@rms/auth/current-user-context"
 import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@rms/auth/route-access"
 import { ActiveOutletProvider } from "@rms/api-client/outlet/active-outlet-context"
+import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidation-provider"
 import { AccessDenied } from "@rms/ui/access-denied"
 import { StaffHeader } from "./staff-header"
 import { StaffTabBar } from "./staff-tab-bar"
 import { StaffOfflineBanner } from "./staff-offline-banner"
 import { RegisterStaffServiceWorker } from "./register-sw"
-import { staffRoutePermissions } from "./nav-items"
+import { isStaffRouteBlockedForRole, staffRoutePermissions } from "./nav-items"
 
 /**
  * Mobile-first shell for kitchen/waiter staff — separate from
@@ -35,11 +36,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   }
 
   const requiredPermission = findRequiredPermission(pathname, staffRoutePermissions)
-  const allowed = hasRoutePermission(user, requiredPermission)
+  const allowed = hasRoutePermission(user, requiredPermission) && !isStaffRouteBlockedForRole(pathname, user)
 
   return (
     <CurrentUserProvider user={user}>
       <ActiveOutletProvider>
+        <RealtimeInvalidationProvider />
         <div
           className="flex min-h-dvh flex-col bg-background"
           style={{

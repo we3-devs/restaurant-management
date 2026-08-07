@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LogOutIcon } from "lucide-react"
+import { LogOutIcon, UserIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "./avatar"
 import { Badge } from "./badge"
@@ -30,7 +31,7 @@ function initials(name: string): string {
 }
 
 /** Combines the account identity and logout into one profile menu — replaces the row of separate header buttons with a single enterprise-style profile dropdown. */
-export function UserMenu() {
+export function UserMenu({ profileHref }: { profileHref?: string } = {}) {
   const user = useCurrentUser()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -72,6 +73,12 @@ export function UserMenu() {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        {profileHref && (
+          <DropdownMenuItem render={<Link href={profileHref} />}>
+            <UserIcon />
+            View profile
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem variant="destructive" onClick={handleLogout} disabled={isLoggingOut}>
           <LogOutIcon />
           {isLoggingOut ? "Logging out..." : "Log out"}

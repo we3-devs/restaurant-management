@@ -2,6 +2,21 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * This stylesheet is shared by every app (imported via "@rms/ui/globals.css"),
+ * but each app's own Tailwind content-detection only auto-scans files inside
+ * its own directory — it doesn't follow the @rms/* workspace symlinks into
+ * packages/*, since node_modules paths are excluded by convention. Without
+ * this, any class that only appears inside packages/ui/src (e.g. the
+ * responsive lg:static/lg:translate-x-0 on AppSidebarShell) never gets
+ * generated for apps that don't happen to also use that exact class string
+ * somewhere in their own source — an app-specific "coincidence" bug that only
+ * shows up in some apps and not others. @source paths declared here resolve
+ * relative to this file, so this explicitly covers every app that imports it.
+ */
+@source "./**/*.{ts,tsx}";
+@source "../../api-client/src/**/*.{ts,tsx}";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

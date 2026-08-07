@@ -14,6 +14,7 @@ import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import {
   useAddOrderItemAddon,
+  useAddOrderItemsBatch,
   useFireHeldItems,
   useOrderItems,
   useRemoveOrderItem,
@@ -23,6 +24,8 @@ import {
   type OrderItem,
 } from "@rms/api-client/hooks/use-orders"
 import { CheckoutPanel } from "./checkout-panel"
+import { useLocalCartContext } from "./local-cart-context"
+import type { LocalCartItem } from "./use-local-cart"
 
 const ITEM_STATUS_LABELS: Record<string, string> = {
   sent_to_kitchen: "Sent",
@@ -35,14 +38,19 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
 export function CartPanel({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
+  const { data: addonsList } = useAddons({ limit: 100 })
+  const localCart = useLocalCartContext()
+  const addItemsBatch = useAddOrderItemsBatch(orderId)
   const sendToKitchen = useSendOrderToKitchen(orderId)
   const fireHeld = useFireHeldItems(orderId)
   const isOnline = useOnlineStatus()
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
-  const pendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
-  const pendingCount = pendingItems.filter((item) => !item.isHeld).length
-  const heldCount = pendingItems.filter((item) => item.isHeld).length
+  const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
+  const serverPendingCount = serverPendingItems.filter((item) => !item.isHeld).length
+  const heldCount = serverPendingItems.filter((item) => item.isHeld).length
+  const pendingCount = serverPendingCount + localCart.items.length
+  const isPlacing = addItemsBatch.isPending || sendToKitchen.isPending
 
   async function handlePlaceOrder() {
     if (!isOnline) {
@@ -50,6 +58,21 @@ export function CartPanel({ orderId }: { orderId: number }) {
       return
     }
     try {
+      // Local cart items only ever touch the network here, as one batch
+      // request, instead of one round-trip per add — see
+      // orders.service#addItemsBatch.
+      if (localCart.items.length > 0) {
+        await addItemsBatch.mutateAsync({
+          items: localCart.items.map((item) => ({
+            foodId: item.foodId,
+            foodVariantId: item.foodVariantId ?? undefined,
+            quantity: item.quantity,
+            note: item.note || undefined,
+            addons: item.addons.map((addon) => ({ addonId: addon.addonId, quantity: addon.quantity })),
+          })),
+        })
+        localCart.clear()
+      }
       await sendToKitchen.mutateAsync()
       toast.success(`Placed ${pendingCount} item(s) — kitchen items sent to prep, the rest go straight to the waiter`)
     } catch (error) {
@@ -75,9 +98,12 @@ export function CartPanel({ orderId }: { orderId: number }) {
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[45vh] space-y-2 overflow-y-auto">
         {isLoading && <Skeleton className="h-32 w-full" />}
-        {!isLoading && (items?.data.length ?? 0) === 0 && (
+        {!isLoading && (items?.data.length ?? 0) === 0 && localCart.items.length === 0 && (
           <p className="text-sm text-muted-foreground">No items yet — tap a food to add it.</p>
         )}
+        {localCart.items.map((item) => (
+          <LocalCartItemRow key={item.localId} item={item} addonsList={addonsList?.data ?? []} />
+        ))}
         {items?.data.map((item) => (
           <CartItemRow key={item.id} orderId={orderId} item={item} foodName={foodName(item.foodId)} />
         ))}
@@ -96,9 +122,9 @@ export function CartPanel({ orderId }: { orderId: number }) {
       <Button
         variant="secondary"
         onClick={handlePlaceOrder}
-        disabled={pendingCount === 0 || sendToKitchen.isPending || !isOnline}
+        disabled={pendingCount === 0 || isPlacing || !isOnline}
       >
-        {sendToKitchen.isPending ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
+        {isPlacing ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
       <CheckoutPanel orderId={orderId} />
     </div>
@@ -237,6 +263,116 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
           </SelectTrigger>
           <SelectContent>
             {addons?.data.map((addon) => (
+              <SelectItem key={addon.id} value={String(addon.id)}>
+                {addon.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedAddonId && (
+          <Button variant="ghost" size="icon-xs" onClick={handleAddAddon} aria-label="Confirm add addon">
+            <PlusIcon />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Not-yet-placed item — every edit here is local state, nothing hits the network until "Place order". */
+function LocalCartItemRow({
+  item,
+  addonsList,
+}: {
+  item: LocalCartItem
+  addonsList: { id: number; name: string; price: number }[]
+}) {
+  const localCart = useLocalCartContext()
+  const [selectedAddonId, setSelectedAddonId] = useState("")
+
+  function handleAddAddon() {
+    if (!selectedAddonId) return
+    const addon = addonsList.find((a) => a.id === Number(selectedAddonId))
+    if (!addon) return
+    localCart.addAddon(item.localId, { addonId: addon.id, addonName: addon.name, quantity: 1, unitPrice: addon.price })
+    setSelectedAddonId("")
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-input p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">
+              {item.foodName}
+              {item.variantName ? ` — ${item.variantName}` : ""}
+            </p>
+            <Badge variant="outline" className="text-xs">
+              Not sent
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {item.unitPrice} each &middot; total {(item.unitPrice * item.quantity).toFixed(2)}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => localCart.removeItem(item.localId)}
+          aria-label="Remove item"
+        >
+          <XIcon />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="icon-xs"
+          onClick={() => localCart.updateQuantity(item.localId, item.quantity - 1)}
+          aria-label="Decrease quantity"
+        >
+          <MinusIcon />
+        </Button>
+        <span className="w-6 text-center text-sm">{item.quantity}</span>
+        <Button
+          variant="outline"
+          size="icon-xs"
+          onClick={() => localCart.updateQuantity(item.localId, item.quantity + 1)}
+          aria-label="Increase quantity"
+        >
+          <PlusIcon />
+        </Button>
+      </div>
+
+      <Input
+        value={item.note}
+        onChange={(e) => localCart.updateNote(item.localId, e.target.value)}
+        placeholder="Special instructions..."
+        className="text-xs"
+      />
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {item.addons.map((addon) => (
+          <div key={addon.addonId} className="flex items-center gap-1">
+            <Badge variant="secondary" className="text-xs">
+              {addon.addonName}
+            </Badge>
+            <button
+              type="button"
+              onClick={() => localCart.removeAddon(item.localId, addon.addonId)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              &times;
+            </button>
+          </div>
+        ))}
+        <Select value={selectedAddonId} onValueChange={(value) => setSelectedAddonId(value ?? "")}>
+          <SelectTrigger className="h-6 w-28 text-xs">
+            <SelectValue placeholder="+ addon" />
+          </SelectTrigger>
+          <SelectContent>
+            {addonsList.map((addon) => (
               <SelectItem key={addon.id} value={String(addon.id)}>
                 {addon.name}
               </SelectItem>
