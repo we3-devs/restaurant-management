@@ -22,6 +22,10 @@ interface OfflineDB extends DBSchema {
     key: string
     value: QueuedMutation
   }
+  "query-cache": {
+    key: string
+    value: unknown
+  }
 }
 
 let dbPromise: Promise<IDBPDatabase<OfflineDB>> | null = null
@@ -29,9 +33,14 @@ let dbPromise: Promise<IDBPDatabase<OfflineDB>> | null = null
 export function getOfflineDb() {
   if (typeof indexedDB === "undefined") return null
   if (!dbPromise) {
-    dbPromise = openDB<OfflineDB>("rms-offline-queue", 1, {
-      upgrade(db) {
-        db.createObjectStore("mutation-queue", { keyPath: "id" })
+    dbPromise = openDB<OfflineDB>("rms-offline-queue", 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore("mutation-queue", { keyPath: "id" })
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore("query-cache")
+        }
       },
     })
   }

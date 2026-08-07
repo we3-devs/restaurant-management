@@ -4,6 +4,7 @@ import { getCurrentUser } from "@rms/auth/dal"
 import { CurrentUserProvider } from "@rms/auth/current-user-context"
 import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@rms/auth/route-access"
 import { ActiveOutletProvider } from "@rms/api-client/outlet/active-outlet-context"
+import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidation-provider"
 import { AccessDenied } from "@rms/ui/access-denied"
 import { StaffHeader } from "./staff-header"
 import { StaffTabBar } from "./staff-tab-bar"
@@ -40,6 +41,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   return (
     <CurrentUserProvider user={user}>
       <ActiveOutletProvider>
+        <RealtimeInvalidationProvider />
         <div
           className="flex min-h-dvh flex-col bg-background"
           style={{

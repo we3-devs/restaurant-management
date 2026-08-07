@@ -75,10 +75,11 @@ export function useStartTableSession() {
   })
 }
 
+// Matches OrdersService#openTableWithOrder's actual return shape
+// (backend/src/modules/orders/orders.service.ts) — `{ session, order }`,
+// not the tableSessionId/orderId/tableSession shape this used to declare.
 export interface OpenTableSessionResult {
-  tableSessionId: number
-  orderId: number
-  tableSession: TableSession
+  session: TableSession
   order: Order
 }
 
@@ -196,12 +197,15 @@ export function useOpenTableSession() {
     mutationFn: (input: OpenTableSessionInput) =>
       apiClient<OpenTableSessionResult>("/table-sessions/open", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: (result) => {
-      queryClient.setQueryData(queryKeys.tableSessions.detail(result.tableSessionId), result.tableSession)
-      queryClient.setQueryData(queryKeys.orders.detail(result.orderId), result.order)
+      // Defensive: never assume the response has the shape we expect.
+      if (!result?.session || !result?.order) return
 
-      patchTableSessionLists(queryClient, result.tableSession)
+      queryClient.setQueryData(queryKeys.tableSessions.detail(result.session.id), result.session)
+      queryClient.setQueryData(queryKeys.orders.detail(result.order.id), result.order)
+
+      patchTableSessionLists(queryClient, result.session)
       patchOrderLists(queryClient, result.order)
-      patchDiningTableOccupied(queryClient, result.tableSession.diningTableId)
+      patchDiningTableOccupied(queryClient, result.session.diningTableId)
 
       // Pre-seeds the exact query useOrderDeepLink issues right after this
       // (`useOrders({ tableSessionId, limit: 100 })` once its own
@@ -211,7 +215,7 @@ export function useOpenTableSession() {
       // instead of a GET /orders round trip. Coupled to that hook's exact
       // params by necessity; if use-order-deep-link.ts's query shape changes,
       // update this call to match.
-      queryClient.setQueryData(queryKeys.orders.list({ tableSessionId: result.tableSessionId, limit: 100 }), {
+      queryClient.setQueryData(queryKeys.orders.list({ tableSessionId: result.session.id, limit: 100 }), {
         data: [result.order],
         meta: { page: 1, limit: 100, total: 1, totalPages: 1 },
       })
