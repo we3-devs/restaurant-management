@@ -11,10 +11,11 @@ import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Separator } from "@rms/ui/separator"
 import { Skeleton } from "@rms/ui/skeleton"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useUpdateOrder, type Order } from "@rms/api-client/hooks/use-orders"
+import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
 function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: string }) {
@@ -34,19 +35,16 @@ function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: 
 }
 
 /**
- * Deliberately just two cards — bill and payment, nothing else. Order
- * details/customer/dining table/history/audit all got cut; anything about
- * items or the order itself is read from the bill on the left, and
- * everything actionable (recording a payment or refund) lives in the form
- * on the right.
- *
+ * Order detail with bill, payment, and contextual information (customer, table session).
  * Shared between (operational)/orders/[id] (desktop sidebar shell) and
  * staff/orders/[id] (mobile shell) — basePath keeps every internal link
  * (breadcrumb, receipt) inside whichever shell rendered it instead of
  * always bouncing into the desktop one.
  */
-export function OrderDetail({ orderId, basePath = "" }: { orderId: number; basePath?: string }) {
+export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { orderId: number; basePath?: string; isReadOnly?: boolean }) {
   const { data: order, isLoading } = useOrder(orderId)
+  const { data: session } = useTableSession(order?.tableSessionId ?? 0)
+  const { data: customer } = useCustomer(order?.customerId ?? 0)
   const [editingTotals, setEditingTotals] = useState(false)
 
   if (isLoading || !order) {
@@ -72,7 +70,7 @@ export function OrderDetail({ orderId, basePath = "" }: { orderId: number; baseP
           <Button variant="outline" size="sm" render={<Link href={`${basePath}/pos/receipt/${orderId}`} />}>
             Invoice
           </Button>
-          {order.status !== "completed" && (
+          {!isReadOnly && order.status !== "completed" && (
             <Button variant="outline" size="sm" onClick={() => setEditingTotals((v) => !v)}>
               {editingTotals ? "Done editing" : "Edit"}
             </Button>
@@ -80,10 +78,68 @@ export function OrderDetail({ orderId, basePath = "" }: { orderId: number; baseP
         </div>
       </div>
 
+      {(session || customer) && <ContextDetailsCards session={session} customer={customer} />}
+
       <div className="mx-auto max-w-5xl grid gap-6 lg:grid-cols-2">
         <BillCard orderId={orderId} />
-        <PaymentSummaryCard orderId={orderId} order={order} editingTotals={editingTotals} />
+        {!isReadOnly && <PaymentSummaryCard orderId={orderId} order={order} editingTotals={editingTotals} />}
       </div>
+    </div>
+  )
+}
+
+function ContextDetailsCards({
+  session,
+  customer,
+}: {
+  session: ReturnType<typeof useTableSession>["data"] | undefined
+  customer: ReturnType<typeof useCustomer>["data"] | undefined
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {session && customer &&  (
+        <Card>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
+            <div>
+              <CardHeader>
+                <CardTitle className="text-sm mb-2">Customer Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Name:</span> {customer.name}
+                </p>
+                {customer.phone && (
+                  <p>
+                    <span className="text-muted-foreground">Phone:</span> {customer.phone}
+                  </p>
+                )}
+                {customer.email && (
+                  <p>
+                    <span className="text-muted-foreground">Email:</span> {customer.email}
+                  </p>
+                )}
+              </CardContent>
+            </div>
+            <div>
+              <CardHeader>
+                <CardTitle className="text-sm mb-2">Table Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Table:</span>{" "}
+                  {session.diningTableName ?? `#${session.diningTableId}`}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Guests:</span> {session.guestCount}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Session:</span> #{session.id}
+                </p>
+              </CardContent>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
