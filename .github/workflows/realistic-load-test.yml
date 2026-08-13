@@ -1,0 +1,136 @@
+name: Realistic Restaurant Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Test description/notes'
+        required: false
+        default: 'Realistic 50-VU load test with role-based behavior'
+
+env:
+  BASE_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  realistic-load-test:
+    name: Realistic 50-VU Load Test (11 minutes)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display test configuration
+        run: |
+          echo "=========================================="
+          echo "Realistic Restaurant Load Test"
+          echo "=========================================="
+          echo "Scenario:          Role-based restaurant operations"
+          echo "Duration:          11 minutes total"
+          echo "  - Ramp-up:       5 minutes (0 → 50 VUs)"
+          echo "  - Sustained:     5 minutes (50 VUs constant)"
+          echo "  - Ramp-down:     1 minute (50 → 0 VUs)"
+          echo ""
+          echo "Roles:             25% Waiter, 25% Kitchen, 25% Cashier, 25% Manager"
+          echo "Think time:        2-30 seconds between actions (realistic behavior)"
+          echo "Base URL:          ${BASE_URL}"
+          echo "Request Timeout:   ${LOAD_TIMEOUT}"
+          echo ""
+          echo "⚠️  NOTE: This is a PRODUCTION load test."
+          echo "    This simulates realistic business workflows including:"
+          echo "    - Order creation and management"
+          echo "    - Kitchen workflow (ticket processing)"
+          echo "    - Payment processing"
+          echo "    - Manager dashboards and reports"
+          echo ""
+          echo "    BEFORE RUNNING:"
+          echo "    1. Notify ops team"
+          echo "    2. Monitor Render dashboard"
+          echo "    3. Check Supabase connection pool"
+          echo "=========================================="
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Verify test script exists
+        run: |
+          if [ ! -f "load-tests/rms-realistic.js" ]; then
+            echo "❌ Error: load-tests/rms-realistic.js not found"
+            exit 1
+          fi
+          echo "✓ Realistic test script verified"
+
+      - name: Run realistic load test
+        run: k6 run load-tests/rms-realistic.js --out json=load-test-results-realistic.json
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_TEST_EMAIL: ${{ secrets.RMS_LOAD_TEST_EMAIL }}
+          LOAD_TEST_PASSWORD: ${{ secrets.RMS_LOAD_TEST_PASSWORD }}
+
+      - name: Extract and display test summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Realistic Load Test Results"
+          echo "=========================================="
+
+          if [ -f "load-test-results-realistic.json" ]; then
+            echo "✓ Results saved: load-test-results-realistic.json"
+            echo ""
+            echo "Key metrics in artifact:"
+            echo "  - Waiter flow: avg duration, error rate"
+            echo "  - Kitchen flow: avg duration, error rate"
+            echo "  - Cashier flow: avg duration, error rate"
+            echo "  - Manager flow: avg duration, error rate"
+            echo "  - HTTP request duration (p50, p95, p99)"
+            echo "  - Overall error rate"
+            echo ""
+            echo "Business checks:"
+            echo "  - Orders created successfully"
+            echo "  - Payments processed"
+            echo "  - Kitchen workflow completed"
+            echo "  - Dashboards responsive"
+          else
+            echo "⚠️  No results file found"
+          fi
+
+          echo "=========================================="
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: realistic-load-test-results-${{ github.run_id }}
+          path: load-test-results-realistic.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Post-test checklist
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Post-Test Checklist"
+          echo "=========================================="
+          echo "✓ Test completed"
+          echo ""
+          echo "Next steps:"
+          echo "1. Download the artifacts from GitHub Actions"
+          echo "2. Review error rates per role"
+          echo "3. Check p95/p99 latencies"
+          echo "4. Verify 0 timeouts and 0 5xx errors"
+          echo "5. If passes: production can handle ~50 concurrent users"
+          echo "6. If fails: identify bottleneck (database, API, network)"
+          echo ""
+          echo "Success criteria:"
+          echo "  ✓ Error rate < 1%"
+          echo "  ✓ p95 latency < 2s"
+          echo "  ✓ p99 latency < 4s"
+          echo "  ✓ All business workflows complete"
+          echo "=========================================="

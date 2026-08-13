@@ -362,6 +362,36 @@ Fill in the blanks as you run each stage.
 
 **If ✓ Continue**: Wait 60+ minutes and try next stage.
 
+## Realistic Load Test (Role-Based Workflows)
+
+For testing with realistic user behavior and business workflows, use the **Realistic Load Test**:
+
+```bash
+# Via GitHub Actions (recommended)
+1. Go to Actions → Realistic Restaurant Load Test
+2. Click Run workflow
+3. Test runs: 11 minutes (50 VUs with gradual ramp)
+
+# Or locally
+k6 run load-tests/rms-realistic.js \
+  --vus 50 \
+  --duration 11m
+```
+
+**What it tests:**
+- 50 concurrent users
+- 4 roles: Waiter, Kitchen, Cashier, Manager
+- Real business workflows (orders, payments, reports)
+- Realistic think time (2-30 sec between actions)
+- Sustained load over 11 minutes
+
+**Success criteria:**
+- Error rate < 1%
+- p95 latency < 2s
+- p99 latency < 4s
+
+For detailed analysis, see [REALISTIC-TEST-GUIDE.md](REALISTIC-TEST-GUIDE.md).
+
 ## Local Testing (Development)
 
 To test against your local backend:
