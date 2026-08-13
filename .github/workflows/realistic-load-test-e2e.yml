@@ -73,26 +73,26 @@ jobs:
       # PHASE 2: FETCH AVAILABLE ROLES
       # ============================================================
 
-      - name: Fetch Available Roles
+      - name: Fetch Available Roles & Outlets
         id: fetch_roles
         env:
           ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
         run: |
           echo "=========================================="
-          echo "PHASE 2: Fetching Available Roles"
+          echo "PHASE 2: Fetching Available Roles & Outlets"
           echo "=========================================="
 
-          RESPONSE=$(curl -s -X GET "$API_URL/roles" \
+          ROLES_RESPONSE=$(curl -s -X GET "$API_URL/roles" \
             -H "Authorization: Bearer $ADMIN_TOKEN")
 
-          MANAGER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="manager") | .id')
-          CASHIER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="cashier") | .id')
-          WAITER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="waiter") | .id')
-          COOK_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="cook") | .id')
+          MANAGER_ID=$(echo $ROLES_RESPONSE | jq -r '.data[] | select(.slug=="manager") | .id')
+          CASHIER_ID=$(echo $ROLES_RESPONSE | jq -r '.data[] | select(.slug=="cashier") | .id')
+          WAITER_ID=$(echo $ROLES_RESPONSE | jq -r '.data[] | select(.slug=="waiter") | .id')
+          COOK_ID=$(echo $ROLES_RESPONSE | jq -r '.data[] | select(.slug=="cook") | .id')
 
           if [ -z "$MANAGER_ID" ] || [ "$MANAGER_ID" = "null" ]; then
             echo "❌ Failed to fetch roles"
-            echo $RESPONSE | jq '.'
+            echo $ROLES_RESPONSE | jq '.'
             exit 1
           fi
 
@@ -102,10 +102,24 @@ jobs:
           echo "  Waiter ID:   $WAITER_ID"
           echo "  Cook ID:     $COOK_ID"
 
+          # Fetch outlets
+          OUTLETS_RESPONSE=$(curl -s -X GET "$API_URL/outlets" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")
+
+          OUTLET_ID=$(echo $OUTLETS_RESPONSE | jq -r '.data[0].id // .data[0] | select(. != null)')
+
+          if [ -z "$OUTLET_ID" ] || [ "$OUTLET_ID" = "null" ]; then
+            echo "⚠️  Could not fetch outlet, using default"
+            OUTLET_ID=1
+          else
+            echo "✓ Outlet fetched (ID: $OUTLET_ID)"
+          fi
+
           echo "manager_id=$MANAGER_ID" >> $GITHUB_OUTPUT
           echo "cashier_id=$CASHIER_ID" >> $GITHUB_OUTPUT
           echo "waiter_id=$WAITER_ID" >> $GITHUB_OUTPUT
           echo "cook_id=$COOK_ID" >> $GITHUB_OUTPUT
+          echo "outlet_id=$OUTLET_ID" >> $GITHUB_OUTPUT
 
       # ============================================================
       # PHASE 3: CREATE TEST USERS
@@ -298,7 +312,8 @@ jobs:
               \"basePrice\": 250,
               \"foodType\": \"veg\",
               \"itemType\": \"food\",
-              \"departmentType\": \"kitchen\"
+              \"departmentType\": \"kitchen\",
+              \"isActive\": true
             }")
 
           FOOD_ID=$(echo $FOOD_RESPONSE | jq -r '.id')
@@ -324,7 +339,8 @@ jobs:
           echo "Cook:     ${{ steps.create_cook.outputs.email }} / TestLoad123!"
           echo ""
           echo "Test Data:"
-          echo "  Food ID:  ${{ steps.create_food.outputs.food_id }}"
+          echo "  Outlet ID: ${{ steps.fetch_roles.outputs.outlet_id }}"
+          echo "  Food ID:   ${{ steps.create_food.outputs.food_id }}"
           echo ""
           echo "Using Manager account for load test..."
           echo ""
@@ -364,6 +380,7 @@ jobs:
           echo "  Duration:    11 minutes total"
           echo "  Roles:       Manager, Cashier, Waiter, Cook (25% each)"
           echo "  Think time:  2-30 seconds (realistic)"
+          echo "  Outlet ID:   $LOAD_TEST_OUTLET_ID"
           echo "  Food ID:     $LOAD_TEST_FOOD_ID"
           echo ""
 
@@ -376,6 +393,7 @@ jobs:
           LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
           LOAD_TEST_EMAIL: ${{ steps.create_manager.outputs.email }}
           LOAD_TEST_PASSWORD: 'TestLoad123!'
+          LOAD_TEST_OUTLET_ID: ${{ steps.fetch_roles.outputs.outlet_id }}
           LOAD_TEST_FOOD_ID: ${{ steps.create_food.outputs.food_id }}
 
       # ============================================================

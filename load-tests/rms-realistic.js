@@ -10,6 +10,7 @@ const BASE_URL = __ENV.BASE_URL || 'https://restaurant-management-g6vb.onrender.
 const LOAD_TIMEOUT = __ENV.LOAD_TIMEOUT || '10000ms';
 const TEST_EMAIL = __ENV.LOAD_TEST_EMAIL;
 const TEST_PASSWORD = __ENV.LOAD_TEST_PASSWORD;
+const TEST_OUTLET_ID = parseInt(__ENV.LOAD_TEST_OUTLET_ID || '1');
 const TEST_FOOD_ID = parseInt(__ENV.LOAD_TEST_FOOD_ID || '1');
 
 if (!TEST_EMAIL || !TEST_PASSWORD) {
@@ -170,12 +171,6 @@ function getRandomTable(tables) {
   return tables[Math.floor(Math.random() * tables.length)];
 }
 
-// Get a real outlet ID from setup data
-function getOutletId(outlets) {
-  if (!outlets || outlets.length === 0) return 1;
-  return outlets[0].id;
-}
-
 // ============================================================
 // ROLE WORKFLOWS
 // ============================================================
@@ -205,9 +200,8 @@ function waiterWorkflow(accessToken, outlets, tables) {
     thinkTime();
 
     group('Waiter: Create Order', () => {
-      const outletId = outlets && outlets.length > 0 ? outlets[0].id : 1;
       const payload = JSON.stringify({
-        outletId: outletId,
+        outletId: TEST_OUTLET_ID,
         orderType: 'table',
       });
 
@@ -288,9 +282,8 @@ function kitchenWorkflow(accessToken, outlets) {
     thinkTime();
 
     group('Kitchen: Create Order for Prep', () => {
-      const outletId = getOutletId(outlets);
       const payload = JSON.stringify({
-        outletId: outletId,
+        outletId: TEST_OUTLET_ID,
         orderType: 'table',
       });
 
@@ -315,7 +308,7 @@ function kitchenWorkflow(accessToken, outlets) {
     if (orderId) {
       group('Kitchen: Add Items to Order', () => {
         const payload = JSON.stringify({
-          foodId: 1,
+          foodId: TEST_FOOD_ID,
           quantity: 1,
         });
 
@@ -379,9 +372,8 @@ function cashierWorkflow(accessToken, outlets) {
     thinkTime();
 
     group('Cashier: Create Order for Checkout', () => {
-      const outletId = getOutletId(outlets);
       const payload = JSON.stringify({
-        outletId: outletId,
+        outletId: TEST_OUTLET_ID,
         orderType: 'table',
       });
 
@@ -471,9 +463,8 @@ function managerWorkflow(accessToken, outlets) {
     thinkTime();
 
     group('Manager: Create Order', () => {
-      const outletId = getOutletId(outlets);
       const payload = JSON.stringify({
-        outletId: outletId,
+        outletId: TEST_OUTLET_ID,
         orderType: 'table',
       });
 
