@@ -1,0 +1,153 @@
+name: Diagnostic 1-VU Test
+
+on:
+  workflow_dispatch:
+
+env:
+  API_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  diagnostic-test:
+    name: 1-VU Diagnostic Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install jq (for JSON parsing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Display Test Configuration
+        run: |
+          echo "=========================================="
+          echo "Diagnostic 1-VU Test"
+          echo "=========================================="
+          echo ""
+          echo "Purpose:     Diagnose workflow failures"
+          echo "VUs:         1 (single user)"
+          echo "Iterations:  1 (one-time run)"
+          echo ""
+          echo "Tests:"
+          echo "  1. Admin authentication"
+          echo "  2. Fetch real table IDs"
+          echo "  3. Fetch real food items"
+          echo "  4. Create test waiter account"
+          echo "  5. Waiter login"
+          echo "  6. Browse dining tables"
+          echo "  7. Create order (with real table)"
+          echo "  8. Add items to order (with real food)"
+          echo "  9. Check auth/me"
+          echo "  10. List outlets"
+          echo ""
+          echo "Base URL:          ${API_URL}"
+          echo "Request Timeout:   ${LOAD_TIMEOUT}"
+          echo "=========================================="
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Verify diagnostic test script
+        run: |
+          if [ ! -f "load-tests/rms-diagnostic-1vu.js" ]; then
+            echo "❌ Error: load-tests/rms-diagnostic-1vu.js not found"
+            exit 1
+          fi
+          echo "✓ Diagnostic test script verified"
+
+      - name: Run Diagnostic 1-VU Test
+        id: load_test
+        run: k6 run load-tests/rms-diagnostic-1vu.js --out json=diagnostic-results.json
+        env:
+          API_URL: ${{ env.API_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_ADMIN_EMAIL: ${{ secrets.RMS_ADMIN_EMAIL }}
+          LOAD_ADMIN_PASSWORD: ${{ secrets.RMS_ADMIN_PASSWORD }}
+
+      - name: Parse and Display Results
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Diagnostic Test Results"
+          echo "=========================================="
+          echo ""
+
+          if [ -f "diagnostic-results.json" ]; then
+            echo "✓ Results file found"
+            echo ""
+
+            # Extract all HTTP requests and their status codes
+            echo "HTTP Request Summary:"
+            jq -r '.[] | select(.type=="Point" and .metric=="http_reqs") |
+              "  \(.data.tags.method) \(.data.tags.url): HTTP \(.data.tags.status)"' \
+              diagnostic-results.json 2>/dev/null | sort | uniq -c || echo "  (no requests found)"
+
+            echo ""
+            echo "Error Details:"
+            jq -r '.[] | select(.type=="Point" and .metric=="http_req_failed" and .data.value==1) |
+              "  ✗ Failed: \(.data.tags.method) \(.data.tags.url) - HTTP \(.data.tags.status)"' \
+              diagnostic-results.json 2>/dev/null || echo "  (no failures found)"
+
+          else
+            echo "⚠️  Results file not found"
+          fi
+
+          echo ""
+          echo "=========================================="
+
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-1vu-results-${{ github.run_id }}
+          path: diagnostic-results.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "✓ Diagnostic Test Complete"
+          echo "=========================================="
+          echo ""
+          echo "What to look for in the logs above:"
+          echo ""
+          echo "1. Step 1 (Admin Login):"
+          echo "   ✓ Should be HTTP 200/201"
+          echo ""
+          echo "2. Step 2 (Tables):"
+          echo "   ✓ Should return real table IDs"
+          echo "   ✗ If HTTP 403: RBAC permission issue"
+          echo "   ✗ If HTTP 404: Endpoint doesn't exist"
+          echo ""
+          echo "3. Step 3 (Create Order):"
+          echo "   ✓ Should be HTTP 200/201"
+          echo "   ✗ If HTTP 400: Invalid payload/table ID"
+          echo "   ✗ If HTTP 403: RBAC permission issue"
+          echo "   ✗ If HTTP 409: Resource/state conflict"
+          echo ""
+          echo "4. Step 4 (Add Items):"
+          echo "   ✓ Should be HTTP 200/201 (if order created)"
+          echo "   ✗ If HTTP 404: Order/food IDs invalid"
+          echo "   ✗ If HTTP 400: Payload structure wrong"
+          echo ""
+          echo "5. Step 5 (Auth/Me):"
+          echo "   ✓ Should be HTTP 200 (returns current user)"
+          echo "   ✗ If HTTP 401: Token invalid/expired"
+          echo ""
+          echo "=========================================="
+          echo ""
+          echo "Download: diagnostic-1vu-results-${{ github.run_id }}.json"
+          echo ""
