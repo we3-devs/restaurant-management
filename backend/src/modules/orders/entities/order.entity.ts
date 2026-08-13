@@ -4,7 +4,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
@@ -44,11 +44,7 @@ const money = () => ({
 
 @Entity({ name: 'orders' })
 export class Order {
-  @PrimaryColumn({
-    type: 'bigint',
-    generated: 'increment',
-    transformer: new BigIntTransformer(),
-  })
+  @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
   @Column({
