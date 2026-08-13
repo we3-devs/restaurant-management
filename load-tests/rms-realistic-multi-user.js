@@ -224,7 +224,7 @@ export function setup() {
   console.log(`[SETUP]   Roles: Waiter (50%), Cashier (20%), Cook (16%), Manager (14%)`);
   console.log(`[SETUP]   Think time: 2-30 sec between actions`);
 
-  return { testUsers, adminToken };
+  return { testUsers, adminToken, outlets, tables, foods };
 }
 
 // ============================================================
@@ -293,7 +293,7 @@ function authenticateUser(user) {
 // ROLE-SPECIFIC WORKFLOWS
 // ============================================================
 
-function waiterWorkflow(token, tables) {
+function waiterWorkflow(token, outlets, tables, foods) {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -305,6 +305,7 @@ function waiterWorkflow(token, tables) {
   };
 
   const startTime = Date.now();
+  let orderId = null;
 
   try {
     group('Waiter: Browse Tables', () => {
@@ -316,28 +317,45 @@ function waiterWorkflow(token, tables) {
     thinkTime();
 
     group('Waiter: Create Order', () => {
-      const table = getRandomTable();
+      const outletId = outlets && outlets.length > 0 ? outlets[0].id : 1;
       const payload = JSON.stringify({
-        tableId: table.id,
-        customerName: `Customer-${Math.random().toString(36).substring(7)}`,
+        outletId: outletId,
+        orderType: 'table',
       });
 
       const res = http.post(`${BASE_URL}/orders`, payload, params);
       const success = res.status >= 200 && res.status < 300;
       check(res, { 'order created': (r) => success });
-      if (!success) waiterErrors.add(1);
+      if (success) {
+        try {
+          const body = JSON.parse(res.body);
+          orderId = body.id;
+        } catch (e) {
+          // Could not parse order ID, will skip item addition
+        }
+      } else {
+        waiterErrors.add(1);
+      }
       waiterActions.add(1);
     });
 
     thinkTime();
 
     group('Waiter: Add Items to Order', () => {
-      const orderId = getRandomOrderId();
+      if (!orderId) {
+        // Skip if order creation failed
+        return;
+      }
+
+      if (!foods || foods.length === 0) {
+        // No foods available
+        return;
+      }
+
+      const food = foods[0];
       const payload = JSON.stringify({
-        items: [
-          { name: 'Pasta', quantity: 2, price: 450 },
-          { name: 'Soda', quantity: 2, price: 150 },
-        ],
+        foodId: food.id,
+        quantity: 1,
       });
 
       const res = http.post(`${BASE_URL}/orders/${orderId}/items`, payload, params);
@@ -349,7 +367,7 @@ function waiterWorkflow(token, tables) {
 
     thinkTime();
 
-    group('Waiter: View Outlets', () => {
+    group('Waiter: View Assigned Outlets', () => {
       const res = http.get(`${BASE_URL}/outlets/assigned`, params);
       check(res, { 'outlets loaded': (r) => r.status === 200 });
       waiterActions.add(1);
@@ -562,7 +580,7 @@ function managerWorkflow(token) {
 // ============================================================
 
 export default function (data) {
-  const { testUsers } = data;
+  const { testUsers, outlets, tables, foods } = data;
   const vuId = __VU;
 
   // Assign user to this VU (round-robin or modulo)
@@ -582,7 +600,7 @@ export default function (data) {
 
   switch (role) {
     case 'waiter':
-      waiterWorkflow(token, []);
+      waiterWorkflow(token, outlets, tables, foods);
       break;
     case 'cook':
       kitchenWorkflow(token);

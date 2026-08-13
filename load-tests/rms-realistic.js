@@ -103,7 +103,25 @@ export function setup() {
   }
 
   console.log('[SETUP] ✓ Authentication successful');
-  console.log('[SETUP] Fetching dining tables for order simulation...');
+  console.log('[SETUP] Fetching outlets and dining tables for order simulation...');
+
+  const outletsRes = http.get(`${BASE_URL}/outlets/assigned`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    timeout: LOAD_TIMEOUT,
+  });
+
+  let outlets = [];
+  if (outletsRes.status === 200) {
+    try {
+      const body = JSON.parse(outletsRes.body);
+      outlets = Array.isArray(body) ? body : body.data || [];
+      console.log(`[SETUP] ✓ Found ${outlets.length} assigned outlets`);
+    } catch (e) {
+      console.log('[SETUP] ⚠ Could not parse outlets response, using defaults');
+    }
+  }
 
   const tablesRes = http.get(`${BASE_URL}/dining-tables`, {
     headers: {
@@ -130,7 +148,7 @@ export function setup() {
   console.log(`[SETUP]   Roles: 25% Waiter, 25% Kitchen, 25% Cashier, 25% Manager`);
   console.log(`[SETUP]   Think time: 2-30 sec between actions`);
 
-  return { accessToken, tables };
+  return { accessToken, outlets, tables };
 }
 
 // ============================================================
@@ -161,7 +179,7 @@ function getRandomOrderId() {
 // ============================================================
 
 // WAITER: Table → Create Order → Add Items → Send to Kitchen
-function waiterWorkflow(accessToken, tables) {
+function waiterWorkflow(accessToken, outlets, tables) {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
@@ -173,6 +191,7 @@ function waiterWorkflow(accessToken, tables) {
   };
 
   const startTime = Date.now();
+  let orderId = null;
 
   try {
     group('Waiter: Browse Tables', () => {
@@ -184,28 +203,37 @@ function waiterWorkflow(accessToken, tables) {
     thinkTime();
 
     group('Waiter: Create Order', () => {
-      const table = getRandomTable(tables);
+      const outletId = outlets && outlets.length > 0 ? outlets[0].id : 1;
       const payload = JSON.stringify({
-        tableId: table.id || 'table-1',
-        customerName: `Customer-${Math.random().toString(36).substring(7)}`,
+        outletId: outletId,
+        orderType: 'table',
       });
 
       const res = http.post(`${BASE_URL}/orders`, payload, params);
       const success = res.status >= 200 && res.status < 300;
       check(res, { 'order created': (r) => success });
-      if (!success) waiterErrors.add(1);
+      if (success) {
+        try {
+          const body = JSON.parse(res.body);
+          orderId = body.id;
+        } catch (e) {
+          // Could not parse order ID
+        }
+      } else {
+        waiterErrors.add(1);
+      }
       waiterActions.add(1);
     });
 
     thinkTime();
 
     group('Waiter: Add Items to Order', () => {
-      const orderId = getRandomOrderId();
+      if (!orderId) {
+        return;
+      }
       const payload = JSON.stringify({
-        items: [
-          { name: 'Pasta', quantity: 2, price: 450 },
-          { name: 'Soda', quantity: 2, price: 150 },
-        ],
+        foodId: 1,
+        quantity: 1,
       });
 
       const res = http.post(`${BASE_URL}/orders/${orderId}/items`, payload, params);
@@ -217,7 +245,7 @@ function waiterWorkflow(accessToken, tables) {
 
     thinkTime();
 
-    group('Waiter: View Outlets', () => {
+    group('Waiter: View Assigned Outlets', () => {
       const res = http.get(`${BASE_URL}/outlets/assigned`, params);
       check(res, { 'outlets loaded': (r) => r.status === 200 });
       waiterActions.add(1);
@@ -433,7 +461,7 @@ function managerWorkflow(accessToken) {
 // ============================================================
 
 export default function (data) {
-  const { accessToken, tables } = data;
+  const { accessToken, outlets, tables } = data;
   const vuId = __VU; // Virtual User ID
 
   // Distribute roles: 25% each
@@ -441,7 +469,7 @@ export default function (data) {
 
   switch (role) {
     case 0:
-      waiterWorkflow(accessToken, tables);
+      waiterWorkflow(accessToken, outlets, tables);
       break;
     case 1:
       kitchenWorkflow(accessToken);

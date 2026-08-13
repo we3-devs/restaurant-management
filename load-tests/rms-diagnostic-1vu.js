@@ -299,14 +299,10 @@ export default function (data) {
 
   // Step 3: Create order
   console.log('\n[TEST] Step 3: Create Order');
-  if (!tableId) {
-    console.warn('[TEST] ⚠️  No table ID available, using dummy table for testing');
-    tableId = 'table-1';
-  }
 
   const createOrderPayload = JSON.stringify({
-    tableId: tableId,
-    customerName: `Customer-Diagnostic-${Math.random().toString(36).substring(7)}`,
+    outletId: data.outlets && data.outlets.length > 0 ? data.outlets[0].id : 1,
+    orderType: 'table',
   });
 
   console.log(`[TEST] Creating order with payload: ${createOrderPayload}`);
@@ -360,11 +356,11 @@ export default function (data) {
   console.log(`[TEST] Auth/me response: HTTP ${meRes.status}`);
   console.log(`[TEST] Auth/me response body: ${meRes.body}`);
 
-  // Step 6: List outlets
-  console.log('\n[TEST] Step 6: List Outlets');
-  const outletsRes = http.get(`${BASE_URL}/outlets`, params);
-  console.log(`[TEST] Outlets response: HTTP ${outletsRes.status}`);
-  console.log(`[TEST] Outlets response body: ${outletsRes.body}`);
+  // Step 6: List assigned outlets (no special permission required)
+  console.log('\n[TEST] Step 6: List Assigned Outlets');
+  const assignedOutletsRes = http.get(`${BASE_URL}/outlets/assigned`, params);
+  console.log(`[TEST] Assigned outlets response: HTTP ${assignedOutletsRes.status}`);
+  console.log(`[TEST] Assigned outlets response body: ${assignedOutletsRes.body}`);
 
   console.log('\n[TEST] ✓ Diagnostic test completed');
 }
@@ -379,17 +375,19 @@ export function teardown(data) {
   if (userId && adminToken) {
     console.log('\n[TEARDOWN] Deactivating test user...');
     const deactivateRes = http.patch(
-      `${BASE_URL}/users/${userId}`,
-      JSON.stringify({ isActive: false }),
+      `${BASE_URL}/users/${userId}/deactivate`,
+      null,
       {
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`,
         },
         timeout: __ENV.LOAD_TIMEOUT || '10000ms',
       }
     );
     console.log(`[TEARDOWN] Deactivate response: HTTP ${deactivateRes.status}`);
+    if (deactivateRes.status !== 204) {
+      console.error(`[TEARDOWN] Deactivate failed: ${deactivateRes.body}`);
+    }
   }
 
   console.log('[TEARDOWN] Diagnostic test teardown completed');
