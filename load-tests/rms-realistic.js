@@ -169,9 +169,10 @@ function getRandomTable(tables) {
   return tables[Math.floor(Math.random() * tables.length)];
 }
 
-// Random order ID (simulated)
-function getRandomOrderId() {
-  return `order-${Math.floor(Math.random() * 10000)}`;
+// Get a real outlet ID from setup data
+function getOutletId(outlets) {
+  if (!outlets || outlets.length === 0) return 1;
+  return outlets[0].id;
 }
 
 // ============================================================
@@ -259,8 +260,8 @@ function waiterWorkflow(accessToken, outlets, tables) {
   }
 }
 
-// KITCHEN: Get Tickets → Update Status → Mark Ready
-function kitchenWorkflow(accessToken) {
+// KITCHEN: Create Order → Update Status → Mark Ready
+function kitchenWorkflow(accessToken, outlets) {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
@@ -272,43 +273,69 @@ function kitchenWorkflow(accessToken) {
   };
 
   const startTime = Date.now();
+  let orderId = null;
 
   try {
-    group('Kitchen: Get Tickets', () => {
-      const res = http.get(`${BASE_URL}/kitchen/tickets`, params);
+    group('Kitchen: Get Orders', () => {
+      const res = http.get(`${BASE_URL}/orders`, params);
       const success = res.status === 200;
-      check(res, { 'tickets fetched': (r) => success });
+      check(res, { 'orders loaded': (r) => success });
       if (!success) kitchenErrors.add(1);
       kitchenActions.add(1);
     });
 
     thinkTime();
 
-    group('Kitchen: Mark Order Preparing', () => {
-      const orderId = getRandomOrderId();
-      const payload = JSON.stringify({ status: 'preparing' });
+    group('Kitchen: Create Order for Prep', () => {
+      const outletId = getOutletId(outlets);
+      const payload = JSON.stringify({
+        outletId: outletId,
+        orderType: 'table',
+      });
 
-      const res = http.patch(`${BASE_URL}/kitchen/tickets/${orderId}`, payload, params);
+      const res = http.post(`${BASE_URL}/orders`, payload, params);
       const success = res.status >= 200 && res.status < 300;
-      check(res, { 'status updated to preparing': (r) => success });
-      if (!success) kitchenErrors.add(1);
+      check(res, { 'order created': (r) => success });
+      if (success) {
+        try {
+          const body = JSON.parse(res.body);
+          orderId = body.id;
+        } catch (e) {
+          // Could not parse order ID
+        }
+      } else {
+        kitchenErrors.add(1);
+      }
       kitchenActions.add(1);
     });
 
     thinkTime();
 
-    group('Kitchen: Mark Order Ready', () => {
-      const orderId = getRandomOrderId();
-      const payload = JSON.stringify({ status: 'ready' });
+    if (orderId) {
+      group('Kitchen: Add Items to Order', () => {
+        const payload = JSON.stringify({
+          foodId: 1,
+          quantity: 1,
+        });
 
-      const res = http.patch(`${BASE_URL}/kitchen/tickets/${orderId}`, payload, params);
-      const success = res.status >= 200 && res.status < 300;
-      check(res, { 'status updated to ready': (r) => success });
-      if (!success) kitchenErrors.add(1);
-      kitchenActions.add(1);
-    });
+        const res = http.post(`${BASE_URL}/orders/${orderId}/items`, payload, params);
+        const success = res.status >= 200 && res.status < 300;
+        check(res, { 'items added': (r) => success });
+        if (!success) kitchenErrors.add(1);
+        kitchenActions.add(1);
+      });
 
-    thinkTime();
+      thinkTime();
+
+      group('Kitchen: Update Order Status', () => {
+        const payload = JSON.stringify({ status: 'preparing' });
+        const res = http.patch(`${BASE_URL}/orders/${orderId}`, payload, params);
+        const success = res.status >= 200 && res.status < 300;
+        check(res, { 'status updated to preparing': (r) => success });
+        if (!success) kitchenErrors.add(1);
+        kitchenActions.add(1);
+      });
+    }
 
     group('Kitchen: Check My Profile', () => {
       const res = http.get(`${BASE_URL}/auth/me`, params);
@@ -324,8 +351,8 @@ function kitchenWorkflow(accessToken) {
   }
 }
 
-// CASHIER: View Orders → Process Payment → Generate Bill
-function cashierWorkflow(accessToken) {
+// CASHIER: View Orders → Create Order → Mark Complete
+function cashierWorkflow(accessToken, outlets) {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
@@ -337,53 +364,74 @@ function cashierWorkflow(accessToken) {
   };
 
   const startTime = Date.now();
+  let orderId = null;
 
   try {
     group('Cashier: Browse Orders', () => {
       const res = http.get(`${BASE_URL}/orders`, params);
       const success = res.status === 200;
-      check(res, { 'orders loaded': (r) => success });
+      check(res, { 'all orders loaded': (r) => success });
       if (!success) cashierErrors.add(1);
       cashierActions.add(1);
     });
 
     thinkTime();
 
-    group('Cashier: Generate Bill', () => {
-      const orderId = getRandomOrderId();
-      const res = http.get(`${BASE_URL}/orders/${orderId}/bill`, params);
-      const success = res.status >= 200 && res.status < 300;
-      check(res, { 'bill generated': (r) => success });
-      if (!success) cashierErrors.add(1);
-      cashierActions.add(1);
-    });
-
-    thinkTime();
-
-    group('Cashier: Process Payment', () => {
-      const orderId = getRandomOrderId();
+    group('Cashier: Create Order for Checkout', () => {
+      const outletId = getOutletId(outlets);
       const payload = JSON.stringify({
-        amount: Math.random() * 5000 + 500,
-        method: ['cash', 'card', 'upi'][Math.floor(Math.random() * 3)],
+        outletId: outletId,
+        orderType: 'table',
       });
 
-      const res = http.post(`${BASE_URL}/payments`, payload, params);
+      const res = http.post(`${BASE_URL}/orders`, payload, params);
       const success = res.status >= 200 && res.status < 300;
-      check(res, { 'payment processed': (r) => success });
-      if (!success) cashierErrors.add(1);
+      check(res, { 'order created': (r) => success });
+      if (success) {
+        try {
+          const body = JSON.parse(res.body);
+          orderId = body.id;
+        } catch (e) {
+          // Could not parse order ID
+        }
+      } else {
+        cashierErrors.add(1);
+      }
       cashierActions.add(1);
     });
 
     thinkTime();
 
-    group('Cashier: Mark Order Complete', () => {
-      const orderId = getRandomOrderId();
-      const payload = JSON.stringify({ status: 'completed' });
+    if (orderId) {
+      group('Cashier: Add Items to Order', () => {
+        const payload = JSON.stringify({
+          foodId: 1,
+          quantity: 2,
+        });
 
-      const res = http.patch(`${BASE_URL}/orders/${orderId}`, payload, params);
-      const success = res.status >= 200 && res.status < 300;
-      check(res, { 'order marked complete': (r) => success });
-      if (!success) cashierErrors.add(1);
+        const res = http.post(`${BASE_URL}/orders/${orderId}/items`, payload, params);
+        const success = res.status >= 200 && res.status < 300;
+        check(res, { 'items added': (r) => success });
+        if (!success) cashierErrors.add(1);
+        cashierActions.add(1);
+      });
+
+      thinkTime();
+
+      group('Cashier: Mark Order Complete', () => {
+        const payload = JSON.stringify({ status: 'completed' });
+
+        const res = http.patch(`${BASE_URL}/orders/${orderId}`, payload, params);
+        const success = res.status >= 200 && res.status < 300;
+        check(res, { 'order marked complete': (r) => success });
+        if (!success) cashierErrors.add(1);
+        cashierActions.add(1);
+      });
+    }
+
+    group('Cashier: Check Assigned Outlets', () => {
+      const res = http.get(`${BASE_URL}/outlets/assigned`, params);
+      check(res, { 'outlets loaded': (r) => r.status === 200 });
       cashierActions.add(1);
     });
 
@@ -395,8 +443,8 @@ function cashierWorkflow(accessToken) {
   }
 }
 
-// MANAGER: Dashboard → Reports → Inventory → Orders
-function managerWorkflow(accessToken) {
+// MANAGER: Orders → Create Order → Users → Profile
+function managerWorkflow(accessToken, outlets) {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
@@ -408,42 +456,58 @@ function managerWorkflow(accessToken) {
   };
 
   const startTime = Date.now();
+  let orderId = null;
 
   try {
-    group('Manager: View Dashboard', () => {
-      const res = http.get(`${BASE_URL}/dashboard`, params);
-      const success = res.status === 200;
-      check(res, { 'dashboard loaded': (r) => success });
-      if (!success) managerErrors.add(1);
-      managerActions.add(1);
-    });
-
-    thinkTime();
-
-    group('Manager: View Reports', () => {
-      const res = http.get(`${BASE_URL}/reports?period=today`, params);
-      const success = res.status === 200;
-      check(res, { 'reports loaded': (r) => success });
-      if (!success) managerErrors.add(1);
-      managerActions.add(1);
-    });
-
-    thinkTime();
-
-    group('Manager: Check Inventory', () => {
-      const res = http.get(`${BASE_URL}/inventory`, params);
-      const success = res.status === 200;
-      check(res, { 'inventory loaded': (r) => success });
-      if (!success) managerErrors.add(1);
-      managerActions.add(1);
-    });
-
-    thinkTime();
-
     group('Manager: View All Orders', () => {
-      const res = http.get(`${BASE_URL}/orders?status=all`, params);
+      const res = http.get(`${BASE_URL}/orders`, params);
       const success = res.status === 200;
       check(res, { 'all orders loaded': (r) => success });
+      if (!success) managerErrors.add(1);
+      managerActions.add(1);
+    });
+
+    thinkTime();
+
+    group('Manager: Create Order', () => {
+      const outletId = getOutletId(outlets);
+      const payload = JSON.stringify({
+        outletId: outletId,
+        orderType: 'table',
+      });
+
+      const res = http.post(`${BASE_URL}/orders`, payload, params);
+      const success = res.status >= 200 && res.status < 300;
+      check(res, { 'order created': (r) => success });
+      if (success) {
+        try {
+          const body = JSON.parse(res.body);
+          orderId = body.id;
+        } catch (e) {
+          // Could not parse order ID
+        }
+      } else {
+        managerErrors.add(1);
+      }
+      managerActions.add(1);
+    });
+
+    thinkTime();
+
+    group('Manager: View Outlets', () => {
+      const res = http.get(`${BASE_URL}/outlets`, params);
+      const success = res.status === 200;
+      check(res, { 'outlets loaded': (r) => success });
+      if (!success) managerErrors.add(1);
+      managerActions.add(1);
+    });
+
+    thinkTime();
+
+    group('Manager: View Profile', () => {
+      const res = http.get(`${BASE_URL}/auth/me`, params);
+      const success = res.status === 200;
+      check(res, { 'profile loaded': (r) => success });
       if (!success) managerErrors.add(1);
       managerActions.add(1);
     });
@@ -472,13 +536,13 @@ export default function (data) {
       waiterWorkflow(accessToken, outlets, tables);
       break;
     case 1:
-      kitchenWorkflow(accessToken);
+      kitchenWorkflow(accessToken, outlets);
       break;
     case 2:
-      cashierWorkflow(accessToken);
+      cashierWorkflow(accessToken, outlets);
       break;
     case 3:
-      managerWorkflow(accessToken);
+      managerWorkflow(accessToken, outlets);
       break;
   }
 }
