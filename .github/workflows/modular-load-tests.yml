@@ -1,0 +1,317 @@
+name: Modular Load Tests (Smoke + Flows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_after:
+        description: 'Delete test accounts after tests complete'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  API_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  # ============================================================
+  # PHASE 1: SETUP - Create test accounts and data
+  # ============================================================
+  setup:
+    name: Setup Test Accounts & Data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+
+    outputs:
+      admin_token: ${{ steps.admin_auth.outputs.admin_token }}
+      manager_email: ${{ steps.create_manager.outputs.email }}
+      manager_id: ${{ steps.create_manager.outputs.user_id }}
+      outlet_id: ${{ steps.fetch_roles.outputs.outlet_id }}
+      food_id: ${{ steps.create_food.outputs.food_id }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq (for JSON parsing)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Authenticate as Admin
+        id: admin_auth
+        run: |
+          RESPONSE=$(curl -s -X POST "$API_URL/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "${{ secrets.RMS_ADMIN_EMAIL }}",
+              "password": "${{ secrets.RMS_ADMIN_PASSWORD }}"
+            }')
+
+          TOKEN=$(echo $RESPONSE | jq -r '.accessToken')
+
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "❌ Admin authentication failed"
+            echo $RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Admin authenticated"
+          echo "admin_token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Fetch Roles & Outlets
+        id: fetch_roles
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          ROLES_RESPONSE=$(curl -s -X GET "$API_URL/roles" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")
+
+          MANAGER_ID=$(echo $ROLES_RESPONSE | jq -r '.data[] | select(.slug=="manager") | .id')
+
+          if [ -z "$MANAGER_ID" ] || [ "$MANAGER_ID" = "null" ]; then
+            echo "❌ Failed to fetch manager role"
+            exit 1
+          fi
+
+          # Fetch outlet
+          OUTLETS_RESPONSE=$(curl -s -X GET "$API_URL/outlets" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")
+
+          OUTLET_ID=$(echo $OUTLETS_RESPONSE | jq -r '.data[0].id // .data[0] | select(. != null)')
+
+          if [ -z "$OUTLET_ID" ] || [ "$OUTLET_ID" = "null" ]; then
+            OUTLET_ID=1
+          fi
+
+          echo "✓ Roles and outlets fetched"
+          echo "manager_id=$MANAGER_ID" >> $GITHUB_OUTPUT
+          echo "outlet_id=$OUTLET_ID" >> $GITHUB_OUTPUT
+
+      - name: Create Manager Account
+        id: create_manager
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          TIMESTAMP=$(date +%s)
+          EMAIL="test-manager-${TIMESTAMP}@rms.local"
+
+          USER_RESPONSE=$(curl -s -X POST "$API_URL/users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Manager\",
+              \"email\": \"$EMAIL\",
+              \"password\": \"TestLoad123!\"
+            }")
+
+          USER_ID=$(echo $USER_RESPONSE | jq -r '.id')
+
+          if [ -z "$USER_ID" ] || [ "$USER_ID" = "null" ]; then
+            echo "❌ Failed to create manager user"
+            exit 1
+          fi
+
+          echo "✓ Manager user created"
+          echo "user_id=$USER_ID" >> $GITHUB_OUTPUT
+          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Assign Manager Role (MUST SUCCEED)
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          MANAGER_ROLE_ID: ${{ steps.fetch_roles.outputs.manager_id }}
+          USER_ID: ${{ steps.create_manager.outputs.user_id }}
+        run: |
+          ASSIGN_RESPONSE=$(curl -s -X POST "$API_URL/users/$USER_ID/role-assignments" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{\"roleId\": $MANAGER_ROLE_ID}")
+
+          if ! echo $ASSIGN_RESPONSE | jq -e '.id' > /dev/null; then
+            echo "❌ Manager role assignment failed or returned empty"
+            echo $ASSIGN_RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Manager role assigned successfully"
+
+      - name: Create Test Food
+        id: create_food
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          TIMESTAMP=$(date +%s)
+
+          FOOD_RESPONSE=$(curl -s -X POST "$API_URL/foods" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Pizza - $TIMESTAMP\",
+              \"slug\": \"test-pizza-$TIMESTAMP\",
+              \"basePrice\": 250,
+              \"foodType\": \"veg\",
+              \"itemType\": \"food\",
+              \"departmentType\": \"kitchen\"
+            }")
+
+          FOOD_ID=$(echo $FOOD_RESPONSE | jq -r '.id')
+
+          if [ -z "$FOOD_ID" ] || [ "$FOOD_ID" = "null" ]; then
+            echo "❌ Failed to create test food"
+            echo $FOOD_RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Test food created (ID: $FOOD_ID)"
+          echo "food_id=$FOOD_ID" >> $GITHUB_OUTPUT
+
+      - name: Test Setup Summary
+        run: |
+          echo "=========================================="
+          echo "✓ Setup Complete"
+          echo "=========================================="
+          echo "Manager:  ${{ steps.create_manager.outputs.email }}"
+          echo "Outlet:   ${{ steps.fetch_roles.outputs.outlet_id }}"
+          echo "Food:     ${{ steps.create_food.outputs.food_id }}"
+          echo ""
+
+  # ============================================================
+  # PHASE 2: SMOKE TESTS (run sequentially, fail fast)
+  # ============================================================
+  smoke-tests:
+    name: Smoke Tests (${{ matrix.test }})
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+
+    strategy:
+      matrix:
+        test: [auth, order-lifecycle]
+      max-parallel: 1  # Run sequentially; fail fast
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Run ${{ matrix.test }} smoke test
+        run: |
+          echo "=========================================="
+          echo "Running smoke test: ${{ matrix.test }}"
+          echo "=========================================="
+          k6 run load-tests/smoke/${{ matrix.test }}.js
+        env:
+          API_URL: ${{ env.API_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_TEST_EMAIL: ${{ needs.setup.outputs.manager_email }}
+          LOAD_TEST_PASSWORD: 'TestLoad123!'
+          LOAD_TEST_OUTLET_ID: ${{ needs.setup.outputs.outlet_id }}
+          LOAD_TEST_FOOD_ID: ${{ needs.setup.outputs.food_id }}
+
+  # ============================================================
+  # PHASE 3: FLOW TESTS (only if smoke tests pass)
+  # ============================================================
+  flow-tests:
+    name: Flow Tests (${{ matrix.flow }})
+    needs: [setup, smoke-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+
+    strategy:
+      matrix:
+        flow: [waiter, kitchen, cashier, manager]
+      fail-fast: false  # Run all flows even if one fails
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Run ${{ matrix.flow }} flow test
+        run: |
+          echo "=========================================="
+          echo "Running flow test: ${{ matrix.flow }}"
+          echo "=========================================="
+          k6 run load-tests/flows/${{ matrix.flow }}.js
+        env:
+          API_URL: ${{ env.API_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_TEST_EMAIL: ${{ needs.setup.outputs.manager_email }}
+          LOAD_TEST_PASSWORD: 'TestLoad123!'
+          LOAD_TEST_OUTLET_ID: ${{ needs.setup.outputs.outlet_id }}
+          LOAD_TEST_FOOD_ID: ${{ needs.setup.outputs.food_id }}
+
+  # ============================================================
+  # PHASE 4: CLEANUP (always runs if setup succeeded)
+  # ============================================================
+  cleanup:
+    name: Cleanup
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 2
+    if: ${{ always() && needs.setup.result == 'success' && inputs.cleanup_after == 'true' }}
+
+    steps:
+      - name: Deactivate test manager account
+        env:
+          ADMIN_TOKEN: ${{ needs.setup.outputs.admin_token }}
+          MANAGER_ID: ${{ needs.setup.outputs.manager_id }}
+        run: |
+          curl -s -X PATCH "$API_URL/users/$MANAGER_ID/deactivate" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" > /dev/null
+
+          echo "✓ Test accounts cleaned up"
+
+  # ============================================================
+  # PHASE 5: FINAL SUMMARY
+  # ============================================================
+  summary:
+    name: Test Summary
+    needs: [smoke-tests, flow-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: always()
+    timeout-minutes: 1
+
+    steps:
+      - name: Report Results
+        run: |
+          echo "=========================================="
+          echo "Test Suite Results"
+          echo "=========================================="
+          echo ""
+
+          if [ "${{ needs.smoke-tests.result }}" = "success" ]; then
+            echo "✓ Smoke tests: PASSED"
+          else
+            echo "✗ Smoke tests: FAILED"
+            echo "  (Flow tests were skipped)"
+            exit 1
+          fi
+
+          if [ "${{ needs.flow-tests.result }}" = "success" ]; then
+            echo "✓ Flow tests: PASSED"
+          elif [ "${{ needs.flow-tests.result }}" = "skipped" ]; then
+            echo "⊘ Flow tests: SKIPPED (smoke failed)"
+          else
+            echo "✗ Flow tests: FAILED (see matrix results above)"
+          fi
+
+          echo ""
