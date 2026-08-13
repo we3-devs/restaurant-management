@@ -33,8 +33,12 @@ export const options = {
 // ============================================================
 
 export function setup() {
-  console.log('[SETUP] Authenticating as admin...');
+  console.log('[SETUP] ========================================');
+  console.log('[SETUP] Starting diagnostic test setup...');
+  console.log('[SETUP] ========================================');
 
+  // Step 1: Admin authentication
+  console.log('\n[SETUP] Step 1: Authenticating as admin...');
   const adminLoginPayload = JSON.stringify({
     email: ADMIN_EMAIL,
     password: ADMIN_PASSWORD,
@@ -65,8 +69,8 @@ export function setup() {
 
   console.log('[SETUP] ✓ Admin authenticated');
 
-  // Fetch roles
-  console.log('[SETUP] Fetching available roles...');
+  // Step 2: Fetch roles
+  console.log('[SETUP] Step 2: Fetching available roles...');
   const rolesRes = http.get(`${BASE_URL}/roles`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     timeout: LOAD_TIMEOUT,
@@ -88,8 +92,13 @@ export function setup() {
     roleMap[role.slug] = role.id;
   });
 
-  // Fetch outlets
-  console.log('[SETUP] Fetching outlets...');
+  if (!roleMap.waiter) {
+    throw new Error('Waiter role not found');
+  }
+  console.log(`[SETUP] ✓ Waiter role ID: ${roleMap.waiter}`);
+
+  // Step 3: Fetch outlets
+  console.log('[SETUP] Step 3: Fetching outlets...');
   const outletsRes = http.get(`${BASE_URL}/outlets`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     timeout: LOAD_TIMEOUT,
@@ -106,64 +115,82 @@ export function setup() {
     }
   }
 
-  const outletId = outlets.length > 0 ? outlets[0].id : null;
-  console.log(`[SETUP] Using outlet: ${outletId}`);
+  const outletId = 11; // Hardcoded: table 23 belongs to outlet 11
+  const selectedOutlet = outlets.find(o => o.id === outletId);
+  if (!selectedOutlet) {
+    throw new Error(`Outlet ${outletId} not found in fetched outlets`);
+  }
+  console.log(`[SETUP] ✓ Using outlet ${outletId}: ${selectedOutlet.name}`);
 
-  // Fetch dining tables
-  console.log('[SETUP] Fetching dining tables...');
+  // Step 4: Fetch dining tables
+  console.log('[SETUP] Step 4: Fetching dining tables...');
   const tablesRes = http.get(`${BASE_URL}/dining-tables`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     timeout: LOAD_TIMEOUT,
   });
 
   let tables = [];
-  console.log(`[SETUP] Dining tables response: HTTP ${tablesRes.status}`);
   if (tablesRes.status === 200) {
     try {
       const body = JSON.parse(tablesRes.body);
       tables = body.data || [];
       console.log(`[SETUP] ✓ Found ${tables.length} tables`);
-      tables.forEach((t) => {
-        console.log(`[SETUP]   Table: ${t.id} - ${t.name} (${t.status})`);
-      });
     } catch (e) {
       console.error(`[SETUP] Failed to parse tables: ${e.message}`);
     }
-  } else {
-    console.error(`[SETUP] Failed to fetch tables. Response body: ${tablesRes.body}`);
   }
 
-  // Fetch foods
-  console.log('[SETUP] Fetching foods...');
+  const tableId = 23; // Hardcoded: table 23 belongs to outlet 11
+  const selectedTable = tables.find(t => t.id === tableId);
+  if (!selectedTable) {
+    throw new Error(`Table ${tableId} not found in fetched tables`);
+  }
+
+  if (selectedTable.outletId !== outletId) {
+    throw new Error(
+      `Table ${tableId} belongs to outlet ${selectedTable.outletId}, ` +
+      `but expected outlet ${outletId}`
+    );
+  }
+
+  console.log(`[SETUP] ✓ Using table ${tableId} (${selectedTable.name}) ` +
+              `from outlet ${outletId}`);
+
+  // Step 5: Fetch foods
+  console.log('[SETUP] Step 5: Fetching foods...');
   const foodsRes = http.get(`${BASE_URL}/foods`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     timeout: LOAD_TIMEOUT,
   });
 
   let foods = [];
-  console.log(`[SETUP] Foods response: HTTP ${foodsRes.status}`);
   if (foodsRes.status === 200) {
     try {
       const body = JSON.parse(foodsRes.body);
       foods = body.data || [];
       console.log(`[SETUP] ✓ Found ${foods.length} foods`);
-      foods.slice(0, 3).forEach((f) => {
-        console.log(`[SETUP]   Food: ${f.id} - ${f.name} (Price: ${f.price})`);
-      });
+      if (foods.length > 0) {
+        console.log(`[SETUP]   First food: ID ${foods[0].id}, ${foods[0].name}`);
+      }
     } catch (e) {
       console.error(`[SETUP] Failed to parse foods: ${e.message}`);
     }
-  } else {
-    console.error(`[SETUP] Failed to fetch foods. Response body: ${foodsRes.body}`);
   }
 
-  // Create test waiter
-  console.log('[SETUP] Creating test waiter account...');
+  if (foods.length === 0) {
+    throw new Error('No foods available');
+  }
+
+  const selectedFood = foods[0];
+  console.log(`[SETUP] ✓ Using food ID ${selectedFood.id}: ${selectedFood.name}`);
+
+  // Step 6: Create test waiter account
+  console.log('[SETUP] Step 6: Creating test waiter account...');
   const timestamp = Math.floor(Date.now() / 1000);
   const waiterEmail = `test-waiter-diag-${timestamp}@rms.local`;
 
   const createUserPayload = JSON.stringify({
-    name: `Diagnostic Waiter`,
+    name: `Diagnostic Waiter ${timestamp}`,
     email: waiterEmail,
     password: 'TestLoad123!',
   });
@@ -177,45 +204,56 @@ export function setup() {
   });
 
   console.log(`[SETUP] User creation response: HTTP ${createUserRes.status}`);
-  console.log(`[SETUP] User creation response body: ${createUserRes.body}`);
 
   let userId = null;
   if (createUserRes.status === 200 || createUserRes.status === 201) {
     try {
       const body = JSON.parse(createUserRes.body);
       userId = body.id;
-      console.log(`[SETUP] ✓ Created user: ${userId}`);
+      console.log(`[SETUP] ✓ Created waiter user ID: ${userId}`);
     } catch (e) {
       console.error(`[SETUP] Failed to parse user response: ${e.message}`);
     }
+  } else {
+    console.error(`[SETUP] User creation failed: ${createUserRes.body}`);
+    throw new Error(`Failed to create user: HTTP ${createUserRes.status}`);
   }
 
-  // Assign waiter role
-  if (userId && roleMap.waiter) {
-    console.log(`[SETUP] Assigning waiter role to user...`);
-    const assignRolePayload = JSON.stringify({ roleId: roleMap.waiter });
+  // Step 7: Assign waiter role
+  console.log('[SETUP] Step 7: Assigning waiter role to user...');
+  const assignRolePayload = JSON.stringify({ roleId: roleMap.waiter });
 
-    const assignRoleRes = http.post(`${BASE_URL}/users/${userId}/role-assignments`, assignRolePayload, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${adminToken}`,
-      },
-      timeout: LOAD_TIMEOUT,
-    });
+  const assignRoleRes = http.post(`${BASE_URL}/users/${userId}/role-assignments`, assignRolePayload, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${adminToken}`,
+    },
+    timeout: LOAD_TIMEOUT,
+  });
 
-    console.log(`[SETUP] Role assignment response: HTTP ${assignRoleRes.status}`);
-    console.log(`[SETUP] Role assignment response body: ${assignRoleRes.body}`);
+  console.log(`[SETUP] Role assignment response: HTTP ${assignRoleRes.status}`);
+  if (assignRoleRes.status !== 200 && assignRoleRes.status !== 201 && assignRoleRes.status !== 204) {
+    console.error(`[SETUP] Role assignment failed: ${assignRoleRes.body}`);
   }
+
+  console.log('[SETUP] ✓ Waiter role assigned');
+
+  console.log('\n[SETUP] ========================================');
+  console.log('[SETUP] Setup complete. Data summary:');
+  console.log(`[SETUP]   Outlet: ${outletId} (${selectedOutlet.name})`);
+  console.log(`[SETUP]   Table: ${tableId} (${selectedTable.name})`);
+  console.log(`[SETUP]   Food: ${selectedFood.id} (${selectedFood.name})`);
+  console.log(`[SETUP]   Waiter: ${waiterEmail} (ID: ${userId})`);
+  console.log('[SETUP] ========================================\n');
 
   return {
     adminToken,
+    userId,
     waiterEmail,
     waiterPassword: 'TestLoad123!',
-    userId,
-    tables,
-    foods,
-    outlets,
-    roleMap,
+    outletId,
+    tableId,
+    selectedFood,
   };
 }
 
@@ -225,17 +263,19 @@ export function setup() {
 
 export default function (data) {
   const {
-    adminToken,
     waiterEmail,
     waiterPassword,
-    userId,
-    tables,
-    foods,
-    outlets,
+    outletId,
+    tableId,
+    selectedFood,
   } = data;
 
+  console.log('\n[TEST] ========================================');
+  console.log('[TEST] Starting end-to-end diagnostic workflow...');
+  console.log('[TEST] ========================================\n');
+
   // Step 1: Waiter login
-  console.log('\n[TEST] Step 1: Waiter Login');
+  console.log('[TEST] Step 1: Waiter Login');
   const loginPayload = JSON.stringify({
     email: waiterEmail,
     password: waiterPassword,
@@ -247,22 +287,20 @@ export default function (data) {
   });
 
   console.log(`[TEST] Login response: HTTP ${loginRes.status}`);
-  console.log(`[TEST] Login response body: ${loginRes.body}`);
 
   let waiterToken = null;
   if (loginRes.status === 200 || loginRes.status === 201) {
     try {
       const body = JSON.parse(loginRes.body);
       waiterToken = body.accessToken;
-      console.log(`[TEST] ✓ Waiter authenticated`);
+      console.log('[TEST] ✓ Waiter authenticated');
     } catch (e) {
       console.error(`[TEST] Failed to parse login response: ${e.message}`);
+      throw new Error('Failed to authenticate waiter');
     }
-  }
-
-  if (!waiterToken) {
-    console.error('[TEST] ✗ Waiter login failed, cannot continue');
-    return;
+  } else {
+    console.error(`[TEST] Login failed: ${loginRes.body}`);
+    throw new Error(`Waiter login failed: HTTP ${loginRes.status}`);
   }
 
   const headers = {
@@ -279,108 +317,146 @@ export default function (data) {
   console.log('\n[TEST] Step 2: Browse Dining Tables');
   const browseTablesRes = http.get(`${BASE_URL}/dining-tables`, params);
   console.log(`[TEST] Browse tables response: HTTP ${browseTablesRes.status}`);
-  console.log(`[TEST] Browse tables response body: ${browseTablesRes.body}`);
 
-  let tableId = null;
-  if (browseTablesRes.status === 200 && tables.length > 0) {
-    tableId = tables[0].id;
-    console.log(`[TEST] ✓ Using table: ${tableId}`);
-  } else if (browseTablesRes.status === 200) {
-    try {
-      const body = JSON.parse(browseTablesRes.body);
-      const availableTables = body.data || [];
-      if (availableTables.length > 0) {
-        tableId = availableTables[0].id;
-        console.log(`[TEST] ✓ Found table: ${tableId}`);
-      }
-    } catch (e) {
-      console.error(`[TEST] Failed to parse tables: ${e.message}`);
-    }
+  if (browseTablesRes.status !== 200) {
+    console.error(`[TEST] Failed to fetch tables: ${browseTablesRes.body}`);
+    throw new Error(`Browse tables failed: HTTP ${browseTablesRes.status}`);
   }
+  console.log('[TEST] ✓ Tables browsed successfully');
 
   // Step 3: Create order
   console.log('\n[TEST] Step 3: Create Order');
-
-  const outletId = outlets && outlets.length > 0 ? outlets[0].id : null;
-  if (!outletId) {
-    console.error('[TEST] ✗ No outlet ID available from setup, cannot create order');
-    return;
-  }
-
   const createOrderPayload = JSON.stringify({
     outletId: outletId,
     orderType: 'table',
   });
 
-  console.log(`[TEST] Creating order with payload: ${createOrderPayload}`);
+  console.log(`[TEST] Creating order with outlet ${outletId}...`);
   const createOrderRes = http.post(`${BASE_URL}/orders`, createOrderPayload, params);
   console.log(`[TEST] Create order response: HTTP ${createOrderRes.status}`);
-  console.log(`[TEST] Create order response body: ${createOrderRes.body}`);
+
+  if (createOrderRes.status !== 200 && createOrderRes.status !== 201) {
+    console.error(`[TEST] Order creation failed: ${createOrderRes.body}`);
+    throw new Error(`Order creation failed: HTTP ${createOrderRes.status}`);
+  }
 
   let orderId = null;
-  if (createOrderRes.status === 200 || createOrderRes.status === 201) {
-    try {
-      const body = JSON.parse(createOrderRes.body);
-      orderId = body.id;
-      console.log(`[TEST] ✓ Order created: ${orderId}`);
-    } catch (e) {
-      console.error(`[TEST] Failed to parse order response: ${e.message}`);
-    }
-  } else {
-    console.error(`[TEST] ✗ Order creation failed with HTTP ${createOrderRes.status}`);
+  let order = null;
+  try {
+    const body = JSON.parse(createOrderRes.body);
+    orderId = body.id;
+    order = body;
+    console.log(`[TEST] ✓ Order created: ID ${orderId}, Bill# ${body.billNumber}`);
+  } catch (e) {
+    console.error(`[TEST] Failed to parse order response: ${e.message}`);
+    throw new Error('Failed to parse order creation response');
   }
 
-  // Step 4: Add items to order
-  if (orderId) {
-    console.log('\n[TEST] Step 4: Add Items to Order');
-
-    let itemsPayload;
-    if (foods && foods.length > 0) {
-      itemsPayload = JSON.stringify({
-        items: [
-          { foodId: foods[0].id, quantity: 1, price: foods[0].price },
-        ],
-      });
-    } else {
-      itemsPayload = JSON.stringify({
-        items: [
-          { foodId: 'food-1', quantity: 1, price: 450 },
-        ],
-      });
-    }
-
-    console.log(`[TEST] Adding items with payload: ${itemsPayload}`);
-    const addItemsRes = http.post(`${BASE_URL}/orders/${orderId}/items`, itemsPayload, params);
-    console.log(`[TEST] Add items response: HTTP ${addItemsRes.status}`);
-    console.log(`[TEST] Add items response body: ${addItemsRes.body}`);
-  } else {
-    console.warn('[TEST] ⚠️  No order ID, skipping items step');
+  if (!orderId) {
+    throw new Error('Order ID is missing from response');
   }
 
-  // Step 5: Get auth/me
-  console.log('\n[TEST] Step 5: Get Auth/Me');
+  // Step 4: Add item to order
+  console.log('\n[TEST] Step 4: Add Item to Order');
+
+  const addItemPayload = JSON.stringify({
+    foodId: selectedFood.id,
+    quantity: 1,
+  });
+
+  console.log(`[TEST] Adding food ${selectedFood.id} (${selectedFood.name}) to order ${orderId}...`);
+  const addItemRes = http.post(`${BASE_URL}/orders/${orderId}/items`, addItemPayload, params);
+  console.log(`[TEST] Add item response: HTTP ${addItemRes.status}`);
+
+  if (addItemRes.status !== 200 && addItemRes.status !== 201) {
+    console.error(`[TEST] Add item failed: ${addItemRes.body}`);
+    throw new Error(`Add item failed: HTTP ${addItemRes.status}`);
+  }
+
+  let orderItem = null;
+  try {
+    const body = JSON.parse(addItemRes.body);
+    orderItem = body;
+    console.log(`[TEST] ✓ Item added: ID ${body.id}, Food ${body.foodId}, Qty ${body.quantity}`);
+  } catch (e) {
+    console.error(`[TEST] Failed to parse item response: ${e.message}`);
+    throw new Error('Failed to parse add-item response');
+  }
+
+  if (!orderItem.id) {
+    throw new Error('Order item ID is missing from response');
+  }
+
+  // Step 5: Verify order was created
+  console.log('\n[TEST] Step 5: Verify Order Details');
+  const getOrderRes = http.get(`${BASE_URL}/orders/${orderId}`, params);
+  console.log(`[TEST] Get order response: HTTP ${getOrderRes.status}`);
+
+  if (getOrderRes.status !== 200) {
+    console.error(`[TEST] Failed to fetch order: ${getOrderRes.body}`);
+    throw new Error(`Get order failed: HTTP ${getOrderRes.status}`);
+  }
+
+  try {
+    const body = JSON.parse(getOrderRes.body);
+    console.log(`[TEST] ✓ Order verified: Status ${body.status}, Subtotal ${body.subtotal}`);
+  } catch (e) {
+    console.error(`[TEST] Failed to parse order details: ${e.message}`);
+  }
+
+  // Step 6: Get auth/me
+  console.log('\n[TEST] Step 6: Get Current User Info (/auth/me)');
   const meRes = http.get(`${BASE_URL}/auth/me`, params);
   console.log(`[TEST] Auth/me response: HTTP ${meRes.status}`);
-  console.log(`[TEST] Auth/me response body: ${meRes.body}`);
 
-  // Step 6: List assigned outlets (no special permission required)
-  console.log('\n[TEST] Step 6: List Assigned Outlets');
+  if (meRes.status !== 200) {
+    console.error(`[TEST] Failed to get current user: ${meRes.body}`);
+    throw new Error(`Auth/me failed: HTTP ${meRes.status}`);
+  }
+
+  try {
+    const body = JSON.parse(meRes.body);
+    console.log(`[TEST] ✓ Current user: ${body.email} (ID: ${body.id})`);
+  } catch (e) {
+    console.error(`[TEST] Failed to parse auth/me response: ${e.message}`);
+  }
+
+  // Step 7: List assigned outlets
+  console.log('\n[TEST] Step 7: List Assigned Outlets');
   const assignedOutletsRes = http.get(`${BASE_URL}/outlets/assigned`, params);
   console.log(`[TEST] Assigned outlets response: HTTP ${assignedOutletsRes.status}`);
-  console.log(`[TEST] Assigned outlets response body: ${assignedOutletsRes.body}`);
 
-  console.log('\n[TEST] ✓ Diagnostic test completed');
+  if (assignedOutletsRes.status !== 200) {
+    console.error(`[TEST] Failed to fetch assigned outlets: ${assignedOutletsRes.body}`);
+    throw new Error(`Assigned outlets failed: HTTP ${assignedOutletsRes.status}`);
+  }
+
+  try {
+    const body = JSON.parse(assignedOutletsRes.body);
+    const outletsList = Array.isArray(body) ? body : body.data || [];
+    console.log(`[TEST] ✓ Waiter has access to ${outletsList.length} outlet(s)`);
+  } catch (e) {
+    console.error(`[TEST] Failed to parse outlets response: ${e.message}`);
+  }
+
+  console.log('\n[TEST] ========================================');
+  console.log('[TEST] ✓ All diagnostic steps completed successfully!');
+  console.log('[TEST] ========================================\n');
 }
 
 // ============================================================
-// TEARDOWN
+// TEARDOWN - CLEANUP
 // ============================================================
 
 export function teardown(data) {
   const { adminToken, userId } = data;
 
+  console.log('\n[TEARDOWN] ========================================');
+  console.log('[TEARDOWN] Cleaning up test data...');
+  console.log('[TEARDOWN] ========================================');
+
   if (userId && adminToken) {
-    console.log('\n[TEARDOWN] Deactivating test user...');
+    console.log('\n[TEARDOWN] Deactivating test waiter user...');
     const deactivateRes = http.patch(
       `${BASE_URL}/users/${userId}/deactivate`,
       null,
@@ -391,11 +467,17 @@ export function teardown(data) {
         timeout: __ENV.LOAD_TIMEOUT || '10000ms',
       }
     );
+
     console.log(`[TEARDOWN] Deactivate response: HTTP ${deactivateRes.status}`);
-    if (deactivateRes.status !== 204) {
-      console.error(`[TEARDOWN] Deactivate failed: ${deactivateRes.body}`);
+
+    if (deactivateRes.status === 204 || deactivateRes.status === 200) {
+      console.log('[TEARDOWN] ✓ Test waiter deactivated');
+    } else {
+      console.error(`[TEARDOWN] Failed to deactivate user: ${deactivateRes.body}`);
     }
   }
 
-  console.log('[TEARDOWN] Diagnostic test teardown completed');
+  console.log('\n[TEARDOWN] ========================================');
+  console.log('[TEARDOWN] Teardown complete');
+  console.log('[TEARDOWN] ========================================\n');
 }
