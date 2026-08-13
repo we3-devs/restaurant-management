@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -52,12 +53,18 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
 }
 
 export function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false)
   const currentUser = useCurrentUser()
   const { outletId: effectiveOutletId } = useActiveOutlet()
 
-  useNotificationsRealtime(effectiveOutletId, currentUser.id)
+  // Only set up realtime updates if dropdown has been opened once (implies notifications are being used)
+  useNotificationsRealtime(isOpen ? effectiveOutletId : null, currentUser.id)
 
-  const { data, isLoading } = useNotifications({ outletId: effectiveOutletId, limit: 25 })
+  // Only fetch notifications when dropdown is open to defer from critical bootstrap path
+  const { data, isLoading } = useNotifications({
+    outletId: isOpen ? effectiveOutletId : null,
+    limit: 25
+  })
   const markRead = useMarkNotificationRead()
   const markAll = useMarkAllNotificationsRead(effectiveOutletId)
 
@@ -74,7 +81,7 @@ export function NotificationBell() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger
         render={
           <Button

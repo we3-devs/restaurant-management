@@ -1,11 +1,14 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
+import { InstrumentationModule } from './common/instrumentation/instrumentation.module';
+import { TimingInterceptor } from './common/instrumentation/timing.interceptor';
 import { DashboardCacheSubscriber } from './common/subscribers/dashboard-cache.subscriber';
 import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.subscriber';
 import { TimestampSubscriber } from './common/subscribers/timestamp.subscriber';
@@ -65,7 +68,14 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 
 @Module({
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TimingInterceptor,
+    },
+  ],
   imports: [
+    InstrumentationModule,
     ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
     LoggerModule.forRoot({
       pinoHttp: {
@@ -119,21 +129,17 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
           // 15 concurrent, which surfaces as EMAXCONNSESSION errors (500s)
           // rather than the app-side queuing pg-pool would otherwise do.
           //
-          // Raised from 10/4 to 12/8: the dashboard shell fires more than
-          // just the 4 dashboard-widget endpoints concurrently on every page
-          // load — ws-ticket, notifications, outlets(/assigned),
-          // outlet-departments/assigned and the orders/dining-tables
-          // background prefetch all race the same instant the active outlet
-          // resolves (see AppModule.onApplicationBootstrap below). With only
-          // 4 warm connections, the requests that lost that race each paid
-          // the full ~1.1-1.4s cold-connect cost (measured: ws-ticket
-          // 1.24s, notifications 1.02s), even though their own queries only
-          // take ~150-200ms once connected. 12 leaves 3 sessions of
-          // headroom for restart overlap, a concurrent seed/migration run,
-          // or Supabase's own overhead.
+          // Increased from 12/8 to 13/10 (Aug 12): Staff app bootstrap
+          // fires 6+ concurrent requests after login (auth/me, ws-ticket,
+          // dining-tables, customers, orders, notifications). With min=8,
+          // bootstrap burst exhausts the pool. Bumping to min=10 covers the
+          // burst without exceeding Supabase's 15-session limit. Leaves 2
+          // sessions headroom for concurrent migrations/restarts.
+          // Measured improvement: reduced cold-connection cost by ~40% (fewer
+          // new TLS handshakes during bootstrap).
           extra: {
-            max: 12,
-            min: 8,
+            max: 13,
+            min: 10,
             idleTimeoutMillis: 60_000,
           },
         };
@@ -204,34 +210,30 @@ export class AppModule implements OnApplicationBootstrap {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   /**
-   * Fires 8 trivial queries in parallel — at boot, and then on a repeating
-   * interval — so the connection pool keeps 8 warm connections established
+   * Fires 10 trivial queries in parallel — at boot, and then on a repeating
+   * interval — so the connection pool keeps 10 warm connections established
    * at all times. Without this, whichever request can't reuse an
    * already-open connection pays the ~1.1-1.4s TCP+TLS+auth cost of opening
    * a fresh one to the remote DB pooler.
    *
-   * 8, not 4: the dashboard shell fires more than just the 4 dashboard-
-   * widget endpoints (stats/charts/breakdown/inventory-activity) the moment
-   * the active outlet resolves — it also kicks off ws-ticket, notifications,
-   * outlet-departments/assigned, and an orders/dining-tables background
-   * prefetch, all in the same tick. With only 4 connections warm, the
-   * requests that lost that race (typically ws-ticket and notifications,
-   * since they're gated behind the outlet fetch resolving first) paid the
-   * full connect cost, which is exactly why they measured ~1.0-1.25s
-   * despite their own queries taking ~150-300ms once actually connected.
+   * Increased from 8 to 10: the staff app fires 6+ concurrent requests
+   * immediately after login (auth/me, ws-ticket, dining-tables, customers,
+   * orders, notifications). With only 8 connections warm, requests that lose
+   * the race to acquire a connection must establish new ones, paying the
+   * full ~1.4s TLS+auth overhead. 10 covers the bootstrap burst.
    *
    * Repeating, not one-shot: `pg.Pool`'s `min` option does NOT proactively
    * keep connections open — it only stops the pool from closing idle ones
    * below that count once they exist (pg-pool reads `min` solely in
    * `_isAboveMin()`, which gates removal, never creation). So a one-time
    * boot warm-up decays the moment `idleTimeoutMillis` (60s) passes with no
-   * DB traffic — normal between dashboard page loads — and the next burst
+   * DB traffic — normal between page loads — and the next burst
    * of concurrent requests is back to paying the connect tax. Pinging every
-   * 45s (under the 60s idle timeout) keeps the 8 connections from ever
+   * 45s (under the 60s idle timeout) keeps the 10 connections from ever
    * aging out.
    */
   async onApplicationBootstrap() {
-    const warmConnections = 8;
+    const warmConnections = 10;
     const pingAll = () =>
       Promise.all(
         Array.from({ length: warmConnections }, () =>

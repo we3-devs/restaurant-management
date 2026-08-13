@@ -1,8 +1,9 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
+import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
 
 interface ActiveAssignmentRow {
@@ -24,21 +25,30 @@ const ASSIGNMENTS_CACHE_TTL_MS = 15_000;
 
 @Injectable()
 export class PermissionsService {
+  private readonly logger = new Logger(PermissionsService.name);
+
   constructor(
     @InjectRepository(UserRoleAssignment)
     private readonly assignmentsRepository: Repository<UserRoleAssignment>,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly poolMetrics: PoolMetrics,
   ) {}
 
   private async getActiveAssignmentRows(
     userId: number,
   ): Promise<ActiveAssignmentRow[]> {
     const cacheKey = `auth:assignments:${userId}`;
+    const assignStartUs = this.nowMicros();
     const cached = await this.cache.get<ActiveAssignmentRow[]>(cacheKey);
     if (cached) {
+      const cacheHitMs = Math.round((this.nowMicros() - assignStartUs) / 1000);
+      this.logger.debug(
+        `[PERF:PERM_CACHE] userId=${userId} hit=true ${cacheHitMs}ms rows=${cached.length}`
+      );
       return cached;
     }
 
+    const dbStartUs = this.nowMicros();
     const rows = await this.assignmentsRepository.manager
       .createQueryBuilder()
       .select('permissions.slug', 'slug')
@@ -67,9 +77,18 @@ export class PermissionsService {
       .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
       .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
       .getRawMany<ActiveAssignmentRow>();
+    const dbDurationMs = Math.round((this.nowMicros() - dbStartUs) / 1000);
 
     await this.cache.set(cacheKey, rows, ASSIGNMENTS_CACHE_TTL_MS);
+    this.logger.log(
+      `[PERF:PERM_CACHE] userId=${userId} hit=false ${dbDurationMs}ms rows=${rows.length}`
+    );
     return rows;
+  }
+
+  private nowMicros(): number {
+    const [seconds, nanos] = process.hrtime();
+    return seconds * 1_000_000 + Math.round(nanos / 1_000);
   }
 
   /**

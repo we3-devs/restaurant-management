@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   ParseIntPipe,
   Patch,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { DiningTablesService } from './dining-tables.service';
@@ -25,7 +27,12 @@ import { UpdateDiningTableDto } from './dto/update-dining-table.dto';
 @ApiBearerAuth()
 @Controller('dining-tables')
 export class DiningTablesController {
-  constructor(private readonly diningTablesService: DiningTablesService) {}
+  private readonly logger = new Logger(DiningTablesController.name);
+
+  constructor(
+    private readonly diningTablesService: DiningTablesService,
+    private readonly poolMetrics: PoolMetrics,
+  ) {}
 
   @Get('lookup')
   @Public()
@@ -53,8 +60,17 @@ export class DiningTablesController {
     summary:
       'Lists dining tables (paginated, optional search + outletId/diningAreaId/status filters)',
   })
-  findAll(@Query() query: ListDiningTablesQueryDto) {
-    return this.diningTablesService.findAll(query);
+  async findAll(@Query() query: ListDiningTablesQueryDto) {
+    const start = Date.now();
+
+    const result = await this.diningTablesService.findAll(query);
+
+    const duration = Date.now() - start;
+    this.logger.log(
+      `[PERF:dining-tables/findAll] outletId=${query.outletId} total=${duration}ms`
+    );
+
+    return result;
   }
 
   @Get(':id')

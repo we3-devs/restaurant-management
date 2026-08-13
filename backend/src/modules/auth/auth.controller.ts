@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
+import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -21,10 +22,13 @@ const WS_TICKET_TTL_SECONDS = 30;
 // worth a row each.
 @SkipAudit()
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly permissionsService: PermissionsService,
     private readonly wsTickets: WsTicketsService,
+    private readonly poolMetrics: PoolMetrics,
   ) {}
 
   @Public()
@@ -57,7 +61,14 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revokes a refresh token' })
   async logout(@Body() dto: RefreshTokenDto): Promise<void> {
+    const logoutStart = Date.now();
+
     await this.authService.logout(dto.refreshToken);
+
+    const logoutDuration = Date.now() - logoutStart;
+    this.logger.log(
+      `[PERF:logout] total=${logoutDuration}ms`
+    );
   }
 
   @Get('me')
@@ -66,20 +77,44 @@ export class AuthController {
     summary: 'Returns the current user plus their resolved global permissions',
   })
   async me(@CurrentUser() user: User) {
-    const [permissions, outletIds, departmentIds, portal, roleSlugs] = await Promise.all([
-      this.permissionsService.getPermissionSlugs(user.id),
-      this.permissionsService.getAccessibleOutletIds(user.id),
-      this.permissionsService.getAccessibleOutletDepartmentIds(user.id),
-      user.isSuperadmin
-        ? Promise.resolve('dashboard' as const)
-        : this.permissionsService.getPortalAccess(user.id),
-      this.permissionsService.getRoleSlugs(user.id),
-    ]);
+    const meStartUs = this.nowMicros();
+    const phases: Record<string, number> = {};
+
+    // Only fetch critical data for initial render:
+    // - permissions: needed for UI visibility decisions
+    // - portal: needed for routing decision
+    // Defer outlet/department IDs until outlet picker loads (separate API call)
+
+    // Measure permission fetch
+    const permStartUs = this.nowMicros();
+    const permissions = await this.permissionsService.getPermissionSlugs(user.id);
+    phases['permissions'] = Math.round((this.nowMicros() - permStartUs) / 1000);
+
+    // Measure portal access
+    const portalStartUs = this.nowMicros();
+    const portal = user.isSuperadmin
+      ? ('dashboard' as const)
+      : await this.permissionsService.getPortalAccess(user.id);
+    phases['portal'] = Math.round((this.nowMicros() - portalStartUs) / 1000);
+
+    // Measure role fetch
+    const roleStartUs = this.nowMicros();
+    const roleSlugs = await this.permissionsService.getRoleSlugs(user.id);
+    phases['roles'] = Math.round((this.nowMicros() - roleStartUs) / 1000);
+
+    const meDurationMs = Math.round((this.nowMicros() - meStartUs) / 1000);
+    const phaseStr = Object.entries(phases)
+      .map(([k, v]) => `${k}=${v}ms`)
+      .join(' ');
+    this.logger.log(
+      `[PERF:AUTH_ME] userId=${user.id} total=${meDurationMs}ms (${phaseStr})`
+    );
+
     return {
       ...(await this.toAuthUser(user, portal)),
       permissions: Array.from(permissions),
-      outletIds,
-      departmentIds,
+      outletIds: [],  // Defer to outlet picker fetch
+      departmentIds: [],  // Defer to department select fetch
       roleSlugs,
     };
   }
@@ -92,12 +127,25 @@ export class AuthController {
       'Mints a short-lived, one-time ticket used to authenticate a WebSocket connection (browsers only ever hold an httpOnly auth cookie, never the JWT itself)',
   })
   async issueWsTicket(@CurrentUser() user: User): Promise<{ ticket: string }> {
+    const wsStartUs = this.nowMicros();
+
     const ticket = await this.wsTickets.issue(
       'staff',
       { userId: user.id, isSuperadmin: user.isSuperadmin },
       WS_TICKET_TTL_SECONDS,
     );
+
+    const wsDurationMs = Math.round((this.nowMicros() - wsStartUs) / 1000);
+    this.logger.log(
+      `[PERF:WS_TICKET] userId=${user.id} total=${wsDurationMs}ms`
+    );
+
     return { ticket };
+  }
+
+  private nowMicros(): number {
+    const [seconds, nanos] = process.hrtime();
+    return seconds * 1_000_000 + Math.round(nanos / 1_000);
   }
 
   @Get('admin-check')

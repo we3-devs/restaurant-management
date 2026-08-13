@@ -8,6 +8,7 @@ import { IsNull, Repository } from 'typeorm';
 import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AppConfig } from '../../config/configuration';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AppConfig>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly poolMetrics: PoolMetrics,
   ) {}
 
   async validateCredentials(email: string, password: string): Promise<User> {
@@ -47,21 +49,45 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
+    const loginStartUs = this.nowMicros();
+    const phases: Record<string, number> = {};
+
+    // Phase 1: User lookup
+    const userLookupStartUs = this.nowMicros();
     const user = await this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
       .where('user.email = :email', { email })
       .getOne();
+    phases['userLookup'] = Math.round((this.nowMicros() - userLookupStartUs) / 1000);
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.issueTokenPair(user);
+    // Phase 2: Password verification
+    const pwVerifyStartUs = this.nowMicros();
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    phases['passwordVerify'] = Math.round((this.nowMicros() - pwVerifyStartUs) / 1000);
 
-    // Fire-and-forget, matching AuditInterceptor's pattern for every other
-    // mutating route — the response doesn't depend on the audit row being
-    // committed, so there's no reason to block login on it.
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Phase 3: Token generation
+    const tokenStartUs = this.nowMicros();
+    const tokens = await this.issueTokenPair(user);
+    phases['tokenGeneration'] = Math.round((this.nowMicros() - tokenStartUs) / 1000);
+
+    const loginDurationMs = Math.round((this.nowMicros() - loginStartUs) / 1000);
+
+    const phaseStr = Object.entries(phases)
+      .map(([k, v]) => `${k}=${v}ms`)
+      .join(' ');
+    this.logger.log(
+      `[PERF:LOGIN] email=${email} total=${loginDurationMs}ms (${phaseStr})`
+    );
+
     void this.auditLogsService
       .record({
         userId: user.id,
@@ -74,6 +100,11 @@ export class AuthService {
       );
 
     return { tokens, user };
+  }
+
+  private nowMicros(): number {
+    const [seconds, nanos] = process.hrtime();
+    return seconds * 1_000_000 + Math.round(nanos / 1_000);
   }
 
   async refresh(
