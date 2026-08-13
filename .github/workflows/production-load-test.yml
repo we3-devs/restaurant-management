@@ -104,7 +104,7 @@ jobs:
           echo "=========================================="
 
       - name: Setup k6
-        uses: grafana/setup-k6-action@v0.3.0
+        uses: grafana/setup-k6-action@v0.2.0
 
       - name: Verify test script
         run: |
