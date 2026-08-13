@@ -313,46 +313,53 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto, createdBy: number): Promise<Order> {
-    await this.outletsService.findOne(dto.outletId);
-    if (dto.tableSessionId !== undefined) {
-      const session = await this.tableSessionsService.findOne(
-        dto.tableSessionId,
-      );
-      if (session.outletId !== dto.outletId) {
-        throw new BadRequestException(
-          `Table session ${dto.tableSessionId} does not belong to outlet ${dto.outletId}`,
+    this.logger.log(`[ORDER_CREATE] Starting order creation: outletId=${dto.outletId}, orderType=${dto.orderType}`);
+    try {
+      await this.outletsService.findOne(dto.outletId);
+      if (dto.tableSessionId !== undefined) {
+        const session = await this.tableSessionsService.findOne(
+          dto.tableSessionId,
         );
+        if (session.outletId !== dto.outletId) {
+          throw new BadRequestException(
+            `Table session ${dto.tableSessionId} does not belong to outlet ${dto.outletId}`,
+          );
+        }
       }
-    }
-    if (dto.customerId !== undefined) {
-      await this.customersService.findOne(dto.customerId);
-    }
-    if (dto.reservationId !== undefined) {
-      const reservation = await this.reservationsService.findOne(
-        dto.reservationId,
-      );
-      if (reservation.outletId !== dto.outletId) {
-        throw new BadRequestException(
-          `Reservation ${dto.reservationId} does not belong to outlet ${dto.outletId}`,
+      if (dto.customerId !== undefined) {
+        await this.customersService.findOne(dto.customerId);
+      }
+      if (dto.reservationId !== undefined) {
+        const reservation = await this.reservationsService.findOne(
+          dto.reservationId,
         );
+        if (reservation.outletId !== dto.outletId) {
+          throw new BadRequestException(
+            `Reservation ${dto.reservationId} does not belong to outlet ${dto.outletId}`,
+          );
+        }
       }
-    }
 
-    return this.dataSource.transaction((manager) =>
-      this.insertOrderWithBillNumber(manager, dto.outletId, (billNumber) =>
-        manager.create(Order, {
-          outletId: dto.outletId,
-          tableSessionId: dto.tableSessionId ?? null,
-          customerId: dto.customerId ?? null,
-          reservationId: dto.reservationId ?? null,
-          orderType: dto.orderType ?? 'table',
-          note: dto.note ?? null,
-          orderNumber: this.generateOrderNumber(dto.outletId),
-          billNumber,
-          createdBy,
-        }),
-      ),
-    );
+      this.logger.log(`[ORDER_CREATE] Validation passed, starting transaction for outletId=${dto.outletId}`);
+      return await this.dataSource.transaction((manager) =>
+        this.insertOrderWithBillNumber(manager, dto.outletId, (billNumber) =>
+          manager.create(Order, {
+            outletId: dto.outletId,
+            tableSessionId: dto.tableSessionId ?? null,
+            customerId: dto.customerId ?? null,
+            reservationId: dto.reservationId ?? null,
+            orderType: dto.orderType ?? 'table',
+            note: dto.note ?? null,
+            orderNumber: this.generateOrderNumber(dto.outletId),
+            billNumber,
+            createdBy,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(`[ORDER_CREATE] Error creating order for outletId=${dto.outletId}: ${(error as Error).message}`, (error as Error).stack);
+      throw error;
+    }
   }
 
   /**
@@ -1513,15 +1520,22 @@ export class OrdersService {
     outletId: number,
     periodKey: string,
   ): Promise<number> {
-    const rows: { last_number: number }[] = await manager.query(
-      `INSERT INTO bill_number_counters (outlet_id, period_key, last_number, updated_at)
-       VALUES ($1, $2, 1, now())
-       ON CONFLICT (outlet_id, period_key)
-       DO UPDATE SET last_number = bill_number_counters.last_number + 1, updated_at = now()
-       RETURNING last_number`,
-      [outletId, periodKey],
-    );
-    return Number(rows[0].last_number);
+    this.logger.log(`[BILL_SEQ] Querying bill_number_counters for outlet=${outletId}, periodKey=${periodKey}`);
+    try {
+      const rows: { last_number: number }[] = await manager.query(
+        `INSERT INTO bill_number_counters (outlet_id, period_key, last_number, updated_at)
+         VALUES ($1, $2, 1, now())
+         ON CONFLICT (outlet_id, period_key)
+         DO UPDATE SET last_number = bill_number_counters.last_number + 1, updated_at = now()
+         RETURNING last_number`,
+        [outletId, periodKey],
+      );
+      this.logger.log(`[BILL_SEQ] Got sequence number: ${rows[0]?.last_number} for outlet=${outletId}`);
+      return Number(rows[0].last_number);
+    } catch (error) {
+      this.logger.error(`[BILL_SEQ] Error querying bill_number_counters for outlet=${outletId}, periodKey=${periodKey}: ${(error as Error).message}`, (error as Error).stack);
+      throw error;
+    }
   }
 
   /**
@@ -1599,10 +1613,13 @@ export class OrdersService {
     outletId: number,
     buildOrder: (billNumber: string) => Order,
   ): Promise<Order> {
+    this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}`);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       await manager.query('SAVEPOINT bill_number_attempt');
       try {
+        this.logger.log(`[INSERT_ORDER] Generating bill number for outlet ${outletId} (attempt ${attempt}/3)`);
         const billNumber = await this.generateBillNumber(manager, outletId);
+        this.logger.log(`[INSERT_ORDER] Generated billNumber=${billNumber}, saving order for outlet ${outletId}`);
         const order = await manager.save(buildOrder(billNumber));
         await manager.query('RELEASE SAVEPOINT bill_number_attempt');
         this.logger.debug(
@@ -1610,6 +1627,7 @@ export class OrdersService {
         );
         return order;
       } catch (error) {
+        this.logger.error(`[INSERT_ORDER] Error on attempt ${attempt}/3 for outlet ${outletId}: ${(error as Error).message}`, (error as Error).stack);
         await manager.query('ROLLBACK TO SAVEPOINT bill_number_attempt');
         const isBillNumberCollision =
           (error as { code?: string })?.code === '23505' &&
