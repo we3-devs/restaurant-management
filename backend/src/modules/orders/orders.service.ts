@@ -455,6 +455,7 @@ export class OrdersService {
             billNumber,
             createdBy: startedBy,
           }),
+        true,
       );
       mark('insertOrder', insertOrderStart);
 
@@ -1612,23 +1613,30 @@ export class OrdersService {
     manager: EntityManager,
     outletId: number,
     buildOrder: (billNumber: string) => Order,
+    useSavepoint = false,
   ): Promise<Order> {
-    this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}`);
+    this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}, useSavepoint=${useSavepoint}`);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      await manager.query('SAVEPOINT bill_number_attempt');
+      if (useSavepoint) {
+        await manager.query('SAVEPOINT bill_number_attempt');
+      }
       try {
         this.logger.log(`[INSERT_ORDER] Generating bill number for outlet ${outletId} (attempt ${attempt}/3)`);
         const billNumber = await this.generateBillNumber(manager, outletId);
         this.logger.log(`[INSERT_ORDER] Generated billNumber=${billNumber}, saving order for outlet ${outletId}`);
         const order = await manager.save(buildOrder(billNumber));
-        await manager.query('RELEASE SAVEPOINT bill_number_attempt');
+        if (useSavepoint) {
+          await manager.query('RELEASE SAVEPOINT bill_number_attempt');
+        }
         this.logger.debug(
           `insertOrderWithBillNumber: order ${order.id} inserted with bill_number=${billNumber} (outlet ${outletId}, attempt ${attempt}/3)`,
         );
         return order;
       } catch (error) {
         this.logger.error(`[INSERT_ORDER] Error on attempt ${attempt}/3 for outlet ${outletId}: ${(error as Error).message}`, (error as Error).stack);
-        await manager.query('ROLLBACK TO SAVEPOINT bill_number_attempt');
+        if (useSavepoint) {
+          await manager.query('ROLLBACK TO SAVEPOINT bill_number_attempt');
+        }
         const isBillNumberCollision =
           (error as { code?: string })?.code === '23505' &&
           (error as { constraint?: string })?.constraint ===
