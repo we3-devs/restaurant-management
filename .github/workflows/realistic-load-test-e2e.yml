@@ -37,8 +37,8 @@ jobs:
 
       - name: Install jq (for JSON parsing)
         run: |
-          apt-get update
-          apt-get install -y jq
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       # ============================================================
       # PHASE 1: AUTHENTICATE AS ADMIN

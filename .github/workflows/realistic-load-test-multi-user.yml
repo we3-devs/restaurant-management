@@ -35,8 +35,8 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install jq
-        run: apt-get update && apt-get install -y jq
+      - name: Install jq (for JSON parsing)
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Display Test Configuration
         run: |
