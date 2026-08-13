@@ -214,7 +214,7 @@ export function setup() {
     userId,
     tables,
     foods,
-    outletId,
+    outlets,
     roleMap,
   };
 }
