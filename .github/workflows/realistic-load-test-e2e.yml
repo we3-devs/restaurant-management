@@ -1,0 +1,453 @@
+name: End-to-End Realistic Load Test (With Account Setup)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_after:
+        description: 'Delete test accounts after test completes'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  API_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  e2e-load-test:
+    name: E2E Load Test - Setup Accounts → Run Test → Cleanup
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install jq (for JSON parsing)
+        run: |
+          apt-get update
+          apt-get install -y jq
+
+      # ============================================================
+      # PHASE 1: AUTHENTICATE AS ADMIN
+      # ============================================================
+
+      - name: Authenticate as Admin
+        id: admin_auth
+        run: |
+          echo "=========================================="
+          echo "PHASE 1: Admin Authentication"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -X POST "$API_URL/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "${{ secrets.RMS_ADMIN_EMAIL }}",
+              "password": "${{ secrets.RMS_ADMIN_PASSWORD }}"
+            }')
+
+          TOKEN=$(echo $RESPONSE | jq -r '.accessToken')
+
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "❌ Admin authentication failed"
+            echo $RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Admin authenticated successfully"
+          echo "admin_token=$TOKEN" >> $GITHUB_OUTPUT
+
+      # ============================================================
+      # PHASE 2: FETCH AVAILABLE ROLES
+      # ============================================================
+
+      - name: Fetch Available Roles
+        id: fetch_roles
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 2: Fetching Available Roles"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -X GET "$API_URL/roles" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")
+
+          MANAGER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="manager") | .id')
+          CASHIER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="cashier") | .id')
+          WAITER_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="waiter") | .id')
+          COOK_ID=$(echo $RESPONSE | jq -r '.data[] | select(.slug=="cook") | .id')
+
+          if [ -z "$MANAGER_ID" ] || [ "$MANAGER_ID" = "null" ]; then
+            echo "❌ Failed to fetch roles"
+            echo $RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Roles fetched successfully"
+          echo "  Manager ID:  $MANAGER_ID"
+          echo "  Cashier ID:  $CASHIER_ID"
+          echo "  Waiter ID:   $WAITER_ID"
+          echo "  Cook ID:     $COOK_ID"
+
+          echo "manager_id=$MANAGER_ID" >> $GITHUB_OUTPUT
+          echo "cashier_id=$CASHIER_ID" >> $GITHUB_OUTPUT
+          echo "waiter_id=$WAITER_ID" >> $GITHUB_OUTPUT
+          echo "cook_id=$COOK_ID" >> $GITHUB_OUTPUT
+
+      # ============================================================
+      # PHASE 3: CREATE TEST USERS
+      # ============================================================
+
+      - name: Create Manager Account
+        id: create_manager
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 3A: Creating Manager Account"
+          echo "=========================================="
+
+          TIMESTAMP=$(date +%s)
+          EMAIL="test-manager-${TIMESTAMP}@rms.local"
+
+          USER_RESPONSE=$(curl -s -X POST "$API_URL/users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Manager\",
+              \"email\": \"$EMAIL\",
+              \"password\": \"TestLoad123!\"
+            }")
+
+          USER_ID=$(echo $USER_RESPONSE | jq -r '.id')
+
+          if [ -z "$USER_ID" ] || [ "$USER_ID" = "null" ]; then
+            echo "❌ Failed to create manager user"
+            echo $USER_RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Manager user created (ID: $USER_ID, Email: $EMAIL)"
+          echo "user_id=$USER_ID" >> $GITHUB_OUTPUT
+          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Assign Manager Role
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          MANAGER_ID: ${{ steps.fetch_roles.outputs.manager_id }}
+          USER_ID: ${{ steps.create_manager.outputs.user_id }}
+        run: |
+          ASSIGN_RESPONSE=$(curl -s -X POST "$API_URL/users/$USER_ID/role-assignments" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{\"roleId\": $MANAGER_ID}")
+
+          if echo $ASSIGN_RESPONSE | jq -e '.id' > /dev/null; then
+            echo "✓ Manager role assigned to user"
+          else
+            echo "⚠️  Role assignment response: $(echo $ASSIGN_RESPONSE | jq '.')"
+          fi
+
+      - name: Create Cashier Account
+        id: create_cashier
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 3B: Creating Cashier Account"
+          echo "=========================================="
+
+          TIMESTAMP=$(date +%s)
+          EMAIL="test-cashier-${TIMESTAMP}@rms.local"
+
+          USER_RESPONSE=$(curl -s -X POST "$API_URL/users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Cashier\",
+              \"email\": \"$EMAIL\",
+              \"password\": \"TestLoad123!\"
+            }")
+
+          USER_ID=$(echo $USER_RESPONSE | jq -r '.id')
+
+          if [ -z "$USER_ID" ] || [ "$USER_ID" = "null" ]; then
+            echo "❌ Failed to create cashier user"
+            exit 1
+          fi
+
+          echo "✓ Cashier user created (ID: $USER_ID)"
+          echo "user_id=$USER_ID" >> $GITHUB_OUTPUT
+
+      - name: Assign Cashier Role
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          CASHIER_ID: ${{ steps.fetch_roles.outputs.cashier_id }}
+          USER_ID: ${{ steps.create_cashier.outputs.user_id }}
+        run: |
+          curl -s -X POST "$API_URL/users/$USER_ID/role-assignments" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{\"roleId\": $CASHIER_ID}" > /dev/null
+          echo "✓ Cashier role assigned"
+
+      - name: Create Waiter Account
+        id: create_waiter
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 3C: Creating Waiter Account"
+          echo "=========================================="
+
+          TIMESTAMP=$(date +%s)
+          EMAIL="test-waiter-${TIMESTAMP}@rms.local"
+
+          USER_RESPONSE=$(curl -s -X POST "$API_URL/users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Waiter\",
+              \"email\": \"$EMAIL\",
+              \"password\": \"TestLoad123!\"
+            }")
+
+          USER_ID=$(echo $USER_RESPONSE | jq -r '.id')
+          echo "✓ Waiter user created (ID: $USER_ID)"
+          echo "user_id=$USER_ID" >> $GITHUB_OUTPUT
+
+      - name: Assign Waiter Role
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          WAITER_ID: ${{ steps.fetch_roles.outputs.waiter_id }}
+          USER_ID: ${{ steps.create_waiter.outputs.user_id }}
+        run: |
+          curl -s -X POST "$API_URL/users/$USER_ID/role-assignments" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{\"roleId\": $WAITER_ID}" > /dev/null
+          echo "✓ Waiter role assigned"
+
+      - name: Create Cook Account
+        id: create_cook
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 3D: Creating Cook Account"
+          echo "=========================================="
+
+          TIMESTAMP=$(date +%s)
+          EMAIL="test-cook-${TIMESTAMP}@rms.local"
+
+          USER_RESPONSE=$(curl -s -X POST "$API_URL/users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Cook\",
+              \"email\": \"$EMAIL\",
+              \"password\": \"TestLoad123!\"
+            }")
+
+          USER_ID=$(echo $USER_RESPONSE | jq -r '.id')
+          echo "✓ Cook user created (ID: $USER_ID)"
+          echo "user_id=$USER_ID" >> $GITHUB_OUTPUT
+
+      - name: Assign Cook Role
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          COOK_ID: ${{ steps.fetch_roles.outputs.cook_id }}
+          USER_ID: ${{ steps.create_cook.outputs.user_id }}
+        run: |
+          curl -s -X POST "$API_URL/users/$USER_ID/role-assignments" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{\"roleId\": $COOK_ID}" > /dev/null
+          echo "✓ Cook role assigned"
+
+      - name: Display Created Accounts
+        run: |
+          echo "=========================================="
+          echo "✓ Test Accounts Created Successfully"
+          echo "=========================================="
+          echo ""
+          echo "Manager:  ${{ steps.create_manager.outputs.email }} / TestLoad123!"
+          echo "Cashier:  ${{ steps.create_cashier.outputs.email }} / TestLoad123!"
+          echo "Waiter:   ${{ steps.create_waiter.outputs.email }} / TestLoad123!"
+          echo "Cook:     ${{ steps.create_cook.outputs.email }} / TestLoad123!"
+          echo ""
+          echo "Using Manager account for load test..."
+          echo ""
+
+      # ============================================================
+      # PHASE 4: SETUP K6 & VERIFY TEST SCRIPT
+      # ============================================================
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Verify test script exists
+        run: |
+          echo "=========================================="
+          echo "PHASE 4: Load Test Preparation"
+          echo "=========================================="
+
+          if [ ! -f "load-tests/rms-realistic.js" ]; then
+            echo "❌ Error: load-tests/rms-realistic.js not found"
+            exit 1
+          fi
+          echo "✓ Test script verified"
+
+      # ============================================================
+      # PHASE 5: RUN REALISTIC LOAD TEST
+      # ============================================================
+
+      - name: Run Realistic Load Test
+        id: load_test
+        run: |
+          echo "=========================================="
+          echo "PHASE 5: Running Realistic Load Test"
+          echo "=========================================="
+          echo ""
+          echo "Configuration:"
+          echo "  Users:       50 VUs (gradual ramp)"
+          echo "  Duration:    11 minutes total"
+          echo "  Roles:       Manager, Cashier, Waiter, Cook (25% each)"
+          echo "  Think time:  2-30 seconds (realistic)"
+          echo ""
+
+          k6 run load-tests/rms-realistic.js --out json=load-test-results-e2e.json
+
+          echo ""
+          echo "✓ Load test completed"
+        env:
+          API_URL: ${{ env.API_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_TEST_EMAIL: ${{ steps.create_manager.outputs.email }}
+          LOAD_TEST_PASSWORD: 'TestLoad123!'
+
+      # ============================================================
+      # PHASE 6: EXTRACT & DISPLAY RESULTS
+      # ============================================================
+
+      - name: Extract Load Test Results
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "PHASE 6: Load Test Results"
+          echo "=========================================="
+
+          if [ -f "load-test-results-e2e.json" ]; then
+            echo "✓ Results file found"
+
+            # Extract key metrics (if jq available)
+            echo ""
+            echo "Key Metrics:"
+            jq '.[] | select(.metric=="http_req_failed") | select(.data.value.rate) | "Error Rate: \(.data.value.rate*100 | round)%"' load-test-results-e2e.json 2>/dev/null || true
+            jq '.[] | select(.metric=="http_req_duration") | select(.data.value.p95) | "p95 Latency: \(.data.value.p95 | round)ms"' load-test-results-e2e.json 2>/dev/null || true
+            jq '.[] | select(.metric=="http_req_duration") | select(.data.value.p99) | "p99 Latency: \(.data.value.p99 | round)ms"' load-test-results-e2e.json 2>/dev/null || true
+          else
+            echo "⚠️ Results file not found"
+          fi
+
+      # ============================================================
+      # PHASE 7: CLEANUP (OPTIONAL)
+      # ============================================================
+
+      - name: Cleanup Test Accounts (if enabled)
+        if: ${{ inputs.cleanup_after == 'true' && always() }}
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          MANAGER_ID: ${{ steps.create_manager.outputs.user_id }}
+          CASHIER_ID: ${{ steps.create_cashier.outputs.user_id }}
+          WAITER_ID: ${{ steps.create_waiter.outputs.user_id }}
+          COOK_ID: ${{ steps.create_cook.outputs.user_id }}
+        run: |
+          echo "=========================================="
+          echo "PHASE 7: Cleanup Test Accounts"
+          echo "=========================================="
+
+          for USER_ID in $MANAGER_ID $CASHIER_ID $WAITER_ID $COOK_ID; do
+            echo "Deactivating user $USER_ID..."
+            curl -s -X PATCH "$API_URL/users/$USER_ID/deactivate" \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" > /dev/null
+          done
+
+          echo "✓ Test accounts deactivated"
+
+      # ============================================================
+      # PHASE 8: FINAL SUMMARY & UPLOAD RESULTS
+      # ============================================================
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "✓ E2E Load Test Complete"
+          echo "=========================================="
+          echo ""
+          echo "Summary:"
+          echo "  1. ✓ Admin authentication"
+          echo "  2. ✓ Fetched roles"
+          echo "  3. ✓ Created 4 test accounts"
+          echo "     - Manager"
+          echo "     - Cashier"
+          echo "     - Waiter"
+          echo "     - Cook"
+          echo "  4. ✓ Ran 50-VU realistic load test"
+          echo "  5. ✓ Extracted results"
+          if [ "${{ inputs.cleanup_after }}" = "true" ]; then
+            echo "  6. ✓ Cleaned up test accounts"
+          else
+            echo "  6. ⚠️  Kept test accounts for manual verification"
+            echo ""
+            echo "To delete accounts later, run:"
+            echo "  curl -X PATCH $API_URL/users/{user_id}/deactivate \\"
+            echo "    -H 'Authorization: Bearer ADMIN_TOKEN'"
+          fi
+          echo ""
+
+      - name: Upload Load Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-load-test-results-${{ github.run_id }}
+          path: load-test-results-e2e.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Post-Test Instructions
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Next Steps"
+          echo "=========================================="
+          echo ""
+          echo "1. Download artifact: e2e-load-test-results-${{ github.run_id }}"
+          echo ""
+          echo "2. Analyze results:"
+          echo "   - Check error rates per role"
+          echo "   - Review p95/p99 latencies"
+          echo "   - Verify all workflows completed"
+          echo ""
+          echo "3. See: load-tests/REALISTIC-TEST-GUIDE.md for interpretation"
+          echo ""
+          echo "4. If test failed:"
+          echo "   - Review database connection pool status"
+          echo "   - Check for slow queries"
+          echo "   - Review Render logs for errors"
+          echo ""

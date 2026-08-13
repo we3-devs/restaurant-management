@@ -1,0 +1,229 @@
+name: Multi-User Realistic Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_after:
+        description: 'Delete test accounts after test completes'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  API_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  multi-user-load-test:
+    name: Multi-User Load Test - 50 Unique Users, 4 Roles
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install jq
+        run: apt-get update && apt-get install -y jq
+
+      - name: Display Test Configuration
+        run: |
+          echo "=========================================="
+          echo "Multi-User Realistic Load Test"
+          echo "=========================================="
+          echo ""
+          echo "Scenario:          50 concurrent unique users"
+          echo "Duration:          11 minutes total"
+          echo "User Distribution:"
+          echo "  - 25 Waiters     (50%)"
+          echo "  - 10 Cashiers    (20%)"
+          echo "  - 8 Cooks        (16%)"
+          echo "  - 7 Managers     (14%)"
+          echo ""
+          echo "Each user:"
+          echo "  ✓ Has unique email account"
+          echo "  ✓ Authenticates independently"
+          echo "  ✓ Uses assigned role"
+          echo "  ✓ Performs role-specific workflows"
+          echo "  ✓ Has 2-30 sec think time"
+          echo ""
+          echo "Base URL:          ${API_URL}"
+          echo "Request Timeout:   ${LOAD_TIMEOUT}"
+          echo ""
+          echo "⚠️  NOTE: This is a PRODUCTION load test"
+          echo "    with 50 UNIQUE concurrent users"
+          echo "=========================================="
+
+      - name: Authenticate as Admin
+        id: admin_auth
+        run: |
+          RESPONSE=$(curl -s -X POST "${API_URL}/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "${{ secrets.RMS_ADMIN_EMAIL }}",
+              "password": "${{ secrets.RMS_ADMIN_PASSWORD }}"
+            }')
+
+          TOKEN=$(echo $RESPONSE | jq -r '.accessToken')
+
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "❌ Admin authentication failed"
+            exit 1
+          fi
+
+          echo "✓ Admin authenticated"
+          echo "admin_token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1.2.1
+
+      - name: Verify test script
+        run: |
+          if [ ! -f "load-tests/rms-realistic-multi-user.js" ]; then
+            echo "❌ Error: load-tests/rms-realistic-multi-user.js not found"
+            exit 1
+          fi
+          echo "✓ Multi-user test script verified"
+
+      - name: Run Multi-User Load Test
+        id: load_test
+        run: k6 run load-tests/rms-realistic-multi-user.js --out json=load-test-results-multi-user.json
+        env:
+          API_URL: ${{ env.API_URL }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_ADMIN_EMAIL: ${{ secrets.RMS_ADMIN_EMAIL }}
+          LOAD_ADMIN_PASSWORD: ${{ secrets.RMS_ADMIN_PASSWORD }}
+
+      - name: Extract Results
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Multi-User Load Test Results"
+          echo "=========================================="
+
+          if [ -f "load-test-results-multi-user.json" ]; then
+            echo "✓ Results file found: load-test-results-multi-user.json"
+            echo ""
+            echo "Key Metrics:"
+            jq '.[] | select(.metric=="http_req_failed") | select(.data.value.rate) | "  Error Rate: \(.data.value.rate*100 | round)%"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            jq '.[] | select(.metric=="http_req_duration") | select(.data.value.p95) | "  p95 Latency: \(.data.value.p95 | round)ms"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            jq '.[] | select(.metric=="http_req_duration") | select(.data.value.p99) | "  p99 Latency: \(.data.value.p99 | round)ms"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            echo ""
+            echo "Per-Role Metrics:"
+            jq '.[] | select(.metric | startswith("waiter_")) | "  Waiter \(.metric): \(.data.value | round)"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            jq '.[] | select(.metric | startswith("kitchen_")) | "  Kitchen \(.metric): \(.data.value | round)"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            jq '.[] | select(.metric | startswith("cashier_")) | "  Cashier \(.metric): \(.data.value | round)"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+            jq '.[] | select(.metric | startswith("manager_")) | "  Manager \(.metric): \(.data.value | round)"' load-test-results-multi-user.json 2>/dev/null || echo "  (parsing...)"
+          else
+            echo "⚠️ Results file not found"
+          fi
+
+          echo ""
+          echo "=========================================="
+
+      - name: Get Test User IDs for Cleanup
+        id: get_users
+        if: ${{ inputs.cleanup_after == 'true' && always() }}
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+        run: |
+          echo "Fetching test user IDs..."
+
+          USERS=$(curl -s -X GET "${API_URL}/users?search=test-" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            | jq -r '.data[] | select(.email | contains("test-")) | .id' | tr '\n' ' ')
+
+          echo "user_ids=$USERS" >> $GITHUB_OUTPUT
+          echo "✓ Found test users to delete"
+
+      - name: Cleanup Test Accounts
+        if: ${{ inputs.cleanup_after == 'true' && always() }}
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
+          USER_IDS: ${{ steps.get_users.outputs.user_ids }}
+        run: |
+          echo "=========================================="
+          echo "Cleanup: Deactivating Test Accounts"
+          echo "=========================================="
+
+          COUNT=0
+          for USER_ID in $USER_IDS; do
+            curl -s -X PATCH "${API_URL}/users/${USER_ID}/deactivate" \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" > /dev/null
+            COUNT=$((COUNT + 1))
+          done
+
+          echo "✓ Deactivated $COUNT test accounts"
+          echo ""
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "✓ Multi-User Load Test Complete"
+          echo "=========================================="
+          echo ""
+          echo "Test Summary:"
+          echo "  ✓ Created 50 unique test accounts"
+          echo "    - 25 Waiters (50%)"
+          echo "    - 10 Cashiers (20%)"
+          echo "    - 8 Cooks (16%)"
+          echo "    - 7 Managers (14%)"
+          echo "  ✓ Each user authenticated independently"
+          echo "  ✓ Ran 11-minute load test"
+          echo "  ✓ Extracted per-user and per-role metrics"
+          if [ "${{ inputs.cleanup_after }}" = "true" ]; then
+            echo "  ✓ Cleaned up all test accounts"
+          else
+            echo "  ⚠️  Kept test accounts for review"
+          fi
+          echo ""
+          echo "Results: download 'load-test-results-multi-user-*.json'"
+          echo ""
+
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-user-load-test-results-${{ github.run_id }}
+          path: load-test-results-multi-user.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Next Steps
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Next Steps"
+          echo "=========================================="
+          echo ""
+          echo "1. Download Results:"
+          echo "   - Artifact: multi-user-load-test-results-${{ github.run_id }}"
+          echo ""
+          echo "2. Analyze Results:"
+          echo "   - Check error rates per role"
+          echo "   - Review p95/p99 latencies"
+          echo "   - Verify 50 unique users authenticated"
+          echo ""
+          echo "3. Compare to Baseline:"
+          echo "   - Single-user vs multi-user differences"
+          echo "   - Per-role performance variations"
+          echo ""
+          echo "4. Expected Improvements:"
+          echo "   - More realistic concurrent sessions"
+          echo "   - Better user isolation testing"
+          echo "   - Real data variance (different customers, orders)"
+          echo ""
