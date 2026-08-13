@@ -1,0 +1,155 @@
+name: Production Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      rps:
+        description: 'Target Requests Per Second'
+        required: true
+        default: '25'
+        type: choice
+        options:
+          - '25'
+          - '50'
+          - '75'
+          - '100'
+          - '150'
+          - '200'
+      duration:
+        description: 'Test Duration (seconds)'
+        required: true
+        default: '30'
+        type: choice
+        options:
+          - '30'
+          - '60'
+          - '120'
+      vus:
+        description: 'Virtual Users'
+        required: false
+        default: '10'
+
+env:
+  BASE_URL: 'https://restaurant-management-g6vb.onrender.com/api'
+  LOAD_TIMEOUT: '10000ms'
+
+jobs:
+  load-test:
+    name: Execute Production Load Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate input parameters
+        run: |
+          RPS=${{ github.event.inputs.rps }}
+          DURATION=${{ github.event.inputs.duration }}
+          VUS=${{ github.event.inputs.vus }}
+
+          # Safety limits
+          MAX_RPS=150
+          MAX_DURATION=120
+          MAX_VUS=100
+
+          echo "=========================================="
+          echo "Input Validation"
+          echo "=========================================="
+          echo "Target RPS:        ${RPS}"
+          echo "Duration:          ${DURATION}s"
+          echo "Virtual Users:     ${VUS}"
+
+          if [ "${RPS}" -gt "${MAX_RPS}" ]; then
+            echo "❌ ERROR: RPS (${RPS}) exceeds maximum (${MAX_RPS})"
+            exit 1
+          fi
+
+          if [ "${DURATION}" -gt "${MAX_DURATION}" ]; then
+            echo "❌ ERROR: Duration (${DURATION}s) exceeds maximum (${MAX_DURATION}s)"
+            exit 1
+          fi
+
+          if [ "${VUS}" -gt "${MAX_VUS}" ]; then
+            echo "❌ ERROR: VUs (${VUS}) exceeds maximum (${MAX_VUS})"
+            exit 1
+          fi
+
+          echo "✓ All inputs within safe limits"
+          echo "=========================================="
+
+      - name: Display test configuration
+        run: |
+          echo "=========================================="
+          echo "Production Load Test - FINAL CONFIGURATION"
+          echo "=========================================="
+          echo "Target RPS:        ${{ github.event.inputs.rps }}"
+          echo "Duration:          ${{ github.event.inputs.duration }}s"
+          echo "Virtual Users:     ${{ github.event.inputs.vus }}"
+          echo "Base URL:          ${BASE_URL}"
+          echo "Request Timeout:   ${LOAD_TIMEOUT}"
+          echo ""
+          echo "⚠️  NOTE: This is a PRODUCTION load test."
+          echo "    Monitor Render dashboard during execution."
+          echo "    Check Supabase connection pool usage."
+          echo ""
+          echo "Test User:         (authenticated from secrets)"
+          echo "Endpoints:         40% /auth/me, 20% /ws-ticket,"
+          echo "                   20% /dining-tables, 20% /outlets"
+          echo "=========================================="
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v0.3.0
+
+      - name: Verify test script
+        run: |
+          if [ ! -f "load-tests/rms-production.js" ]; then
+            echo "❌ Error: load-tests/rms-production.js not found"
+            exit 1
+          fi
+          echo "✓ Test script verified"
+
+      - name: Run k6 load test
+        run: k6 run load-tests/rms-production.js --out json=load-test-results.json
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          LOAD_RPS: ${{ github.event.inputs.rps }}
+          LOAD_DURATION: ${{ github.event.inputs.duration }}s
+          LOAD_VUS: ${{ github.event.inputs.vus }}
+          LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
+          LOAD_TEST_EMAIL: ${{ secrets.RMS_LOAD_TEST_EMAIL }}
+          LOAD_TEST_PASSWORD: ${{ secrets.RMS_LOAD_TEST_PASSWORD }}
+
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Load Test Summary"
+          echo "=========================================="
+
+          if [ -f "load-test-results.json" ]; then
+            echo "✓ Results saved: load-test-results.json"
+            echo ""
+            echo "Check the artifact for complete metrics:"
+            echo "  - http_req_duration (p50, p95, p99)"
+            echo "  - http_req_failed (error rate)"
+            echo "  - Endpoint-specific latencies"
+          else
+            echo "⚠️ No results file found"
+          fi
+
+          echo "=========================================="
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results-${{ github.run_id }}
+          path: load-test-results.json
+          retention-days: 30
+          if-no-files-found: ignore
