@@ -312,8 +312,7 @@ jobs:
               \"basePrice\": 250,
               \"foodType\": \"veg\",
               \"itemType\": \"food\",
-              \"departmentType\": \"kitchen\",
-              \"isActive\": true
+              \"departmentType\": \"kitchen\"
             }")
 
           FOOD_ID=$(echo $FOOD_RESPONSE | jq -r '.id')
