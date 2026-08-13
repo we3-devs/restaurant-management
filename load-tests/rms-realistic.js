@@ -10,6 +10,7 @@ const BASE_URL = __ENV.BASE_URL || 'https://restaurant-management-g6vb.onrender.
 const LOAD_TIMEOUT = __ENV.LOAD_TIMEOUT || '10000ms';
 const TEST_EMAIL = __ENV.LOAD_TEST_EMAIL;
 const TEST_PASSWORD = __ENV.LOAD_TEST_PASSWORD;
+const TEST_FOOD_ID = parseInt(__ENV.LOAD_TEST_FOOD_ID || '1');
 
 if (!TEST_EMAIL || !TEST_PASSWORD) {
   throw new Error('LOAD_TEST_EMAIL and LOAD_TEST_PASSWORD environment variables are required');
@@ -233,7 +234,7 @@ function waiterWorkflow(accessToken, outlets, tables) {
         return;
       }
       const payload = JSON.stringify({
-        foodId: 1,
+        foodId: TEST_FOOD_ID,
         quantity: 1,
       });
 

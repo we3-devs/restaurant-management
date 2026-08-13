@@ -278,16 +278,53 @@ jobs:
             -d "{\"roleId\": $COOK_ID}" > /dev/null
           echo "✓ Cook role assigned"
 
-      - name: Display Created Accounts
+      - name: Create Test Food Item
+        id: create_food
+        env:
+          ADMIN_TOKEN: ${{ steps.admin_auth.outputs.admin_token }}
         run: |
           echo "=========================================="
-          echo "✓ Test Accounts Created Successfully"
+          echo "PHASE 3E: Creating Test Food Item"
+          echo "=========================================="
+
+          TIMESTAMP=$(date +%s)
+
+          FOOD_RESPONSE=$(curl -s -X POST "$API_URL/foods" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -d "{
+              \"name\": \"Test Pizza - $TIMESTAMP\",
+              \"slug\": \"test-pizza-$TIMESTAMP\",
+              \"basePrice\": 250,
+              \"foodType\": \"veg\",
+              \"itemType\": \"food\",
+              \"departmentType\": \"kitchen\"
+            }")
+
+          FOOD_ID=$(echo $FOOD_RESPONSE | jq -r '.id')
+
+          if [ -z "$FOOD_ID" ] || [ "$FOOD_ID" = "null" ]; then
+            echo "❌ Failed to create test food"
+            echo $FOOD_RESPONSE | jq '.'
+            exit 1
+          fi
+
+          echo "✓ Test food created (ID: $FOOD_ID)"
+          echo "food_id=$FOOD_ID" >> $GITHUB_OUTPUT
+
+      - name: Display Created Accounts & Test Data
+        run: |
+          echo "=========================================="
+          echo "✓ Test Accounts & Data Created Successfully"
           echo "=========================================="
           echo ""
           echo "Manager:  ${{ steps.create_manager.outputs.email }} / TestLoad123!"
           echo "Cashier:  ${{ steps.create_cashier.outputs.email }} / TestLoad123!"
           echo "Waiter:   ${{ steps.create_waiter.outputs.email }} / TestLoad123!"
           echo "Cook:     ${{ steps.create_cook.outputs.email }} / TestLoad123!"
+          echo ""
+          echo "Test Data:"
+          echo "  Food ID:  ${{ steps.create_food.outputs.food_id }}"
           echo ""
           echo "Using Manager account for load test..."
           echo ""
@@ -327,6 +364,7 @@ jobs:
           echo "  Duration:    11 minutes total"
           echo "  Roles:       Manager, Cashier, Waiter, Cook (25% each)"
           echo "  Think time:  2-30 seconds (realistic)"
+          echo "  Food ID:     $LOAD_TEST_FOOD_ID"
           echo ""
 
           k6 run load-tests/rms-realistic.js --out json=load-test-results-e2e.json
@@ -338,6 +376,7 @@ jobs:
           LOAD_TIMEOUT: ${{ env.LOAD_TIMEOUT }}
           LOAD_TEST_EMAIL: ${{ steps.create_manager.outputs.email }}
           LOAD_TEST_PASSWORD: 'TestLoad123!'
+          LOAD_TEST_FOOD_ID: ${{ steps.create_food.outputs.food_id }}
 
       # ============================================================
       # PHASE 6: EXTRACT & DISPLAY RESULTS
