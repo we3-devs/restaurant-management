@@ -231,6 +231,7 @@ export default function (data) {
     userId,
     tables,
     foods,
+    outlets,
   } = data;
 
   // Step 1: Waiter login
@@ -300,8 +301,14 @@ export default function (data) {
   // Step 3: Create order
   console.log('\n[TEST] Step 3: Create Order');
 
+  const outletId = outlets && outlets.length > 0 ? outlets[0].id : null;
+  if (!outletId) {
+    console.error('[TEST] ✗ No outlet ID available from setup, cannot create order');
+    return;
+  }
+
   const createOrderPayload = JSON.stringify({
-    outletId: data.outlets && data.outlets.length > 0 ? data.outlets[0].id : 1,
+    outletId: outletId,
     orderType: 'table',
   });
 
