@@ -343,7 +343,7 @@ export class OrdersService {
 
       this.logger.log(`[ORDER_CREATE] Validation passed, starting transaction for outletId=${dto.outletId}`);
       return await this.dataSource.transaction((manager) =>
-        this.insertOrderWithBillNumber(manager, dto.outletId, (billNumber) =>
+        this.insertOrderWithBillNumber(manager, dto.outletId, (billId, billNumber) =>
           manager.create(Order, {
             outletId: dto.outletId,
             tableSessionId: dto.tableSessionId ?? null,
@@ -352,6 +352,7 @@ export class OrdersService {
             orderType: dto.orderType ?? 'table',
             note: dto.note ?? null,
             orderNumber: this.generateOrderNumber(dto.outletId),
+            billId,
             billNumber,
             createdBy,
           }),
@@ -444,7 +445,7 @@ export class OrdersService {
       order = await this.insertOrderWithBillNumber(
         queryRunner.manager,
         dto.outletId,
-        (billNumber) =>
+        (billId, billNumber) =>
           queryRunner.manager.create(Order, {
             outletId: dto.outletId,
             tableSessionId: session.id,
@@ -453,6 +454,7 @@ export class OrdersService {
             orderType: dto.orderType ?? 'table',
             note: dto.note ?? null,
             orderNumber: this.generateOrderNumber(dto.outletId),
+            billId,
             billNumber,
             createdBy: startedBy,
           }),
@@ -544,7 +546,7 @@ export class OrdersService {
     const saved =
       existing ??
       (await this.dataSource.transaction((manager) =>
-        this.insertOrderWithBillNumber(manager, outletId, (billNumber) =>
+        this.insertOrderWithBillNumber(manager, outletId, (billId, billNumber) =>
           manager.create(Order, {
             outletId,
             tableSessionId,
@@ -554,6 +556,7 @@ export class OrdersService {
             createdBy: null,
             source: 'online',
             orderSource: 'qr',
+            billId,
             billNumber,
           }),
         ),
@@ -1505,17 +1508,76 @@ export class OrdersService {
     return generateDocumentNumber('ORD', outletId);
   }
 
-  /** THE single authoritative order-insert path, used by create(), createFromGuest(), and openTableWithOrder(). Generates a UUID bill number and inserts the order. */
+  private async nextBillSequence(
+    manager: EntityManager,
+    outletId: number,
+    periodKey: string,
+  ): Promise<number> {
+    this.logger.log(`[BILL_SEQ] Querying bill_number_counters for outlet=${outletId}, periodKey=${periodKey}`);
+    const rows: { last_number: number }[] = await manager.query(
+      `INSERT INTO bill_number_counters (outlet_id, period_key, last_number, updated_at)
+       VALUES ($1, $2, 1, now())
+       ON CONFLICT (outlet_id, period_key)
+       DO UPDATE SET last_number = bill_number_counters.last_number + 1, updated_at = now()
+       RETURNING last_number`,
+      [outletId, periodKey],
+    );
+    const sequence = Number(rows[0].last_number);
+    this.logger.log(`[BILL_SEQ] Got sequence number: ${sequence} for outlet=${outletId}`);
+    return sequence;
+  }
+
+  private async generateBillNumber(
+    manager: EntityManager,
+    outletId: number,
+  ): Promise<string> {
+    const posSettings = await this.settingsService.getPosSettings();
+    const prefix = (posSettings.receiptPrefix as string) || 'INV';
+    const digits = Number(posSettings.billNumberDigits ?? 4);
+    const resetPeriod = (posSettings.billNumberResetPeriod as string) ?? 'daily';
+
+    const now = new Date();
+    let periodTag = '';
+    if (resetPeriod === 'daily') {
+      periodTag = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, '');
+    } else if (resetPeriod === 'monthly') {
+      periodTag = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString()
+        .slice(0, 7)
+        .replace('-', '');
+    } else if (resetPeriod === 'yearly') {
+      periodTag = String(now.getFullYear());
+    }
+
+    const sequence = await this.nextBillSequence(manager, outletId, periodTag || 'all');
+    const padded = String(sequence).padStart(digits, '0');
+    return periodTag ? `${prefix}-${periodTag}-${padded}` : `${prefix}-${padded}`;
+  }
+
+  /** THE single authoritative order-insert path, used by create(), createFromGuest(), and openTableWithOrder(). Generates UUID billId and formatted billNumber. */
   private async insertOrderWithBillNumber(
     manager: EntityManager,
     outletId: number,
-    buildOrder: (billNumber: string) => Order,
+    buildOrder: (billId: string, billNumber: string | null) => Order,
   ): Promise<Order> {
     this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}`);
-    const billNumber = uuidv4();
-    this.logger.log(`[INSERT_ORDER] Generated billNumber=${billNumber}, saving order for outlet ${outletId}`);
-    const order = await manager.save(buildOrder(billNumber));
-    this.logger.log(`[INSERT_ORDER] Order ${order.id} inserted with bill_number=${billNumber} for outlet ${outletId}`);
+    const billId = uuidv4();
+
+    // Generate formatted bill number if POS settings are configured
+    let billNumber: string | null = null;
+    try {
+      billNumber = await this.generateBillNumber(manager, outletId);
+      this.logger.log(`[INSERT_ORDER] Generated billId=${billId}, billNumber=${billNumber} for outlet ${outletId}`);
+    } catch (error) {
+      this.logger.warn(`[INSERT_ORDER] Failed to generate formatted bill number, using NULL: ${(error as Error).message}`);
+      this.logger.log(`[INSERT_ORDER] Generated billId=${billId} for outlet ${outletId}`);
+    }
+
+    const order = await manager.save(buildOrder(billId, billNumber));
+    this.logger.log(`[INSERT_ORDER] Order ${order.id} inserted with billId=${billId}, billNumber=${billNumber} for outlet ${outletId}`);
     return order;
   }
 

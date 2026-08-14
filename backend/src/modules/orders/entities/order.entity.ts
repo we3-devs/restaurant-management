@@ -125,9 +125,13 @@ export class Order {
   @Column({ name: 'order_number', type: 'varchar', length: 255, unique: true })
   orderNumber: string;
 
-  /** Guest-facing bill number — UUID format for global uniqueness. */
-  @Column({ name: 'bill_number', type: 'uuid', unique: true })
-  billNumber: string;
+  /** Internal bill identifier — UUID for uniqueness without collision risk. */
+  @Column({ name: 'bill_id', type: 'uuid', unique: true })
+  billId: string;
+
+  /** Guest-facing bill number — formatted per POS settings (e.g., BILL-20260814-0001). */
+  @Column({ name: 'bill_number', type: 'varchar', length: 255, unique: true, nullable: true })
+  billNumber: string | null;
 
   @Column({
     name: 'order_type',
