@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useOrder, useOrderItems } from "@/hooks/use-orders"
 import { useOutlet } from "@/hooks/use-outlets"
 import { useCustomer } from "@/hooks/use-customers"
+import { useFoods } from "@/hooks/use-foods"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -28,10 +29,12 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 
 export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
-  // Disable refetch interval for invoice (read-only) to prevent page unresponsiveness
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
+  const { data: foods } = useFoods({ limit: 500 })
+
+  const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
 
   if (isLoading || !order) {
     return <Skeleton className="mx-auto h-96 w-full max-w-4xl" />
@@ -136,7 +139,7 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
                 items.data.map((item, index) => (
                   <tr key={item.id} className={index !== (items.data?.length ?? 0) - 1 ? "border-b border-gray-200" : ""}>
                     <td className="py-3 text-left">
-                      <p className="font-medium text-gray-900">Item #{item.foodId}</p>
+                      <p className="font-medium text-gray-900">{getFoodName(item.foodId)}</p>
                       {item.addons && item.addons.length > 0 && (
                         <ul className="mt-1 text-xs text-gray-600">
                           {item.addons.map((addon) => (
