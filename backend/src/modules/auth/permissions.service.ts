@@ -38,13 +38,8 @@ export class PermissionsService {
     userId: number,
   ): Promise<ActiveAssignmentRow[]> {
     const cacheKey = `auth:assignments:${userId}`;
-    const assignStartUs = this.nowMicros();
     const cached = await this.cache.get<ActiveAssignmentRow[]>(cacheKey);
     if (cached) {
-      const cacheHitMs = Math.round((this.nowMicros() - assignStartUs) / 1000);
-      this.logger.debug(
-        `[PERF:PERM_CACHE] userId=${userId} hit=true ${cacheHitMs}ms rows=${cached.length}`
-      );
       return cached;
     }
 

@@ -79,11 +79,24 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
     LoggerModule.forRoot({
       pinoHttp: {
+        level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'error' : 'debug'),
         transport:
           process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty' }
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  colorize: true,
+                  singleLine: true,
+                  translateTime: 'SYS:standard',
+                  ignore: 'pid,hostname,req,res',
+                },
+              }
             : undefined,
-        autoLogging: true,
+        autoLogging: false,
+        serializers: {
+          req: () => undefined,
+          res: () => undefined,
+        },
       },
     }),
     TypeOrmModule.forRootAsync({

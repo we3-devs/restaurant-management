@@ -23,7 +23,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse = isHttpException ? exception.getResponse() : null;
-    const message =
+    let message =
       isHttpException &&
       typeof exceptionResponse === 'object' &&
       exceptionResponse !== null
@@ -31,17 +31,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
           exception.message)
         : isHttpException
           ? exception.message
-          : 'Internal server error';
+          : exception instanceof Error
+            ? exception.message
+            : String(exception);
 
-    if (!isHttpException) {
-      this.logger.error(
-        exception instanceof Error ? exception.stack : exception,
-      );
+    const logMessage = `${request.method} ${request.url} → ${statusCode} | ${message}`;
+
+    if (statusCode >= 500) {
+      const errorDetails = exception instanceof Error ? exception.stack : String(exception);
+      this.logger.error(logMessage, errorDetails);
+    } else if (statusCode >= 400) {
+      this.logger.warn(logMessage);
     }
 
+    const isDev = process.env.NODE_ENV !== 'production';
     response.status(statusCode).json({
       statusCode,
-      message,
+      message: isDev ? message : (statusCode >= 500 ? 'Internal server error' : message),
       error: isHttpException ? exception.name : 'InternalServerError',
       timestamp: new Date().toISOString(),
       path: request.url,

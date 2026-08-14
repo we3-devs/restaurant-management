@@ -28,9 +28,9 @@ export default function () {
     return;
   }
 
-  // Step 1: Create order
+  // Step 1: Create order (using Laxmipur outlet ID: 11)
   console.log('[ORDER_LIFECYCLE] Step 1: Create order');
-  const orderId = createOrder(token);
+  const orderId = createOrder(token, 11);
   const createRes = check(orderId, {
     'create order succeeded': (id) => id !== null && id > 0,
   });

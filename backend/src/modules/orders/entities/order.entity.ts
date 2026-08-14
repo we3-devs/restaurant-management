@@ -125,9 +125,9 @@ export class Order {
   @Column({ name: 'order_number', type: 'varchar', length: 255, unique: true })
   orderNumber: string;
 
-  /** Guest-facing, formatted per the "pos" settings category — see OrdersService#generateBillNumber. Nullable: orders created before this field existed have none and fall back to orderNumber in the UI. */
-  @Column({ name: 'bill_number', type: 'varchar', length: 255, unique: true, nullable: true })
-  billNumber: string | null;
+  /** Guest-facing bill number — UUID format for global uniqueness. */
+  @Column({ name: 'bill_number', type: 'uuid', unique: true })
+  billNumber: string;
 
   @Column({
     name: 'order_type',

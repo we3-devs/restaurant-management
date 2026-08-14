@@ -10,7 +10,12 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppConfig } from './config/configuration';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    logger: process.env.NODE_ENV !== 'production'
+      ? ['debug', 'error', 'log', 'warn', 'verbose']
+      : ['error', 'warn'],
+  });
 
   // Without this, NestJS never runs its shutdown lifecycle on SIGTERM/SIGINT,
   // so TypeOrmModule never calls dataSource.destroy() — every restart (dev

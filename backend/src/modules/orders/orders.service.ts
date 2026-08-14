@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import {
   BadRequestException,
   ConflictException,
@@ -455,7 +456,6 @@ export class OrdersService {
             billNumber,
             createdBy: startedBy,
           }),
-        true,
       );
       mark('insertOrder', insertOrderStart);
 
@@ -1505,149 +1505,18 @@ export class OrdersService {
     return generateDocumentNumber('ORD', outletId);
   }
 
-  /**
-   * The (outletId, periodKey) row's next sequence value, via a single
-   * atomic `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` against
-   * bill_number_counters (see migration CreateBillNumberCounters). Postgres
-   * serializes concurrent callers on the row itself — there is no
-   * read-then-write gap for two requests to race through, unlike the
-   * `orders.count()` approach this replaces. Must run against the same
-   * transactional `manager` that will insert the order (see
-   * insertOrderWithBillNumber) so the increment rolls back together with a
-   * failed insert instead of burning a sequence number.
-   */
-  private async nextBillSequence(
-    manager: EntityManager,
-    outletId: number,
-    periodKey: string,
-  ): Promise<number> {
-    this.logger.log(`[BILL_SEQ] Querying bill_number_counters for outlet=${outletId}, periodKey=${periodKey}`);
-    try {
-      const rows: { last_number: number }[] = await manager.query(
-        `INSERT INTO bill_number_counters (outlet_id, period_key, last_number, updated_at)
-         VALUES ($1, $2, 1, now())
-         ON CONFLICT (outlet_id, period_key)
-         DO UPDATE SET last_number = bill_number_counters.last_number + 1, updated_at = now()
-         RETURNING last_number`,
-        [outletId, periodKey],
-      );
-      this.logger.log(`[BILL_SEQ] Got sequence number: ${rows[0]?.last_number} for outlet=${outletId}`);
-      return Number(rows[0].last_number);
-    } catch (error) {
-      this.logger.error(`[BILL_SEQ] Error querying bill_number_counters for outlet=${outletId}, periodKey=${periodKey}: ${(error as Error).message}`, (error as Error).stack);
-      throw error;
-    }
-  }
-
-  /**
-   * The guest-facing bill number — distinct from orderNumber (an internal
-   * reference, never meant to be read by a guest). Format comes from the
-   * "pos" settings category: {receiptPrefix}-[{periodTag}-]{sequence padded
-   * to billNumberDigits}, e.g. BILL-20260803-0007. `periodKey` is the
-   * counter row's key: the same as periodTag when the reset period resets
-   * the visible number too (daily/monthly/yearly), or a fixed 'all' when
-   * resetPeriod is 'never' (no periodTag, one counter per outlet forever).
-   * Only ever called from insertOrderWithBillNumber — see that method's
-   * comment for why this must never be called standalone.
-   */
-  private async generateBillNumber(
-    manager: EntityManager,
-    outletId: number,
-  ): Promise<string> {
-    const posSettings = await this.settingsService.getPosSettings();
-    const prefix = (posSettings.receiptPrefix as string) || 'INV';
-    const digits = Number(posSettings.billNumberDigits ?? 4);
-    const resetPeriod = (posSettings.billNumberResetPeriod as string) ?? 'daily';
-
-    const now = new Date();
-    let periodTag = '';
-    if (resetPeriod === 'daily') {
-      periodTag = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, '');
-    } else if (resetPeriod === 'monthly') {
-      periodTag = new Date(now.getFullYear(), now.getMonth(), 1)
-        .toISOString()
-        .slice(0, 7)
-        .replace('-', '');
-    } else if (resetPeriod === 'yearly') {
-      periodTag = String(now.getFullYear());
-    }
-
-    const sequence = await this.nextBillSequence(
-      manager,
-      outletId,
-      periodTag || 'all',
-    );
-    const padded = String(sequence).padStart(digits, '0');
-    return periodTag ? `${prefix}-${periodTag}-${padded}` : `${prefix}-${padded}`;
-  }
-
-  /**
-   * THE single authoritative order-insert path. Every flow that creates an
-   * order — staff POS (create()), guest self-ordering (createFromGuest()),
-   * and "open a table + its first order" (openTableWithOrder()) — must
-   * route its insert through this method rather than calling
-   * generateBillNumber()/manager.save(Order, ...) directly. Centralizing
-   * this is deliberate: a previous incident shipped openTableWithOrder()
-   * with its own hand-rolled bill-number/insert logic that had no retry at
-   * all, which is exactly the kind of regression this method exists to make
-   * impossible — there is nowhere else in the codebase a caller can get an
-   * Order row into the database without going through here (verified: grep
-   * for `manager.create(Order` / `ordersRepository.create(` across
-   * backend/src turns up only the three call sites above, all routed
-   * through this method).
-   *
-   * Generates a bill number and inserts `buildOrder(billNumber)` inside the
-   * given transactional `manager`, retrying up to 3 times on a Postgres
-   * unique_violation (23505) against orders_bill_number_key. The atomic
-   * counter in generateBillNumber already makes same-instance collisions
-   * effectively impossible, but this stays as defensive-in-depth (e.g. a
-   * bill_number hand-edited elsewhere). Each attempt is wrapped in a
-   * SAVEPOINT so a failed insert only unwinds that attempt — not the whole
-   * transaction (e.g. openTableWithOrder's session insert that already
-   * landed earlier in the same transaction).
-   */
+  /** THE single authoritative order-insert path, used by create(), createFromGuest(), and openTableWithOrder(). Generates a UUID bill number and inserts the order. */
   private async insertOrderWithBillNumber(
     manager: EntityManager,
     outletId: number,
     buildOrder: (billNumber: string) => Order,
-    useSavepoint = false,
   ): Promise<Order> {
-    this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}, useSavepoint=${useSavepoint}`);
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      if (useSavepoint) {
-        await manager.query('SAVEPOINT bill_number_attempt');
-      }
-      try {
-        this.logger.log(`[INSERT_ORDER] Generating bill number for outlet ${outletId} (attempt ${attempt}/3)`);
-        const billNumber = await this.generateBillNumber(manager, outletId);
-        this.logger.log(`[INSERT_ORDER] Generated billNumber=${billNumber}, saving order for outlet ${outletId}`);
-        const order = await manager.save(buildOrder(billNumber));
-        if (useSavepoint) {
-          await manager.query('RELEASE SAVEPOINT bill_number_attempt');
-        }
-        this.logger.debug(
-          `insertOrderWithBillNumber: order ${order.id} inserted with bill_number=${billNumber} (outlet ${outletId}, attempt ${attempt}/3)`,
-        );
-        return order;
-      } catch (error) {
-        this.logger.error(`[INSERT_ORDER] Error on attempt ${attempt}/3 for outlet ${outletId}: ${(error as Error).message}`, (error as Error).stack);
-        if (useSavepoint) {
-          await manager.query('ROLLBACK TO SAVEPOINT bill_number_attempt');
-        }
-        const isBillNumberCollision =
-          (error as { code?: string })?.code === '23505' &&
-          (error as { constraint?: string })?.constraint ===
-            'orders_bill_number_key';
-        if (!isBillNumberCollision || attempt === 3) throw error;
-        this.logger.warn(
-          `insertOrderWithBillNumber: bill_number collision on attempt ${attempt}/3 for outlet ${outletId}, retrying — ${(error as Error).message}`,
-        );
-      }
-    }
-    throw new Error('Failed to generate a unique bill number after 3 attempts');
+    this.logger.log(`[INSERT_ORDER] Starting insertOrderWithBillNumber for outletId=${outletId}`);
+    const billNumber = uuidv4();
+    this.logger.log(`[INSERT_ORDER] Generated billNumber=${billNumber}, saving order for outlet ${outletId}`);
+    const order = await manager.save(buildOrder(billNumber));
+    this.logger.log(`[INSERT_ORDER] Order ${order.id} inserted with bill_number=${billNumber} for outlet ${outletId}`);
+    return order;
   }
 
   /**
