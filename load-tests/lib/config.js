@@ -25,6 +25,7 @@ export const config = {
     addItem: { method: 'POST', path: '/orders/:id/items' },
     updateStatus: { method: 'PATCH', path: '/orders/:id/status' },
 
+    listFoods: { method: 'GET', path: '/foods' },
     listOutlets: { method: 'GET', path: '/outlets' },
     listAssignedOutlets: { method: 'GET', path: '/outlets/assigned' },
 

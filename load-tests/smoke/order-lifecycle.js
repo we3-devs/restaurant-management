@@ -1,6 +1,6 @@
 import { check } from 'k6';
 import { login } from '../lib/auth.js';
-import { createOrder, addItem, setStatus, completeOrder } from '../lib/orders.js';
+import { createOrder, addItem, setStatus, completeOrder, listFoods } from '../lib/orders.js';
 
 // ============================================================
 // SMOKE TEST: ORDER LIFECYCLE (1 VU, 1 iteration)
@@ -28,6 +28,24 @@ export default function () {
     return;
   }
 
+  // Step 0: Fetch a valid food ID
+  console.log('[ORDER_LIFECYCLE] Step 0: Fetch valid food');
+  let foodId = null;
+  try {
+    const foodsRes = listFoods(token);
+    const foods = JSON.parse(foodsRes.body);
+    if (foods.data && foods.data.length > 0) {
+      foodId = foods.data[0].id;
+      console.log(`[ORDER_LIFECYCLE] ✓ Found food ID: ${foodId}`);
+    } else {
+      console.error('[ORDER_LIFECYCLE] ✗ No foods available in system');
+      return;
+    }
+  } catch (e) {
+    console.error(`[ORDER_LIFECYCLE] ✗ Failed to fetch foods: ${e.message}`);
+    return;
+  }
+
   // Step 1: Create order (using Laxmipur outlet ID: 11)
   console.log('[ORDER_LIFECYCLE] Step 1: Create order');
   const orderId = createOrder(token, 11);
@@ -49,7 +67,7 @@ export default function () {
 
   // Step 2: Add item to order
   console.log('[ORDER_LIFECYCLE] Step 2: Add item to order');
-  const addItemRes = addItem(token, orderId);
+  const addItemRes = addItem(token, orderId, foodId);
   const addItemOk = check(addItemRes, {
     'add item succeeded': (r) => r && r.status >= 200 && r.status < 300,
     'add item status': (r) => r && (r.status < 200 || r.status >= 300 ? false : true),
@@ -62,23 +80,36 @@ export default function () {
     );
   }
 
-  // Step 3: Set status to preparing
-  console.log('[ORDER_LIFECYCLE] Step 3: Set order status to preparing');
-  const setStatusRes = setStatus(token, orderId, 'preparing');
-  const setStatusOk = check(setStatusRes, {
-    'set status succeeded': (r) => r && r.status >= 200 && r.status < 300,
-    'set status code': (r) => r && (r.status < 200 || r.status >= 300 ? false : true),
+  // Step 3: Accept order
+  console.log('[ORDER_LIFECYCLE] Step 3: Accept order');
+  const acceptRes = setStatus(token, orderId, 'accepted');
+  const acceptOk = check(acceptRes, {
+    'accept order succeeded': (r) => r && r.status >= 200 && r.status < 300,
   });
-  if (setStatusOk) {
-    console.log(`[ORDER_LIFECYCLE] ✓ Status set to preparing (HTTP ${setStatusRes.status})`);
+  if (acceptOk) {
+    console.log(`[ORDER_LIFECYCLE] ✓ Order accepted (HTTP ${acceptRes.status})`);
   } else {
     console.log(
-      `[ORDER_LIFECYCLE] ✗ Set status failed (HTTP ${setStatusRes.status}) - will continue`
+      `[ORDER_LIFECYCLE] ✗ Accept order failed (HTTP ${acceptRes.status}) - will continue`
     );
   }
 
-  // Step 4: Mark complete
-  console.log('[ORDER_LIFECYCLE] Step 4: Mark order complete');
+  // Step 4: Mark served
+  console.log('[ORDER_LIFECYCLE] Step 4: Mark order served');
+  const servedRes = setStatus(token, orderId, 'served');
+  const servedOk = check(servedRes, {
+    'served order succeeded': (r) => r && r.status >= 200 && r.status < 300,
+  });
+  if (servedOk) {
+    console.log(`[ORDER_LIFECYCLE] ✓ Order served (HTTP ${servedRes.status})`);
+  } else {
+    console.log(
+      `[ORDER_LIFECYCLE] ✗ Mark served failed (HTTP ${servedRes.status}) - will continue`
+    );
+  }
+
+  // Step 5: Mark complete
+  console.log('[ORDER_LIFECYCLE] Step 5: Mark order complete');
   const completeRes = completeOrder(token, orderId);
   const completeOk = check(completeRes, {
     'complete order succeeded': (r) => r && r.status >= 200 && r.status < 300,

@@ -16,6 +16,17 @@ export function listOrders(token) {
   );
 }
 
+export function listFoods(token) {
+  const route = config.routes.listFoods;
+  return request(
+    route.method,
+    route.path,
+    null,
+    { Authorization: `Bearer ${token}` },
+    'list_foods'
+  );
+}
+
 export function createOrder(token, outletId = null, orderType = 'table') {
   const route = config.routes.createOrder;
   const payload = {
