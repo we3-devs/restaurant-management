@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@rms/api-client/query-provider";
 import { ThemeProvider } from "@rms/ui/theme-provider";
 import { Toaster } from "@rms/ui/sonner";
+import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({
           <QueryProvider persist>
             {children}
             <Toaster />
+            <RealtimeIndicator />
           </QueryProvider>
         </ThemeProvider>
       </body>
