@@ -1,6 +1,18 @@
 import { check, sleep } from 'k6';
 import { login } from '../lib/auth.js';
-import { createOrder, addItem, setStatus } from '../lib/orders.js';
+import { createOrder, addItem, setStatus, listFoods } from '../lib/orders.js';
+
+export function setup() {
+  const token = login();
+  const foodsRes = listFoods(token);
+  const foods = JSON.parse(foodsRes.body);
+  if (foods.data && foods.data.length > 0) {
+    const foodId = foods.data[0].id;
+    console.log(`[KITCHEN_SETUP] Using food ID: ${foodId}`);
+    return { foodId };
+  }
+  throw new Error('No foods available in system');
+}
 
 // ============================================================
 // FLOW TEST: KITCHEN (≤5 VUs, ≤1 minute)
@@ -18,22 +30,29 @@ export const options = {
   },
 };
 
-export default function () {
+export default function (data) {
   const token = login();
+  const foodId = data.foodId;
 
   // Setup: Create fresh order for this iteration (not in threshold)
-  const orderId = createOrder(token);
+  const orderId = createOrder(token, 11);
   if (!orderId) {
     return;
   }
 
   // Setup: Add item (not in threshold)
-  const itemRes = addItem(token, orderId);
+  const itemRes = addItem(token, orderId, foodId);
   if (!itemRes || itemRes.status >= 400) {
     return;
   }
 
   sleep(1); // Think time before status update
+
+  // Setup: Accept order first (not in threshold)
+  const acceptRes = setStatus(token, orderId, 'accepted');
+  if (!acceptRes || acceptRes.status >= 400) {
+    return;
+  }
 
   // TEST: Set status to preparing (THIS IS MEASURED)
   const statusRes = setStatus(token, orderId, 'preparing');

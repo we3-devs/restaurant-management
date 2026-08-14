@@ -1,6 +1,18 @@
 import { check, sleep } from 'k6';
 import { login } from '../lib/auth.js';
-import { createOrder, addItem } from '../lib/orders.js';
+import { createOrder, addItem, listFoods } from '../lib/orders.js';
+
+export function setup() {
+  const token = login();
+  const foodsRes = listFoods(token);
+  const foods = JSON.parse(foodsRes.body);
+  if (foods.data && foods.data.length > 0) {
+    const foodId = foods.data[0].id;
+    console.log(`[WAITER_SETUP] Using food ID: ${foodId}`);
+    return { foodId };
+  }
+  throw new Error('No foods available in system');
+}
 
 // ============================================================
 // FLOW TEST: WAITER (≤5 VUs, ≤1 minute)
@@ -19,11 +31,12 @@ export const options = {
   },
 };
 
-export default function () {
+export default function (data) {
   const token = login();
+  const foodId = data.foodId;
 
   // Create order
-  const orderId = createOrder(token);
+  const orderId = createOrder(token, 11);
   const createOk = check(orderId, {
     'order created': (id) => id !== null && id > 0,
   });
@@ -35,7 +48,7 @@ export default function () {
   // Add 1-3 random items
   const numItems = Math.floor(Math.random() * 3) + 1;
   for (let i = 0; i < numItems; i++) {
-    const itemRes = addItem(token, orderId);
+    const itemRes = addItem(token, orderId, foodId);
     check(itemRes, {
       'item added': (r) => r && r.status >= 200 && r.status < 300,
     });
