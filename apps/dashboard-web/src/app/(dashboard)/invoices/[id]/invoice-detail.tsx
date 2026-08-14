@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useOrder, useOrderItems } from "@/hooks/use-orders"
 import { useOutlet } from "@/hooks/use-outlets"
-import { useFoods } from "@/hooks/use-foods"
 import { useCustomer } from "@/hooks/use-customers"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
@@ -29,9 +28,9 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 
 export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
+  // Disable refetch interval for invoice (read-only) to prevent page unresponsiveness
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
-  const { data: foods } = useFoods({ limit: 100 })
   const { data: customer } = useCustomer(order?.customerId ?? 0)
 
   if (isLoading || !order) {
@@ -51,8 +50,6 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
       </div>
     )
   }
-
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
 
   return (
     <div className="space-y-4">
@@ -83,10 +80,11 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase text-gray-700">Bill To</h3>
             <div className="space-y-1 text-sm">
-              <p className="font-medium">{customer?.name ?? "Customer"}</p>
+              <p className="font-medium text-gray-900">{customer?.name || "Walk-in Customer"}</p>
               {customer?.email && <p className="text-gray-600">{customer.email}</p>}
-              {customer?.phoneNumber && <p className="text-gray-600">{customer.phoneNumber}</p>}
-              <p className="text-gray-600">Order #{order.orderNumber}</p>
+              {customer?.phone && <p className="text-gray-600">{customer.phone}</p>}
+              {customer?.address && <p className="text-gray-600">{customer.address}</p>}
+              <p className="text-gray-500 text-xs mt-2">Order #{order.orderNumber}</p>
             </div>
           </div>
 
@@ -138,16 +136,17 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
                 items.data.map((item, index) => (
                   <tr key={item.id} className={index !== (items.data?.length ?? 0) - 1 ? "border-b border-gray-200" : ""}>
                     <td className="py-3 text-left">
-                      <p className="font-medium text-gray-900">{foodName(item.foodId)}</p>
+                      <p className="font-medium text-gray-900">Item #{item.foodId}</p>
                       {item.addons && item.addons.length > 0 && (
                         <ul className="mt-1 text-xs text-gray-600">
                           {item.addons.map((addon) => (
                             <li key={addon.id} className="ml-4">
-                              - Addon #{addon.addonId}
+                              + Addon #{addon.addonId} (x{addon.quantity})
                             </li>
                           ))}
                         </ul>
                       )}
+                      {item.note && <p className="mt-1 text-xs italic text-gray-500">Note: {item.note}</p>}
                     </td>
                     <td className="py-3 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 text-right text-gray-700">NPR {item.unitPrice.toFixed(2)}</td>
