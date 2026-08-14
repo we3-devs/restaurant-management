@@ -67,6 +67,7 @@ export class RolesService {
       level: dto.level ?? 'global',
       rank: dto.rank ?? 100,
       isAssignable: dto.isAssignable ?? true,
+      isActive: true,
       portal: dto.portal ?? 'dashboard',
       isSystem: false,
       description: dto.description ?? null,
