@@ -1,4 +1,4 @@
-import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, UserIcon, UsersIcon } from "lucide-react"
+import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, UsersIcon } from "lucide-react"
 
 export interface StaffNavItem {
   href: string
@@ -64,13 +64,6 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     description: "Look up or add a customer",
     icon: UsersIcon,
     requires: "customers.view",
-  },
-  {
-    href: "/staff/profile",
-    label: "Profile",
-    description: "Account and notification settings",
-    icon: UserIcon,
-    requires: null,
   },
 ]
 
