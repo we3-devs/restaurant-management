@@ -19,8 +19,14 @@ export interface Order {
   reservationId: number | null
   createdBy: number | null
   orderNumber: string
+  /** Internal bill identifier — UUID for global uniqueness. */
+  billId: string
   /** Guest-facing bill number, formatted per Settings > POS — see OrdersService#generateBillNumber. Null for orders created before this field existed. */
   billNumber: string | null
+  /** Formal invoice number — generated on-demand, formatted per Settings > POS. Null if no invoice has been issued yet. */
+  invoiceNumber: string | null
+  /** Timestamp when invoice was generated. Null if no invoice has been issued yet. */
+  invoiceGeneratedAt: string | null
   orderType: string
   /** Who placed it: walk_in/phone/online/staff/other. */
   source: string
@@ -387,5 +393,16 @@ export function useOrderItemReservations(itemId: number) {
     queryKey: queryKeys.orderItems.reservations(itemId),
     queryFn: () => apiClient<OrderItemIngredientReservation[]>(`/order-items/${itemId}/reservations`),
     enabled: itemId > 0,
+  })
+}
+
+/** Issue a formal invoice for an order on-demand. Returns the order with invoiceNumber and invoiceGeneratedAt set. */
+export function useIssueInvoice(orderId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<Order>(`/orders/${orderId}/invoice`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+    },
   })
 }

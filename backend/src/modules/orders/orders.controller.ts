@@ -273,4 +273,13 @@ export class OrdersController {
     return this.ordersService.addItemsBatch(id, dto.items);
   }
 
+  @Post(':id/invoice')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary: 'Generate an invoice for this order on-demand. Returns the order with invoiceNumber set.',
+  })
+  issueInvoice(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.issueInvoice(id);
+  }
+
 }

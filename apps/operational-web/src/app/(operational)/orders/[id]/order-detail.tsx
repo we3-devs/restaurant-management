@@ -13,7 +13,7 @@ import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Skeleton } from "@rms/ui/skeleton"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
-import { useOrder, useUpdateOrder, type Order } from "@rms/api-client/hooks/use-orders"
+import { useOrder, useUpdateOrder, useIssueInvoice, type Order } from "@rms/api-client/hooks/use-orders"
 import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
@@ -46,6 +46,7 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
   const { data: session } = useTableSession(order?.tableSessionId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const [editingTotals, setEditingTotals] = useState(false)
+  const issueInvoice = useIssueInvoice(orderId)
 
   if (isLoading || !order) {
     return <Skeleton className="mx-auto h-96 w-full max-w-5xl" />
@@ -67,8 +68,18 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
           <Button variant="outline" size="sm" render={<Link href={`${basePath}/pos/receipt/${orderId}`} />}>
             POS Bill
           </Button>
-          <Button variant="outline" size="sm" render={<Link href={`${basePath}/pos/receipt/${orderId}`} />}>
-            Invoice
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={issueInvoice.isPending || order.invoiceNumber !== null}
+            onClick={() => {
+              issueInvoice.mutate(undefined, {
+                onSuccess: () => toast.success("Invoice generated successfully"),
+                onError: (error) => toast.error(`Failed to generate invoice: ${error.message}`),
+              })
+            }}
+          >
+            {issueInvoice.isPending ? "Generating..." : order.invoiceNumber ? "Invoice Issued" : "Issue Invoice"}
           </Button>
           {!isReadOnly && order.status !== "completed" && (
             <Button variant="outline" size="sm" onClick={() => setEditingTotals((v) => !v)}>

@@ -25,6 +25,9 @@ export const posSettingsSchema = z.object({
   defaultPaymentMethod: z.string().optional(),
   billNumberDigits: z.number().optional(),
   billNumberResetPeriod: z.enum(["never", "daily", "monthly", "yearly"]).optional(),
+  invoicePrefix: z.string().optional(),
+  invoiceNumberDigits: z.number().optional(),
+  invoiceNumberResetPeriod: z.enum(["never", "daily", "monthly", "yearly"]).optional(),
 })
 
 export type PosSettingsInput = z.infer<typeof posSettingsSchema>

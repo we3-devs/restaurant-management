@@ -28,6 +28,9 @@ const defaultValues: PosSettingsInput = {
   defaultPaymentMethod: "",
   billNumberDigits: 4,
   billNumberResetPeriod: "daily",
+  invoicePrefix: "",
+  invoiceNumberDigits: 4,
+  invoiceNumberResetPeriod: "daily",
 }
 
 /** Illustrative only — mirrors OrdersService#generateBillNumber's format, not its actual sequence (which needs a real order count). */
@@ -47,6 +50,26 @@ function formatBillNumberPreview(
           ? String(now.getFullYear())
           : ""
   const parts = [prefix || "BILL", periodTag, sequence].filter(Boolean)
+  return parts.join("-")
+}
+
+/** Illustrative only — mirrors OrdersService#generateInvoiceNumber's format. */
+function formatInvoiceNumberPreview(
+  prefix: string | undefined,
+  digits: number | undefined,
+  resetPeriod: string | undefined,
+): string {
+  const now = new Date()
+  const sequence = "1".padStart(digits || 4, "0")
+  const periodTag =
+    resetPeriod === "daily"
+      ? now.toISOString().slice(0, 10).replace(/-/g, "")
+      : resetPeriod === "monthly"
+        ? now.toISOString().slice(0, 7).replace("-", "")
+        : resetPeriod === "yearly"
+          ? String(now.getFullYear())
+          : ""
+  const parts = [prefix || "INV", periodTag, sequence].filter(Boolean)
   return parts.join("-")
 }
 
@@ -154,6 +177,69 @@ export default function PosSettingsPage() {
                 <p className="col-span-2 text-xs text-muted-foreground">
                   Preview: {formatBillNumberPreview(form.watch("receiptPrefix"), form.watch("billNumberDigits"), form.watch("billNumberResetPeriod"))}
                 </p>
+
+                {/* Invoice Settings */}
+                <hr className="col-span-2" />
+                <h3 className="col-span-2 font-semibold text-sm">Invoice Settings</h3>
+                <FormField
+                  control={form.control}
+                  name="invoicePrefix"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Invoice number prefix</FormLabel>
+                      <FormControl disabled={!canManage} placeholder="INV" {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="invoiceNumberDigits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Invoice number digits</FormLabel>
+                      <FormControl
+                        type="number"
+                        step="1"
+                        min="1"
+                        disabled={!canManage}
+                        value={field.value ?? 4}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="invoiceNumberResetPeriod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Invoice number resets</FormLabel>
+                      <Select
+                        value={field.value ?? "daily"}
+                        onValueChange={field.onChange}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BILL_NUMBER_RESET_PERIODS.map((period) => (
+                            <SelectItem key={period} value={period}>
+                              {period}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  Preview: {formatInvoiceNumberPreview(form.watch("invoicePrefix"), form.watch("invoiceNumberDigits"), form.watch("invoiceNumberResetPeriod"))}
+                </p>
+
                 <FormField
                   control={form.control}
                   name="defaultPaymentMethod"

@@ -133,6 +133,14 @@ export class Order {
   @Column({ name: 'bill_number', type: 'varchar', length: 255, unique: true, nullable: true })
   billNumber: string | null;
 
+  /** Formal invoice number — generated on-demand (e.g., INV-20260814-0001). Nullable: not all orders need invoices. */
+  @Column({ name: 'invoice_number', type: 'varchar', length: 255, unique: true, nullable: true })
+  invoiceNumber: string | null;
+
+  /** Timestamp when invoice was generated. */
+  @Column({ name: 'invoice_generated_at', type: 'timestamp', nullable: true })
+  invoiceGeneratedAt: Date | null;
+
   @Column({
     name: 'order_type',
     type: 'varchar',

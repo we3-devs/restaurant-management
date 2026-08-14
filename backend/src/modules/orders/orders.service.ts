@@ -1508,6 +1508,80 @@ export class OrdersService {
     return generateDocumentNumber('ORD', outletId);
   }
 
+  /** Generate invoice for an order on-demand. Returns the order with invoiceNumber set. */
+  async issueInvoice(orderId: number): Promise<Order> {
+    const order = await this.findOne(orderId);
+    if (order.invoiceNumber) {
+      throw new ConflictException(
+        `Order ${orderId} already has an invoice: ${order.invoiceNumber}`,
+      );
+    }
+
+    const invoiceNumber = await this.dataSource.transaction(async (manager) => {
+      return this.generateInvoiceNumber(manager, order.outletId);
+    });
+
+    order.invoiceNumber = invoiceNumber;
+    order.invoiceGeneratedAt = new Date();
+    return this.ordersRepository.save(order);
+  }
+
+  private async nextInvoiceSequence(
+    manager: EntityManager,
+    outletId: number,
+    periodKey: string,
+  ): Promise<number> {
+    this.logger.log(`[INV_SEQ] Querying invoice_number_counters for outlet=${outletId}, periodKey=${periodKey}`);
+    const rows: { last_number: number }[] = await manager.query(
+      `INSERT INTO invoice_number_counters (outlet_id, period_key, last_number, updated_at)
+       VALUES ($1, $2, 1, now())
+       ON CONFLICT (outlet_id, period_key)
+       DO UPDATE SET last_number = invoice_number_counters.last_number + 1, updated_at = now()
+       RETURNING last_number`,
+      [outletId, periodKey],
+    );
+    const sequence = Number(rows[0].last_number);
+    this.logger.log(`[INV_SEQ] Got sequence number: ${sequence} for outlet=${outletId}`);
+    return sequence;
+  }
+
+  private async generateInvoiceNumber(
+    manager: EntityManager,
+    outletId: number,
+  ): Promise<string> {
+    try {
+      const posSettings = await this.settingsService.getPosSettings();
+      const prefix = (posSettings.invoicePrefix as string) || 'INV';
+      const digits = Number(posSettings.invoiceNumberDigits ?? 4);
+      const resetPeriod = (posSettings.invoiceNumberResetPeriod as string) ?? 'daily';
+
+      const now = new Date();
+      let periodTag = '';
+      if (resetPeriod === 'daily') {
+        periodTag = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          .toISOString()
+          .slice(0, 10)
+          .replace(/-/g, '');
+      } else if (resetPeriod === 'monthly') {
+        periodTag = new Date(now.getFullYear(), now.getMonth(), 1)
+          .toISOString()
+          .slice(0, 7)
+          .replace('-', '');
+      } else if (resetPeriod === 'yearly') {
+        periodTag = String(now.getFullYear());
+      }
+
+      const sequence = await this.nextInvoiceSequence(manager, outletId, periodTag || 'all');
+      const padded = String(sequence).padStart(digits, '0');
+      return periodTag ? `${prefix}-${periodTag}-${padded}` : `${prefix}-${padded}`;
+    } catch (error) {
+      // Fallback to simple format if settings unavailable
+      this.logger.warn(`[INV_GEN] Failed to fetch POS settings, using fallback format: ${(error as Error).message}`);
+      const sequence = await this.nextInvoiceSequence(manager, outletId, 'all');
+      return `INV-${sequence.toString().padStart(4, '0')}`;
+    }
+  }
+
   private async nextBillSequence(
     manager: EntityManager,
     outletId: number,
@@ -1532,7 +1606,7 @@ export class OrdersService {
     outletId: number,
   ): Promise<string> {
     const posSettings = await this.settingsService.getPosSettings();
-    const prefix = (posSettings.receiptPrefix as string) || 'INV';
+    const prefix = (posSettings.receiptPrefix as string) || 'BILL';
     const digits = Number(posSettings.billNumberDigits ?? 4);
     const resetPeriod = (posSettings.billNumberResetPeriod as string) ?? 'daily';
 
