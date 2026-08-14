@@ -70,7 +70,6 @@ export default function StaffCustomersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Number</TableHead>
               <TableHead>Loyalty points</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -94,7 +93,6 @@ function CustomerRow({ customer, onSelect }: { customer: Customer; onSelect: () 
   return (
     <TableRow className="cursor-pointer" onClick={onSelect}>
       <TableCell className="font-medium">{customer.name}</TableCell>
-      <TableCell className="text-muted-foreground">{customer.phone ?? customer.email ?? "—"}</TableCell>
       <TableCell>{loyalty?.currentPoints ?? 0}</TableCell>
       <TableCell>
         <Badge variant={customer.isActive ? "secondary" : "destructive"}>
