@@ -22,9 +22,11 @@ export const EMPTY_BRANDING: Branding = {
 export async function fetchBranding(baseUrl: string): Promise<Branding> {
   try {
     const response = await fetch(`${baseUrl}/settings/branding/public`, {
-      // Branding changes rarely and is read on every render — cache it, but
-      // not so long that an admin thinks their save didn't apply.
-      next: { revalidate: 300 },
+      // Short on purpose. Branding changes rarely, but when it does the admin
+      // is staring at the settings screen waiting for it — a long TTL reads as
+      // "the save didn't work". Browsers cache favicons independently and far
+      // more aggressively, so that one can still need a hard reload.
+      next: { revalidate: 30 },
     })
     if (!response.ok) return EMPTY_BRANDING
     return { ...EMPTY_BRANDING, ...((await response.json()) as Partial<Branding>) }

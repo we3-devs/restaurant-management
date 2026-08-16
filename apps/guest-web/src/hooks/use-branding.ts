@@ -15,7 +15,7 @@ export function useBranding(): Branding {
   const { data } = useQuery<Branding>({
     queryKey: ["branding"],
     queryFn: () => getJson("/settings/branding/public"),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
   return data ?? EMPTY_BRANDING;

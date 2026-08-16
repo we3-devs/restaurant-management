@@ -1,6 +1,8 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AppConfig } from '../../config/configuration';
 import type { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -122,8 +124,26 @@ export class SettingsService {
     private readonly auditLogsService: AuditLogsService,
     private readonly notificationsService: NotificationsService,
     private readonly outletsService: OutletsService,
+    private readonly configService: ConfigService<AppConfig>,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
+
+  /**
+   * Disk-hosted uploads are saved as absolute URLs built from PUBLIC_API_URL at
+   * upload time, so a logo uploaded on localhost keeps pointing at localhost
+   * after a deploy — and every guest phone would try to load it from its own
+   * machine. The filename is the durable part; the origin is not, so it's
+   * re-derived on read. Bucket-hosted URLs don't match this path and pass
+   * through untouched.
+   */
+  private rehostUpload(url: string | null): string | null {
+    if (!url) return url;
+    const match = /\/api\/uploads\/([^/?#]+)$/.exec(url);
+    if (!match) return url;
+
+    const { publicUrl } = this.configService.get('app', { infer: true })!;
+    return `${publicUrl}/api/uploads/${match[1]}`;
+  }
 
   private assertKnownCategory(category: string): asserts category is SettingsCategory {
     if (!CATEGORIES.includes(category as SettingsCategory)) {
@@ -261,8 +281,10 @@ export class SettingsService {
 
     return {
       restaurantName: pick(business.restaurantName),
-      logoUrl: pick(appearance.logoUrl) ?? pick(business.logoUrl),
-      faviconUrl: pick(appearance.faviconUrl),
+      logoUrl: this.rehostUpload(
+        pick(appearance.logoUrl) ?? pick(business.logoUrl),
+      ),
+      faviconUrl: this.rehostUpload(pick(appearance.faviconUrl)),
       primaryColor: pick(appearance.primaryColor),
     };
   }

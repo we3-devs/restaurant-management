@@ -156,6 +156,11 @@ export function useUpdateSettings<T = Record<string, unknown>>(category: Setting
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings.category(category) })
       queryClient.invalidateQueries({ queryKey: queryKeys.settings.allCategories() })
+      // The sidebar logo/name read a separate public endpoint, so without this
+      // they'd sit on a stale cache after a save and look like nothing applied.
+      if (category === "business" || category === "appearance") {
+        queryClient.invalidateQueries({ queryKey: ["branding"] })
+      }
     },
   })
 }

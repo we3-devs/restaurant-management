@@ -13,7 +13,7 @@ export function useBranding() {
   const query = useQuery({
     queryKey: ["branding"],
     queryFn: () => apiClient<Branding>("/settings/branding/public"),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   })
 
   return query.data ?? EMPTY_BRANDING
