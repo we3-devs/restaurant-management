@@ -99,3 +99,8 @@ schema.sql
 
 
 launcher.bat
+
+# Admin-uploaded branding images (logo/favicon). Runtime data, not source —
+# and on an ephemeral host this directory does not survive a redeploy.
+/backend/uploads/*
+!/backend/uploads/.gitkeep

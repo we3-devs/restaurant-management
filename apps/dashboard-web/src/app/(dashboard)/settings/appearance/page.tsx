@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type AppearanceSettings } from "@/hooks/use-settings"
@@ -71,8 +72,13 @@ export default function AppearanceSettingsPage() {
                   name="logoUrl"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel>Logo URL</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <FormLabel>Logo</FormLabel>
+                      <ImageUploadField
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={!canManage}
+                        hint="Shown in the sidebar and on the guest ordering app."
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -82,8 +88,13 @@ export default function AppearanceSettingsPage() {
                   name="faviconUrl"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel>Favicon URL</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <FormLabel>Favicon</FormLabel>
+                      <ImageUploadField
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={!canManage}
+                        hint="Browser tab icon. A square PNG of 32×32 or larger works best."
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

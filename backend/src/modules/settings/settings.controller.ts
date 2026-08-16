@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, Put, Req } from '@ne
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { User } from '../users/entities/user.entity';
@@ -27,6 +28,19 @@ export class SettingsController {
   @ApiOperation({ summary: 'Returns all settings categories as one object' })
   getAll() {
     return this.settingsService.getAll();
+  }
+
+  // Two path segments, so this can't be swallowed by @Get(':category') below —
+  // but it stays above it to match how the other controllers order their
+  // public routes.
+  @Public()
+  @Get('branding/public')
+  @ApiOperation({
+    summary:
+      'Restaurant name, logo, favicon and primary colour — unauthenticated, for app chrome',
+  })
+  getPublicBranding() {
+    return this.settingsService.getPublicBranding();
   }
 
   @Get(':category')

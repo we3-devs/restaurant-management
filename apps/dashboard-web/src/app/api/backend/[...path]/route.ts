@@ -7,12 +7,30 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   const targetPath = `/${path.join("/")}${search}`
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD"
-  const body = hasBody ? await request.text() : undefined
+  const contentType = request.headers.get("Content-Type") ?? ""
+  // multipart/form-data carries a generated boundary in its Content-Type and
+  // raw bytes in its body. text() would decode those bytes as UTF-8 and
+  // corrupt them, and dropping the header would lose the boundary — so binary
+  // content types are forwarded as an untouched ArrayBuffer with their header
+  // intact. ArrayBuffer (not a stream) also stays replayable for
+  // backendFetch's refresh-and-retry on 401.
+  const isBinary = hasBody && contentType !== "" && !contentType.includes("application/json")
+
+  let body: string | ArrayBuffer | undefined
+  if (hasBody) {
+    if (isBinary) {
+      const buffer = await request.arrayBuffer()
+      body = buffer.byteLength ? buffer : undefined
+    } else {
+      body = (await request.text()) || undefined
+    }
+  }
 
   try {
     const response = await backendFetch(targetPath, {
       method: request.method,
-      body: body || undefined,
+      body,
+      headers: isBinary ? { "Content-Type": contentType } : undefined,
     })
 
     // arrayBuffer (not text()) so binary bodies — report exports (xlsx/pdf)

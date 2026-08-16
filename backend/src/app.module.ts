@@ -52,6 +52,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
@@ -213,6 +214,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     DashboardCacheModule,
     ReportsModule,
     SettingsModule,
+    UploadsModule,
     AuditLogsModule,
     LoyaltyModule,
     CustomerAuthModule,

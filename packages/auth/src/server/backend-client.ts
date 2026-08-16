@@ -4,6 +4,9 @@ import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } fro
 
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
+/** Same origin the authenticated helpers below use, for unauthenticated server-side reads (e.g. branding in generateMetadata). */
+export const BACKEND_API_BASE = `${BACKEND_URL}/api`
+
 export class BackendUnauthorizedError extends Error {
   constructor() {
     super("Session expired or invalid")

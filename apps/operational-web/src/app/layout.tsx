@@ -5,6 +5,8 @@ import { QueryProvider } from "@rms/api-client/query-provider";
 import { ThemeProvider } from "@rms/ui/theme-provider";
 import { Toaster } from "@rms/ui/sonner";
 import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
+import { fetchBranding } from "@rms/api-client/branding";
+import { BACKEND_API_BASE } from "@rms/auth/server/backend-client";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,14 +18,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "RMS Operations",
-  description: "Restaurant Management System — Operations",
-  manifest: "/manifest.json",
-  icons: {
-    apple: "/icons/icon.svg",
-  },
-};
+// See dashboard-web's layout: dynamic so branding drives the tab, and the old
+// src/app/favicon.ico had to move to public/ or it would outrank this.
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await fetchBranding(BACKEND_API_BASE);
+  const name = branding.restaurantName ?? "RMS";
+
+  return {
+    title: `${name} Operations`,
+    description: `${name} — Operations`,
+    manifest: "/manifest.json",
+    icons: {
+      icon: branding.faviconUrl ?? "/favicon.ico",
+      apple: branding.faviconUrl ?? "/icons/icon.svg",
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

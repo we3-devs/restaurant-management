@@ -114,6 +114,40 @@ export function useSettingsCategory<T = Record<string, unknown>>(category: Setti
   })
 }
 
+export interface BrandingSettings {
+  restaurantName: string | null
+  logoUrl: string | null
+  faviconUrl: string | null
+  primaryColor: string | null
+}
+
+/**
+ * Uploads a logo/favicon and returns its hosted URL, for writing back into
+ * logoUrl/faviconUrl. Deliberately does not go through apiClient: that helper
+ * forces Content-Type: application/json, whereas FormData needs the browser to
+ * set the header itself so the multipart boundary is included.
+ */
+export function useUploadBranding() {
+  return useMutation({
+    mutationFn: async (file: File): Promise<{ url: string }> => {
+      const form = new FormData()
+      form.append("file", file)
+
+      const response = await fetch("/api/backend/uploads/branding", {
+        method: "POST",
+        body: form,
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.message ?? `Upload failed with ${response.status}`)
+      }
+
+      return (await response.json()) as { url: string }
+    },
+  })
+}
+
 export function useUpdateSettings<T = Record<string, unknown>>(category: SettingsCategory) {
   const queryClient = useQueryClient()
   return useMutation({

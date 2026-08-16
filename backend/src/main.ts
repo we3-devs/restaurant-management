@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import helmet from 'helmet';
@@ -8,9 +9,13 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppConfig } from './config/configuration';
+import {
+  UPLOADS_ROUTE,
+  resolveUploadDir,
+} from './modules/uploads/uploads.constants';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     logger: process.env.NODE_ENV !== 'production'
       ? ['debug', 'error', 'log', 'warn', 'verbose']
@@ -34,6 +39,21 @@ async function bootstrap() {
   app.enableCors({
     origin: configService.get('app', { infer: true })!.frontendUrls,
     credentials: true,
+  });
+
+  // Uploaded branding (logo/favicon). Filenames are UUIDs and never rewritten,
+  // so these are safe to cache immutably.
+  app.useStaticAssets(resolveUploadDir(configService), {
+    prefix: `/${UPLOADS_ROUTE}`,
+    immutable: true,
+    maxAge: '30d',
+    setHeaders: (res) => {
+      // helmet() defaults Cross-Origin-Resource-Policy to same-origin, which
+      // would stop all three apps — each a different origin from this API —
+      // from rendering an uploaded logo or favicon at all. Relaxed here only,
+      // for what are public brand images by definition.
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
   });
   app.useGlobalPipes(
     new ValidationPipe({

@@ -7,6 +7,7 @@ import { ShoppingCart, Minus, Plus, Send, X, Check, User } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
+import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
 import { authFetch, getJson, readError } from "@/lib/api";
@@ -55,6 +56,7 @@ const UNCATEGORISED = -1;
 export default function MenuContent() {
   const { tableCode } = useGuestSession();
   const { isAuthenticated, name: customerName } = useGuestAuth();
+  const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [variantFor, setVariantFor] = useState<Food | null>(null);
@@ -308,12 +310,23 @@ export default function MenuContent() {
         className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm"
       >
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3.5">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900">Menu</h1>
-            <p className="truncate text-xs text-slate-500">
-              Table {tableCode}
-              {customerName && ` · ${customerName}`}
-            </p>
+          <div className="flex min-w-0 items-center gap-2.5">
+            {branding.logoUrl && (
+              <img
+                src={branding.logoUrl}
+                alt=""
+                className="size-9 shrink-0 rounded-lg object-contain"
+              />
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
+                {branding.restaurantName ?? "Menu"}
+              </h1>
+              <p className="truncate text-xs text-slate-500">
+                Table {tableCode}
+                {customerName && ` · ${customerName}`}
+              </p>
+            </div>
           </div>
           {!isAuthenticated && (
             <button

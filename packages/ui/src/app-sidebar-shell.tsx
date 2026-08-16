@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { ChevronsLeftIcon, ChevronsRightIcon } from "lucide-react"
 
+import { useBranding } from "@rms/api-client/hooks/use-branding"
+
 import { Button } from "./button"
 import { useSidebarCollapsed } from "./use-sidebar-collapsed"
 import { AppSidebarNav, type NavGroup } from "./app-sidebar-nav"
@@ -22,6 +24,8 @@ export function AppSidebarShell({
   children: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = useSidebarCollapsed()
+  const branding = useBranding()
+  const name = branding.restaurantName ?? "RMS"
   const [forceOpenGroup, setForceOpenGroup] = useState<string | null>(null)
 
   function expandGroup(groupLabel: string) {
@@ -36,10 +40,24 @@ export function AppSidebarShell({
         className={`fixed h-screen inset-y-0 left-0 z-40 shrink-0 -translate-x-full border-r border-sidebar-border bg-sidebar transition-[width,transform] duration-200 max-lg:shadow-xl lg:static lg:translate-x-0 ${collapsed ? "w-16" : "w-64"}`}
       >
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            R
-          </span>
-          {!collapsed && <span className="font-semibold tracking-tight text-sidebar-foreground">RMS</span>}
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- admin-supplied
+            // host; next/image would need it declared in remotePatterns up front.
+            <img
+              src={branding.logoUrl}
+              alt={name}
+              className="size-7 shrink-0 rounded-lg object-contain"
+            />
+          ) : (
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+              {name.charAt(0).toUpperCase()}
+            </span>
+          )}
+          {!collapsed && (
+            <span className="truncate font-semibold tracking-tight text-sidebar-foreground">
+              {name}
+            </span>
+          )}
         </div>
         <div className="h-[calc(100%-3.5rem-3rem)] ">
           <AppSidebarNav

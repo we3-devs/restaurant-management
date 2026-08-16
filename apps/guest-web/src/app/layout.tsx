@@ -1,12 +1,23 @@
 import type { Metadata } from "next";
+import { fetchBranding } from "@rms/api-client/branding";
 import { Toaster } from "react-hot-toast";
 import { Providers } from "@/providers";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Order Menu",
-  description: "Restaurant QR menu ordering",
-};
+// Dynamic so a diner's browser tab shows the restaurant's own name and icon
+// rather than a generic one. NEXT_PUBLIC_API_URL already includes /api.
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await fetchBranding(
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api"
+  );
+  const name = branding.restaurantName ?? "Order Menu";
+
+  return {
+    title: name,
+    description: `Order from ${name}`,
+    ...(branding.faviconUrl ? { icons: { icon: branding.faviconUrl } } : {}),
+  };
+}
 
 export default function RootLayout({
   children,

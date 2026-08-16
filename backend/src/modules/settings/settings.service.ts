@@ -234,6 +234,38 @@ export class SettingsService {
   async getAppearanceSettings(): Promise<Record<string, unknown>> {
     return this.get('appearance');
   }
+
+  /**
+   * The unauthenticated slice of settings — just enough for any client to
+   * render the restaurant's identity. The guest app has no session at all when
+   * it paints its first frame, and GET /settings requires settings.view, so
+   * branding needs its own door.
+   *
+   * Note logoUrl exists in both categories. `appearance` is the branding
+   * screen an admin actually edits, so it wins; `business.logoUrl` is kept as
+   * a fallback for installs that filled that one in first.
+   */
+  async getPublicBranding(): Promise<{
+    restaurantName: string | null;
+    logoUrl: string | null;
+    faviconUrl: string | null;
+    primaryColor: string | null;
+  }> {
+    const [business, appearance] = await Promise.all([
+      this.get('business'),
+      this.get('appearance'),
+    ]);
+
+    const pick = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim() ? value.trim() : null;
+
+    return {
+      restaurantName: pick(business.restaurantName),
+      logoUrl: pick(appearance.logoUrl) ?? pick(business.logoUrl),
+      faviconUrl: pick(appearance.faviconUrl),
+      primaryColor: pick(appearance.primaryColor),
+    };
+  }
 }
 
 export { CATEGORIES as SETTINGS_CATEGORIES, CATEGORY_DTO_MAP };

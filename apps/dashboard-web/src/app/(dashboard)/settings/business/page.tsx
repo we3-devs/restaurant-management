@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type BusinessSettings } from "@/hooks/use-settings"
@@ -88,8 +89,13 @@ export default function BusinessSettingsPage() {
                   name="logoUrl"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel>Logo URL</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <FormLabel>Logo</FormLabel>
+                      <ImageUploadField
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={!canManage}
+                        hint="Used on receipts. Appearance settings override this for app chrome."
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

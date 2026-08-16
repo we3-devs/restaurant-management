@@ -2,6 +2,8 @@ export interface AppConfig {
   app: {
     port: number;
     frontendUrls: string[];
+    publicUrl: string;
+    uploadDir: string;
   };
   database: {
     host: string;
@@ -34,6 +36,13 @@ export default (): AppConfig => ({
       .split(',')
       .map((url) => url.trim())
       .filter(Boolean),
+    // Uploaded branding is referenced by absolute URL — the guest app, the two
+    // staff apps and a printed receipt are all different origins, so a relative
+    // /api/uploads path would resolve against the wrong host.
+    publicUrl: (
+      process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? '3001'}`
+    ).replace(/\/$/, ''),
+    uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
   },
   database: {
     host: process.env.DB_HOST ?? '127.0.0.1',
