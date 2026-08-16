@@ -1,17 +1,31 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 entrypoint. This MUST be `@import "tailwindcss"` — the v3
+   `@tailwind base/components/utilities` directives are gone in v4, and using
+   them silently yields a stylesheet with no theme: colours, spacing, radii,
+   shadows and breakpoints all compile to nothing. */
+@import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* v4 is CSS-first, so there is no tailwind.config.ts. Sources are declared
+   here — relative to this file, `../` is src/, which also picks up
+   hooks/ and providers.tsx (the old JS config only scanned src/app). */
+@source "../**/*.{js,ts,jsx,tsx,mdx}";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --color-brand-50: oklch(0.97 0.014 254);
+  --color-brand-100: oklch(0.93 0.032 255);
+  --color-brand-600: oklch(0.55 0.196 258);
+  --color-brand-700: oklch(0.49 0.18 258);
+  --color-brand-800: oklch(0.42 0.15 258);
+}
+
+html {
+  /* Guests reach this on a phone, one-handed, often mid-conversation. */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
 }

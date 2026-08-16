@@ -1,50 +1,107 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle, AlertCircle, ChefHat, Bell } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 
 interface OrderItem {
   id: number;
-  foodId: number;
-  food: {
-    name: string;
-    price: number;
-  };
   quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  food: { name: string } | null;
+  foodVariant: { name: string } | null;
 }
 
 interface Order {
   id: number;
+  orderNumber: string;
   status: string;
-  total: number;
+  grandTotal: number;
   items: OrderItem[];
   createdAt: string;
-  updatedAt: string;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
-export default function OrderContent() {
-  const { tableCode, isLocked } = useGuestSession();
+const money = (n: number) => `Rs. ${Number(n || 0).toLocaleString("en-IN")}`;
 
-  const { data: orders = [], isLoading } = useQuery({
+// The stages a guest actually cares about, in kitchen order.
+const STAGES = ["pending", "accepted", "preparing", "ready"] as const;
+
+const STAGE_META: Record<
+  string,
+  { label: string; icon: React.ReactNode; tone: string }
+> = {
+  pending: {
+    label: "Sent to kitchen",
+    icon: <Clock size={18} />,
+    tone: "bg-amber-50 text-amber-700 ring-amber-200",
+  },
+  accepted: {
+    label: "Accepted",
+    icon: <CheckCircle size={18} />,
+    tone: "bg-blue-50 text-blue-700 ring-blue-200",
+  },
+  preparing: {
+    label: "Being prepared",
+    icon: <ChefHat size={18} />,
+    tone: "bg-orange-50 text-orange-700 ring-orange-200",
+  },
+  ready: {
+    label: "Ready to serve",
+    icon: <Bell size={18} />,
+    tone: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  },
+  completed: {
+    label: "Completed",
+    icon: <CheckCircle size={18} />,
+    tone: "bg-slate-100 text-slate-600 ring-slate-200",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: <AlertCircle size={18} />,
+    tone: "bg-red-50 text-red-700 ring-red-200",
+  },
+};
+
+export default function OrderContent() {
+  const { tableCode } = useGuestSession();
+
+  const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["orders", tableCode],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/orders/guest/mine?tableCode=${tableCode}`);
+      const res = await fetch(
+        `${API_URL}/orders/guest/mine?tableCode=${encodeURIComponent(tableCode!)}`
+      );
       if (!res.ok) return [];
       const data = await res.json();
-      return Array.isArray(data.data) ? data.data : [data.data];
+      // This endpoint returns a bare array, not the paginated {data,meta} envelope.
+      return Array.isArray(data) ? data : (data.data ?? []);
     },
-    refetchInterval: 3000,
+    refetchInterval: 5000,
     enabled: !!tableCode,
   });
 
   if (!tableCode) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="text-center">
-          <p className="text-red-600 text-xl">Invalid table code</p>
+          <p className="text-lg font-semibold text-slate-900">Invalid table code</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Scan the QR code on your table to start ordering.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-6">
+        <div className="mx-auto max-w-2xl space-y-3">
+          <div className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white" />
+          <div className="h-48 animate-pulse rounded-xl border border-slate-200 bg-white" />
         </div>
       </div>
     );
@@ -52,106 +109,118 @@ export default function OrderContent() {
 
   const currentOrder = orders[0];
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      accepted: "bg-blue-100 text-blue-800",
-      preparing: "bg-orange-100 text-orange-800",
-      ready: "bg-green-100 text-green-800",
-      completed: "bg-gray-100 text-gray-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const getStatusIcon = (status: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      pending: <Clock className="w-5 h-5" />,
-      accepted: <CheckCircle className="w-5 h-5" />,
-      preparing: <Clock className="w-5 h-5" />,
-      ready: <CheckCircle className="w-5 h-5" />,
-      completed: <CheckCircle className="w-5 h-5" />,
-    };
-    return icons[status];
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500">Loading order...</p>
-      </div>
-    );
-  }
-
   if (!currentOrder) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">No Active Orders</h1>
-          <p className="text-gray-600">Table {tableCode}</p>
-        </div>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+        <AlertCircle size={40} className="text-slate-300" />
+        <h1 className="mt-4 text-lg font-semibold text-slate-900">
+          No active orders
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">Table {tableCode}</p>
+        <a
+          href={`/menu?table=${tableCode}`}
+          className="mt-6 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
+        >
+          Browse menu
+        </a>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold">Order #{currentOrder.id}</h1>
-          <p className="text-sm text-gray-600">Table {tableCode}</p>
-        </div>
-      </div>
+  const meta = STAGE_META[currentOrder.status] ?? STAGE_META.pending;
+  const stageIndex = STAGES.indexOf(currentOrder.status as (typeof STAGES)[number]);
+  const isTerminal =
+    currentOrder.status === "completed" || currentOrder.status === "cancelled";
 
-      {/* Status */}
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center gap-4">
-            {getStatusIcon(currentOrder.status)}
-            <div>
-              <p className="text-sm text-gray-600">Order Status</p>
-              <p className={`text-2xl font-bold inline-block px-4 py-2 rounded-lg ${getStatusColor(currentOrder.status)}`}>
-                {currentOrder.status.toUpperCase()}
-              </p>
-            </div>
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-2xl px-4 py-4">
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
+            Order {currentOrder.orderNumber ?? `#${currentOrder.id}`}
+          </h1>
+          <p className="text-xs text-slate-500">Table {tableCode}</p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl space-y-4 px-4 py-5 pb-28">
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ring-1 ${meta.tone}`}
+          >
+            {meta.icon}
+            {meta.label}
           </div>
 
-          {currentOrder.status === "ready" && (
-            <div className="mt-4 p-4 bg-green-100 border-l-4 border-green-600 rounded">
-              <p className="text-green-800 font-semibold">✓ Your order is ready!</p>
+          {!isTerminal && (
+            <div className="mt-5 flex gap-1.5" aria-hidden>
+              {STAGES.map((stage, i) => (
+                <div
+                  key={stage}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    i <= stageIndex ? "bg-brand-600" : "bg-slate-200"
+                  }`}
+                />
+              ))}
             </div>
           )}
-        </div>
 
-        {/* Items */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">Items</h2>
-          <div className="space-y-3">
-            {currentOrder.items.map((item: OrderItem) => (
-              <div key={item.id} className="flex justify-between items-center border-b pb-3">
-                <div>
-                  <p className="font-semibold">{item.food.name}</p>
-                  <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+          {currentOrder.status === "ready" && (
+            <p className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              Your order is ready — it will be with you shortly.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            Items
+          </h2>
+          <ul className="divide-y divide-slate-100">
+            {currentOrder.items?.map((item) => (
+              <li key={item.id} className="flex justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    {item.food?.name ?? "Item"}
+                    {item.foodVariant && (
+                      <span className="text-slate-400"> · {item.foodVariant.name}</span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {item.quantity} × {money(item.unitPrice)}
+                  </p>
                 </div>
-                <p className="font-semibold">Rs. {(item.food.price * item.quantity).toLocaleString()}</p>
-              </div>
+                <p className="shrink-0 text-sm font-semibold text-slate-900">
+                  {money(item.totalAmount)}
+                </p>
+              </li>
             ))}
+          </ul>
+          <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+            <span className="text-sm text-slate-500">Total</span>
+            <span className="text-lg font-semibold text-slate-900">
+              {money(currentOrder.grandTotal)}
+            </span>
           </div>
+        </section>
 
-          <div className="mt-4 pt-4 border-t-2 flex justify-between items-center text-lg font-bold">
-            <span>Total:</span>
-            <span>Rs. {currentOrder.total.toLocaleString()}</span>
-          </div>
+        {orders.length > 1 && (
+          <p className="text-center text-xs text-slate-400">
+            + {orders.length - 1} earlier{" "}
+            {orders.length - 1 === 1 ? "order" : "orders"} on this table
+          </p>
+        )}
+      </main>
+
+      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
+        <div className="mx-auto max-w-2xl px-4 py-3">
+          <a
+            href={`/menu?table=${tableCode}`}
+            className="flex w-full items-center justify-center rounded-xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99]"
+          >
+            Back to menu
+          </a>
         </div>
-
-        {/* Back Button */}
-        <button
-          onClick={() => (window.location.href = `/menu?table=${tableCode}`)}
-          className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          Back to Menu
-        </button>
       </div>
     </div>
   );
