@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { ShoppingCart, Minus, Plus, Send, X, Check } from "lucide-react";
@@ -63,6 +63,9 @@ export default function MenuContent() {
   const [variantFor, setVariantFor] = useState<Food | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const sectionRefs = useRef<Record<number, HTMLElement | null>>({});
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [activeSection, setActiveSection] = useState<number | null>(null);
+  const [tailSpace, setTailSpace] = useState(112);
 
   const { data: foods = [], isLoading: foodsLoading } = useQuery<Food[]>({
     queryKey: ["foods"],
@@ -190,8 +193,43 @@ export default function MenuContent() {
   const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
   const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
+  // The last section can only reach the top of the viewport if there is a
+  // viewport's worth of scrollable room beneath its heading. Real menus rarely
+  // have that (the final category is often one item), so the shortfall is
+  // measured and added as trailing space. It doubles as clearance for the
+  // fixed cart bar, hence the 112px floor.
+  useEffect(() => {
+    const last = sections[sections.length - 1];
+    const el = last ? sectionRefs.current[last.id] : null;
+    if (!el) return;
+
+    const recalc = () => {
+      const headerH = headerRef.current?.offsetHeight ?? 0;
+      const shortfall = window.innerHeight - headerH - el.offsetHeight - 8;
+      setTailSpace(Math.max(112, Math.ceil(shortfall)));
+    };
+
+    recalc();
+    // The section keeps growing after first paint — variant prices arrive on
+    // their own requests — so observe it rather than measuring only once.
+    const observer = new ResizeObserver(recalc);
+    observer.observe(el);
+    window.addEventListener("resize", recalc);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", recalc);
+    };
+  }, [sections]);
+
   const scrollTo = (id: number) => {
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const el = sectionRefs.current[id];
+    if (!el) return;
+    setActiveSection(id);
+    // Offset by the live sticky-header height rather than a fixed scroll-margin,
+    // since the header grows a second row once the category nav is present.
+    const headerH = headerRef.current?.offsetHeight ?? 0;
+    const top = window.scrollY + el.getBoundingClientRect().top - headerH - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   };
 
   const handleSubmit = async () => {
@@ -247,7 +285,10 @@ export default function MenuContent() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm"
+      >
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3.5">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900">Menu</h1>
@@ -273,7 +314,12 @@ export default function MenuContent() {
               <button
                 key={s.id}
                 onClick={() => scrollTo(s.id)}
-                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+                aria-current={activeSection === s.id}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition active:scale-95 ${
+                  activeSection === s.id
+                    ? "border-brand-600 bg-brand-600 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                }`}
               >
                 {s.name}
               </button>
@@ -282,7 +328,7 @@ export default function MenuContent() {
         )}
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-5 pb-28">
+      <main className="mx-auto max-w-3xl px-4 py-5">
         {foodsLoading ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -304,7 +350,6 @@ export default function MenuContent() {
                 ref={(el) => {
                   sectionRefs.current[section.id] = el;
                 }}
-                className="scroll-mt-32"
               >
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
                   {section.name}
@@ -357,6 +402,8 @@ export default function MenuContent() {
             ))}
           </div>
         )}
+
+        <div aria-hidden style={{ height: tailSpace }} />
       </main>
 
       {/* Persistent bar — the primary way back to the cart on a phone. */}
