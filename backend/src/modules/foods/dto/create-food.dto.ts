@@ -57,6 +57,12 @@ export class CreateFoodDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Photo of the dish, from POST /uploads/food' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  imageUrl?: string;
+
   @ApiPropertyOptional({ enum: FOOD_TYPES })
   @IsOptional()
   @IsIn(FOOD_TYPES)

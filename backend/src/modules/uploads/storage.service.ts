@@ -11,8 +11,10 @@ import {
   resolveUploadDir,
 } from './uploads.constants';
 
-const OBJECT_PREFIX = 'branding';
 const CACHE_CONTROL = 'public, max-age=2592000, immutable';
+
+/** Keeps bucket objects grouped by what they are, so branding and menu photos stay separable. */
+export type UploadPurpose = 'branding' | 'food';
 
 /**
  * Saves branding images to an S3-compatible bucket, falling back to local disk
@@ -57,14 +59,20 @@ export class StorageService {
     }
   }
 
-  async saveImage(buffer: Buffer, mimetype: string): Promise<string> {
+  async saveImage(
+    buffer: Buffer,
+    mimetype: string,
+    purpose: UploadPurpose = 'branding',
+  ): Promise<string> {
     const filename = `${randomUUID()}${ALLOWED_IMAGE_TYPES[mimetype]}`;
 
     if (!this.client) {
+      // Disk keeps a flat layout: main.ts serves one directory, and the
+      // filename is already a UUID so there's nothing to collide.
       return this.saveToDisk(buffer, filename);
     }
 
-    const key = `${OBJECT_PREFIX}/${filename}`;
+    const key = `${purpose}/${filename}`;
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

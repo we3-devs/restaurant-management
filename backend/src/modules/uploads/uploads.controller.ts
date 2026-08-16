@@ -41,7 +41,42 @@ export class UploadsController {
       );
     }
 
-    const url = await this.storageService.saveImage(file.buffer, file.mimetype);
+    const url = await this.storageService.saveImage(
+      file.buffer,
+      file.mimetype,
+      'branding',
+    );
+    return { url };
+  }
+
+  @Post('food')
+  // Whoever can edit the menu can attach a photo to it. Separate route rather
+  // than a :purpose param because @RequirePermissions is resolved per route —
+  // a dynamic segment can't select the guard.
+  @RequirePermissions('foods.manage')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({
+    summary: 'Uploads a menu item photo and returns its absolute URL, for use as imageUrl on a food',
+  })
+  async uploadFoodImage(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException(
+        'A PNG, JPEG, WebP, GIF or ICO file under 2MB is required',
+      );
+    }
+
+    const url = await this.storageService.saveImage(
+      file.buffer,
+      file.mimetype,
+      'food',
+    );
     return { url };
   }
 }

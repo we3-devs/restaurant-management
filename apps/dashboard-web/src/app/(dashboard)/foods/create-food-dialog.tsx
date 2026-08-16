@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useCreateFood } from "@/hooks/use-foods"
@@ -38,6 +39,7 @@ export function CreateFoodDialog() {
       name: "",
       slug: "",
       sku: "",
+      imageUrl: "",
       itemType: "food",
       departmentType: undefined,
       basePrice: 0,
@@ -53,6 +55,7 @@ export function CreateFoodDialog() {
         name: "",
         slug: "",
         sku: "",
+        imageUrl: "",
         itemType: "food",
         departmentType: undefined,
         basePrice: 0,
@@ -127,6 +130,22 @@ export function CreateFoodDialog() {
                 <FormItem>
                   <FormLabel>SKU (optional)</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="imageUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Photo (optional)</FormLabel>
+                  <ImageUploadField
+                    purpose="food"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    hint="Shown on the guest menu. Variants of this item share it."
+                  />
                   <FormMessage />
                 </FormItem>
               )}

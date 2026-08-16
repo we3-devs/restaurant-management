@@ -12,6 +12,8 @@ import type {
 export interface FoodVariant {
   id: number
   foodId: number
+  /** NULL for a top-level variant; otherwise the group it sits under. */
+  parentId: number | null
   name: string
   sku: string | null
   price: number
@@ -36,6 +38,7 @@ export interface ListFoodVariantsParams {
   limit?: number
   search?: string
   foodId?: number
+  parentId?: number
 }
 
 export function useFoodVariants(params: ListFoodVariantsParams = {}) {

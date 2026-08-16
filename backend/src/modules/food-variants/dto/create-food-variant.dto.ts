@@ -15,6 +15,14 @@ export class CreateFoodVariantDto {
   @IsInt()
   foodId: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Parent variant id for a two-level menu, e.g. Half/Full nested under Veg. Omit for a top-level variant.',
+  })
+  @IsOptional()
+  @IsInt()
+  parentId?: number;
+
   @ApiProperty({ example: 'Large' })
   @IsString()
   @MinLength(1)

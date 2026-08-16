@@ -26,6 +26,7 @@ export const createFoodSchema = z.object({
     .min(2)
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lowercase, alphanumeric, hyphen-separated"),
   sku: z.string().optional(),
+  imageUrl: z.string().optional(),
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
   departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).optional(),
@@ -40,6 +41,7 @@ export const updateFoodSchema = z.object({
   sku: z.string().optional(),
   shortDescription: z.string().optional(),
   description: z.string().optional(),
+  imageUrl: z.string().optional(),
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
   departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).nullable().optional(),

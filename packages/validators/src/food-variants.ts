@@ -2,6 +2,8 @@ import { z } from "zod"
 
 export const createFoodVariantSchema = z.object({
   foodId: z.number({ message: "Select a food" }).positive(),
+  /** Nest under a top-level variant to build e.g. Momo -> Veg -> Half/Full. */
+  parentId: z.number().positive().nullable().optional(),
   name: z.string().min(1, "Name is required"),
   sku: z.string().optional(),
   price: z.number().min(0),

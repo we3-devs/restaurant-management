@@ -18,7 +18,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCreateFoodVariant } from "@/hooks/use-food-variants"
+import { useCreateFoodVariant, useFoodVariants } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
 import { createFoodVariantSchema, type CreateFoodVariantInput } from "@/lib/validators/food-variants"
 
@@ -29,14 +29,26 @@ export function CreateFoodVariantDialog() {
 
   const form = useForm<CreateFoodVariantInput>({
     resolver: zodResolver(createFoodVariantSchema),
-    defaultValues: { foodId: 0, name: "", sku: "", price: 0, isDefault: false },
+    defaultValues: { foodId: 0, parentId: null, name: "", sku: "", price: 0, isDefault: false },
   })
+
+  const selectedFoodId = form.watch("foodId")
+
+  // Only variants of the chosen food can be parents, and only top-level ones —
+  // the backend rejects anything deeper, so don't offer it here either.
+  const { data: siblingVariants } = useFoodVariants(
+    selectedFoodId ? { foodId: selectedFoodId, limit: 100 } : {},
+  )
+  const parentOptions =
+    selectedFoodId && siblingVariants
+      ? siblingVariants.data.filter((variant) => variant.parentId === null)
+      : []
 
   async function onSubmit(values: CreateFoodVariantInput) {
     try {
       await createFoodVariant.mutateAsync(values)
       toast.success(`Variant "${values.name}" created`)
-      form.reset({ foodId: 0, name: "", sku: "", price: 0, isDefault: false })
+      form.reset({ foodId: 0, parentId: null, name: "", sku: "", price: 0, isDefault: false })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create variant")
@@ -77,6 +89,40 @@ export function CreateFoodVariantDialog() {
                 </FormItem>
               )}
             />
+            {parentOptions.length > 0 && (
+              <FormField
+                control={form.control}
+                name="parentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sub-variant of (optional)</FormLabel>
+                    <Select
+                      value={field.value ? String(field.value) : "none"}
+                      onValueChange={(value) =>
+                        field.onChange(value === "none" ? null : Number(value))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Top level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Top level</SelectItem>
+                        {parentOptions.map((variant) => (
+                          <SelectItem key={variant.id} value={String(variant.id)}>
+                            {variant.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Nest a size under a type, e.g. Half under Veg. The price on
+                      the deepest level is what gets ordered.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="name"

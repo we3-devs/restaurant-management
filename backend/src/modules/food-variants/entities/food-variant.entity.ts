@@ -5,6 +5,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -31,6 +32,29 @@ export class FoodVariant {
   @ManyToOne(() => Food, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'food_id' })
   food: Food;
+
+  /**
+   * Self-reference for two-level variants: Momo -> Veg -> Half/Full.
+   * NULL means top level. A row with children is a grouping label whose own
+   * price is ignored; the leaf the guest picks is what gets ordered.
+   */
+  @Column({
+    name: 'parent_id',
+    type: 'bigint',
+    nullable: true,
+    transformer: new BigIntTransformer(),
+  })
+  parentId: number | null;
+
+  @ManyToOne(() => FoodVariant, (variant) => variant.children, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'parent_id' })
+  parent: FoodVariant | null;
+
+  @OneToMany(() => FoodVariant, (variant) => variant.parent)
+  children: FoodVariant[];
 
   @Column({ type: 'varchar', length: 255 })
   name: string;

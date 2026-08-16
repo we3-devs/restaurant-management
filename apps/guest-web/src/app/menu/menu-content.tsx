@@ -3,7 +3,17 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { ShoppingCart, Minus, Plus, Send, X, Check, User } from "lucide-react";
+import {
+  ShoppingCart,
+  Minus,
+  Plus,
+  Send,
+  X,
+  Check,
+  User,
+  ArrowLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
@@ -20,6 +30,7 @@ interface Food {
   foodCategoryId: number | null;
   name: string;
   shortDescription?: string | null;
+  imageUrl: string | null;
   basePrice: number;
   hasVariants: boolean;
   hasAddons: boolean;
@@ -34,6 +45,8 @@ interface Category {
 interface Variant {
   id: number;
   foodId: number;
+  /** NULL for a top-level variant; otherwise the group it sits under. */
+  parentId: number | null;
   name: string;
   price: number;
   isDefault: boolean;
@@ -43,6 +56,8 @@ interface CartItem {
   key: string;
   food: Food;
   variant: Variant | null;
+  /** "Veg · Full" for a nested pick, "Full" for a flat one. */
+  variantLabel: string | null;
   unitPrice: number;
   quantity: number;
 }
@@ -60,6 +75,8 @@ export default function MenuContent() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [variantFor, setVariantFor] = useState<Food | null>(null);
+  // Step 2 of the picker: which top-level group (Veg / Chicken) is open.
+  const [variantGroup, setVariantGroup] = useState<Variant | null>(null);
   // Tracks why the gate opened: signing in from the header shouldn't silently
   // send an order just because the cart happens to be full.
   const [authIntent, setAuthIntent] = useState<"checkout" | "login" | null>(null);
@@ -108,13 +125,29 @@ export default function MenuContent() {
     return map;
   }, [variantFoods, variantResults]);
 
-  const priceOf = useCallback(
-    (food: Food) => {
-      const variants = variantsByFood[food.id];
-      if (!variants?.length) return food.basePrice;
-      return Math.min(...variants.map((v) => v.price));
+  /**
+   * A leaf is a variant nothing else nests under — the only kind that can be
+   * ordered. Grouping rows like "Veg" carry a placeholder price that would
+   * drag the displayed minimum down if counted.
+   */
+  const leavesOf = useCallback(
+    (foodId: number) => {
+      const variants = variantsByFood[foodId];
+      if (!variants?.length) return [];
+      return variants.filter(
+        (variant) => !variants.some((other) => other.parentId === variant.id)
+      );
     },
     [variantsByFood]
+  );
+
+  const priceOf = useCallback(
+    (food: Food) => {
+      const leaves = leavesOf(food.id);
+      if (!leaves.length) return food.basePrice;
+      return Math.min(...leaves.map((leaf) => leaf.price));
+    },
+    [leavesOf]
   );
 
   const categoryName = useCallback(
@@ -156,7 +189,7 @@ export default function MenuContent() {
   }, [foods, categories, categoryName]);
 
   const addItem = useCallback(
-    (food: Food, variant: Variant | null) => {
+    (food: Food, variant: Variant | null, variantLabel: string | null) => {
       const key = cartKey(food.id, variant?.id);
       const unitPrice = variant ? variant.price : food.basePrice;
       setCart((prev) => {
@@ -166,9 +199,12 @@ export default function MenuContent() {
             i.key === key ? { ...i, quantity: i.quantity + 1 } : i
           );
         }
-        return [...prev, { key, food, variant, unitPrice, quantity: 1 }];
+        return [
+          ...prev,
+          { key, food, variant, variantLabel, unitPrice, quantity: 1 },
+        ];
       });
-      toast.success(variant ? `${food.name} · ${variant.name}` : food.name);
+      toast.success(variantLabel ? `${food.name} · ${variantLabel}` : food.name);
     },
     []
   );
@@ -178,9 +214,10 @@ export default function MenuContent() {
       const variants = variantsByFood[food.id];
       if (food.hasVariants && variants?.length) {
         setVariantFor(food);
+        setVariantGroup(null);
         return;
       }
-      addItem(food, null);
+      addItem(food, null, null);
     },
     [variantsByFood, addItem]
   );
@@ -399,13 +436,24 @@ export default function MenuContent() {
                 </h2>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {section.foods.map((food) => {
-                    const variants = variantsByFood[food.id];
-                    const showsRange = food.hasVariants && (variants?.length ?? 0) > 1;
+                    // Count orderable leaves, not tree rows — three sizes under
+                    // one group is "3 options", not 4.
+                    const leaves = leavesOf(food.id);
+                    const showsRange = food.hasVariants && leaves.length > 1;
                     return (
                       <article
                         key={food.id}
-                        className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
+                        className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
                       >
+                        {food.imageUrl && (
+                          <img
+                            src={food.imageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="h-36 w-full bg-slate-100 object-cover"
+                          />
+                        )}
+                        <div className="flex flex-1 flex-col justify-between p-4">
                         <div>
                           <h3 className="font-medium leading-snug text-slate-900">
                             {food.name}
@@ -417,7 +465,7 @@ export default function MenuContent() {
                           )}
                           {showsRange && (
                             <p className="mt-1.5 text-xs text-slate-400">
-                              {variants.length} options
+                              {leaves.length} options
                             </p>
                           )}
                         </div>
@@ -436,6 +484,7 @@ export default function MenuContent() {
                           >
                             {showsRange ? "Choose" : "Add"}
                           </button>
+                        </div>
                         </div>
                       </article>
                     );
@@ -478,55 +527,116 @@ export default function MenuContent() {
         </div>
       )}
 
-      {/* Variant picker */}
-      {variantFor && (
-        <>
-          <div
-            onClick={() => setVariantFor(null)}
-            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px]"
-          />
-          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-x-auto sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5">
-              <div className="min-w-0">
-                <h2 className="font-semibold text-slate-900">{variantFor.name}</h2>
-                <p className="text-xs text-slate-500">Choose an option</p>
-              </div>
-              <button
-                onClick={() => setVariantFor(null)}
-                aria-label="Close"
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <ul className="max-h-[50vh] space-y-2 overflow-y-auto p-4">
-              {(variantsByFood[variantFor.id] ?? []).map((variant) => (
-                <li key={variant.id}>
+      {/* Variant picker — one step for a flat list, two when the food nests
+          sizes under types (Momo -> Veg -> Half/Full). */}
+      {variantFor &&
+        (() => {
+          const all = variantsByFood[variantFor.id] ?? [];
+          const childrenOf = (id: number) =>
+            all.filter((variant) => variant.parentId === id);
+
+          // Showing the children of the open group, or the top level.
+          const options = variantGroup
+            ? childrenOf(variantGroup.id)
+            : all.filter((variant) => variant.parentId === null);
+
+          const closePicker = () => {
+            setVariantFor(null);
+            setVariantGroup(null);
+          };
+
+          return (
+            <>
+              <div
+                onClick={closePicker}
+                className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px]"
+              />
+              <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {variantGroup && (
+                      <button
+                        onClick={() => setVariantGroup(null)}
+                        aria-label="Back"
+                        className="-ml-1 rounded-full p-1.5 text-slate-500 transition hover:bg-slate-100"
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+                    )}
+                    <div className="min-w-0">
+                      <h2 className="truncate font-semibold text-slate-900">
+                        {variantFor.name}
+                      </h2>
+                      <p className="truncate text-xs text-slate-500">
+                        {variantGroup
+                          ? `${variantGroup.name} — choose a size`
+                          : "Choose an option"}
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={() => {
-                      addItem(variantFor, variant);
-                      setVariantFor(null);
-                    }}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                    onClick={closePicker}
+                    aria-label="Close"
+                    className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
                   >
-                    <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                      {variant.name}
-                      {variant.isDefault && (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
-                          popular
-                        </span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-sm font-semibold text-slate-900">
-                      {money(variant.price)}
-                    </span>
+                    <X size={20} />
                   </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
-      )}
+                </div>
+
+                <ul className="max-h-[50vh] space-y-2 overflow-y-auto p-4">
+                  {options.map((variant) => {
+                    const children = childrenOf(variant.id);
+                    const isGroup = children.length > 0;
+                    // A group's own price is a placeholder, so show the range
+                    // its children actually cost.
+                    const from = isGroup
+                      ? Math.min(...children.map((child) => child.price))
+                      : variant.price;
+
+                    return (
+                      <li key={variant.id}>
+                        <button
+                          onClick={() => {
+                            if (isGroup) {
+                              setVariantGroup(variant);
+                              return;
+                            }
+                            const label = variantGroup
+                              ? `${variantGroup.name} · ${variant.name}`
+                              : variant.name;
+                            addItem(variantFor, variant, label);
+                            closePicker();
+                          }}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                        >
+                          <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                            {variant.name}
+                            {variant.isDefault && !isGroup && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
+                                popular
+                              </span>
+                            )}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-slate-900">
+                            {isGroup && (
+                              <span className="text-xs font-normal text-slate-400">
+                                from
+                              </span>
+                            )}
+                            {money(from)}
+                            {isGroup && (
+                              <ChevronRight size={15} className="text-slate-400" />
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
+          );
+        })()}
 
       {cartOpen && (
         <div
@@ -567,9 +677,9 @@ export default function MenuContent() {
                       <p className="text-sm font-medium text-slate-900">
                         {item.food.name}
                       </p>
-                      {item.variant && (
+                      {item.variantLabel && (
                         <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                          <Check size={12} /> {item.variant.name}
+                          <Check size={12} /> {item.variantLabel}
                         </p>
                       )}
                     </div>

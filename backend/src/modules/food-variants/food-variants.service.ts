@@ -25,6 +25,8 @@ import { FoodVariant } from './entities/food-variant.entity';
 export interface PublicFoodVariant {
   id: number;
   foodId: number;
+  /** NULL for a top-level variant; otherwise the group this one sits under. */
+  parentId: number | null;
   name: string;
   price: number;
   isDefault: boolean;
@@ -45,10 +47,13 @@ export class FoodVariantsService {
   async findAll(
     query: ListFoodVariantsQueryDto,
   ): Promise<PaginatedResponse<FoodVariant>> {
-    const { page, limit, search, foodId } = query;
+    const { page, limit, search, foodId, parentId } = query;
     const where: FindOptionsWhere<FoodVariant> = {};
     if (foodId !== undefined) {
       where.foodId = foodId;
+    }
+    if (parentId !== undefined) {
+      where.parentId = parentId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
@@ -67,7 +72,15 @@ export class FoodVariantsService {
     };
   }
 
-  /** Guest-facing variant listing for /guest ordering — active variants only, trimmed fields. Requires foodId (never list every variant in the system to an anonymous request). */
+  /**
+   * Guest-facing variant listing for /guest ordering — active variants only,
+   * trimmed fields. Requires foodId (never list every variant in the system to
+   * an anonymous request).
+   *
+   * Returns the food's whole variant tree flat, both levels, with parentId on
+   * each row: one request per food, and the client assembles the hierarchy.
+   * Paginating a tree would risk splitting children away from their parent.
+   */
   async findAllPublic(
     query: ListFoodVariantsQueryDto,
   ): Promise<PaginatedResponse<PublicFoodVariant>> {
@@ -87,6 +100,7 @@ export class FoodVariantsService {
       data: variants.map((variant) => ({
         id: variant.id,
         foodId: variant.foodId,
+        parentId: variant.parentId,
         name: variant.name,
         price: variant.price,
         isDefault: variant.isDefault,
@@ -103,8 +117,43 @@ export class FoodVariantsService {
     return variant;
   }
 
+  /**
+   * A parent must belong to the same food and must itself be top-level. The FK
+   * alone would happily allow a variant of one dish to parent a variant of
+   * another, or a three-deep chain that no part of the UI can render.
+   */
+  private async assertValidParent(
+    parentId: number,
+    foodId: number,
+    selfId?: number,
+  ): Promise<void> {
+    if (selfId !== undefined && parentId === selfId) {
+      throw new BadRequestException('A variant cannot be its own parent');
+    }
+
+    const parent = await this.variantsRepository.findOne({
+      where: { id: parentId },
+    });
+    if (!parent) {
+      throw new NotFoundException(`Food variant ${parentId} not found`);
+    }
+    if (parent.foodId !== foodId) {
+      throw new BadRequestException(
+        `Parent variant ${parentId} belongs to a different food`,
+      );
+    }
+    if (parent.parentId !== null) {
+      throw new BadRequestException(
+        'Variants can only nest one level deep (e.g. Veg -> Half), so the parent must be a top-level variant',
+      );
+    }
+  }
+
   async create(dto: CreateFoodVariantDto): Promise<FoodVariant> {
     await this.foodsService.findOne(dto.foodId);
+    if (dto.parentId !== undefined && dto.parentId !== null) {
+      await this.assertValidParent(dto.parentId, dto.foodId);
+    }
 
     try {
       const variant = await this.dataSource.transaction(async (manager) => {
@@ -118,6 +167,7 @@ export class FoodVariantsService {
 
         const entity = manager.create(FoodVariant, {
           foodId: dto.foodId,
+          parentId: dto.parentId ?? null,
           name: dto.name,
           sku: dto.sku ?? null,
           price: dto.price ?? 0,
@@ -142,6 +192,25 @@ export class FoodVariantsService {
 
   async update(id: number, dto: UpdateFoodVariantDto): Promise<FoodVariant> {
     const variant = await this.findOne(id);
+
+    if (dto.parentId !== undefined) {
+      if (dto.parentId === null) {
+        variant.parentId = null;
+      } else {
+        await this.assertValidParent(dto.parentId, variant.foodId, id);
+        // Nesting a variant that already has children would make the tree
+        // three deep, which assertValidParent can't see from the parent side.
+        const childCount = await this.variantsRepository.count({
+          where: { parentId: id },
+        });
+        if (childCount > 0) {
+          throw new BadRequestException(
+            `Variant ${id} has ${childCount} sub-variant(s), so it cannot itself be nested under another`,
+          );
+        }
+        variant.parentId = dto.parentId;
+      }
+    }
 
     Object.assign(variant, {
       ...(dto.name !== undefined && { name: dto.name }),

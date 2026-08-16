@@ -57,6 +57,10 @@ export class Food {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  /** One photo per item — variants of the same dish share it. */
+  @Column({ name: 'image_url', type: 'varchar', length: 1024, nullable: true })
+  imageUrl: string | null;
+
   @Column({ name: 'food_type', type: 'varchar', length: 255, nullable: true })
   foodType: FoodType | null;
 

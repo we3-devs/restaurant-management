@@ -14,4 +14,13 @@ export class ListFoodVariantsQueryDto extends PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   foodId?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Restrict to children of this variant. Use topLevelOnly for the other side of the tree.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  parentId?: number;
 }

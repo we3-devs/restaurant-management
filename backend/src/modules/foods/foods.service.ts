@@ -35,6 +35,7 @@ export interface PublicFood {
   foodCategoryId: number | null;
   name: string;
   shortDescription: string | null;
+  imageUrl: string | null;
   basePrice: number;
   hasVariants: boolean;
   hasAddons: boolean;
@@ -111,6 +112,7 @@ export class FoodsService {
         foodCategoryId: food.foodCategoryId,
         name: food.name,
         shortDescription: food.shortDescription,
+        imageUrl: food.imageUrl,
         basePrice: food.basePrice,
         hasVariants: food.hasVariants,
         hasAddons: food.hasAddons,
@@ -140,6 +142,7 @@ export class FoodsService {
       sku: dto.sku ?? null,
       shortDescription: dto.shortDescription ?? null,
       description: dto.description ?? null,
+      imageUrl: dto.imageUrl ?? null,
       foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'food',
       departmentType: dto.departmentType ?? null,
@@ -176,6 +179,7 @@ export class FoodsService {
         shortDescription: dto.shortDescription,
       }),
       ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
       ...(dto.foodType !== undefined && { foodType: dto.foodType }),
       ...(dto.itemType !== undefined && { itemType: dto.itemType }),
       ...(dto.departmentType !== undefined && {

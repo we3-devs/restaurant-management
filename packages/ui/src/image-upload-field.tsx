@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { ImageIcon, Loader2, Upload, X } from "lucide-react"
-import { useUploadBranding } from "@rms/api-client/hooks/use-settings"
+import { useUploadImage, type UploadPurpose } from "@rms/api-client/hooks/use-uploads"
 import { Button } from "./button"
 import { Input } from "./input"
 
@@ -22,14 +22,17 @@ export function ImageUploadField({
   onChange,
   disabled,
   hint,
+  purpose = "branding",
 }: {
   value: string
   onChange: (url: string) => void
   disabled?: boolean
   hint?: string
+  /** Selects the upload route, and with it the permission the caller needs. */
+  purpose?: UploadPurpose
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const upload = useUploadBranding()
+  const upload = useUploadImage(purpose)
   const [error, setError] = useState<string | null>(null)
   const [broken, setBroken] = useState(false)
 
