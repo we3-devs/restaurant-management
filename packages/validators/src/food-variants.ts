@@ -6,6 +6,8 @@ export const createFoodVariantSchema = z.object({
   parentId: z.number().positive().nullable().optional(),
   name: z.string().min(1, "Name is required"),
   sku: z.string().optional(),
+  /** This level's SKU piece, e.g. CHI or FULL — joined onto the food's segment. */
+  skuSegment: z.string().max(32).optional(),
   price: z.number().min(0),
   isDefault: z.boolean(),
 })
@@ -15,6 +17,9 @@ export type CreateFoodVariantInput = z.infer<typeof createFoodVariantSchema>
 export const updateFoodVariantSchema = z.object({
   name: z.string().min(1, "Name is required"),
   sku: z.string().optional(),
+  skuSegment: z.string().max(32).optional(),
+  /** Re-parent an existing variant, e.g. nesting Half under Veg after the fact. */
+  parentId: z.number().positive().nullable().optional(),
   price: z.number().min(0),
   isDefault: z.boolean(),
   isActive: z.boolean(),

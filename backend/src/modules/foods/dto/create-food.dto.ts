@@ -57,6 +57,16 @@ export class CreateFoodDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "This item's SKU segment, e.g. MOMO. Set it and `sku` is composed for this food and every variant under it.",
+    example: 'MOMO',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  skuSegment?: string;
+
   @ApiPropertyOptional({ description: 'Photo of the dish, from POST /uploads/food' })
   @IsOptional()
   @IsString()

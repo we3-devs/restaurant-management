@@ -29,6 +29,7 @@ import {
   useDeleteFoodVariant,
   useFoodVariant,
   useFoodVariantOutlets,
+  useFoodVariants,
   useRemoveFoodVariantOutlet,
   useUpdateFoodVariant,
   useUpsertFoodVariantOutlet,
@@ -44,7 +45,15 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
 
   const form = useForm<UpdateFoodVariantInput>({
     resolver: zodResolver(updateFoodVariantSchema),
-    defaultValues: { name: "", sku: "", price: 0, isDefault: false, isActive: true },
+    defaultValues: {
+      name: "",
+      sku: "",
+      skuSegment: "",
+      parentId: null,
+      price: 0,
+      isDefault: false,
+      isActive: true,
+    },
   })
 
   useEffect(() => {
@@ -52,12 +61,22 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       form.reset({
         name: variant.name,
         sku: variant.sku ?? "",
+        skuSegment: variant.skuSegment ?? "",
+        parentId: variant.parentId ?? null,
         price: variant.price,
         isDefault: variant.isDefault,
         isActive: variant.isActive,
       })
     }
   }, [variant, form])
+
+  // Candidate parents: top-level variants of the same food, never itself.
+  const { data: siblings } = useFoodVariants(
+    variant ? { foodId: variant.foodId, limit: 100 } : {},
+  )
+  const parentOptions = (siblings?.data ?? []).filter(
+    (candidate) => candidate.parentId === null && candidate.id !== variantId,
+  )
 
   async function onSubmit(values: UpdateFoodVariantInput) {
     try {
@@ -135,6 +154,59 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="skuSegment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU code</FormLabel>
+                    <FormControl
+                      placeholder="CHI"
+                      className="font-mono uppercase"
+                      {...field}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Joined onto the food&apos;s code and any parent&apos;s.
+                      Changing a parent&apos;s code updates its children too.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {parentOptions.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="parentId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sub-variant of</FormLabel>
+                      <Select
+                        value={field.value ? String(field.value) : "none"}
+                        onValueChange={(value) =>
+                          field.onChange(value === "none" ? null : Number(value))
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Top level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Top level</SelectItem>
+                          {parentOptions.map((candidate) => (
+                            <SelectItem key={candidate.id} value={String(candidate.id)}>
+                              {candidate.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Nest this under a type, e.g. Half under Veg. A variant
+                        that already has sub-variants cannot itself be nested.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="price"

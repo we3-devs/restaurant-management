@@ -14,6 +14,8 @@ import {
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { FoodsService } from '../foods/foods.service';
+import { SkuCompositionService } from '../foods/sku-composition.service';
+import { normaliseSkuSegment } from '../../common/sku.util';
 import { OutletsService } from '../outlets/outlets.service';
 import { CreateFoodVariantDto } from './dto/create-food-variant.dto';
 import { ListFoodVariantsQueryDto } from './dto/list-food-variants-query.dto';
@@ -42,6 +44,7 @@ export class FoodVariantsService {
     private readonly foodsService: FoodsService,
     private readonly outletsService: OutletsService,
     private readonly dataSource: DataSource,
+    private readonly skuCompositionService: SkuCompositionService,
   ) {}
 
   async findAll(
@@ -170,6 +173,9 @@ export class FoodVariantsService {
           parentId: dto.parentId ?? null,
           name: dto.name,
           sku: dto.sku ?? null,
+          skuSegment: dto.skuSegment
+            ? normaliseSkuSegment(dto.skuSegment)
+            : null,
           price: dto.price ?? 0,
           isDefault: dto.isDefault ?? false,
           sortOrder: dto.sortOrder ?? 0,
@@ -178,6 +184,12 @@ export class FoodVariantsService {
       });
 
       await this.foodsService.markHasVariants(dto.foodId);
+      if (variant.skuSegment) {
+        // Recompose the whole food rather than just this row: cheap, and it
+        // repairs any sibling left stale by an earlier partial edit.
+        await this.skuCompositionService.recomposeFoodTree(dto.foodId);
+        return this.findOne(variant.id);
+      }
       return variant;
     } catch (error) {
       if (
@@ -212,7 +224,12 @@ export class FoodVariantsService {
       }
     }
 
+    const previousSegment = variant.skuSegment;
+
     Object.assign(variant, {
+      ...(dto.skuSegment !== undefined && {
+        skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
+      }),
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.sku !== undefined && { sku: dto.sku }),
       ...(dto.price !== undefined && { price: dto.price }),
@@ -220,8 +237,9 @@ export class FoodVariantsService {
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
 
+    let saved: FoodVariant;
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      saved = await this.dataSource.transaction(async (manager) => {
         if (dto.isDefault) {
           await manager.update(
             FoodVariant,
@@ -243,6 +261,15 @@ export class FoodVariantsService {
       }
       throw error;
     }
+
+    // A changed segment moves this row's code and, if it's a parent, every
+    // child's too. Runs only after the save actually succeeded, and the row is
+    // re-read so the caller sees the composed SKU rather than the stale one.
+    if (saved.skuSegment && saved.skuSegment !== previousSegment) {
+      await this.skuCompositionService.recomposeFoodTree(saved.foodId);
+      return this.findOne(saved.id);
+    }
+    return saved;
   }
 
   async remove(id: number): Promise<void> {

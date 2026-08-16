@@ -62,6 +62,13 @@ export class FoodVariant {
   @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
   sku: string | null;
 
+  /**
+   * This level's piece of the SKU path, e.g. CHI or FULL. Not unique — FULL
+   * repeats across dishes; uniqueness is enforced on the composed `sku`.
+   */
+  @Column({ name: 'sku_segment', type: 'varchar', length: 32, nullable: true })
+  skuSegment: string | null;
+
   @Column({
     type: 'numeric',
     precision: 12,

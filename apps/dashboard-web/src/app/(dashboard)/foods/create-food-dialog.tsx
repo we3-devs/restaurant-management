@@ -39,6 +39,7 @@ export function CreateFoodDialog() {
       name: "",
       slug: "",
       sku: "",
+      skuSegment: "",
       imageUrl: "",
       itemType: "food",
       departmentType: undefined,
@@ -130,6 +131,25 @@ export function CreateFoodDialog() {
                 <FormItem>
                   <FormLabel>SKU (optional)</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="skuSegment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>SKU code (optional)</FormLabel>
+                  <FormControl
+                    placeholder="MOMO"
+                    className="font-mono uppercase"
+                    {...field}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This item&apos;s piece of the SKU. Variant codes are appended,
+                    giving e.g. MOMO-CHI-FULL. Leave blank to keep SKUs manual.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

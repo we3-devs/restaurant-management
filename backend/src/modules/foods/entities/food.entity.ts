@@ -46,6 +46,13 @@ export class Food {
   @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
   sku: string | null;
 
+  /**
+   * This item's piece of the SKU path, e.g. MOMO. When set, `sku` is composed
+   * from it and from any variant segments beneath. NULL leaves `sku` manual.
+   */
+  @Column({ name: 'sku_segment', type: 'varchar', length: 32, nullable: true })
+  skuSegment: string | null;
+
   @Column({
     name: 'short_description',
     type: 'varchar',

@@ -35,6 +35,16 @@ export class CreateFoodVariantDto {
   @MaxLength(255)
   sku?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "This level's SKU segment, e.g. CHI or FULL. Composed onto the food's segment and any parent variant's, giving MOMO-CHI-FULL.",
+    example: 'CHI',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  skuSegment?: string;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsNumber()

@@ -16,6 +16,7 @@ export interface FoodVariant {
   parentId: number | null
   name: string
   sku: string | null
+  skuSegment: string | null
   price: number
   isDefault: boolean
   isActive: boolean

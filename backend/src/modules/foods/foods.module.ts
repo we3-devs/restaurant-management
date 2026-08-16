@@ -11,6 +11,7 @@ import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
 import { FoodsController } from './foods.controller';
 import { FoodsService } from './foods.service';
+import { SkuCompositionService } from './sku-composition.service';
 
 @Module({
   imports: [
@@ -22,7 +23,9 @@ import { FoodsService } from './foods.service';
     UnitsModule,
   ],
   controllers: [FoodsController],
-  providers: [FoodsService],
-  exports: [TypeOrmModule, FoodsService],
+  providers: [FoodsService, SkuCompositionService],
+  // SkuCompositionService is exported so FoodVariantsService can recompose the
+  // tree too; FoodVariantsModule already imports this module.
+  exports: [TypeOrmModule, FoodsService, SkuCompositionService],
 })
 export class FoodsModule {}

@@ -29,6 +29,8 @@ import { FoodAddonGroup } from './entities/food-addon-group.entity';
 import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
+import { SkuCompositionService } from './sku-composition.service';
+import { normaliseSkuSegment } from '../../common/sku.util';
 
 export interface PublicFood {
   id: number;
@@ -57,6 +59,7 @@ export class FoodsService {
     private readonly addonGroupsService: AddonGroupsService,
     private readonly ingredientsService: IngredientsService,
     private readonly unitsService: UnitsService,
+    private readonly skuCompositionService: SkuCompositionService,
   ) {}
 
   async findAll(query: ListFoodsQueryDto): Promise<PaginatedResponse<Food>> {
@@ -142,6 +145,7 @@ export class FoodsService {
       sku: dto.sku ?? null,
       shortDescription: dto.shortDescription ?? null,
       description: dto.description ?? null,
+      skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
       imageUrl: dto.imageUrl ?? null,
       foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'food',
@@ -156,7 +160,12 @@ export class FoodsService {
     });
 
     try {
-      return await this.foodsRepository.save(food);
+      const saved = await this.foodsRepository.save(food);
+      if (saved.skuSegment) {
+        await this.skuCompositionService.recomposeFoodTree(saved.id);
+        return this.findOne(saved.id);
+      }
+      return saved;
     } catch (error) {
       throw this.mapUniqueViolation(error, dto.slug, dto.sku);
     }
@@ -164,6 +173,9 @@ export class FoodsService {
 
   async update(id: number, dto: UpdateFoodDto): Promise<Food> {
     const food = await this.findOne(id);
+    // Captured before the assign below so a changed segment can be detected —
+    // it has to cascade into every variant's composed SKU, not just this row.
+    const previousSegment = food.skuSegment;
 
     if (dto.foodCategoryId !== undefined) {
       if (dto.foodCategoryId !== null) {
@@ -180,6 +192,9 @@ export class FoodsService {
       }),
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+      ...(dto.skuSegment !== undefined && {
+        skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
+      }),
       ...(dto.foodType !== undefined && { foodType: dto.foodType }),
       ...(dto.itemType !== undefined && { itemType: dto.itemType }),
       ...(dto.departmentType !== undefined && {
@@ -202,7 +217,12 @@ export class FoodsService {
     });
 
     try {
-      return await this.foodsRepository.save(food);
+      const saved = await this.foodsRepository.save(food);
+      if (saved.skuSegment && saved.skuSegment !== previousSegment) {
+        await this.skuCompositionService.recomposeFoodTree(saved.id);
+        return this.findOne(saved.id);
+      }
+      return saved;
     } catch (error) {
       throw this.mapUniqueViolation(error, undefined, dto.sku);
     }

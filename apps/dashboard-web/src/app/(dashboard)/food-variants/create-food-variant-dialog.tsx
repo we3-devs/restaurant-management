@@ -29,7 +29,7 @@ export function CreateFoodVariantDialog() {
 
   const form = useForm<CreateFoodVariantInput>({
     resolver: zodResolver(createFoodVariantSchema),
-    defaultValues: { foodId: 0, parentId: null, name: "", sku: "", price: 0, isDefault: false },
+    defaultValues: { foodId: 0, parentId: null, name: "", sku: "", skuSegment: "", price: 0, isDefault: false },
   })
 
   const selectedFoodId = form.watch("foodId")
@@ -48,7 +48,7 @@ export function CreateFoodVariantDialog() {
     try {
       await createFoodVariant.mutateAsync(values)
       toast.success(`Variant "${values.name}" created`)
-      form.reset({ foodId: 0, parentId: null, name: "", sku: "", price: 0, isDefault: false })
+      form.reset({ foodId: 0, parentId: null, name: "", sku: "", skuSegment: "", price: 0, isDefault: false })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create variant")
@@ -136,10 +136,29 @@ export function CreateFoodVariantDialog() {
             />
             <FormField
               control={form.control}
+              name="skuSegment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>SKU code (optional)</FormLabel>
+                  <FormControl
+                    placeholder="CHI"
+                    className="font-mono uppercase"
+                    {...field}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Appended to the food&apos;s code and any parent&apos;s, e.g.
+                    MOMO-CHI-FULL. Renaming a parent code updates its children.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="sku"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>SKU (optional)</FormLabel>
+                  <FormLabel>SKU override (optional)</FormLabel>
                   <FormControl {...field} />
                   <FormMessage />
                 </FormItem>

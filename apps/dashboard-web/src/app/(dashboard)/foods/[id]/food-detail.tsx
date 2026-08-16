@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -65,8 +66,10 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       foodCategoryId: undefined,
       name: "",
       sku: "",
+      skuSegment: "",
       shortDescription: "",
       description: "",
+      imageUrl: "",
       itemType: "food",
       departmentType: undefined,
       basePrice: 0,
@@ -84,8 +87,10 @@ export function FoodDetail({ foodId }: { foodId: number }) {
         foodCategoryId: food.foodCategoryId ?? undefined,
         name: food.name,
         sku: food.sku ?? "",
+        skuSegment: food.skuSegment ?? "",
         shortDescription: food.shortDescription ?? "",
         description: food.description ?? "",
+        imageUrl: food.imageUrl ?? "",
         foodType: (food.foodType as UpdateFoodInput["foodType"]) ?? undefined,
         itemType: food.itemType as UpdateFoodInput["itemType"],
         departmentType: (food.departmentType as UpdateFoodInput["departmentType"]) ?? undefined,
@@ -197,6 +202,41 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                   <FormItem>
                     <FormLabel>SKU</FormLabel>
                     <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="skuSegment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU code</FormLabel>
+                    <FormControl
+                      placeholder="MOMO"
+                      className="font-mono uppercase"
+                      {...field}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Setting this rewrites the SKU above, and every variant&apos;s,
+                      as e.g. MOMO-CHI-FULL. Leave blank to keep SKUs manual.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Photo</FormLabel>
+                    <ImageUploadField
+                      purpose="food"
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      hint="Shown on the guest menu. Variants share this image."
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
