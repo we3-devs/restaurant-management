@@ -11,6 +11,7 @@ import type { DiningTable } from "@/hooks/use-dining-tables"
 import { DownloadableQrCode } from "./downloadable-qr-code"
 
 const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL ?? "http://localhost:3100"
+const GUEST_WEB_URL = process.env.NEXT_PUBLIC_GUEST_WEB_URL ?? "http://localhost:3200"
 
 function formatSeatedFor(startedAt: string | null): string | null {
   if (!startedAt) return null
@@ -29,7 +30,7 @@ export function TableDetailDialog({ table, onClose }: { table: DiningTable; onCl
   const { data: orders } = useOrders({ tableSessionId: activeSession?.id, limit: 1 }, { enabled: !!activeSession })
   const activeOrder = orders?.data[0]
 
-  const guestUrl = table.code ? `${OPERATIONAL_WEB_URL}/guest?table=${table.code}` : null
+  const guestUrl = table.code ? `${GUEST_WEB_URL}?table=${table.code}` : null
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

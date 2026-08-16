@@ -1,10 +1,10 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Minus, Plus, Send } from "lucide-react";
+import { useGuestSession } from "@/hooks/use-guest-session";
 
 interface Food {
   id: number;
@@ -24,8 +24,7 @@ interface CartItem {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
 
 export default function MenuContent() {
-  const searchParams = useSearchParams();
-  const tableCode = searchParams.get("table");
+  const { tableCode, isLocked } = useGuestSession();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

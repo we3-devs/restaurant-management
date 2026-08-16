@@ -1,8 +1,8 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { useGuestSession } from "@/hooks/use-guest-session";
 
 interface OrderItem {
   id: number;
@@ -26,8 +26,7 @@ interface Order {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
 
 export default function OrderContent() {
-  const searchParams = useSearchParams();
-  const tableCode = searchParams.get("table");
+  const { tableCode, isLocked } = useGuestSession();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders", tableCode],
