@@ -23,7 +23,7 @@ interface Order {
   updatedAt: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 export default function OrderContent() {
   const { tableCode, isLocked } = useGuestSession();
@@ -37,7 +37,18 @@ export default function OrderContent() {
       return Array.isArray(data.data) ? data.data : [data.data];
     },
     refetchInterval: 3000,
+    enabled: !!tableCode,
   });
+
+  if (!tableCode) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-600 text-xl">Invalid table code</p>
+        </div>
+      </div>
+    );
+  }
 
   const currentOrder = orders[0];
 

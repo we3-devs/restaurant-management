@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Minus, Plus, Send } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 
+// Mirrors the PublicFood projection returned by GET /foods/public — a
+// deliberately narrower shape than the authenticated Food entity.
 interface Food {
   id: number;
+  foodCategoryId: number;
   name: string;
-  description?: string;
-  price: number;
-  slug: string;
-  imageUrl?: string;
+  shortDescription?: string | null;
+  basePrice: number;
+  hasVariants: boolean;
+  hasAddons: boolean;
 }
 
 interface CartItem {
@@ -21,30 +24,22 @@ interface CartItem {
   quantity: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 export default function MenuContent() {
   const { tableCode, isLocked } = useGuestSession();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!tableCode) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600 text-xl">Invalid table code</p>
-        </div>
-      </div>
-    );
-  }
-
   const { data: foods = [], isLoading } = useQuery({
     queryKey: ["foods"],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/foods/public`);
       if (!res.ok) throw new Error("Failed to fetch menu");
-      return res.json();
+      const json = await res.json();
+      return json.data || json;
     },
+    enabled: !!tableCode,
   });
 
   const addToCart = useCallback((food: Food) => {
@@ -74,7 +69,7 @@ export default function MenuContent() {
     );
   }, []);
 
-  const total = cart.reduce((sum, item) => sum + item.food.price * item.quantity, 0);
+  const total = cart.reduce((sum, item) => sum + item.food.basePrice * item.quantity, 0);
 
   const handleSubmit = async () => {
     if (cart.length === 0) {
@@ -112,6 +107,16 @@ export default function MenuContent() {
       setIsSubmitting(false);
     }
   };
+
+  if (!tableCode) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-600 text-xl">Invalid table code</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -155,25 +160,21 @@ export default function MenuContent() {
               key={food.id}
               className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition"
             >
-              {food.imageUrl && (
-                <img
-                  src={food.imageUrl}
-                  alt={food.name}
-                  className="w-full h-40 object-cover"
-                />
-              )}
               <div className="p-4">
                 <h3 className="text-lg font-semibold text-gray-800">
                   {food.name}
                 </h3>
-                {food.description && (
+                {food.shortDescription && (
                   <p className="text-sm text-gray-600 mt-1">
-                    {food.description}
+                    {food.shortDescription}
                   </p>
                 )}
                 <div className="mt-4 flex justify-between items-center">
                   <p className="text-xl font-bold text-gray-900">
-                    Rs. {food.price.toLocaleString()}
+                    {food.hasVariants && (
+                      <span className="text-sm font-normal text-gray-500">From </span>
+                    )}
+                    Rs. {food.basePrice.toLocaleString()}
                   </p>
                   <button
                     onClick={() => addToCart(food)}
@@ -206,7 +207,7 @@ export default function MenuContent() {
                 <div key={item.foodId} className="border rounded-lg p-3">
                   <p className="font-semibold">{item.food.name}</p>
                   <p className="text-sm text-gray-600">
-                    Rs. {(item.food.price * item.quantity).toLocaleString()}
+                    Rs. {(item.food.basePrice * item.quantity).toLocaleString()}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <button
