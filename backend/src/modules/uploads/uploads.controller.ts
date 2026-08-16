@@ -5,18 +5,16 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AppConfig } from '../../config/configuration';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
-import { UPLOADS_ROUTE } from './uploads.constants';
+import { StorageService } from './storage.service';
 
 @ApiTags('uploads')
 @ApiBearerAuth()
 @Controller('uploads')
 export class UploadsController {
-  constructor(private readonly configService: ConfigService<AppConfig>) {}
+  constructor(private readonly storageService: StorageService) {}
 
   @Post('branding')
   // Same permission that gates the settings these images are chosen from —
@@ -34,7 +32,7 @@ export class UploadsController {
     summary:
       'Uploads a logo or favicon image and returns its absolute URL, for use as logoUrl/faviconUrl in settings',
   })
-  uploadBranding(@UploadedFile() file?: Express.Multer.File) {
+  async uploadBranding(@UploadedFile() file?: Express.Multer.File) {
     // Multer's fileFilter rejects by skipping the file rather than throwing,
     // so an unsupported type arrives here as simply no file at all.
     if (!file) {
@@ -43,7 +41,7 @@ export class UploadsController {
       );
     }
 
-    const { publicUrl } = this.configService.get('app', { infer: true })!;
-    return { url: `${publicUrl}/${UPLOADS_ROUTE}/${file.filename}` };
+    const url = await this.storageService.saveImage(file.buffer, file.mimetype);
+    return { url };
   }
 }

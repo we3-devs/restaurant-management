@@ -5,6 +5,15 @@ export interface AppConfig {
     publicUrl: string;
     uploadDir: string;
   };
+  storage: {
+    endpoint: string;
+    bucket: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    /** Public base for reading objects — on R2 this is the pub-*.r2.dev or custom domain, not the API endpoint. */
+    publicUrl: string;
+  };
   database: {
     host: string;
     port: number;
@@ -43,6 +52,17 @@ export default (): AppConfig => ({
       process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? '3001'}`
     ).replace(/\/$/, ''),
     uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
+  },
+  // Any S3-compatible provider: Cloudflare R2, Supabase Storage, Backblaze B2,
+  // MinIO, or AWS itself. Leave S3_BUCKET unset and uploads fall back to local
+  // disk, which is what keeps dev working with no credentials.
+  storage: {
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    bucket: process.env.S3_BUCKET ?? '',
+    region: process.env.S3_REGION ?? 'auto',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+    publicUrl: (process.env.S3_PUBLIC_URL ?? '').replace(/\/$/, ''),
   },
   database: {
     host: process.env.DB_HOST ?? '127.0.0.1',

@@ -1,43 +1,27 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { mkdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import { AppConfig } from '../../config/configuration';
+import { memoryStorage } from 'multer';
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_UPLOAD_BYTES,
-  resolveUploadDir,
 } from './uploads.constants';
+import { StorageService } from './storage.service';
 import { UploadsController } from './uploads.controller';
 
 @Module({
   imports: [
-    MulterModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppConfig>) => {
-        const uploadDir = resolveUploadDir(configService);
-        // Created up front so the first upload of a fresh deploy doesn't fail
-        // on ENOENT — main.ts serves this same directory statically.
-        mkdirSync(uploadDir, { recursive: true });
-
-        return {
-          storage: diskStorage({
-            destination: uploadDir,
-            filename: (_req, file, callback) => {
-              const ext = ALLOWED_IMAGE_TYPES[file.mimetype];
-              callback(null, `${randomUUID()}${ext}`);
-            },
-          }),
-          limits: { fileSize: MAX_UPLOAD_BYTES },
-          fileFilter: (_req, file, callback) => {
-            callback(null, file.mimetype in ALLOWED_IMAGE_TYPES);
-          },
-        };
+    MulterModule.register({
+      // Buffered in memory rather than written straight to disk, so the same
+      // bytes can go to a bucket or to disk without two upload code paths.
+      // Safe at a 2MB cap; revisit if this ever accepts large media.
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_UPLOAD_BYTES },
+      fileFilter: (_req, file, callback) => {
+        callback(null, file.mimetype in ALLOWED_IMAGE_TYPES);
       },
     }),
   ],
   controllers: [UploadsController],
+  providers: [StorageService],
 })
 export class UploadsModule {}
