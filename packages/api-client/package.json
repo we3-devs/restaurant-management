@@ -6,6 +6,7 @@
   "exports": {
     "./*": "./src/*.ts",
     "./query-provider": "./src/query-provider.tsx",
+    "./brand-color": "./src/brand-color.tsx",
     "./realtime-invalidation-provider": "./src/realtime-invalidation-provider.tsx",
     "./kitchen/item-status-icon": "./src/kitchen/item-status-icon.tsx",
     "./outlet/active-outlet-context": "./src/outlet/active-outlet-context.tsx"

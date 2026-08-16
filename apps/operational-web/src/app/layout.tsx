@@ -6,6 +6,7 @@ import { ThemeProvider } from "@rms/ui/theme-provider";
 import { Toaster } from "@rms/ui/sonner";
 import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
 import { fetchBranding } from "@rms/api-client/branding";
+import { BrandColor } from "@rms/api-client/brand-color";
 import { BACKEND_API_BASE } from "@rms/auth/server/backend-client";
 
 const geistSans = Geist({
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider persist>
+            <BrandColor />
             {children}
             <Toaster />
             <RealtimeIndicator />

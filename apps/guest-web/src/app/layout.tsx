@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { fetchBranding } from "@rms/api-client/branding";
 import { Toaster } from "react-hot-toast";
+import { BrandColor } from "@/components/brand-color";
 import { Providers } from "@/providers";
 import "./globals.css";
 
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
+          <BrandColor />
           {children}
           <Toaster />
         </Providers>

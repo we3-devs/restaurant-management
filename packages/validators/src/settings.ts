@@ -2,7 +2,7 @@ import { z } from "zod"
 
 export const businessSettingsSchema = z.object({
   restaurantName: z.string().optional(),
-  logoUrl: z.string().optional(),
+  // Logo lives in appearance settings only — see appearanceSettingsSchema.
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().optional(),

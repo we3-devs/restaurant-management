@@ -14,7 +14,6 @@ export type SettingsCategory =
 
 export interface BusinessSettings {
   restaurantName?: string
-  logoUrl?: string
   address?: string
   phone?: string
   email?: string

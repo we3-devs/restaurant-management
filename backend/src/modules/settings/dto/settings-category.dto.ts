@@ -8,10 +8,7 @@ export class BusinessSettingsDto {
   @IsString()
   restaurantName?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  logoUrl?: string;
+  // Logo is an appearance setting — see AppearanceSettingsDto.
 
   @ApiPropertyOptional()
   @IsOptional()

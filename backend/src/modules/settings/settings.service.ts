@@ -47,7 +47,6 @@ const CATEGORY_DTO_MAP: Record<SettingsCategory, new () => unknown> = {
 const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
   business: {
     restaurantName: 'My Restaurant',
-    logoUrl: null,
     address: null,
     phone: null,
     email: null,
@@ -261,9 +260,9 @@ export class SettingsService {
    * it paints its first frame, and GET /settings requires settings.view, so
    * branding needs its own door.
    *
-   * Note logoUrl exists in both categories. `appearance` is the branding
-   * screen an admin actually edits, so it wins; `business.logoUrl` is kept as
-   * a fallback for installs that filled that one in first.
+   * The logo comes from `appearance` only. It used to be settable in both
+   * categories, which meant two inputs silently competing for one slot — the
+   * business copy is gone and any leftover value in that row is ignored.
    */
   async getPublicBranding(): Promise<{
     restaurantName: string | null;
@@ -281,9 +280,7 @@ export class SettingsService {
 
     return {
       restaurantName: pick(business.restaurantName),
-      logoUrl: this.rehostUpload(
-        pick(appearance.logoUrl) ?? pick(business.logoUrl),
-      ),
+      logoUrl: this.rehostUpload(pick(appearance.logoUrl)),
       faviconUrl: this.rehostUpload(pick(appearance.faviconUrl)),
       primaryColor: pick(appearance.primaryColor),
     };
