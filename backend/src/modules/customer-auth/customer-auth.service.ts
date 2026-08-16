@@ -65,9 +65,17 @@ export class CustomerAuthService {
   async requestOtp(
     phone?: string,
     email?: string,
-  ): Promise<{ sent: true; devCode?: string }> {
+  ): Promise<{ sent: true; registered: boolean; devCode?: string }> {
     const identifier = this.resolveIdentifier(phone, email);
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Lets a client separate "log in" from "create account" before verifying:
+    // without it, verifyOtp's find-or-create silently registers anyone who
+    // mistypes a number on the login form, naming them after their own digits.
+    // Uses the same lookup findOrCreateCustomer does, so the two can't disagree.
+    const registered = await this.customersRepository.exists({
+      where: phone ? { phone } : { email },
+    });
 
     // Single conditional upsert: replaces SET NX EX (resend lock) + SET EX
     // (code) + DEL (reset attempts) as one atomic statement. The WHERE
@@ -109,7 +117,7 @@ export class CustomerAuthService {
     // number ties an order to a real person" anti-abuse purpose the OTP
     // otherwise serves (see GuestAuthGate's comment). Remove once real SMS
     // delivery is confirmed working end-to-end.
-    return { sent: true, devCode: code };
+    return { sent: true, registered, devCode: code };
   }
 
   async verifyOtp(

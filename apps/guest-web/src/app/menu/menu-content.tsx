@@ -3,8 +3,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { ShoppingCart, Minus, Plus, Send, X, Check } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Send, X, Check, User } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
+import { useGuestAuth } from "@/hooks/use-guest-auth";
+import { useGuestOrders } from "@/hooks/use-guest-orders";
+import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { OrderTrackerBar } from "@/components/order-tracker-bar";
+import { authFetch, getJson, readError } from "@/lib/api";
 
 // These mirror the Public* projections from /foods/public,
 // /food-categories/public and /food-variants/public — all deliberately
@@ -41,29 +46,25 @@ interface CartItem {
   quantity: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-
 const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
 const cartKey = (foodId: number, variantId?: number | null) =>
   `${foodId}:${variantId ?? 0}`;
-
-async function getJson(path: string) {
-  const res = await fetch(`${API_URL}${path}`);
-  if (!res.ok) throw new Error(`Request failed: ${path}`);
-  const json = await res.json();
-  return json.data ?? json;
-}
 
 const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode } = useGuestSession();
+  const { isAuthenticated, name: customerName } = useGuestAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [variantFor, setVariantFor] = useState<Food | null>(null);
+  // Tracks why the gate opened: signing in from the header shouldn't silently
+  // send an order just because the cart happens to be full.
+  const [authIntent, setAuthIntent] = useState<"checkout" | "login" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const sectionRefs = useRef<Record<number, HTMLElement | null>>({});
   const headerRef = useRef<HTMLElement | null>(null);
+  const bottomBarRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<number | null>(null);
   const [tailSpace, setTailSpace] = useState(112);
 
@@ -193,6 +194,13 @@ export default function MenuContent() {
   const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
   const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
+  // Same query key as /order, so the tracker bar rides the existing cache
+  // instead of opening a second five-second poll against the backend.
+  const { data: guestOrders = [] } = useGuestOrders(tableCode);
+  const showTracker = guestOrders.length > 0;
+  const showCartBar = itemCount > 0 && !cartOpen && !variantFor;
+  const showBottomBar = showTracker || showCartBar;
+
   // The last section can only reach the top of the viewport if there is a
   // viewport's worth of scrollable room beneath its heading. Real menus rarely
   // have that (the final category is often one item), so the shortfall is
@@ -205,21 +213,26 @@ export default function MenuContent() {
 
     const recalc = () => {
       const headerH = headerRef.current?.offsetHeight ?? 0;
+      // The bottom bar is fixed, so it adds no scrollable height — but it does
+      // cover the last rows, hence the floor.
+      const bottomH = bottomBarRef.current?.offsetHeight ?? 0;
       const shortfall = window.innerHeight - headerH - el.offsetHeight - 8;
-      setTailSpace(Math.max(112, Math.ceil(shortfall)));
+      setTailSpace(Math.max(bottomH + 16, Math.ceil(shortfall)));
     };
 
     recalc();
-    // The section keeps growing after first paint — variant prices arrive on
-    // their own requests — so observe it rather than measuring only once.
+    // Both keep changing after first paint — variant prices arrive on their own
+    // requests, and the bar grows a row when an order starts tracking — so
+    // observe them rather than measuring only once.
     const observer = new ResizeObserver(recalc);
     observer.observe(el);
+    if (bottomBarRef.current) observer.observe(bottomBarRef.current);
     window.addEventListener("resize", recalc);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", recalc);
     };
-  }, [sections]);
+  }, [sections, showBottomBar]);
 
   const scrollTo = (id: number) => {
     const el = sectionRefs.current[id];
@@ -232,17 +245,11 @@ export default function MenuContent() {
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   };
 
-  const handleSubmit = async () => {
-    if (cart.length === 0) {
-      toast.error("Add items first");
-      return;
-    }
-
+  const placeOrder = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_URL}/orders/guest`, {
+      const res = await authFetch("/orders/guest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tableCode,
           items: cart.map((i) => ({
@@ -253,10 +260,7 @@ export default function MenuContent() {
         }),
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to place order");
-      }
+      if (!res.ok) throw new Error(await readError(res, "Failed to place order"));
 
       toast.success("Order placed!");
       setCart([]);
@@ -268,6 +272,20 @@ export default function MenuContent() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = () => {
+    if (cart.length === 0) {
+      toast.error("Add items first");
+      return;
+    }
+    // Browsing stays open to everyone; identity is only required at the point
+    // it actually matters, which is also where the backend demands it.
+    if (!isAuthenticated) {
+      setAuthIntent("checkout");
+      return;
+    }
+    void placeOrder();
   };
 
   if (!tableCode) {
@@ -292,8 +310,20 @@ export default function MenuContent() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3.5">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900">Menu</h1>
-            <p className="text-xs text-slate-500">Table {tableCode}</p>
+            <p className="truncate text-xs text-slate-500">
+              Table {tableCode}
+              {customerName && ` · ${customerName}`}
+            </p>
           </div>
+          {!isAuthenticated && (
+            <button
+              onClick={() => setAuthIntent("login")}
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+            >
+              <User size={14} />
+              Log in
+            </button>
+          )}
           <button
             onClick={() => setCartOpen(true)}
             aria-label={`Open cart, ${itemCount} items`}
@@ -406,22 +436,32 @@ export default function MenuContent() {
         <div aria-hidden style={{ height: tailSpace }} />
       </main>
 
-      {/* Persistent bar — the primary way back to the cart on a phone. */}
-      {itemCount > 0 && !cartOpen && !variantFor && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
-          <div className="mx-auto max-w-3xl px-4 py-3">
-            <button
-              onClick={() => setCartOpen(true)}
-              className="flex w-full items-center justify-between rounded-xl bg-brand-600 px-4 py-3.5 text-white transition hover:bg-brand-700 active:scale-[0.99]"
-            >
-              <span className="text-sm font-medium">
-                {itemCount} {itemCount === 1 ? "item" : "items"}
-              </span>
-              <span className="text-sm font-semibold">
-                View order · {money(total)}
-              </span>
-            </button>
-          </div>
+      {/* Live tracker sits above the cart CTA — a diner mid-second-round needs
+          both at once, so they stack rather than compete for the same slot. */}
+      {showBottomBar && (
+        <div
+          ref={bottomBarRef}
+          className="fixed inset-x-0 bottom-0 z-20 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
+        >
+          {showTracker && tableCode && <OrderTrackerBar tableCode={tableCode} />}
+
+          {showCartBar && (
+            <div className="border-t border-slate-200">
+              <div className="mx-auto max-w-3xl px-4 py-3">
+                <button
+                  onClick={() => setCartOpen(true)}
+                  className="flex w-full items-center justify-between rounded-xl bg-brand-600 px-4 py-3.5 text-white transition hover:bg-brand-700 active:scale-[0.99]"
+                >
+                  <span className="text-sm font-medium">
+                    {itemCount} {itemCount === 1 ? "item" : "items"}
+                  </span>
+                  <span className="text-sm font-semibold">
+                    View order · {money(total)}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -564,6 +604,19 @@ export default function MenuContent() {
           </button>
         </div>
       </aside>
+
+      {authIntent && (
+        <GuestAuthSheet
+          onClose={() => setAuthIntent(null)}
+          onSuccess={() => {
+            const intent = authIntent;
+            setAuthIntent(null);
+            // They were mid-checkout when the gate appeared, so finish the job
+            // rather than making them find the button again.
+            if (intent === "checkout") void placeOrder();
+          }}
+        />
+      )}
     </div>
   );
 }
