@@ -11,6 +11,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { registerRealtimeServer } from '../../realtime/realtime-bus';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import type { Notification } from '../notifications/entities/notification.entity';
 import type { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
@@ -18,6 +19,7 @@ import { KitchenTicket } from './entities/kitchen-ticket.entity';
 
 interface KdsSocketData {
   userId?: number;
+  isSuperadmin?: boolean;
   customerId?: number;
 }
 
@@ -66,7 +68,10 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly wsTickets: WsTicketsService) {}
+  constructor(
+    private readonly wsTickets: WsTicketsService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   /** Hands the live Socket.IO server to RealtimeChangeSubscriber, which TypeORM instantiates outside Nest's DI graph and so can't inject this gateway directly. */
   afterInit(server: Server): void {
@@ -97,6 +102,7 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       // client receives everything emitted to its outlet room), matching the
       // existing coarse room-level model rather than introducing a new one.
       client.data.userId = payload.userId;
+      client.data.isSuperadmin = payload.isSuperadmin;
       return;
     }
 
@@ -114,11 +120,27 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
   }
 
   @SubscribeMessage('subscribe-outlet')
-  handleSubscribeOutlet(
+  async handleSubscribeOutlet(
     @ConnectedSocket() client: KdsSocket,
     @MessageBody() body: { outletId: number },
-  ): void {
+  ): Promise<void> {
     if (!client.data.userId || !body?.outletId) {
+      return;
+    }
+    // A valid ticket only proves who the caller is, not which outlets they
+    // can see — without this, any authenticated staff member could join
+    // any outlet's room and receive its full order/notification/service-
+    // request stream. Same OutletAccessService used by the REST endpoints.
+    const allowed = await this.outletAccess.canAccessOutlet(
+      client.data.userId,
+      client.data.isSuperadmin ?? false,
+      body.outletId,
+    );
+    if (!allowed) {
+      client.emit('subscribe-outlet:error', {
+        outletId: body.outletId,
+        message: 'You do not have access to this outlet',
+      });
       return;
     }
     void client.join(this.outletRoom(body.outletId));

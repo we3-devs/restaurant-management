@@ -111,17 +111,26 @@ export class AuthService {
     rawRefreshToken: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
     const tokenHash = this.hashToken(rawRefreshToken);
-    const existing = await this.refreshTokensRepository.findOne({
-      where: { tokenHash },
-      relations: { user: true },
-    });
 
-    if (!existing) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+    // Atomic conditional UPDATE is the rotation gate: only the request that
+    // flips revokedAt from NULL here "wins" the rotation. A concurrent
+    // replay of the same token (double-submit, retry storm) sees
+    // affected === 0 and is rejected below, before any new pair is minted —
+    // this closes the find -> mint -> revoke race window the old code had.
+    const claim = await this.refreshTokensRepository.update(
+      { tokenHash, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
 
-    if (existing.revokedAt) {
-      // Reuse of an already-rotated token: possible theft. Revoke the whole chain for this user.
+    if (claim.affected !== 1) {
+      const existing = await this.refreshTokensRepository.findOne({
+        where: { tokenHash },
+      });
+      if (!existing) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      // Already revoked (lost the race, or genuine reuse of a rotated
+      // token): possible theft. Revoke the whole chain for this user.
       await this.refreshTokensRepository.update(
         { userId: existing.userId, revokedAt: IsNull() },
         { revokedAt: new Date() },
@@ -129,14 +138,23 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has already been used');
     }
 
+    const existing = await this.refreshTokensRepository.findOne({
+      where: { tokenHash },
+      relations: { user: true },
+    });
+    if (!existing) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
     if (existing.expiresAt.getTime() < Date.now()) {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
     const tokens = await this.issueTokenPair(existing.user);
-    existing.revokedAt = new Date();
-    existing.replacedByTokenHash = this.hashToken(tokens.refreshToken);
-    await this.refreshTokensRepository.save(existing);
+    await this.refreshTokensRepository.update(
+      { tokenHash },
+      { replacedByTokenHash: this.hashToken(tokens.refreshToken) },
+    );
 
     return { tokens, user: existing.user };
   }

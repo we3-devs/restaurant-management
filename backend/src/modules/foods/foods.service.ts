@@ -160,12 +160,19 @@ export class FoodsService {
     });
 
     try {
-      const saved = await this.foodsRepository.save(food);
-      if (saved.skuSegment) {
-        await this.skuCompositionService.recomposeFoodTree(saved.id);
-        return this.findOne(saved.id);
-      }
-      return saved;
+      // Save and recompose share one transaction: a colliding composed SKU has
+      // to roll the insert back, not leave a half-created food behind while the
+      // caller sees an error.
+      const id = await this.foodsRepository.manager.transaction(
+        async (manager) => {
+          const saved = await manager.save(food);
+          // Always — a code is derived from the name, so every food gets one
+          // without any segment being configured.
+          await this.skuCompositionService.recomposeFoodTree(saved.id, manager);
+          return saved.id;
+        },
+      );
+      return this.findOne(id);
     } catch (error) {
       throw this.mapUniqueViolation(error, dto.slug, dto.sku);
     }
@@ -175,7 +182,10 @@ export class FoodsService {
     const food = await this.findOne(id);
     // Captured before the assign below so a changed segment can be detected —
     // it has to cascade into every variant's composed SKU, not just this row.
+    // Both feed the derived code, so either changing means every item of this
+    // food needs its SKU rebuilt.
     const previousSegment = food.skuSegment;
+    const previousName = food.name;
 
     if (dto.foodCategoryId !== undefined) {
       if (dto.foodCategoryId !== null) {
@@ -218,7 +228,7 @@ export class FoodsService {
 
     try {
       const saved = await this.foodsRepository.save(food);
-      if (saved.skuSegment && saved.skuSegment !== previousSegment) {
+      if (saved.skuSegment !== previousSegment || saved.name !== previousName) {
         await this.skuCompositionService.recomposeFoodTree(saved.id);
         return this.findOne(saved.id);
       }

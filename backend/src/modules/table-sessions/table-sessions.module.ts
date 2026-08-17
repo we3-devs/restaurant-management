@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
@@ -14,6 +15,7 @@ import { TableSessionsService } from './table-sessions.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TableSession, LoyaltyAccount]),
+    AuthModule,
     DiningTablesModule,
     OutletsModule,
     CustomersModule,

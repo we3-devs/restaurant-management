@@ -29,12 +29,15 @@ import {
   useDeleteFoodVariant,
   useFoodVariant,
   useFoodVariantOutlets,
-  useFoodVariants,
   useRemoveFoodVariantOutlet,
   useUpdateFoodVariant,
   useUpsertFoodVariantOutlet,
 } from "@/hooks/use-food-variants"
 import { useOutlets } from "@/hooks/use-outlets"
+import {
+  useVariantList,
+  type VariantListValue,
+} from "@/hooks/use-variant-lists"
 import { updateFoodVariantSchema, type UpdateFoodVariantInput } from "@/lib/validators/food-variants"
 
 export function FoodVariantDetail({ variantId }: { variantId: number }) {
@@ -47,9 +50,8 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
     resolver: zodResolver(updateFoodVariantSchema),
     defaultValues: {
       name: "",
-      sku: "",
-      skuSegment: "",
-      parentId: null,
+      variantId: null,
+      subVariantId: null,
       price: 0,
       isDefault: false,
       isActive: true,
@@ -60,9 +62,8 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
     if (variant) {
       form.reset({
         name: variant.name,
-        sku: variant.sku ?? "",
-        skuSegment: variant.skuSegment ?? "",
-        parentId: variant.parentId ?? null,
+        variantId: variant.variantId ?? null,
+        subVariantId: variant.subVariantId ?? null,
         price: variant.price,
         isDefault: variant.isDefault,
         isActive: variant.isActive,
@@ -70,30 +71,26 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
     }
   }, [variant, form])
 
-  // Candidate parents: top-level variants of the same food, never itself.
-  const { data: siblings } = useFoodVariants(
-    variant ? { foodId: variant.foodId, limit: 100 } : {},
-  )
-  const parentOptions = (siblings?.data ?? []).filter(
-    (candidate) => candidate.parentId === null && candidate.id !== variantId,
-  )
+  const { data: variantList } = useVariantList("variants")
+  const { data: subVariantList } = useVariantList("sub-variants")
+  const active = (rows?: VariantListValue[]) => (rows ?? []).filter((r) => r.isActive)
 
   async function onSubmit(values: UpdateFoodVariantInput) {
     try {
       await updateVariant.mutateAsync(values)
-      toast.success("Variant updated")
+      toast.success("Food item updated")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update variant")
+      toast.error(error instanceof Error ? error.message : "Failed to update food item")
     }
   }
 
   async function handleDelete() {
     try {
       await deleteVariant.mutateAsync(variantId)
-      toast.success("Variant deleted")
+      toast.success("Food item deleted")
       router.push("/food-variants")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete variant")
+      toast.error(error instanceof Error ? error.message : "Failed to delete food item")
     }
   }
 
@@ -112,8 +109,8 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete variant &quot;{variant.name}&quot;?</AlertDialogTitle>
-              <AlertDialogDescription>This soft-deletes the variant. This cannot be undone from the UI.</AlertDialogDescription>
+              <AlertDialogTitle>Delete food item &quot;{variant.name}&quot;?</AlertDialogTitle>
+              <AlertDialogDescription>This soft-deletes the food item. This cannot be undone from the UI.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -143,43 +140,27 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU</FormLabel>
-                    <FormControl {...field} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="skuSegment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU code</FormLabel>
-                    <FormControl
-                      placeholder="CHI"
-                      className="font-mono uppercase"
-                      {...field}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Joined onto the food&apos;s code and any parent&apos;s.
-                      Changing a parent&apos;s code updates its children too.
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {parentOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>SKU</Label>
+                <p className="font-mono text-sm">{variant.sku ?? "-"}</p>
+                <p className="text-xs text-muted-foreground">
+                  Generated as food-variant-subvariant. Change a name, or set a
+                  SKU code on the food or on a list value, to alter it.
+                </p>
+              </div>
+              {(
+                [
+                  ["variantId", "Variant", active(variantList)],
+                  ["subVariantId", "Sub-variant", active(subVariantList)],
+                ] as const
+              ).map(([fieldName, label, options]) => (
                 <FormField
+                  key={fieldName}
                   control={form.control}
-                  name="parentId"
+                  name={fieldName}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sub-variant of</FormLabel>
+                      <FormLabel>{label}</FormLabel>
                       <Select
                         value={field.value ? String(field.value) : "none"}
                         onValueChange={(value) =>
@@ -187,26 +168,22 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
                         }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Top level" />
+                          <SelectValue placeholder="None" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Top level</SelectItem>
-                          {parentOptions.map((candidate) => (
-                            <SelectItem key={candidate.id} value={String(candidate.id)}>
-                              {candidate.name}
+                          <SelectItem value="none">None</SelectItem>
+                          {options.map((option) => (
+                            <SelectItem key={option.id} value={String(option.id)}>
+                              {option.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Nest this under a type, e.g. Half under Veg. A variant
-                        that already has sub-variants cannot itself be nested.
-                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
+              ))}
               <FormField
                 control={form.control}
                 name="price"

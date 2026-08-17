@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonsModule } from '../addons/addons.module';
+import { AuthModule } from '../auth/auth.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { FoodVariantsModule } from '../food-variants/food-variants.module';
@@ -42,6 +43,7 @@ import { TableSessionOpenController } from './table-session-open.controller';
       // module import (OrderPaymentsModule already imports OrdersModule).
       OrderPayment,
     ]),
+    AuthModule,
     OutletsModule,
     TableSessionsModule,
     CustomersModule,

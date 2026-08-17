@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -40,6 +40,7 @@ export class PurchaseOrdersService {
 
   async findAll(
     query: ListPurchaseOrdersQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<PurchaseOrder>> {
     const { page, limit, search, status, supplierId, outletId, warehouseId } =
       query;
@@ -47,6 +48,7 @@ export class PurchaseOrdersService {
     if (status) where.status = status;
     if (supplierId) where.supplierId = supplierId;
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (warehouseId) where.warehouseId = warehouseId;
     if (search) {
       where.poNo = ILike(`%${search}%`);

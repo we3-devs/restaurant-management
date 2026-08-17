@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { OutletAccessService } from './outlet-access.service';
 import { PermissionsService } from './permissions.service';
 import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
 
@@ -47,10 +48,11 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
   providers: [
     AuthService,
     PermissionsService,
+    OutletAccessService,
     JwtAccessStrategy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
-  exports: [PermissionsService],
+  exports: [PermissionsService, OutletAccessService],
 })
 export class AuthModule {}

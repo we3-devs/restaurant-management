@@ -96,12 +96,15 @@ export class TableSessionsService {
 
   async findAll(
     query: ListTableSessionsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<TableSessionWithCustomer>> {
     const methodStart = Date.now();
     const { page, limit, outletId, diningTableId, status } = query;
     const where: FindOptionsWhere<TableSession> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (diningTableId !== undefined) {
       where.diningTableId = diningTableId;

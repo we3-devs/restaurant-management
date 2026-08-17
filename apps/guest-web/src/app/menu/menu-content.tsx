@@ -42,14 +42,22 @@ interface Category {
   name: string;
 }
 
+/** A sellable food item: this food paired with values from the global lists. */
 interface Variant {
   id: number;
   foodId: number;
-  /** NULL for a top-level variant; otherwise the group it sits under. */
-  parentId: number | null;
+  variantId: number | null;
+  subVariantId: number | null;
   name: string;
   price: number;
   isDefault: boolean;
+}
+
+/** One value from the shared variant / sub-variant lists. */
+interface ListValue {
+  id: number;
+  name: string;
+  sortOrder: number;
 }
 
 interface CartItem {
@@ -99,6 +107,27 @@ export default function MenuContent() {
     enabled: !!tableCode,
   });
 
+  // The two shared option lists. Names live here; which combinations actually
+  // exist (and what they cost) lives on each food's items.
+  const { data: variantNames = [] } = useQuery<ListValue[]>({
+    queryKey: ["variant-list", "variants"],
+    queryFn: () => getJson("/variants/public"),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!tableCode,
+  });
+  const { data: subVariantNames = [] } = useQuery<ListValue[]>({
+    queryKey: ["variant-list", "sub-variants"],
+    queryFn: () => getJson("/sub-variants/public"),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!tableCode,
+  });
+
+  const nameOf = useCallback(
+    (rows: ListValue[], id: number | null) =>
+      id === null ? null : (rows.find((row) => row.id === id)?.name ?? null),
+    []
+  );
+
   // /food-variants/public takes one foodId at a time, so variant-bearing foods
   // are fetched in parallel. Prefetching (rather than loading on tap) is what
   // lets the cards show a truthful "from" price — a food's basePrice is not
@@ -125,19 +154,9 @@ export default function MenuContent() {
     return map;
   }, [variantFoods, variantResults]);
 
-  /**
-   * A leaf is a variant nothing else nests under — the only kind that can be
-   * ordered. Grouping rows like "Veg" carry a placeholder price that would
-   * drag the displayed minimum down if counted.
-   */
+  // Every food item is orderable now — there are no non-sellable grouping rows.
   const leavesOf = useCallback(
-    (foodId: number) => {
-      const variants = variantsByFood[foodId];
-      if (!variants?.length) return [];
-      return variants.filter(
-        (variant) => !variants.some((other) => other.parentId === variant.id)
-      );
-    },
+    (foodId: number) => variantsByFood[foodId] ?? [],
     [variantsByFood]
   );
 
@@ -527,22 +546,42 @@ export default function MenuContent() {
         </div>
       )}
 
-      {/* Variant picker — one step for a flat list, two when the food nests
-          sizes under types (Momo -> Veg -> Half/Full). */}
+      {/* Item picker. Step one lists the variants this food actually sells
+          (chicken, veg); step two lists the sizes available *for that variant*,
+          which is what stops a guest picking a pairing that has no price. When a
+          food has no variants at all it goes straight to the size list. */}
       {variantFor &&
         (() => {
           const all = variantsByFood[variantFor.id] ?? [];
-          const childrenOf = (id: number) =>
-            all.filter((variant) => variant.parentId === id);
 
-          // Showing the children of the open group, or the top level.
-          const options = variantGroup
-            ? childrenOf(variantGroup.id)
-            : all.filter((variant) => variant.parentId === null);
+          // Distinct variants across this food's items, in list order.
+          const variantIds = [...new Set(all.map((item) => item.variantId))];
+          const hasVariantStep =
+            variantIds.length > 1 || variantIds[0] !== null;
+
+          const itemsForVariant = (variantId: number | null) =>
+            all.filter((item) => item.variantId === variantId);
+
+          // Once a variant is chosen — or if there is no variant step — the
+          // remaining choice is the size.
+          const chosenVariantId = variantGroup
+            ? variantGroup.variantId
+            : hasVariantStep
+              ? undefined
+              : null;
+
+          const sizeOptions =
+            chosenVariantId === undefined ? [] : itemsForVariant(chosenVariantId);
 
           const closePicker = () => {
             setVariantFor(null);
             setVariantGroup(null);
+          };
+
+          const variantLabelOf = (item: Variant) => {
+            const v = nameOf(variantNames, item.variantId);
+            const s = nameOf(subVariantNames, item.subVariantId);
+            return [v, s].filter(Boolean).join(" · ") || item.name;
           };
 
           return (
@@ -569,8 +608,10 @@ export default function MenuContent() {
                       </h2>
                       <p className="truncate text-xs text-slate-500">
                         {variantGroup
-                          ? `${variantGroup.name} — choose a size`
-                          : "Choose an option"}
+                          ? `${nameOf(variantNames, variantGroup.variantId) ?? variantGroup.name} — choose a size`
+                          : chosenVariantId === undefined
+                            ? "Choose an option"
+                            : "Choose a size"}
                       </p>
                     </div>
                   </div>
@@ -584,54 +625,76 @@ export default function MenuContent() {
                 </div>
 
                 <ul className="max-h-[50vh] space-y-2 overflow-y-auto p-4">
-                  {options.map((variant) => {
-                    const children = childrenOf(variant.id);
-                    const isGroup = children.length > 0;
-                    // A group's own price is a placeholder, so show the range
-                    // its children actually cost.
-                    const from = isGroup
-                      ? Math.min(...children.map((child) => child.price))
-                      : variant.price;
-
-                    return (
-                      <li key={variant.id}>
-                        <button
-                          onClick={() => {
-                            if (isGroup) {
-                              setVariantGroup(variant);
-                              return;
-                            }
-                            const label = variantGroup
-                              ? `${variantGroup.name} · ${variant.name}`
-                              : variant.name;
-                            addItem(variantFor, variant, label);
-                            closePicker();
-                          }}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
-                        >
-                          <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                            {variant.name}
-                            {variant.isDefault && !isGroup && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
-                                popular
+                  {chosenVariantId === undefined
+                    ? // Step one: the variants this food sells.
+                      variantIds.map((variantId) => {
+                        const items = itemsForVariant(variantId);
+                        const from = Math.min(...items.map((i) => i.price));
+                        const single = items.length === 1;
+                        return (
+                          <li key={String(variantId)}>
+                            <button
+                              onClick={() => {
+                                // Nothing left to choose — order it directly.
+                                if (single) {
+                                  addItem(
+                                    variantFor,
+                                    items[0],
+                                    variantLabelOf(items[0])
+                                  );
+                                  closePicker();
+                                  return;
+                                }
+                                setVariantGroup(items[0]);
+                              }}
+                              className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                            >
+                              <span className="text-sm font-medium text-slate-900">
+                                {nameOf(variantNames, variantId) ?? "Standard"}
                               </span>
-                            )}
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-slate-900">
-                            {isGroup && (
-                              <span className="text-xs font-normal text-slate-400">
-                                from
+                              <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-slate-900">
+                                {!single && (
+                                  <span className="text-xs font-normal text-slate-400">
+                                    from
+                                  </span>
+                                )}
+                                {money(from)}
+                                {!single && (
+                                  <ChevronRight
+                                    size={15}
+                                    className="text-slate-400"
+                                  />
+                                )}
                               </span>
-                            )}
-                            {money(from)}
-                            {isGroup && (
-                              <ChevronRight size={15} className="text-slate-400" />
-                            )}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
+                            </button>
+                          </li>
+                        );
+                      })
+                    : // Step two: sizes available for the chosen variant.
+                      sizeOptions.map((item) => (
+                        <li key={item.id}>
+                          <button
+                            onClick={() => {
+                              addItem(variantFor, item, variantLabelOf(item));
+                              closePicker();
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                          >
+                            <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                              {nameOf(subVariantNames, item.subVariantId) ??
+                                item.name}
+                              {item.isDefault && (
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
+                                  popular
+                                </span>
+                              )}
+                            </span>
+                            <span className="shrink-0 text-sm font-semibold text-slate-900">
+                              {money(item.price)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
                 </ul>
               </div>
             </>

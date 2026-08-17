@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
-import type { Order } from '../orders/entities/order.entity';
+import { Order } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateTableSessionPaymentDto } from './dto/create-table-session-payment.dto';
@@ -19,6 +19,7 @@ export class OrderPaymentsService {
     private readonly ordersService: OrdersService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(
@@ -58,24 +59,64 @@ export class OrderPaymentsService {
     dto: CreateOrderPaymentDto,
     receivedBy: number,
   ): Promise<OrderPayment> {
-    const order = await this.ordersService.findOne(orderId);
-    OrdersService.assertMutable(order);
+    const type = dto.type ?? 'payment';
 
-    const payment = this.orderPaymentsRepository.create({
-      outletId: order.outletId,
-      orderId,
-      receivedBy,
-      paymentNumber: this.generatePaymentNumber(order.outletId),
-      type: dto.type ?? 'payment',
-      method: dto.method ?? 'cash',
-      provider: dto.provider ?? null,
-      transactionReference: dto.transactionReference ?? null,
-      amount: dto.amount,
-      status: 'completed',
-      paidAt: new Date(),
-      note: dto.note ?? null,
-    });
-    const saved = await this.orderPaymentsRepository.save(payment);
+    // Row-locks the order for the duration of the check + insert so a
+    // concurrent payment/refund on the same order can't read the same
+    // stale due/paid figure between the bound check below and the write —
+    // recalculatePayments() runs after commit, once this new row is
+    // actually visible to it.
+    const { order, saved } = await this.dataSource.transaction(
+      async (manager) => {
+        const lockedOrder = await manager
+          .createQueryBuilder(Order, 'order')
+          .setLock('pessimistic_write')
+          .where('order.id = :orderId', { orderId })
+          .getOne();
+        if (!lockedOrder) {
+          throw new NotFoundException(`Order ${orderId} not found`);
+        }
+        OrdersService.assertMutable(lockedOrder);
+
+        if (type === 'payment' && dto.amount > lockedOrder.dueAmount) {
+          throw new BadRequestException(
+            `Payment amount (${dto.amount}) exceeds the order's due amount (${lockedOrder.dueAmount})`,
+          );
+        }
+        if (type === 'refund') {
+          // paidAmount is already net of prior refunds (see
+          // OrdersService.recalculatePayments), so it's also the correct
+          // "still refundable" ceiling.
+          if (lockedOrder.paidAmount <= 0) {
+            throw new BadRequestException(
+              'Cannot refund an order with no completed payments',
+            );
+          }
+          if (dto.amount > lockedOrder.paidAmount) {
+            throw new BadRequestException(
+              `Refund amount (${dto.amount}) exceeds the order's net paid amount (${lockedOrder.paidAmount})`,
+            );
+          }
+        }
+
+        const payment = manager.create(OrderPayment, {
+          outletId: lockedOrder.outletId,
+          orderId,
+          receivedBy,
+          paymentNumber: this.generatePaymentNumber(lockedOrder.outletId),
+          type,
+          method: dto.method ?? 'cash',
+          provider: dto.provider ?? null,
+          transactionReference: dto.transactionReference ?? null,
+          amount: dto.amount,
+          status: 'completed',
+          paidAt: new Date(),
+          note: dto.note ?? null,
+        });
+        const savedPayment = await manager.save(payment);
+        return { order: lockedOrder, saved: savedPayment };
+      },
+    );
 
     await this.ordersService.recalculatePayments(orderId);
 

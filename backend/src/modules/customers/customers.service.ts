@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OutletsService } from '../outlets/outlets.service';
@@ -133,9 +133,21 @@ export class CustomersService {
 
   // -------------------------------------------------------- customer outlets
 
-  async listOutlets(customerId: number): Promise<CustomerOutlet[]> {
+  // A customer isn't itself outlet-scoped (they can walk into any outlet),
+  // so unlike every other resource here, listOutlets narrows the *rows*
+  // returned rather than blocking the whole call — a staff member sees only
+  // this customer's visit history at outlets they themselves can access,
+  // not a full cross-outlet picture.
+  async listOutlets(
+    customerId: number,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<CustomerOutlet[]> {
     await this.findOne(customerId);
-    return this.customerOutletsRepository.find({ where: { customerId } });
+    const where: FindOptionsWhere<CustomerOutlet> = { customerId };
+    if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
+    }
+    return this.customerOutletsRepository.find({ where });
   }
 
   async updateOutlet(

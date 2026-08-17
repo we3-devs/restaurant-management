@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
@@ -12,6 +13,7 @@ import { PurchaseReturnsService } from './purchase-returns.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PurchaseReturn, PurchaseReturnItem]),
+    AuthModule,
     InventoryStockModule,
     NotificationsModule,
     KitchenTicketsModule,

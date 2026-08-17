@@ -12,7 +12,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { DiningAreasService } from './dining-areas.service';
 import { CreateDiningAreaDto } from './dto/create-dining-area.dto';
 import { ListDiningAreasQueryDto } from './dto/list-dining-areas-query.dto';
@@ -22,7 +25,10 @@ import { UpdateDiningAreaDto } from './dto/update-dining-area.dto';
 @ApiBearerAuth()
 @Controller('dining-areas')
 export class DiningAreasController {
-  constructor(private readonly diningAreasService: DiningAreasService) {}
+  constructor(
+    private readonly diningAreasService: DiningAreasService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   @Get()
   @RequirePermissions('dining-areas.view')
@@ -30,31 +36,63 @@ export class DiningAreasController {
     summary:
       'Lists dining areas (paginated, optional search + outletId filter)',
   })
-  findAll(@Query() query: ListDiningAreasQueryDto) {
-    return this.diningAreasService.findAll(query);
+  async findAll(
+    @Query() query: ListDiningAreasQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.diningAreasService.findAll(query, accessible);
   }
 
   @Get(':id')
   @RequirePermissions('dining-areas.view')
   @ApiOperation({ summary: 'Gets a dining area' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.diningAreasService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const area = await this.diningAreasService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      area.outletId,
+    );
+    return area;
   }
 
   @Post()
   @RequirePermissions('dining-areas.manage')
   @ApiOperation({ summary: 'Creates a dining area' })
-  create(@Body() dto: CreateDiningAreaDto) {
+  async create(@Body() dto: CreateDiningAreaDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.diningAreasService.create(dto);
   }
 
   @Patch(':id')
   @RequirePermissions('dining-areas.manage')
   @ApiOperation({ summary: 'Updates a dining area (outletId is immutable)' })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDiningAreaDto,
+    @CurrentUser() user: User,
   ) {
+    const area = await this.diningAreasService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      area.outletId,
+    );
     return this.diningAreasService.update(id, dto);
   }
 
@@ -65,7 +103,13 @@ export class DiningAreasController {
     summary:
       'Deletes a dining area (cascades its dining tables — no soft delete)',
   })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const area = await this.diningAreasService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      area.outletId,
+    );
     return this.diningAreasService.remove(id);
   }
 }

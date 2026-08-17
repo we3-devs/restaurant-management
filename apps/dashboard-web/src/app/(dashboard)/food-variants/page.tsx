@@ -10,10 +10,29 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFoodVariants, type FoodVariant } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
+import { useVariantList, type VariantListValue } from "@/hooks/use-variant-lists"
 import { CreateFoodVariantDialog } from "./create-food-variant-dialog"
 
-const columns: ColumnDef<FoodVariant>[] = [
+/**
+ * Built as a function so the variant / sub-variant columns can resolve ids
+ * against the global lists — a food item stores ids, and the pairing is the
+ * thing worth seeing at a glance.
+ */
+const buildColumns = (
+  variantName: (id: number | null) => string,
+  subVariantName: (id: number | null) => string,
+): ColumnDef<FoodVariant>[] => [
   { accessorKey: "name", header: "Name" },
+  {
+    id: "variant",
+    header: "Variant",
+    cell: ({ row }) => variantName(row.original.variantId),
+  },
+  {
+    id: "subVariant",
+    header: "Sub-variant",
+    cell: ({ row }) => subVariantName(row.original.subVariantId),
+  },
   { accessorKey: "sku", header: "SKU" },
   { accessorKey: "price", header: "Price" },
   {
@@ -36,16 +55,21 @@ export default function FoodVariantsPage() {
     foodId: foodFilter !== "all" ? Number(foodFilter) : undefined,
   })
 
+  const { data: variantList } = useVariantList("variants")
+  const { data: subVariantList } = useVariantList("sub-variants")
+  const lookup = (rows: VariantListValue[] | undefined) => (id: number | null) =>
+    id === null ? "—" : (rows?.find((r) => r.id === id)?.name ?? `#${id}`)
+
   const table = useReactTable({
     data: data?.data ?? [],
-    columns,
+    columns: buildColumns(lookup(variantList), lookup(subVariantList)),
     getCoreRowModel: getCoreRowModel(),
   })
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Food Variants</h1>
+        <h1 className="text-lg font-semibold">Food Items</h1>
         <CreateFoodVariantDialog />
       </div>
 

@@ -17,11 +17,19 @@ export class CreateFoodVariantDto {
 
   @ApiPropertyOptional({
     description:
-      'Parent variant id for a two-level menu, e.g. Half/Full nested under Veg. Omit for a top-level variant.',
+      'Variant from the global list, e.g. Chicken. Omit for a plain item with no variant.',
   })
   @IsOptional()
   @IsInt()
-  parentId?: number;
+  variantId?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Sub-variant from the global list, e.g. Full. Omit for an item with no size.',
+  })
+  @IsOptional()
+  @IsInt()
+  subVariantId?: number;
 
   @ApiProperty({ example: 'Large' })
   @IsString()
@@ -35,15 +43,6 @@ export class CreateFoodVariantDto {
   @MaxLength(255)
   sku?: string;
 
-  @ApiPropertyOptional({
-    description:
-      "This level's SKU segment, e.g. CHI or FULL. Composed onto the food's segment and any parent variant's, giving MOMO-CHI-FULL.",
-    example: 'CHI',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
-  skuSegment?: string;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()

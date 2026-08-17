@@ -42,7 +42,11 @@ export const navGroupDefs: NavGroupDef[] = [
     links: [
       { href: "/food-categories", label: "Food Categories", permission: "food-categories.view" },
       { href: "/foods", label: "Foods", permission: "foods.view" },
-      { href: "/food-variants", label: "Food Variants", permission: "food-variants.view" },
+      { href: "/variants", label: "Variants", permission: "food-variants.view" },
+      { href: "/sub-variants", label: "Sub-variants", permission: "food-variants.view" },
+      // The route keeps its old path so existing links and bookmarks still work;
+      // only the label reflects that these rows are food items now.
+      { href: "/food-variants", label: "Food Items", permission: "food-variants.view" },
       { href: "/addon-groups", label: "Addon Groups", permission: "addon-groups.view" },
       { href: "/addons", label: "Addons", permission: "addons.view" },
     ],

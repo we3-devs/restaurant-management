@@ -64,6 +64,7 @@ import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-pay
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TableSessionsModule } from './modules/table-sessions/table-sessions.module';
 import { UnitsModule } from './modules/units/units.module';
+import { VariantsModule } from './modules/variants/variants.module';
 import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
@@ -155,6 +156,19 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
             max: 13,
             min: 10,
             idleTimeoutMillis: 60_000,
+            // node-postgres uses this both to bound establishing a new
+            // physical connection AND how long a caller queues waiting for
+            // a client to free up — set comfortably above the ~1.1-1.4s
+            // cold-connect cost documented above so legitimate cold-starts
+            // still succeed, but a starved pool (e.g. a burst of order
+            // creations) fails fast with a clear error instead of hanging
+            // every request, including /health, until a manual restart.
+            connectionTimeoutMillis: 5_000,
+            // Session-level query timeout (SET statement_timeout on each
+            // checked-out connection) — a backstop against a pathological
+            // query holding a connection indefinitely, well above the
+            // documented ~150-200ms warm-query baseline.
+            statement_timeout: 15_000,
           },
         };
       },
@@ -176,6 +190,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     AddonGroupsModule,
     FoodsModule,
     FoodVariantsModule,
+    VariantsModule,
     AddonsModule,
     DiningAreasModule,
     DiningTablesModule,

@@ -16,8 +16,11 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { DiningTablesService } from './dining-tables.service';
 import { CreateDiningTableDto } from './dto/create-dining-table.dto';
 import { ListDiningTablesQueryDto } from './dto/list-dining-tables-query.dto';
@@ -32,6 +35,7 @@ export class DiningTablesController {
   constructor(
     private readonly diningTablesService: DiningTablesService,
     private readonly poolMetrics: PoolMetrics,
+    private readonly outletAccess: OutletAccessService,
   ) {}
 
   @Get('lookup')
@@ -60,10 +64,24 @@ export class DiningTablesController {
     summary:
       'Lists dining tables (paginated, optional search + outletId/diningAreaId/status filters)',
   })
-  async findAll(@Query() query: ListDiningTablesQueryDto) {
+  async findAll(
+    @Query() query: ListDiningTablesQueryDto,
+    @CurrentUser() user: User,
+  ) {
     const start = Date.now();
 
-    const result = await this.diningTablesService.findAll(query);
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    const result = await this.diningTablesService.findAll(query, accessible);
 
     const duration = Date.now() - start;
     this.logger.log(
@@ -76,14 +94,25 @@ export class DiningTablesController {
   @Get(':id')
   @RequirePermissions('dining-tables.view')
   @ApiOperation({ summary: 'Gets a dining table' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.diningTablesService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const table = await this.diningTablesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      table.outletId,
+    );
+    return table;
   }
 
   @Post()
   @RequirePermissions('dining-tables.manage')
   @ApiOperation({ summary: 'Creates a dining table' })
-  create(@Body() dto: CreateDiningTableDto) {
+  async create(@Body() dto: CreateDiningTableDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.diningTablesService.create(dto);
   }
 
@@ -92,10 +121,17 @@ export class DiningTablesController {
   @ApiOperation({
     summary: 'Updates a dining table (outletId/diningAreaId are immutable)',
   })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDiningTableDto,
+    @CurrentUser() user: User,
   ) {
+    const table = await this.diningTablesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      table.outletId,
+    );
     return this.diningTablesService.update(id, dto);
   }
 
@@ -103,7 +139,13 @@ export class DiningTablesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('dining-tables.manage')
   @ApiOperation({ summary: 'Deletes a dining table (no soft delete)' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const table = await this.diningTablesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      table.outletId,
+    );
     return this.diningTablesService.remove(id);
   }
 }

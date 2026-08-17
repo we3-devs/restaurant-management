@@ -5,14 +5,22 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 import { Food } from '../../foods/entities/food.entity';
+import { SubVariant } from '../../variants/entities/sub-variant.entity';
+import { Variant } from '../../variants/entities/variant.entity';
 
+/**
+ * A food item: one food paired with at most one variant and at most one
+ * sub-variant, and the only place a sell price lives.
+ *
+ * Still named `food_variants` because order_items.food_variant_id points here —
+ * renaming the table would rewrite every historical order reference.
+ */
 @Entity({ name: 'food_variants' })
 export class FoodVariant {
   @PrimaryColumn({
@@ -34,27 +42,33 @@ export class FoodVariant {
   food: Food;
 
   /**
-   * Self-reference for two-level variants: Momo -> Veg -> Half/Full.
-   * NULL means top level. A row with children is a grouping label whose own
-   * price is ignored; the leaf the guest picks is what gets ordered.
+   * The variant this item is, drawn from the global list (chicken, veg).
+   * NULL for a plain item — a food with no options at all.
    */
   @Column({
-    name: 'parent_id',
+    name: 'variant_id',
     type: 'bigint',
     nullable: true,
     transformer: new BigIntTransformer(),
   })
-  parentId: number | null;
+  variantId: number | null;
 
-  @ManyToOne(() => FoodVariant, (variant) => variant.children, {
+  @ManyToOne(() => Variant, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'variant_id' })
+  variant: Variant | null;
+
+  /** The sub-variant, from the global list (full, half). NULL if not sized. */
+  @Column({
+    name: 'sub_variant_id',
+    type: 'bigint',
     nullable: true,
-    onDelete: 'CASCADE',
+    transformer: new BigIntTransformer(),
   })
-  @JoinColumn({ name: 'parent_id' })
-  parent: FoodVariant | null;
+  subVariantId: number | null;
 
-  @OneToMany(() => FoodVariant, (variant) => variant.parent)
-  children: FoodVariant[];
+  @ManyToOne(() => SubVariant, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sub_variant_id' })
+  subVariant: SubVariant | null;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;
@@ -62,12 +76,6 @@ export class FoodVariant {
   @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
   sku: string | null;
 
-  /**
-   * This level's piece of the SKU path, e.g. CHI or FULL. Not unique — FULL
-   * repeats across dishes; uniqueness is enforced on the composed `sku`.
-   */
-  @Column({ name: 'sku_segment', type: 'varchar', length: 32, nullable: true })
-  skuSegment: string | null;
 
   @Column({
     type: 'numeric',

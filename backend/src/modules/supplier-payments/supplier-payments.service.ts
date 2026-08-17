@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -19,11 +19,15 @@ export class SupplierPaymentsService {
     private readonly suppliersService: SuppliersService,
   ) {}
 
-  async findAll(query: ListSupplierPaymentsQueryDto): Promise<PaginatedResponse<SupplierPayment>> {
+  async findAll(
+    query: ListSupplierPaymentsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<PaginatedResponse<SupplierPayment>> {
     const { page, limit, search, supplierId, outletId, paymentMethod } = query;
     const where: FindOptionsWhere<SupplierPayment> = {};
     if (supplierId) where.supplierId = supplierId;
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (paymentMethod) where.paymentMethod = paymentMethod;
     if (search) { where.paymentNo = ILike(`%${search}%`); }
     const [data, total] = await this.paymentRepo.findAndCount({ where, order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit });

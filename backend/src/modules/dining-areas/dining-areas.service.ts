@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { OutletsService } from '../outlets/outlets.service';
 import { CreateDiningAreaDto } from './dto/create-dining-area.dto';
@@ -22,11 +22,14 @@ export class DiningAreasService {
 
   async findAll(
     query: ListDiningAreasQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<DiningArea>> {
     const { page, limit, search, outletId } = query;
     const where: FindOptionsWhere<DiningArea> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (search) {
       where.name = ILike(`%${search}%`);

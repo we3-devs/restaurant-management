@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -11,6 +12,7 @@ import { Customer } from './entities/customer.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Customer, CustomerOutlet]),
+    AuthModule,
     OutletsModule,
     LoyaltyModule,
     SettingsModule,

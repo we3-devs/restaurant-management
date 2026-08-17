@@ -13,10 +13,12 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
 import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
 import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
+import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { User } from '../users/entities/user.entity';
 import { CreateGuestServiceRequestDto } from './dto/create-guest-service-request.dto';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
@@ -29,6 +31,8 @@ import { ServiceRequestsService } from './service-requests.service';
 export class ServiceRequestsController {
   constructor(
     private readonly serviceRequestsService: ServiceRequestsService,
+    private readonly diningTablesService: DiningTablesService,
+    private readonly outletAccess: OutletAccessService,
   ) {}
 
   @Post('guest')
@@ -53,8 +57,22 @@ export class ServiceRequestsController {
     summary:
       'Lists service requests (paginated, outletId/diningTableId/status filters, newest pending first)',
   })
-  findAll(@Query() query: ListServiceRequestsQueryDto) {
-    return this.serviceRequestsService.findAll(query);
+  async findAll(
+    @Query() query: ListServiceRequestsQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.serviceRequestsService.findAll(query, accessible);
   }
 
   @Post()
@@ -63,7 +81,13 @@ export class ServiceRequestsController {
     summary:
       'Staff-initiated Call-Waiter request (e.g. from the Floor table dialog)',
   })
-  create(@Body() dto: CreateServiceRequestDto, @CurrentUser() user: User) {
+  async create(@Body() dto: CreateServiceRequestDto, @CurrentUser() user: User) {
+    const table = await this.diningTablesService.findOne(dto.diningTableId);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      table.outletId,
+    );
     return this.serviceRequestsService.create(dto, user.id);
   }
 
@@ -72,7 +96,13 @@ export class ServiceRequestsController {
   @ApiOperation({
     summary: 'Marks a service request as resolved (attended to)',
   })
-  resolve(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+  async resolve(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const request = await this.serviceRequestsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      request.outletId,
+    );
     return this.serviceRequestsService.resolve(id, user.id);
   }
 }

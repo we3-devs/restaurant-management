@@ -137,11 +137,23 @@ export class OrdersService {
 
   // ---------------------------------------------------------------- orders
 
-  async findAll(query: ListOrdersQueryDto): Promise<PaginatedResponse<Order>> {
+  /**
+   * accessibleOutletIds narrows the result set to the caller's own outlets
+   * — 'ALL' for superadmins/unscoped staff, otherwise the exact list from
+   * OutletAccessService. Applied at the query level (not filtered after
+   * fetch) so an unauthorized outlet's orders are never read off the DB in
+   * the first place.
+   */
+  async findAll(
+    query: ListOrdersQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<PaginatedResponse<Order>> {
     const { page, limit, search, outletId, tableSessionId, status } = query;
     const where: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (tableSessionId !== undefined) {
       where.tableSessionId = tableSessionId;
@@ -634,6 +646,41 @@ export class OrdersService {
     const order = await this.findOne(id);
     OrdersService.assertMutable(order);
 
+    // Bound every incoming money field against the order's own
+    // freshly-computed subtotal (never a client-supplied figure) before
+    // any of it is persisted — a discount/tax/service-charge that could
+    // exceed what's actually on the order is a straight path to a
+    // negative or inflated bill.
+    const subtotal = await this.computeBillableSubtotal(id);
+    const discountType = dto.discountType ?? order.discountType;
+    const discountValue = dto.discountValue ?? order.discountValue;
+    if (discountType === 'percentage' && discountValue > 100) {
+      throw new BadRequestException(
+        'Percentage discount cannot exceed 100%',
+      );
+    }
+    if (discountType === 'flat' && discountValue > subtotal) {
+      throw new BadRequestException(
+        `Discount (${discountValue}) cannot exceed the order subtotal (${subtotal})`,
+      );
+    }
+    // No dedicated "max tax/service-charge %" setting exists yet — bounding
+    // each to the subtotal itself is a sane hard ceiling against a
+    // wildly-out-of-range value while still allowing any real-world rate.
+    if (dto.taxAmount !== undefined && dto.taxAmount > subtotal) {
+      throw new BadRequestException(
+        `Tax amount (${dto.taxAmount}) cannot exceed the order subtotal (${subtotal})`,
+      );
+    }
+    if (
+      dto.serviceChargeAmount !== undefined &&
+      dto.serviceChargeAmount > subtotal
+    ) {
+      throw new BadRequestException(
+        `Service charge (${dto.serviceChargeAmount}) cannot exceed the order subtotal (${subtotal})`,
+      );
+    }
+
     Object.assign(order, {
       ...(dto.note !== undefined && { note: dto.note }),
       ...(dto.discountType !== undefined && { discountType: dto.discountType }),
@@ -687,6 +734,18 @@ export class OrdersService {
       // order's row, so this can't be a "complete now, reject after" step).
       throw new BadRequestException(
         'Completing an order requires a staff actor',
+      );
+    }
+
+    if (dto.status === 'completed' && order.dueAmount > 0.01) {
+      // Same "checked before anything is persisted" reasoning as above —
+      // an order can't be marked complete (closing out the table/session)
+      // while it still has an outstanding balance; dueAmount is kept in
+      // sync by recalculateTotals/recalculatePayments on every relevant
+      // mutation, so this reads the authoritative persisted figure rather
+      // than recomputing it.
+      throw new ConflictException(
+        `Order ${id} still has a due amount of ${order.dueAmount} — record full payment before completing`,
       );
     }
 
@@ -1297,9 +1356,21 @@ export class OrdersService {
     return saved;
   }
 
+  /**
+   * Hard delete is only safe while the item is still 'stock_reserved' —
+   * nothing downstream (kitchen ticket, prep, guest tracker) has seen it
+   * yet. Once it's been sent to the kitchen, deleting the row would erase
+   * the kitchen's record of it without a trace; void it instead (see
+   * voidItem) so the removal is auditable and reason-carrying.
+   */
   async removeItem(id: number): Promise<void> {
     const item = await this.findItem(id);
     OrdersService.assertMutable(await this.findOne(item.orderId));
+    if (item.status !== 'stock_reserved') {
+      throw new ConflictException(
+        `Item ${id} has already been sent to the kitchen (status: ${item.status}) and can no longer be deleted — void it instead`,
+      );
+    }
     const reservations = await this.reservationsRepository.find({
       where: { orderItemId: id, status: 'reserved' },
     });
@@ -1312,6 +1383,35 @@ export class OrdersService {
     }
     await this.orderItemsRepository.remove(item);
     await this.recalculateTotals(item.orderId);
+  }
+
+  /**
+   * The post-kitchen equivalent of removeItem(): reason-required, keeps the
+   * row (status -> 'cancelled') instead of deleting it, so a fired item's
+   * history stays intact for audit. Reuses OrderItem's existing 'cancelled'
+   * status rather than adding a new enum value/migration.
+   */
+  async voidItem(id: number, reason: string): Promise<OrderItem> {
+    const item = await this.findItem(id);
+    OrdersService.assertMutable(await this.findOne(item.orderId));
+    if (item.status === 'cancelled') {
+      throw new ConflictException(`Item ${id} is already voided`);
+    }
+    const reservations = await this.reservationsRepository.find({
+      where: { orderItemId: id, status: 'reserved' },
+    });
+    for (const reservation of reservations) {
+      await this.warehouseIngredientStocksService.reserve(
+        reservation.warehouseId,
+        reservation.ingredientId,
+        -reservation.reservedQuantity,
+      );
+    }
+    item.status = 'cancelled';
+    item.cancelReason = reason;
+    const saved = await this.orderItemsRepository.save(item);
+    await this.recalculateTotals(item.orderId);
+    return saved;
   }
 
   // ------------------------------------------------------- order item addons
@@ -1465,12 +1565,24 @@ export class OrdersService {
 
   // ---------------------------------------------------------------- private
 
-  private async recalculateTotals(orderId: number): Promise<Order> {
-    const order = await this.findOne(orderId);
+  /**
+   * Subtotal computed fresh from the order's own persisted items/addons —
+   * never from a client-supplied value — so discount/tax bound checks
+   * (see update()) can't be defeated by a client asserting its own
+   * "current subtotal" alongside the discount it wants applied.
+   */
+  private async computeBillableSubtotal(orderId: number): Promise<number> {
     const items = await this.orderItemsRepository.find({ where: { orderId } });
-    const itemIds = items.map((item) => item.id);
+    // Voided/cancelled items (see voidItem) must not keep billing the
+    // customer — only items still actually on the order count toward the
+    // total.
+    const billableItems = items.filter((item) => item.status !== 'cancelled');
+    const itemIds = billableItems.map((item) => item.id);
 
-    const itemsTotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
+    const itemsTotal = billableItems.reduce(
+      (sum, item) => sum + item.totalAmount,
+      0,
+    );
     const addons = itemIds.length
       ? await this.orderItemAddonsRepository.find({
           where: { orderItemId: In(itemIds) },
@@ -1481,7 +1593,12 @@ export class OrdersService {
       0,
     );
 
-    const subtotal = round2(itemsTotal + addonsTotal);
+    return round2(itemsTotal + addonsTotal);
+  }
+
+  private async recalculateTotals(orderId: number): Promise<Order> {
+    const order = await this.findOne(orderId);
+    const subtotal = await this.computeBillableSubtotal(orderId);
     const discountAmount =
       order.discountType === 'flat'
         ? order.discountValue

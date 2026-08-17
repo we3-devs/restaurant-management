@@ -95,6 +95,7 @@ export class NotificationsService {
   /** Paginated, filterable feed — also used by the header bell (small limit, page 1, unreadOnly). */
   async findAll(
     query: ListNotificationsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<NotificationsFeedResponse> {
     const {
       page,
@@ -111,6 +112,10 @@ export class NotificationsService {
     const qb = this.notificationsRepository.createQueryBuilder('notification');
     if (outletId !== undefined) {
       qb.andWhere('notification.outlet_id = :outletId', { outletId });
+    } else if (accessibleOutletIds !== 'ALL') {
+      qb.andWhere('notification.outlet_id IN (:...accessibleOutletIds)', {
+        accessibleOutletIds,
+      });
     }
     if (type !== undefined) {
       qb.andWhere('notification.type = :type', { type });
@@ -149,7 +154,11 @@ export class NotificationsService {
       qb.clone().getCount(),
       this.notificationsRepository.count({
         where: {
-          ...(outletId !== undefined ? { outletId } : {}),
+          ...(outletId !== undefined
+            ? { outletId }
+            : accessibleOutletIds !== 'ALL'
+              ? { outletId: In(accessibleOutletIds) }
+              : {}),
           readAt: IsNull(),
           archivedAt: IsNull(),
         },
@@ -205,10 +214,17 @@ export class NotificationsService {
   }
 
   /** Cheap poll fallback for the bell badge when the socket is down. */
-  async unreadCount(outletId?: number): Promise<{ count: number }> {
+  async unreadCount(
+    outletId?: number,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<{ count: number }> {
     const count = await this.notificationsRepository.count({
       where: {
-        ...(outletId !== undefined ? { outletId } : {}),
+        ...(outletId !== undefined
+          ? { outletId }
+          : accessibleOutletIds !== 'ALL'
+            ? { outletId: In(accessibleOutletIds) }
+            : {}),
         readAt: IsNull(),
         archivedAt: IsNull(),
       },

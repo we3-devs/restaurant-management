@@ -12,7 +12,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
@@ -23,7 +26,10 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 @ApiBearerAuth()
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   @Get()
   @RequirePermissions('customers.view')
@@ -69,18 +75,21 @@ export class CustomersController {
   @Get(':id/outlets')
   @RequirePermissions('customers.view')
   @ApiOperation({ summary: "Lists a customer's per-outlet visit stats" })
-  listOutlets(@Param('id', ParseIntPipe) id: number) {
-    return this.customersService.listOutlets(id);
+  async listOutlets(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    return this.customersService.listOutlets(id, accessible);
   }
 
   @Patch(':id/outlets/:outletId')
   @RequirePermissions('customers.manage')
   @ApiOperation({ summary: "Toggles a customer's favorite-outlet flag" })
-  updateOutlet(
+  async updateOutlet(
     @Param('id', ParseIntPipe) id: number,
     @Param('outletId', ParseIntPipe) outletId: number,
     @Body() dto: UpdateCustomerOutletDto,
+    @CurrentUser() user: User,
   ) {
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, outletId);
     return this.customersService.updateOutlet(id, outletId, dto);
   }
 }

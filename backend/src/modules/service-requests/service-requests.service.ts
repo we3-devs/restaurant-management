@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import type { AccessibleOutlets } from '../auth/outlet-access.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -31,11 +32,14 @@ export class ServiceRequestsService {
 
   async findAll(
     query: ListServiceRequestsQueryDto,
+    accessibleOutletIds: AccessibleOutlets = 'ALL',
   ): Promise<PaginatedResponse<ServiceRequest>> {
     const { page, limit, outletId, diningTableId, status } = query;
     const where: FindOptionsWhere<ServiceRequest> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (diningTableId !== undefined) {
       where.diningTableId = diningTableId;

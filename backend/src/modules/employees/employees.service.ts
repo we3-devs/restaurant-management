@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
@@ -67,10 +67,14 @@ export class EmployeesService {
   }
 
   // ---- Employees ----
-  async findAll(query: ListEmployeesQueryDto): Promise<PaginatedResponse<Employee>> {
+  async findAll(
+    query: ListEmployeesQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<PaginatedResponse<Employee>> {
     const { page, limit, search, outletId, positionId, employmentStatus } = query;
     const where: FindOptionsWhere<Employee> = {};
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (positionId) where.positionId = positionId;
     if (employmentStatus) where.employmentStatus = employmentStatus;
     if (search) {

@@ -14,17 +14,28 @@ export interface PublicFood {
   foodCategoryId: number | null
   name: string
   shortDescription: string | null
+  imageUrl: string | null
   basePrice: number
   hasVariants: boolean
   hasAddons: boolean
 }
 
+/** A sellable food item: this food paired with values from the global option lists. */
 export interface PublicFoodVariant {
   id: number
   foodId: number
+  variantId: number | null
+  subVariantId: number | null
   name: string
   price: number
   isDefault: boolean
+}
+
+/** One value from /variants/public or /sub-variants/public. */
+export interface PublicVariantListValue {
+  id: number
+  name: string
+  sortOrder: number
 }
 
 export interface ListPublicFoodsParams {

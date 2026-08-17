@@ -9,6 +9,7 @@ import {
   DataSource,
   FindOptionsWhere,
   ILike,
+  In,
   QueryFailedError,
   Repository,
 } from 'typeorm';
@@ -32,11 +33,14 @@ export class WarehousesService {
 
   async findAll(
     query: ListWarehousesQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Warehouse>> {
     const { page, limit, search, outletId } = query;
     const where: FindOptionsWhere<Warehouse> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (search) {
       where.name = ILike(`%${search}%`);

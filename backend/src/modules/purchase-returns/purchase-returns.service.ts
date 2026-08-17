@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
@@ -24,12 +24,16 @@ export class PurchaseReturnsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAll(query: ListPurchaseReturnsQueryDto): Promise<PaginatedResponse<PurchaseReturn>> {
+  async findAll(
+    query: ListPurchaseReturnsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<PaginatedResponse<PurchaseReturn>> {
     const { page, limit, search, status, supplierId, outletId } = query;
     const where: FindOptionsWhere<PurchaseReturn> = {};
     if (status) where.status = status;
     if (supplierId) where.supplierId = supplierId;
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (search) { where.returnNo = ILike(`%${search}%`); }
     const [data, total] = await this.prRepo.findAndCount({ where, order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit });
     return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };

@@ -2,9 +2,11 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -18,6 +20,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
 import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
@@ -49,7 +52,24 @@ export class OrdersController {
     private readonly kitchenTicketsService: KitchenTicketsService,
     private readonly diningTablesService: DiningTablesService,
     private readonly tableSessionsService: TableSessionsService,
+    private readonly outletAccess: OutletAccessService,
   ) {}
+
+  /**
+   * Every staff-facing order endpoint below resolves the order and asserts
+   * outlet access through this single choke point before doing anything
+   * else — see OutletAccessService. Returns the order so callers that need
+   * it anyway (most do) don't re-fetch.
+   */
+  private async assertOrderAccess(orderId: number, user: User) {
+    const order = await this.ordersService.findOne(orderId);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      order.outletId,
+    );
+    return order;
+  }
 
   @Public()
   @UseGuards(CustomerJwtAuthGuard, ThrottlerGuard)
@@ -88,19 +108,35 @@ export class OrdersController {
   @Post('guest/:id/cancel')
   @ApiOperation({
     summary:
-      "Lets a verified guest cancel the table's shared order — only while it's 'pending' or 'accepted' (before the kitchen has made real progress).",
+      "Lets a verified guest cancel the table's shared order — only while it's 'pending' or 'accepted' (before the kitchen has made real progress), and only for the table they're actually sitting at.",
   })
   async cancelGuestOrder(
     @Param('id', ParseIntPipe) id: number,
+    @Query('tableCode') tableCode: string,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
     // Ownership isn't checked against a single customerId here — the order
     // is a shared cart for the whole table (see OrdersService.createFromGuest),
-    // so any phone-verified guest at the table can cancel it. The real guard
-    // is the status check below: nobody can cancel once the kitchen has
-    // made real progress.
+    // so any phone-verified guest at the table can cancel it. What IS
+    // checked is that the order actually belongs to the requester's own
+    // table's current session — resolved the same way myGuestOrders (see
+    // below) resolves it, from tableCode -> table -> latest session, never
+    // from a raw session/table id the client could just supply directly.
+    // Without this, any verified guest could cancel any order at any table
+    // by guessing/enumerating order ids.
     requireVerifiedCustomerId(customer, 'to order');
+    const table = await this.diningTablesService.findByCode(tableCode);
+    const session = await this.tableSessionsService.findLatestForTable(table.id);
+    if (!session) {
+      throw new NotFoundException(`No active session for table ${tableCode}`);
+    }
+
     const order = await this.ordersService.findOne(id);
+    if (order.tableSessionId !== session.id) {
+      throw new ForbiddenException(
+        'This order does not belong to your table',
+      );
+    }
     if (!GUEST_CANCELLABLE_STATUSES.includes(order.status)) {
       throw new ConflictException(
         `Order ${id} can no longer be cancelled (status: ${order.status})`,
@@ -136,21 +172,39 @@ export class OrdersController {
     summary:
       'Lists orders (paginated, optional search on orderNumber + outletId/status filters)',
   })
-  findAll(@Query() query: ListOrdersQueryDto) {
-    return this.ordersService.findAll(query);
+  async findAll(
+    @Query() query: ListOrdersQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.ordersService.findAll(query, accessible);
   }
 
   @Get(':id')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Gets an order' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.assertOrderAccess(id, user);
   }
 
   @Get(':id/status-history')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: "Every recorded status transition for an order, oldest first" })
-  listStatusHistory(@Param('id', ParseIntPipe) id: number) {
+  async listStatusHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.listStatusHistory(id);
   }
 
@@ -159,7 +213,12 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Creates an order (source/orderSource are hardcoded to staff/pos)',
   })
-  create(@Body() dto: CreateOrderDto, @CurrentUser() user: User) {
+  async create(@Body() dto: CreateOrderDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.ordersService.create(dto, user.id);
   }
 
@@ -169,7 +228,12 @@ export class OrdersController {
     summary:
       'Updates order note/discount/tax/service-charge (recalculates totals)',
   })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrderDto) {
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.update(id, dto);
   }
 
@@ -179,11 +243,12 @@ export class OrdersController {
     summary:
       'Transitions order status (rejects invalid transitions; auto-logs order_status_histories; completing the last active order on a table auto-ends its session and frees the table)',
   })
-  updateStatus(
+  async updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,
     @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.updateStatus(id, dto, user.id);
   }
 
@@ -193,10 +258,16 @@ export class OrdersController {
     summary:
       "Completes every open order on a table session at once, once every one of them is fully paid — the other half of 'pay for the whole table at once' (see POST /table-sessions/:id/payments)",
   })
-  completeAllForTableSession(
+  async completeAllForTableSession(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User,
   ) {
+    const session = await this.tableSessionsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      session.outletId,
+    );
     return this.ordersService.completeAllForTableSession(id, user.id);
   }
 
@@ -206,10 +277,11 @@ export class OrdersController {
     summary:
       "Moves every non-held 'stock_reserved' item to 'sent_to_kitchen' and creates a KitchenTicket per department represented (held items stay in the cart)",
   })
-  sendToKitchen(
+  async sendToKitchen(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.sendToKitchen(id, user.id);
   }
 
@@ -219,7 +291,11 @@ export class OrdersController {
     summary:
       "Waitstaff 'Mark Delivered': bulk-moves every 'ready' item across all of the order's kitchen tickets to 'served'",
   })
-  markReadyItemsServed(@Param('id', ParseIntPipe) id: number) {
+  async markReadyItemsServed(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertOrderAccess(id, user);
     return this.kitchenTicketsService.markOrderReadyItemsServed(id);
   }
 
@@ -229,21 +305,23 @@ export class OrdersController {
     summary:
       "'Fire Held Items': routes every held 'stock_reserved' item to the kitchen (un-holding as it goes)",
   })
-  fireHeldItems(
+  async fireHeldItems(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.fireHeldItems(id, user.id);
   }
 
   @Post(':id/loyalty/redeem')
   @RequirePermissions('orders.manage')
   @ApiOperation({ summary: 'Redeems loyalty points against an order (recalculates totals)' })
-  redeemLoyaltyPoints(
+  async redeemLoyaltyPoints(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RedeemLoyaltyPointsDto,
     @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.redeemLoyaltyPoints(id, dto.points, user.id);
   }
 
@@ -253,10 +331,12 @@ export class OrdersController {
     summary:
       'Adds an item to the order, snapshotting its current effective price at this outlet',
   })
-  addItem(
+  async addItem(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateOrderItemDto,
+    @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.addItem(id, dto);
   }
 
@@ -266,10 +346,12 @@ export class OrdersController {
     summary:
       'Adds multiple items (each with optional addons) in one request — used by the POS to push a locally-built cart in one round-trip',
   })
-  addItemsBatch(
+  async addItemsBatch(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateOrderItemsBatchDto,
+    @CurrentUser() user: User,
   ) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.addItemsBatch(id, dto.items);
   }
 
@@ -278,7 +360,8 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Generate an invoice for this order on-demand. Returns the order with invoiceNumber set.',
   })
-  issueInvoice(@Param('id', ParseIntPipe) id: number) {
+  async issueInvoice(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertOrderAccess(id, user);
     return this.ordersService.issueInvoice(id);
   }
 

@@ -18,7 +18,11 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCreateFoodVariant, useFoodVariants } from "@/hooks/use-food-variants"
+import { useCreateFoodVariant } from "@/hooks/use-food-variants"
+import {
+  useVariantList,
+  type VariantListValue,
+} from "@/hooks/use-variant-lists"
 import { useFoods } from "@/hooks/use-foods"
 import { createFoodVariantSchema, type CreateFoodVariantInput } from "@/lib/validators/food-variants"
 
@@ -29,38 +33,32 @@ export function CreateFoodVariantDialog() {
 
   const form = useForm<CreateFoodVariantInput>({
     resolver: zodResolver(createFoodVariantSchema),
-    defaultValues: { foodId: 0, parentId: null, name: "", sku: "", skuSegment: "", price: 0, isDefault: false },
+    defaultValues: { foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, isDefault: false },
   })
 
-  const selectedFoodId = form.watch("foodId")
-
-  // Only variants of the chosen food can be parents, and only top-level ones —
-  // the backend rejects anything deeper, so don't offer it here either.
-  const { data: siblingVariants } = useFoodVariants(
-    selectedFoodId ? { foodId: selectedFoodId, limit: 100 } : {},
-  )
-  const parentOptions =
-    selectedFoodId && siblingVariants
-      ? siblingVariants.data.filter((variant) => variant.parentId === null)
-      : []
+  // The two global lists — the same values are offered for every food, which is
+  // the point of them being global.
+  const { data: variants } = useVariantList("variants")
+  const { data: subVariants } = useVariantList("sub-variants")
+  const active = (rows?: VariantListValue[]) => (rows ?? []).filter((r) => r.isActive)
 
   async function onSubmit(values: CreateFoodVariantInput) {
     try {
       await createFoodVariant.mutateAsync(values)
-      toast.success(`Variant "${values.name}" created`)
-      form.reset({ foodId: 0, parentId: null, name: "", sku: "", skuSegment: "", price: 0, isDefault: false })
+      toast.success(`Food item "${values.name}" created`)
+      form.reset({ foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, isDefault: false })
       setOpen(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create variant")
+      toast.error(error instanceof Error ? error.message : "Failed to create food item")
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button>Create variant</Button>} />
+      <DialogTrigger render={<Button>Create food item</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create food variant</DialogTitle>
+          <DialogTitle>Create food item</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -89,13 +87,21 @@ export function CreateFoodVariantDialog() {
                 </FormItem>
               )}
             />
-            {parentOptions.length > 0 && (
+            {(
+              [
+                ["variantId", "Variant", active(variants), "e.g. Chicken"],
+                ["subVariantId", "Sub-variant", active(subVariants), "e.g. Full"],
+              ] as const
+            ).map(([fieldName, label, options, hint]) => (
               <FormField
+                key={fieldName}
                 control={form.control}
-                name="parentId"
+                name={fieldName}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Sub-variant of (optional)</FormLabel>
+                    <FormLabel>
+                      {label} <span className="text-muted-foreground">({hint})</span>
+                    </FormLabel>
                     <Select
                       value={field.value ? String(field.value) : "none"}
                       onValueChange={(value) =>
@@ -103,26 +109,27 @@ export function CreateFoodVariantDialog() {
                       }
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Top level" />
+                        <SelectValue placeholder="None" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Top level</SelectItem>
-                        {parentOptions.map((variant) => (
-                          <SelectItem key={variant.id} value={String(variant.id)}>
-                            {variant.name}
+                        <SelectItem value="none">None</SelectItem>
+                        {options.map((option) => (
+                          <SelectItem key={option.id} value={String(option.id)}>
+                            {option.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Nest a size under a type, e.g. Half under Veg. The price on
-                      the deepest level is what gets ordered.
-                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            )}
+            ))}
+            <p className="text-xs text-muted-foreground">
+              This food item is the pairing of the two above, and the price below
+              belongs to that pairing alone. Both lists are shared across every
+              food — add a value once and it is available everywhere.
+            </p>
             <FormField
               control={form.control}
               name="name"
@@ -130,36 +137,6 @@ export function CreateFoodVariantDialog() {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl placeholder="Large" {...field} />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="skuSegment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SKU code (optional)</FormLabel>
-                  <FormControl
-                    placeholder="CHI"
-                    className="font-mono uppercase"
-                    {...field}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Appended to the food&apos;s code and any parent&apos;s, e.g.
-                    MOMO-CHI-FULL. Renaming a parent code updates its children.
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="sku"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SKU override (optional)</FormLabel>
-                  <FormControl {...field} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -196,7 +173,7 @@ export function CreateFoodVariantDialog() {
             />
             <DialogFooter>
               <Button type="submit" disabled={createFoodVariant.isPending}>
-                {createFoodVariant.isPending ? "Creating..." : "Create variant"}
+                {createFoodVariant.isPending ? "Creating..." : "Create food item"}
               </Button>
             </DialogFooter>
           </form>

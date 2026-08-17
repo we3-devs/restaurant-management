@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { OutletDepartmentsModule } from '../outlet-departments/outlet-departments.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { Warehouse } from './entities/warehouse.entity';
@@ -9,6 +10,7 @@ import { WarehousesService } from './warehouses.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Warehouse]),
+    AuthModule,
     OutletsModule,
     OutletDepartmentsModule,
   ],

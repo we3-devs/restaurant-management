@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
@@ -28,12 +28,16 @@ export class GoodsReceivingService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAll(query: ListGoodsReceivingQueryDto): Promise<PaginatedResponse<GoodsReceiving>> {
+  async findAll(
+    query: ListGoodsReceivingQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<PaginatedResponse<GoodsReceiving>> {
     const { page, limit, search, status, purchaseOrderId, outletId, warehouseId } = query;
     const where: FindOptionsWhere<GoodsReceiving> = {};
     if (status) where.status = status;
     if (purchaseOrderId) where.purchaseOrderId = purchaseOrderId;
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (warehouseId) where.warehouseId = warehouseId;
     if (search) { where.grnNo = ILike(`%${search}%`); }
     const [data, total] = await this.grnRepo.findAndCount({

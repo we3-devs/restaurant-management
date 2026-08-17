@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
@@ -39,6 +39,7 @@ export class AttendanceService {
 
   async findAll(
     query: ListAttendanceQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Attendance>> {
     const {
       page,
@@ -53,6 +54,7 @@ export class AttendanceService {
     const where: FindOptionsWhere<Attendance> = {};
     if (employeeId) where.employeeId = employeeId;
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     if (shiftId) where.shiftId = shiftId;
     if (status) where.status = status;
     if (dateFrom && dateTo) {
@@ -199,7 +201,10 @@ export class AttendanceService {
     return this.attendanceRepo.save(attendance);
   }
 
-  async getToday(outletId?: number): Promise<{
+  async getToday(
+    outletId?: number,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<{
     total: number;
     present: number;
     late: number;
@@ -222,7 +227,13 @@ export class AttendanceService {
       .createQueryBuilder('attendance')
       .where('attendance.clock_in >= :start', { start })
       .andWhere('attendance.clock_in < :end', { end });
-    if (outletId) qb.andWhere('attendance.outlet_id = :outletId', { outletId });
+    if (outletId) {
+      qb.andWhere('attendance.outlet_id = :outletId', { outletId });
+    } else if (accessibleOutletIds !== 'ALL') {
+      qb.andWhere('attendance.outlet_id IN (:...accessibleOutletIds)', {
+        accessibleOutletIds,
+      });
+    }
 
     const [rows, total] = await qb.getManyAndCount();
     const present = rows.filter(

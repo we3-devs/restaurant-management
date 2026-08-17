@@ -9,7 +9,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { MarkAllNotificationsReadDto } from './dto/mark-all-notifications-read.dto';
 import { NotificationsService } from './notifications.service';
@@ -18,7 +21,21 @@ import { NotificationsService } from './notifications.service';
 @ApiBearerAuth()
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
+
+  /** Resolves the notification and asserts outlet access — same choke-point pattern as OrdersController#assertOrderAccess. */
+  private async assertNotificationAccess(id: number, user: User) {
+    const notification = await this.notificationsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      notification.outletId,
+    );
+    return notification;
+  }
 
   @Get()
   @RequirePermissions('orders.view')
@@ -26,23 +43,51 @@ export class NotificationsController {
     summary:
       'Paginated, filterable outlet notification feed (type/priority/read/archived/search) plus the unread badge count',
   })
-  findAll(@Query() query: ListNotificationsQueryDto) {
-    return this.notificationsService.findAll(query);
+  async findAll(
+    @Query() query: ListNotificationsQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.notificationsService.findAll(query, accessible);
   }
 
   @Get('unread-count')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Cheap poll fallback for the bell badge' })
-  unreadCount(@Query('outletId') outletId?: string) {
-    return this.notificationsService.unreadCount(
-      outletId ? Number(outletId) : undefined,
+  async unreadCount(
+    @Query('outletId') outletId: string | undefined,
+    @CurrentUser() user: User,
+  ) {
+    const parsedOutletId = outletId ? Number(outletId) : undefined;
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
     );
+    if (accessible !== 'ALL' && parsedOutletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        parsedOutletId,
+      );
+    }
+    return this.notificationsService.unreadCount(parsedOutletId, accessible);
   }
 
   @Post(':id/read')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Marks a single notification as read' })
-  markRead(@Param('id', ParseIntPipe) id: number) {
+  async markRead(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertNotificationAccess(id, user);
     return this.notificationsService.markRead(id);
   }
 
@@ -51,28 +96,39 @@ export class NotificationsController {
   @ApiOperation({
     summary: 'Marks every unread notification for an outlet as read',
   })
-  markAllRead(@Body() dto: MarkAllNotificationsReadDto) {
+  async markAllRead(
+    @Body() dto: MarkAllNotificationsReadDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.notificationsService.markAllRead(dto.outletId);
   }
 
   @Post(':id/archive')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Archives a notification' })
-  archive(@Param('id', ParseIntPipe) id: number) {
+  async archive(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertNotificationAccess(id, user);
     return this.notificationsService.archive(id);
   }
 
   @Post(':id/unarchive')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Restores an archived notification' })
-  unarchive(@Param('id', ParseIntPipe) id: number) {
+  async unarchive(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertNotificationAccess(id, user);
     return this.notificationsService.unarchive(id);
   }
 
   @Delete(':id')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Permanently deletes a notification' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertNotificationAccess(id, user);
     return this.notificationsService.remove(id);
   }
 }

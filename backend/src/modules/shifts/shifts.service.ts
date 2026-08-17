@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Shift } from './entities/shift.entity';
 import { ShiftAssignment } from './entities/shift-assignment.entity';
 import { CreateShiftDto, UpdateShiftDto } from './dto/create-shift.dto';
@@ -14,9 +14,13 @@ export class ShiftsService {
   ) {}
 
   // ---- Shifts ----
-  async findAll(outletId?: number): Promise<Shift[]> {
+  async findAll(
+    outletId?: number,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+  ): Promise<Shift[]> {
     const where: any = {};
     if (outletId) where.outletId = outletId;
+    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
     return this.shiftRepo.find({ where, order: { startTime: 'ASC' } });
   }
 
@@ -41,6 +45,13 @@ export class ShiftsService {
   async assignEmployee(dto: AssignShiftDto, createdBy: number): Promise<ShiftAssignment> {
     await this.findOne(dto.shiftId);
     return this.assignmentRepo.save(this.assignmentRepo.create({ ...dto, createdBy }));
+  }
+
+  /** Internal lookup used by the controller to resolve an assignment's shift before deleting it. */
+  async findAssignment(id: number): Promise<ShiftAssignment> {
+    const a = await this.assignmentRepo.findOne({ where: { id } });
+    if (!a) throw new NotFoundException(`Shift assignment ${id} not found`);
+    return a;
   }
 
   async unassignEmployee(id: number): Promise<void> {
