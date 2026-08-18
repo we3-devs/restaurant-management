@@ -17,7 +17,7 @@ export interface Position {
   slug: string
   description: string | null
   defaultRoleId: number | null
-  defaultRole?: { id: number; name: string; slug: string } | null
+  defaultRole?: { id: number; name: string; slug: string; level: string } | null
   isActive: boolean
   createdAt: string
   updatedAt: string

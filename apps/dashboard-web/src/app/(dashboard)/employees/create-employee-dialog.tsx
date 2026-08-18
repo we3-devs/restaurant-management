@@ -45,11 +45,14 @@ export function CreateEmployeeDialog() {
     defaultValues,
   })
   const selectedOutletId = form.watch("outletId")
+  const selectedPositionId = form.watch("positionId")
   const loginMode = form.watch("loginMode")
   const { data: departments, isLoading: departmentsLoading } = useOutletDepartments({
     outletId: selectedOutletId || undefined,
     limit: 100,
   })
+  const selectedPosition = positions?.find((position) => position.id === selectedPositionId)
+  const isAdminRole = selectedPosition?.defaultRole?.level === "global"
 
   async function onSubmit(values: CreateEmployeeInput) {
     const { loginMode, password, userId, ...employeeFields } = values
@@ -123,39 +126,6 @@ export function CreateEmployeeDialog() {
             />
             <FormField
               control={form.control}
-              name="departmentId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Department</FormLabel>
-                  <Select
-                    items={[
-                      { value: "none", label: "No department" },
-                      ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
-                    ]}
-                    value={field.value ? String(field.value) : "none"}
-                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
-                    disabled={!selectedOutletId}
-                  >
-                    <SelectTrigger className="w-full" disabled={departmentsLoading}>
-                      <SelectValue
-                        placeholder={departmentsLoading ? "Loading…" : selectedOutletId ? "Select a department" : "Select an outlet first"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No department</SelectItem>
-                      {departments?.data.map((department) => (
-                        <SelectItem key={department.id} value={String(department.id)}>
-                          {department.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="positionId"
               render={({ field }) => (
                 <FormItem>
@@ -166,7 +136,10 @@ export function CreateEmployeeDialog() {
                       ...(positions?.map((position) => ({ value: String(position.id), label: position.name })) ?? []),
                     ]}
                     value={field.value ? String(field.value) : "none"}
-                    onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                    onValueChange={(v) => {
+                      field.onChange(v === "none" ? undefined : Number(v))
+                      form.setValue("departmentId", undefined)
+                    }}
                   >
                     <SelectTrigger className="w-full" disabled={positionsLoading}>
                       <SelectValue placeholder={positionsLoading ? "Loading…" : "Select a position"} />
@@ -184,6 +157,41 @@ export function CreateEmployeeDialog() {
                 </FormItem>
               )}
             />
+            {!isAdminRole && (
+              <FormField
+                control={form.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select
+                      items={[
+                        { value: "none", label: "No department" },
+                        ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
+                      ]}
+                      value={field.value ? String(field.value) : "none"}
+                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                      disabled={!selectedOutletId}
+                    >
+                      <SelectTrigger className="w-full" disabled={departmentsLoading}>
+                        <SelectValue
+                          placeholder={departmentsLoading ? "Loading…" : selectedOutletId ? "Select a department" : "Select an outlet first"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No department</SelectItem>
+                        {departments?.data.map((department) => (
+                          <SelectItem key={department.id} value={String(department.id)}>
+                            {department.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="phone"

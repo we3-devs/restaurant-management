@@ -74,8 +74,11 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
     },
   })
   const selectedOutletId = form.watch("outletId")
+  const selectedPositionId = form.watch("positionId")
   const { data: departments } = useOutletDepartments({ outletId: selectedOutletId, limit: 100 })
   const currentDepartment = departments?.data.find((d) => d.id === employee?.departmentId)
+  const selectedPosition = positions?.find((position) => position.id === selectedPositionId)
+  const isAdminRole = selectedPosition?.defaultRole?.level === "global"
 
   useEffect(() => {
     if (employee) {
@@ -227,7 +230,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                         ...(positions?.map((position) => ({ value: String(position.id), label: position.name })) ?? []),
                       ]}
                       value={field.value ? String(field.value) : "none"}
-                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                      onValueChange={(v) => {
+                        field.onChange(v === "none" ? undefined : Number(v))
+                        form.setValue("departmentId", undefined)
+                      }}
                       disabled={!canManage}
                     >
                       <SelectTrigger className="w-full">
@@ -276,37 +282,39 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="departmentId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Department</FormLabel>
-                    <Select
-                      items={[
-                        { value: "none", label: "No department" },
-                        ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
-                      ]}
-                      value={field.value ? String(field.value) : "none"}
-                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
-                      disabled={!canManage || !selectedOutletId}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No department</SelectItem>
-                        {departments?.data.map((department) => (
-                          <SelectItem key={department.id} value={String(department.id)}>
-                            {department.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!isAdminRole && (
+                <FormField
+                  control={form.control}
+                  name="departmentId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Department</FormLabel>
+                      <Select
+                        items={[
+                          { value: "none", label: "No department" },
+                          ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
+                        ]}
+                        value={field.value ? String(field.value) : "none"}
+                        onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                        disabled={!canManage || !selectedOutletId}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No department</SelectItem>
+                          {departments?.data.map((department) => (
+                            <SelectItem key={department.id} value={String(department.id)}>
+                              {department.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="userId"
