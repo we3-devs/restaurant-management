@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
+import { Skeleton } from "@rms/ui/skeleton"
 import { useOrders } from "@rms/api-client/hooks/use-orders"
 import { useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
@@ -20,11 +21,14 @@ const CLOSED_STATUSES = new Set(["completed", "cancelled"])
  */
 export function OrderSwitcher({ outletId, activeOrderId }: { outletId: number; activeOrderId: number | null }) {
   const router = useRouter()
-  const { data: orders } = useOrders({ outletId, limit: 100 })
+  const { data: orders, isLoading } = useOrders({ outletId, limit: 100 })
   const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
   const { data: tables } = useDiningTables({ outletId, limit: 100 })
 
   const openOrders = (orders?.data ?? []).filter((order) => !CLOSED_STATUSES.has(order.status))
+  // Keep the header slot occupied while the open-sale list is in flight so
+  // the layout doesn't pop when it lands.
+  if (isLoading) return <Skeleton className="h-9 w-56 rounded-md" />
   if (openOrders.length === 0) return null
 
   const tableNameBySessionId = new Map<number, string>()

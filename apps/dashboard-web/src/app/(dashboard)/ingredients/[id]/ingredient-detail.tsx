@@ -23,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
 import { useDeleteIngredient, useIngredient, useUpdateIngredient } from "@/hooks/use-ingredients"
@@ -36,6 +37,7 @@ const ingredientTypes = ["raw_material", "ready_product", "packaging", "consumab
 export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
   const router = useRouter()
   const { data: ingredient, isLoading } = useIngredient(ingredientId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: categories } = useIngredientCategories({ limit: 100 })
   const { data: warehouses } = useWarehouses({ limit: 100 })
   const { data: stocks } = useWarehouseIngredientStocks({ ingredientId, limit: 100 })
@@ -78,9 +80,9 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
     }
   }
 
-  if (isLoading || !ingredient) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !ingredient) return <NotFoundCard resource="Ingredient" />
+  if (!ingredient) return null
 
   return (
     <div className="max-w-2xl space-y-6">

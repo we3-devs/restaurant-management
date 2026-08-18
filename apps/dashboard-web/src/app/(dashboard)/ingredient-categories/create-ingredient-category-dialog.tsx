@@ -14,7 +14,7 @@ import { createIngredientCategorySchema, type CreateIngredientCategoryInput } fr
 
 export function CreateIngredientCategoryDialog() {
   const [open, setOpen] = useState(false)
-  const { data: categories } = useIngredientCategories({ limit: 100 })
+  const { data: categories, isLoading: categoriesLoading } = useIngredientCategories({ limit: 100 })
   const createCategory = useCreateIngredientCategory()
 
   const form = useForm<CreateIngredientCategoryInput>({
@@ -52,8 +52,8 @@ export function CreateIngredientCategoryDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No parent" />
+                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "No parent"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No parent</SelectItem>

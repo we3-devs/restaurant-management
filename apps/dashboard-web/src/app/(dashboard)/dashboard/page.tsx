@@ -26,6 +26,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatGridSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { StatCard } from "@/components/stat-card"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
@@ -75,16 +77,10 @@ interface SectionProps {
 
 function StatCardsSection({ outletId, range, enabled }: SectionProps) {
   const { data, isLoading } = useDashboardStats({ outletId, ...range }, { enabled })
+  const showSkeleton = useDelayedLoading(isLoading || !data)
 
-  if (isLoading || !data) {
-    return (
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 w-full rounded-xl" />
-        ))}
-      </div>
-    )
-  }
+  if (showSkeleton) return <StatGridSkeleton count={8} className="grid-cols-2 md:grid-cols-4" />
+  if (!data) return null
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -128,6 +124,7 @@ function StatCardsSection({ outletId, range, enabled }: SectionProps) {
 
 function ChartsSection({ outletId, range, enabled }: SectionProps) {
   const { data, isLoading } = useDashboardCharts({ outletId, ...range }, { enabled })
+  const showSkeleton = useDelayedLoading(isLoading || !data)
 
   const revenueTrendData = useMemo(
     () => (data?.revenueTrend ?? []).map((d) => ({ ...d, label: d.date.slice(5) })),
@@ -135,7 +132,7 @@ function ChartsSection({ outletId, range, enabled }: SectionProps) {
   )
   const bestSellersData = useMemo(() => (data?.bestSellingFoods ?? []).slice(0, 8), [data])
 
-  if (isLoading || !data) {
+  if (showSkeleton) {
     return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Skeleton className="h-80 w-full rounded-xl" />
@@ -143,6 +140,7 @@ function ChartsSection({ outletId, range, enabled }: SectionProps) {
       </div>
     )
   }
+  if (!data) return null
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -214,8 +212,9 @@ function ChartsSection({ outletId, range, enabled }: SectionProps) {
 
 function BreakdownSection({ outletId, range, enabled }: SectionProps) {
   const { data, isLoading } = useDashboardBreakdown({ outletId, ...range }, { enabled })
+  const showSkeleton = useDelayedLoading(isLoading || !data)
 
-  if (isLoading || !data) {
+  if (showSkeleton) {
     return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -224,6 +223,7 @@ function BreakdownSection({ outletId, range, enabled }: SectionProps) {
       </div>
     )
   }
+  if (!data) return null
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -279,8 +279,9 @@ function BreakdownSection({ outletId, range, enabled }: SectionProps) {
 
 function InventoryActivitySection({ outletId, range, enabled }: SectionProps) {
   const { data, isLoading } = useDashboardInventoryActivity({ outletId, ...range }, { enabled })
+  const showSkeleton = useDelayedLoading(isLoading || !data)
 
-  if (isLoading || !data) {
+  if (showSkeleton) {
     return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -288,6 +289,7 @@ function InventoryActivitySection({ outletId, range, enabled }: SectionProps) {
       </div>
     )
   }
+  if (!data) return null
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

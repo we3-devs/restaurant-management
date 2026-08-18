@@ -9,7 +9,7 @@ import { Button } from "./button"
 import { Card } from "./card"
 import { Input } from "./input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
-import { Skeleton } from "./skeleton"
+import { ListSkeleton } from "./skeletons"
 import { DataTablePagination } from "./data-table-pagination"
 import {
   useArchiveNotification,
@@ -143,7 +143,7 @@ export function NotificationsPage() {
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+        <ListSkeleton count={6} />
       ) : notifications.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <BellOffIcon className="size-8 text-muted-foreground" />

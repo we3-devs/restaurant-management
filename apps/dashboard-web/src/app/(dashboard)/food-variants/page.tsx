@@ -6,7 +6,8 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFoodVariants, type FoodVariant } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
@@ -55,6 +56,8 @@ export default function FoodVariantsPage() {
     foodId: foodFilter !== "all" ? Number(foodFilter) : undefined,
   })
 
+  const showSkeleton = useDelayedLoading(isLoading)
+
   const { data: variantList } = useVariantList("variants")
   const { data: subVariantList } = useVariantList("sub-variants")
   const lookup = (rows: VariantListValue[] | undefined) => (id: number | null) =>
@@ -90,8 +93,8 @@ export default function FoodVariantsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={6} />
       ) : (
         <Table>
           <TableHeader>

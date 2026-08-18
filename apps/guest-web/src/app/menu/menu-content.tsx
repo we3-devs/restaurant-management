@@ -20,6 +20,7 @@ import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
+import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
 
 // These mirror the Public* projections from /foods/public,
@@ -429,14 +430,7 @@ export default function MenuContent() {
 
       <main className="mx-auto max-w-3xl px-4 py-5">
         {foodsLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-28 animate-pulse rounded-xl border border-slate-200 bg-white"
-              />
-            ))}
-          </div>
+          <CardGridSkeleton count={4} className="grid-cols-1 sm:grid-cols-2" />
         ) : sections.length === 0 ? (
           <p className="py-20 text-center text-sm text-slate-500">
             Nothing on the menu right now.

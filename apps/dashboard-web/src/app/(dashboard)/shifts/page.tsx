@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { CardGridSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useEmployees } from "@/hooks/use-employees"
 import { useOutlets } from "@/hooks/use-outlets"
@@ -52,6 +53,7 @@ export default function ShiftsPage() {
   const [outletFilter, setOutletFilter] = useState("all")
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: shifts, isLoading } = useShifts(outletFilter !== "all" ? Number(outletFilter) : undefined)
+  const showSkeleton = useDelayedLoading(isLoading)
   const deleteShift = useDeleteShift()
 
   async function handleDelete(id: number) {
@@ -89,8 +91,8 @@ export default function ShiftsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <CardGridSkeleton count={6} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ClockIcon className="size-8 text-muted-foreground" />

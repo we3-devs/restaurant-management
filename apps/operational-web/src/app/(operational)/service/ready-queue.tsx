@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Card } from "@rms/ui/card"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
 import { useMarkOrderReadyItemsServed } from "@rms/api-client/hooks/use-orders"
 import { useReadyQueueGroups, type ReadyGroup } from "@/features/waiter/use-ready-queue"
 import { elapsedMinutes } from "@rms/api-client/kitchen/ticket-stage"
@@ -16,12 +16,7 @@ export function ReadyQueue({ outletId }: { outletId: number }) {
   const { groups, readyCount, now, isLoading } = useReadyQueueGroups(outletId)
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
-      </div>
-    )
+    return <ListSkeleton count={2} />
   }
 
   if (groups.length === 0) {

@@ -1,4 +1,5 @@
 import { Separator } from "./separator"
+import { TextSkeleton } from "./skeletons"
 import { useAddons } from "@rms/api-client/hooks/use-addons"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
@@ -15,7 +16,7 @@ import { useSettingsCategory, type PosSettings } from "@rms/api-client/hooks/use
  * Pulls header/footer text from Settings > POS instead of hardcoding them.
  */
 export function BillReceipt({ orderId }: { orderId: number }) {
-  const { data: order } = useOrder(orderId)
+  const { data: order, isLoading } = useOrder(orderId)
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: foods } = useFoods({ limit: 100 })
@@ -24,6 +25,9 @@ export function BillReceipt({ orderId }: { orderId: number }) {
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
 
+  // Six queries feed this receipt — hold the shape until the order itself
+  // arrives so a blank (or "No items yet") flash never shows.
+  if (isLoading) return <TextSkeleton lines={6} className="py-4" />
   if (!order) return null
 
   return (

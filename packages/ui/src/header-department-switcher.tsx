@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ChefHatIcon } from "lucide-react"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
+import { Skeleton } from "./skeleton"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
 /**
@@ -14,12 +15,15 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
  * check on it. Hidden when there's zero or one department to pick from.
  */
 export function HeaderDepartmentSwitcher() {
-  const { departmentId, setDepartmentId, departments, showDepartmentPicker } = useActiveOutlet()
+  const { departmentId, setDepartmentId, departments, showDepartmentPicker, isLoadingDepartments } =
+    useActiveOutlet()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => setMounted(true), [])
 
-  if (!mounted || !showDepartmentPicker) return null
+  if (!mounted) return null
+  if (showDepartmentPicker && isLoadingDepartments) return <Skeleton className="h-8 w-40 rounded-md" />
+  if (!showDepartmentPicker) return null
 
   return (
     <Select

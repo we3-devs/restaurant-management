@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useIngredients } from "@/hooks/use-ingredients"
@@ -45,6 +46,7 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
   const canManage = isSuperadmin || permissions.includes("purchase-orders.manage")
 
   const { data: po, isLoading } = usePurchaseOrder(purchaseOrderId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = usePurchaseOrderItems(purchaseOrderId)
   const { data: supplier } = useSupplier(po?.supplierId ?? 0)
   const { data: outlet } = useOutlet(po?.outletId ?? 0)
@@ -64,9 +66,9 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
     }
   }
 
-  if (isLoading || !po) {
-    return <Skeleton className="h-96 w-full max-w-3xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !po) return <NotFoundCard resource="Purchase order" />
+  if (!po) return null
 
   const canCancel = canManage && !["completed", "cancelled"].includes(po.status)
 

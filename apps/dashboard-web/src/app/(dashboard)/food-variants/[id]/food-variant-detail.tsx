@@ -24,7 +24,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import {
   useDeleteFoodVariant,
   useFoodVariant,
@@ -43,6 +44,7 @@ import { updateFoodVariantSchema, type UpdateFoodVariantInput } from "@/lib/vali
 export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const router = useRouter()
   const { data: variant, isLoading } = useFoodVariant(variantId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateVariant = useUpdateFoodVariant(variantId)
   const deleteVariant = useDeleteFoodVariant()
 
@@ -94,9 +96,9 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
     }
   }
 
-  if (isLoading || !variant) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !variant) return <NotFoundCard resource="Food item" />
+  if (!variant) return null
 
   return (
     <div className="max-w-2xl space-y-6">

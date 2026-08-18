@@ -4,7 +4,8 @@ import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@rms/ui/status-badge"
-import { Skeleton } from "@rms/ui/skeleton"
+import { TableSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
@@ -28,6 +29,7 @@ export default function TableSessionsPage() {
     limit: 100,
     outletId: outletId ?? undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -42,8 +44,8 @@ export default function TableSessionsPage() {
         <StartTableSessionDialog />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

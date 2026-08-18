@@ -6,7 +6,8 @@ import { ChevronRightIcon } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { BillReceipt } from "@/components/bill-receipt"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useOrder } from "@/hooks/use-orders"
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
@@ -30,10 +31,11 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 /** Read-only order tracking for admin — bill, payment totals, and status history, no editing/payment actions (those stay in operational-web/POS). */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
+  const showSkeleton = useDelayedLoading(isLoading)
 
-  if (isLoading || !order) {
-    return <Skeleton className="mx-auto h-96 w-full max-w-5xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !order) return <NotFoundCard resource="Order" />
+  if (!order) return null
 
   return (
     <div className="space-y-4">

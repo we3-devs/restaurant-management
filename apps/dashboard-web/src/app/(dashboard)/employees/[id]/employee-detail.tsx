@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlet, useOutlets } from "@/hooks/use-outlets"
 import { useOutletDepartments } from "@/hooks/use-outlet-departments"
@@ -43,6 +44,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
   const canManage = isSuperadmin || permissions.includes("employees.manage")
 
   const { data: employee, isLoading } = useEmployee(employeeId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: positions } = usePositions()
   const { data: users } = useUsers({ limit: 100 })
   const { data: outlets } = useOutlets({ limit: 100 })
@@ -113,9 +115,9 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
     }
   }
 
-  if (isLoading || !employee) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !employee) return <NotFoundCard resource="Employee" />
+  if (!employee) return null
 
   return (
     <div className="max-w-2xl space-y-6">

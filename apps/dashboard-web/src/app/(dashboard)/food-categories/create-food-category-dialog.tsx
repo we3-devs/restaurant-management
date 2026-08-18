@@ -21,7 +21,7 @@ import { createFoodCategorySchema, type CreateFoodCategoryInput } from "@/lib/va
 
 export function CreateFoodCategoryDialog() {
   const [open, setOpen] = useState(false)
-  const { data: categories } = useFoodCategories({ limit: 100 })
+  const { data: categories, isLoading: categoriesLoading } = useFoodCategories({ limit: 100 })
   const createFoodCategory = useCreateFoodCategory()
 
   const form = useForm<CreateFoodCategoryInput>({
@@ -81,8 +81,8 @@ export function CreateFoodCategoryDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No parent" />
+                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "No parent"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No parent</SelectItem>

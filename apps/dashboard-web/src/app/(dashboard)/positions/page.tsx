@@ -29,7 +29,8 @@ import {
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useCreatePosition, useDeletePosition, usePositions } from "@/hooks/use-employees"
@@ -40,6 +41,7 @@ export default function PositionsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("employees.manage")
   const { data: positions, isLoading } = usePositions()
+  const showSkeleton = useDelayedLoading(isLoading)
   const deletePosition = useDeletePosition()
 
   async function handleDelete(id: number) {
@@ -60,8 +62,8 @@ export default function PositionsPage() {
         {canManage && <CreatePositionDialog />}
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={6} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <BriefcaseIcon className="size-8 text-muted-foreground" />

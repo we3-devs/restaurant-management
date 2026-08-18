@@ -35,9 +35,9 @@ const defaultValues: CreatePurchaseOrderInput = {
 export function CreatePurchaseOrderDialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const { data: suppliers } = useSuppliers({ limit: 100 })
-  const { data: warehouses } = useWarehouses({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers({ limit: 100 })
+  const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createPurchaseOrder = useCreatePurchaseOrder()
 
   const form = useForm<CreatePurchaseOrderInput>({
@@ -76,8 +76,8 @@ export function CreatePurchaseOrderDialog() {
                 <FormItem className="col-span-2">
                   <FormLabel>Supplier</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a supplier" />
+                    <SelectTrigger className="w-full" disabled={suppliersLoading}>
+                      <SelectValue placeholder={suppliersLoading ? "Loading…" : "Select a supplier"} />
                     </SelectTrigger>
                     <SelectContent>
                       {suppliers?.data.map((s) => (
@@ -98,8 +98,8 @@ export function CreatePurchaseOrderDialog() {
                 <FormItem>
                   <FormLabel>Outlet</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -120,8 +120,8 @@ export function CreatePurchaseOrderDialog() {
                 <FormItem>
                   <FormLabel>Warehouse</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a warehouse" />
+                    <SelectTrigger className="w-full" disabled={warehousesLoading}>
+                      <SelectValue placeholder={warehousesLoading ? "Loading…" : "Select a warehouse"} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses?.data.map((w) => (

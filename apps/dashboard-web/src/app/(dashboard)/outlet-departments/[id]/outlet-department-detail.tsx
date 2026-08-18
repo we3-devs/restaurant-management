@@ -23,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutletDepartment, useOutletDepartment, useUpdateOutletDepartment } from "@/hooks/use-outlet-departments"
 import {
   OUTLET_DEPARTMENT_TYPES,
@@ -34,6 +35,7 @@ import {
 export function OutletDepartmentDetail({ departmentId }: { departmentId: number }) {
   const router = useRouter()
   const { data: department, isLoading } = useOutletDepartment(departmentId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateDepartment = useUpdateOutletDepartment(departmentId)
   const deleteDepartment = useDeleteOutletDepartment()
 
@@ -81,9 +83,9 @@ export function OutletDepartmentDetail({ departmentId }: { departmentId: number 
     }
   }
 
-  if (isLoading || !department) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !department) return <NotFoundCard resource="Outlet department" />
+  if (!department) return null
 
   return (
     <div className="max-w-2xl space-y-6">

@@ -35,7 +35,7 @@ export function CreateGoodsReceivingDialog() {
   const [notes, setNotes] = useState("")
   const [rows, setRows] = useState<Record<number, ReceivingRow>>({})
 
-  const { data: pos } = usePurchaseOrders({ limit: 100 })
+  const { data: pos, isLoading: posLoading } = usePurchaseOrders({ limit: 100 })
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
@@ -121,8 +121,8 @@ export function CreateGoodsReceivingDialog() {
             <div className="space-y-1.5">
               <Label>Purchase order</Label>
               <Select value={poId} onValueChange={(v) => { setPoId(v ?? ""); setRows({}) }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a PO awaiting delivery" />
+                <SelectTrigger className="w-full" disabled={posLoading}>
+                  <SelectValue placeholder={posLoading ? "Loading…" : "Select a PO awaiting delivery"} />
                 </SelectTrigger>
                 <SelectContent>
                   {receivablePos.map((p) => (

@@ -4,11 +4,12 @@ import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { NotificationBell } from "@rms/ui/notification-bell"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { UserMenu } from "@rms/ui/user-menu"
+import { Skeleton } from "@rms/ui/skeleton"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
 /** Compact header for the staff mobile shell — no sidebar, no command palette, no switchers a phone-sized screen has no room for. */
 export function StaffHeader() {
-  const { outlets, outletId } = useActiveOutlet()
+  const { outlets, outletId, isLoadingOutlets } = useActiveOutlet()
   const outletName = outlets.find((o) => o.id === outletId)?.name
 
   return (
@@ -17,7 +18,11 @@ export function StaffHeader() {
       style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">{outletName ?? "Staff"}</p>
+        {isLoadingOutlets ? (
+          <Skeleton className="h-4 w-32" />
+        ) : (
+          <p className="truncate text-sm font-semibold leading-tight">{outletName ?? "Staff"}</p>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <OfflineIndicator />

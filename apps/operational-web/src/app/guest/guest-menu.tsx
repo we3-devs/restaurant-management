@@ -6,6 +6,8 @@ import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
+import { ListSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { cn } from "@rms/ui/cn"
 import { usePublicFoodCategories, usePublicFoods, type PublicFood, type PublicFoodVariant } from "@rms/api-client/hooks/use-guest-menu"
 import { useSubmitGuestOrder } from "@rms/api-client/hooks/use-guest-orders"
@@ -31,6 +33,7 @@ export function GuestMenu({ tableCode }: { tableCode: string }) {
 
   const { data: categories } = usePublicFoodCategories()
   const { data: foods, isLoading } = usePublicFoods({ foodCategoryId: categoryId ?? undefined, limit: 60 })
+  const showSkeleton = useDelayedLoading(isLoading)
   const submitOrder = useSubmitGuestOrder()
 
   const cartItems = useMemo(() => Array.from(cart.values()), [cart])
@@ -110,8 +113,8 @@ export function GuestMenu({ tableCode }: { tableCode: string }) {
         ))}
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading menu...</p>}
-      {!isLoading && (foods?.data.length ?? 0) === 0 && (
+      {showSkeleton && <ListSkeleton count={6} />}
+      {!showSkeleton && (foods?.data.length ?? 0) === 0 && (
         <p className="text-sm text-muted-foreground">No items in this category.</p>
       )}
 

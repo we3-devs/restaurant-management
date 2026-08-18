@@ -6,6 +6,7 @@ import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { CardGridSkeleton } from "@/components/skeleton";
 import {
   ITEM_LABEL,
   ITEM_STAGES,
@@ -125,9 +126,8 @@ export default function OrderContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-6">
-        <div className="mx-auto max-w-2xl space-y-3">
-          <div className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white" />
-          <div className="h-48 animate-pulse rounded-xl border border-slate-200 bg-white" />
+        <div className="mx-auto max-w-2xl">
+          <CardGridSkeleton count={2} className="grid-cols-1" />
         </div>
       </div>
     );

@@ -19,7 +19,7 @@ const purposes = ["production_use", "kitchen_use", "sample", "distribution", "ot
 export function CreateStockOutDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const { data: warehouses } = useWarehouses({ limit: 100 })
+  const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createStockOut = useCreateStockOut()
 
   const form = useForm<CreateStockOutInput>({
@@ -54,8 +54,8 @@ export function CreateStockOutDialog() {
                 <FormItem>
                   <FormLabel>Warehouse</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a warehouse" />
+                    <SelectTrigger className="w-full" disabled={warehousesLoading}>
+                      <SelectValue placeholder={warehousesLoading ? "Loading…" : "Select a warehouse"} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (

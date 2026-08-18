@@ -22,13 +22,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteWarehouse, useUpdateWarehouse, useWarehouse } from "@/hooks/use-warehouses"
 import { updateWarehouseSchema, type UpdateWarehouseInput } from "@/lib/validators/warehouses"
 
 export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
   const router = useRouter()
   const { data: warehouse, isLoading } = useWarehouse(warehouseId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateWarehouse = useUpdateWarehouse(warehouseId)
   const deleteWarehouse = useDeleteWarehouse()
 
@@ -68,9 +70,9 @@ export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
     }
   }
 
-  if (isLoading || !warehouse) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !warehouse) return <NotFoundCard resource="Warehouse" />
+  if (!warehouse) return null
 
   return (
     <div className="max-w-2xl space-y-6">

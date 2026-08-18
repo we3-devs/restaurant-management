@@ -38,8 +38,8 @@ const defaultValues: CreateSupplierInput = {
 
 export function CreateSupplierDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const { data: categories } = useSupplierCategories()
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: categories, isLoading: categoriesLoading } = useSupplierCategories()
   const createSupplier = useCreateSupplier()
 
   const form = useForm<CreateSupplierInput>({
@@ -91,8 +91,8 @@ export function CreateSupplierDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -116,8 +116,8 @@ export function CreateSupplierDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a category" />
+                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "Select a category"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No category</SelectItem>

@@ -17,7 +17,8 @@ import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Card } from "@rms/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
 import {
@@ -262,6 +263,7 @@ export default function KitchenPage() {
 
   useKitchenRealtime(effectiveOutletId)
   const { data, isLoading } = useKdsBootstrap(effectiveOutletId)
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
@@ -319,8 +321,12 @@ export default function KitchenPage() {
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
-      ) : isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      ) : showSkeleton ? (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-3">
+          <ListSkeleton count={3} />
+          <ListSkeleton count={3} />
+          <ListSkeleton count={3} />
+        </div>
       ) : tickets.length === 0 && stations.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ChefHatIcon className="size-8 text-muted-foreground" />

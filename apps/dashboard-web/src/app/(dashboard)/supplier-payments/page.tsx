@@ -26,8 +26,9 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useSuppliers } from "@/hooks/use-suppliers"
@@ -59,6 +60,7 @@ export default function SupplierPaymentsPage() {
     outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
     paymentMethod: methodFilter !== "all" ? methodFilter : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const cancelPayment = useCancelSupplierPayment()
 
   const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? `#${id}`
@@ -204,8 +206,8 @@ export default function SupplierPaymentsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <WalletIcon className="size-8 text-muted-foreground" />

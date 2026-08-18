@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
 import {
@@ -24,6 +25,7 @@ import {
 
 export function StockCountDetail({ countId }: { countId: number }) {
   const { data: count, isLoading } = useStockCount(countId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockCountItems(countId)
   const { data: ingredients } = useIngredients({ limit: 100 })
   const addItem = useAddStockCountItem(countId)
@@ -73,9 +75,9 @@ export function StockCountDetail({ countId }: { countId: number }) {
     }
   }
 
-  if (isLoading || !count) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !count) return <NotFoundCard resource="Stock count" />
+  if (!count) return null
 
   const isDraft = count.status === "draft"
   const isCompleted = count.status === "completed"

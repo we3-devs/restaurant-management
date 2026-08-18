@@ -24,7 +24,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAddUnitConversion, useDeleteUnit, useUnit, useUnitConversions, useUnits, useUpdateUnit } from "@/hooks/use-units"
 import { updateUnitSchema, type UpdateUnitInput } from "@/lib/validators/units"
@@ -34,6 +35,7 @@ const unitTypes = ["weight", "volume", "quantity", "custom"] as const
 export function UnitDetail({ unitId }: { unitId: number }) {
   const router = useRouter()
   const { data: unit, isLoading } = useUnit(unitId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateUnit = useUpdateUnit(unitId)
   const deleteUnit = useDeleteUnit()
   const { data: conversions } = useUnitConversions(unitId)
@@ -85,9 +87,9 @@ export function UnitDetail({ unitId }: { unitId: number }) {
     }
   }
 
-  if (isLoading || !unit) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !unit) return <NotFoundCard resource="Unit" />
+  if (!unit) return null
 
   return (
     <div className="max-w-2xl space-y-6">

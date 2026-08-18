@@ -28,7 +28,7 @@ import { createFoodVariantSchema, type CreateFoodVariantInput } from "@/lib/vali
 
 export function CreateFoodVariantDialog() {
   const [open, setOpen] = useState(false)
-  const { data: foods } = useFoods({ limit: 100 })
+  const { data: foods, isLoading: foodsLoading } = useFoods({ limit: 100 })
   const createFoodVariant = useCreateFoodVariant()
 
   const form = useForm<CreateFoodVariantInput>({
@@ -38,8 +38,8 @@ export function CreateFoodVariantDialog() {
 
   // The two global lists — the same values are offered for every food, which is
   // the point of them being global.
-  const { data: variants } = useVariantList("variants")
-  const { data: subVariants } = useVariantList("sub-variants")
+  const { data: variants, isLoading: variantsLoading } = useVariantList("variants")
+  const { data: subVariants, isLoading: subVariantsLoading } = useVariantList("sub-variants")
   const active = (rows?: VariantListValue[]) => (rows ?? []).filter((r) => r.isActive)
 
   async function onSubmit(values: CreateFoodVariantInput) {
@@ -72,8 +72,8 @@ export function CreateFoodVariantDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a food" />
+                    <SelectTrigger className="w-full" disabled={foodsLoading}>
+                      <SelectValue placeholder={foodsLoading ? "Loading…" : "Select a food"} />
                     </SelectTrigger>
                     <SelectContent>
                       {foods?.data.map((food) => (
@@ -89,10 +89,10 @@ export function CreateFoodVariantDialog() {
             />
             {(
               [
-                ["variantId", "Variant", active(variants), "e.g. Chicken"],
-                ["subVariantId", "Sub-variant", active(subVariants), "e.g. Full"],
+                ["variantId", "Variant", active(variants), "e.g. Chicken", variantsLoading],
+                ["subVariantId", "Sub-variant", active(subVariants), "e.g. Full", subVariantsLoading],
               ] as const
-            ).map(([fieldName, label, options, hint]) => (
+            ).map(([fieldName, label, options, hint, loading]) => (
               <FormField
                 key={fieldName}
                 control={form.control}
@@ -108,8 +108,8 @@ export function CreateFoodVariantDialog() {
                         field.onChange(value === "none" ? null : Number(value))
                       }
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="None" />
+                      <SelectTrigger className="w-full" disabled={loading}>
+                        <SelectValue placeholder={loading ? "Loading…" : "None"} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>

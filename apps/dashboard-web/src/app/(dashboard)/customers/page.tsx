@@ -32,8 +32,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useDeleteCustomer, useCustomers, type Customer } from "@/hooks/use-customers"
 import { CreateCustomerDialog } from "./create-customer-dialog"
@@ -66,6 +67,7 @@ export default function CustomersPage() {
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const deleteCustomer = useDeleteCustomer()
 
   const columns = useMemo<ColumnDef<Customer>[]>(
@@ -160,8 +162,8 @@ export default function CustomersPage() {
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <UsersIcon className="size-8 text-muted-foreground" />

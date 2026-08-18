@@ -32,7 +32,7 @@ export function CreatePurchaseReturnDialog() {
   const [refundType, setRefundType] = useState<CreatePurchaseReturnInput["refundType"]>("refund")
   const [quantities, setQuantities] = useState<Record<number, string>>({})
 
-  const { data: pos } = usePurchaseOrders({ limit: 100 })
+  const { data: pos, isLoading: posLoading } = usePurchaseOrders({ limit: 100 })
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
@@ -104,8 +104,8 @@ export function CreatePurchaseReturnDialog() {
             <div className="col-span-2 space-y-1.5">
               <Label>Purchase order</Label>
               <Select value={poId} onValueChange={(v) => { setPoId(v ?? ""); setQuantities({}) }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a purchase order" />
+                <SelectTrigger className="w-full" disabled={posLoading}>
+                  <SelectValue placeholder={posLoading ? "Loading…" : "Select a purchase order"} />
                 </SelectTrigger>
                 <SelectContent>
                   {returnablePos.map((p) => (

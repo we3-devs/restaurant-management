@@ -17,7 +17,7 @@ import { createStockTransferSchema, type CreateStockTransferInput } from "@/lib/
 export function CreateStockTransferDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const { data: warehouses } = useWarehouses({ limit: 100 })
+  const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createTransfer = useCreateStockTransfer()
 
   const form = useForm<CreateStockTransferInput>({
@@ -52,8 +52,8 @@ export function CreateStockTransferDialog() {
                 <FormItem>
                   <FormLabel>From warehouse</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a warehouse" />
+                    <SelectTrigger className="w-full" disabled={warehousesLoading}>
+                      <SelectValue placeholder={warehousesLoading ? "Loading…" : "Select a warehouse"} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (
@@ -74,8 +74,8 @@ export function CreateStockTransferDialog() {
                 <FormItem>
                   <FormLabel>To warehouse</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a warehouse" />
+                    <SelectTrigger className="w-full" disabled={warehousesLoading}>
+                      <SelectValue placeholder={warehousesLoading ? "Loading…" : "Select a warehouse"} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (

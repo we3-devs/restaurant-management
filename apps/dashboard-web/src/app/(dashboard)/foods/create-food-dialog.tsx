@@ -29,7 +29,7 @@ import {
 
 export function CreateFoodDialog() {
   const [open, setOpen] = useState(false)
-  const { data: categories } = useFoodCategories({ limit: 100 })
+  const { data: categories, isLoading: categoriesLoading } = useFoodCategories({ limit: 100 })
   const createFood = useCreateFood()
 
   const form = useForm<CreateFoodInput>({
@@ -86,8 +86,8 @@ export function CreateFoodDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No category" />
+                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "No category"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No category</SelectItem>

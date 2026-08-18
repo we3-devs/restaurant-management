@@ -3,6 +3,7 @@
 import { useQueries } from "@tanstack/react-query"
 
 import { Skeleton } from "@rms/ui/skeleton"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { apiClient } from "@rms/api-client/client"
 import { queryKeys } from "@rms/api-client/query-keys"
 import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
@@ -53,12 +54,19 @@ function useArrivingSoonByTable(outletId: number): Map<number, string> {
 
 export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?: string }) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
+  const showSkeleton = useDelayedLoading(isLoading)
   const arrivingSoonByTable = useArrivingSoonByTable(outletId)
 
   return (
     <div className="space-y-6">
-      {isLoading && <Skeleton className="h-48 w-full" />}
-      {!isLoading && (areas?.data.length ?? 0) === 0 && (
+      {showSkeleton && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
+      {!showSkeleton && (areas?.data.length ?? 0) === 0 && (
         <p className="text-sm text-muted-foreground">No dining areas configured for this outlet.</p>
       )}
       {areas?.data.map((area) => (

@@ -8,7 +8,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type ReservationSettings } from "@/hooks/use-settings"
 import { reservationSettingsSchema, type ReservationSettingsInput } from "@/lib/validators/settings"
@@ -26,6 +27,7 @@ export default function ReservationSettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<ReservationSettings>("reservation")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<ReservationSettings>("reservation")
 
   const form = useForm<ReservationSettingsInput>({
@@ -56,8 +58,8 @@ export default function ReservationSettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Reservation Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={5} />
       ) : (
         <Card>
           <CardHeader>

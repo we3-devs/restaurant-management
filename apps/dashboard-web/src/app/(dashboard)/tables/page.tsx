@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
@@ -38,8 +39,17 @@ export default function TablesPage() {
 
 function FloorOverview({ outletId }: { outletId: number }) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
+  const showSkeleton = useDelayedLoading(isLoading)
 
-  if (isLoading) return <Skeleton className="h-48 w-full" />
+  if (showSkeleton) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    )
+  }
   if ((areas?.data.length ?? 0) === 0) {
     return <p className="text-sm text-muted-foreground">No dining areas configured for this outlet.</p>
   }

@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type KitchenSettings } from "@/hooks/use-settings"
 import { kitchenSettingsSchema, type KitchenSettingsInput } from "@/lib/validators/settings"
@@ -29,6 +30,7 @@ export default function KitchenSettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<KitchenSettings>("kitchen")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<KitchenSettings>("kitchen")
 
   const form = useForm<KitchenSettingsInput>({
@@ -59,8 +61,8 @@ export default function KitchenSettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Kitchen Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={5} />
       ) : (
         <Card>
           <CardHeader>

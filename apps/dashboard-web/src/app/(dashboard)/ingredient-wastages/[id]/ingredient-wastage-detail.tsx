@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
 import {
@@ -23,6 +24,7 @@ import {
 
 export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
   const { data: wastage, isLoading } = useIngredientWastage(wastageId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useIngredientWastageItems(wastageId)
   const { data: ingredients } = useIngredients({ limit: 100 })
   const addItem = useAddIngredientWastageItem(wastageId)
@@ -62,9 +64,9 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
     }
   }
 
-  if (isLoading || !wastage) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={4} />
+  if (!isLoading && !wastage) return <NotFoundCard resource="Ingredient wastage" />
+  if (!wastage) return null
 
   const isDraft = wastage.status === "draft"
 

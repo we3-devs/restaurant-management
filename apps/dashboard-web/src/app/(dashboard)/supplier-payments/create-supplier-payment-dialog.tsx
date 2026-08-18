@@ -37,8 +37,8 @@ const defaultValues: CreateSupplierPaymentInput = {
 
 export function CreateSupplierPaymentDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const { data: suppliers } = useSuppliers({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers({ limit: 100 })
   const createPayment = useCreateSupplierPayment()
 
   const form = useForm<CreateSupplierPaymentInput>({
@@ -78,8 +78,8 @@ export function CreateSupplierPaymentDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a supplier" />
+                    <SelectTrigger className="w-full" disabled={suppliersLoading}>
+                      <SelectValue placeholder={suppliersLoading ? "Loading…" : "Select a supplier"} />
                     </SelectTrigger>
                     <SelectContent>
                       {suppliers?.data.map((s) => (
@@ -108,8 +108,8 @@ export function CreateSupplierPaymentDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronRightIcon } from "lucide-react"
 
 import { Card } from "@rms/ui/card"
+import { StatGridSkeleton } from "@rms/ui/skeletons"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
@@ -22,11 +23,13 @@ export default function StaffLandingPage() {
   const canSeeTables = user.isSuperadmin || user.permissions.includes("dining-tables.view")
   const canSeeKitchen = user.isSuperadmin || user.permissions.includes("kitchen-tickets.manage")
 
-  const { data: occupiedTables } = useDiningTables(
+  const { data: occupiedTables, isLoading: tablesLoading } = useDiningTables(
     { outletId: outletId ?? undefined, status: "occupied", limit: 1 },
     { enabled: canSeeTables && !!outletId },
   )
   const kds = useKdsBootstrap(canSeeKitchen ? outletId : null)
+  const statsLoading =
+    (canSeeTables && !!outletId && tablesLoading) || (canSeeKitchen && !!outletId && (kds.isLoading ?? false))
 
   const stats = [
     canSeeTables && { label: "Occupied tables", value: occupiedTables?.meta.total },
@@ -40,7 +43,10 @@ export default function StaffLandingPage() {
         <p className="text-sm text-muted-foreground">What do you need to do?</p>
       </div>
 
-      {outletId && stats.length > 0 && (
+      {outletId && stats.length > 0 &&
+        (statsLoading ? (
+          <StatGridSkeleton count={stats.length} className="grid-cols-2" />
+        ) : (
         <div className={`grid gap-3 ${stats.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
           {stats.map((stat) => (
             <Card key={stat.label} className="gap-1 rounded-xl border-border/60 p-4 shadow-none">
@@ -49,7 +55,7 @@ export default function StaffLandingPage() {
             </Card>
           ))}
         </div>
-      )}
+        ))}
 
       {visibleItems.length === 0 ? (
         <p className="text-sm text-muted-foreground">

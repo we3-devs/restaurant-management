@@ -3,7 +3,8 @@
 import Link from "next/link"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { CardGridSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useAllSettings } from "@/hooks/use-settings"
 
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canView = isSuperadmin || permissions.includes("settings.view")
   const { isLoading } = useAllSettings()
+  const showSkeleton = useDelayedLoading(isLoading)
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>
@@ -31,8 +33,8 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <CardGridSkeleton count={8} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {CATEGORIES.map((category) => (

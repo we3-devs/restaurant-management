@@ -23,7 +23,7 @@ import { createDiningTableSchema, type CreateDiningTableInput } from "@rms/valid
 
 export function CreateDiningTableDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
   const createDiningTable = useCreateDiningTable()
 
   const form = useForm<CreateDiningTableInput>({
@@ -32,7 +32,10 @@ export function CreateDiningTableDialog() {
   })
 
   const selectedOutletId = form.watch("outletId")
-  const { data: areas } = useDiningAreas({ outletId: selectedOutletId || undefined, limit: 100 })
+  const { data: areas, isLoading: areasLoading } = useDiningAreas({
+    outletId: selectedOutletId || undefined,
+    limit: 100,
+  })
 
   async function onSubmit(values: CreateDiningTableInput) {
     try {
@@ -67,8 +70,8 @@ export function CreateDiningTableDialog() {
                       form.setValue("diningAreaId", 0)
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -93,8 +96,8 @@ export function CreateDiningTableDialog() {
                     onValueChange={(value) => field.onChange(Number(value))}
                     disabled={!selectedOutletId}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a dining area" />
+                    <SelectTrigger className="w-full" disabled={areasLoading}>
+                      <SelectValue placeholder={areasLoading ? "Loading…" : "Select a dining area"} />
                     </SelectTrigger>
                     <SelectContent>
                       {areas?.data.map((area) => (

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import Skeleton from "@/components/skeleton";
 
 export default function QRRedirectContent() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function QRRedirectContent() {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-4">Welcome!</h1>
-        <p className="text-gray-600">Loading menu...</p>
+        <Skeleton className="mx-auto h-4 w-44" />
       </div>
     </div>
   );

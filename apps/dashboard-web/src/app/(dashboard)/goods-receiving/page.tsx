@@ -31,8 +31,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlets } from "@/hooks/use-outlets"
@@ -64,6 +65,7 @@ export default function GoodsReceivingPage() {
     outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const cancelGrn = useCancelGoodsReceiving()
 
   const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? `#${id}`
@@ -169,8 +171,8 @@ export default function GoodsReceivingPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <PackageCheckIcon className="size-8 text-muted-foreground" />
@@ -230,7 +232,7 @@ function GoodsReceivingItemsList({ grnId }: { grnId: number }) {
   const { data: ingredients } = useIngredients({ limit: 200 })
   const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
 
-  if (isLoading) return <Skeleton className="h-32 w-full" />
+  if (isLoading) return <TableSkeleton rows={4} columns={5} />
   if (!items || items.length === 0) return <p className="text-sm text-muted-foreground">No items.</p>
 
   return (

@@ -23,13 +23,15 @@ import { Checkbox } from "@rms/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@rms/ui/form"
 import { Label } from "@rms/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useDeleteDiningTable, useDiningTable, useUpdateDiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { DINING_TABLE_STATUSES, updateDiningTableSchema, type UpdateDiningTableInput } from "@rms/validators/dining-tables"
 
 export function DiningTableDetail({ tableId }: { tableId: number }) {
   const router = useRouter()
   const { data: table, isLoading } = useDiningTable(tableId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateTable = useUpdateDiningTable(tableId)
   const deleteTable = useDeleteDiningTable()
 
@@ -69,9 +71,9 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
     }
   }
 
-  if (isLoading || !table) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !table) return <NotFoundCard resource="Dining table" />
+  if (!table) return null
 
   return (
     <div className="max-w-2xl space-y-6">

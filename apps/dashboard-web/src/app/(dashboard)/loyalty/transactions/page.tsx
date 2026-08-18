@@ -9,8 +9,9 @@ import { DataTablePagination } from "@/components/data-table-pagination"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useLoyaltyTransactions, type LoyaltyTransaction } from "@/hooks/use-loyalty"
 import { LOYALTY_TRANSACTION_TYPES } from "@/lib/validators/loyalty"
@@ -54,6 +55,7 @@ export default function LoyaltyTransactionsPage() {
   }
 
   const { data, isLoading, isPlaceholderData } = useLoyaltyTransactions(params)
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const columns = useMemo<ColumnDef<LoyaltyTransaction>[]>(
     () => [
@@ -168,8 +170,8 @@ export default function LoyaltyTransactionsPage() {
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ReceiptTextIcon className="size-8 text-muted-foreground" />

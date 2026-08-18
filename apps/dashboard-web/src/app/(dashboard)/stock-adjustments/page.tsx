@@ -6,8 +6,9 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockAdjustments, type StockAdjustment } from "@/hooks/use-stock-adjustments"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockAdjustmentDialog } from "./create-stock-adjustment-dialog"
@@ -31,6 +32,7 @@ export default function StockAdjustmentsPage() {
     limit: 100,
     warehouseId: warehouseFilter !== "all" ? Number(warehouseFilter) : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -62,8 +64,8 @@ export default function StockAdjustmentsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

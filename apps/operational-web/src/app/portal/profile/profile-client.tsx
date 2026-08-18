@@ -6,6 +6,7 @@ import { LogOutIcon } from "lucide-react"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
+import { FormSkeleton } from "@rms/ui/skeletons"
 import {
   useAddCustomerAddress,
   useCustomerAddresses,
@@ -18,7 +19,7 @@ import { useCustomerLogout } from "@rms/api-client/hooks/use-customer-auth"
 
 export function CustomerProfileClient() {
   const router = useRouter()
-  const { data: profile } = useCustomerProfile()
+  const { data: profile, isLoading: profileLoading } = useCustomerProfile()
   const { data: addresses } = useCustomerAddresses()
   const updateProfile = useUpdateCustomerProfile()
   const updatePreferences = useUpdateCustomerPreferences()
@@ -38,7 +39,14 @@ export function CustomerProfileClient() {
   const [addressLabel, setAddressLabel] = useState("")
   const [addressLine1, setAddressLine1] = useState("")
 
-  if (!profile) return <div className="p-4">Loading...</div>
+  if (profileLoading)
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
+        <h1 className="text-xl font-semibold">Profile</h1>
+        <FormSkeleton fields={3} />
+      </div>
+    )
+  if (!profile) return <div className="p-4 text-sm text-muted-foreground">Couldn&apos;t load your profile.</div>
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">

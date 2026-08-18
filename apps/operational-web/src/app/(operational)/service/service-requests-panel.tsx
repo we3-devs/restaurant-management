@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Card } from "@rms/ui/card"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
 import {
   useResolveServiceRequest,
   useServiceRequests,
@@ -42,12 +42,7 @@ export function ServiceRequestsPanel({ outletId }: { outletId: number }) {
   )
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-      </div>
-    )
+    return <ListSkeleton count={2} />
   }
 
   if (open.length === 0) {

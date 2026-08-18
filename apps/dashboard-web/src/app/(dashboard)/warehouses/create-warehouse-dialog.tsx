@@ -25,7 +25,7 @@ import { createWarehouseSchema, type CreateWarehouseInput } from "@/lib/validato
 
 export function CreateWarehouseDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
   const createWarehouse = useCreateWarehouse()
 
   const form = useForm<CreateWarehouseInput>({
@@ -34,7 +34,7 @@ export function CreateWarehouseDialog() {
   })
 
   const selectedOutletId = form.watch("outletId")
-  const { data: departments } = useOutletDepartments({
+  const { data: departments, isLoading: departmentsLoading } = useOutletDepartments({
     outletId: selectedOutletId || undefined,
     limit: 100,
   })
@@ -72,8 +72,8 @@ export function CreateWarehouseDialog() {
                       form.setValue("outletDepartmentId", undefined)
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -98,8 +98,8 @@ export function CreateWarehouseDialog() {
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                     disabled={!selectedOutletId}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No department" />
+                    <SelectTrigger className="w-full" disabled={departmentsLoading}>
+                      <SelectValue placeholder={departmentsLoading ? "Loading…" : "No department"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No department</SelectItem>

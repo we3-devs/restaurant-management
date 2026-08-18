@@ -4,13 +4,15 @@ import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFoodCategories, type FoodCategory } from "@/hooks/use-food-categories"
 import { CreateFoodCategoryDialog } from "./create-food-category-dialog"
 
 export default function FoodCategoriesPage() {
   const { data, isLoading } = useFoodCategories({ limit: 100 })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const nameById = new Map((data?.data ?? []).map((category) => [category.id, category.name]))
 
@@ -42,8 +44,8 @@ export default function FoodCategoriesPage() {
         <CreateFoodCategoryDialog />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

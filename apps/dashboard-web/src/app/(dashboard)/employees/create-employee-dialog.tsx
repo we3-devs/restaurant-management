@@ -34,9 +34,9 @@ const defaultValues: CreateEmployeeInput = {
 
 export function CreateEmployeeDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const { data: positions } = usePositions()
-  const { data: users } = useUsers({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: positions, isLoading: positionsLoading } = usePositions()
+  const { data: users, isLoading: usersLoading } = useUsers({ limit: 100 })
   const createUser = useCreateUser()
   const createEmployee = useCreateEmployee()
 
@@ -46,7 +46,10 @@ export function CreateEmployeeDialog() {
   })
   const selectedOutletId = form.watch("outletId")
   const loginMode = form.watch("loginMode")
-  const { data: departments } = useOutletDepartments({ outletId: selectedOutletId || undefined, limit: 100 })
+  const { data: departments, isLoading: departmentsLoading } = useOutletDepartments({
+    outletId: selectedOutletId || undefined,
+    limit: 100,
+  })
 
   async function onSubmit(values: CreateEmployeeInput) {
     const { loginMode, password, userId, ...employeeFields } = values
@@ -103,8 +106,8 @@ export function CreateEmployeeDialog() {
                       form.setValue("departmentId", undefined)
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -133,8 +136,10 @@ export function CreateEmployeeDialog() {
                     onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
                     disabled={!selectedOutletId}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
+                    <SelectTrigger className="w-full" disabled={departmentsLoading}>
+                      <SelectValue
+                        placeholder={departmentsLoading ? "Loading…" : selectedOutletId ? "Select a department" : "Select an outlet first"}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No department</SelectItem>
@@ -163,8 +168,8 @@ export function CreateEmployeeDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a position" />
+                    <SelectTrigger className="w-full" disabled={positionsLoading}>
+                      <SelectValue placeholder={positionsLoading ? "Loading…" : "Select a position"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No position</SelectItem>
@@ -262,8 +267,8 @@ export function CreateEmployeeDialog() {
                       value={field.value ? String(field.value) : ""}
                       onValueChange={(v) => field.onChange(Number(v))}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select an account" />
+                      <SelectTrigger className="w-full" disabled={usersLoading}>
+                        <SelectValue placeholder={usersLoading ? "Loading…" : "Select an account"} />
                       </SelectTrigger>
                       <SelectContent>
                         {users?.data.map((user) => (

@@ -11,7 +11,8 @@ import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useUpdateOrder, useIssueInvoice, type Order } from "@rms/api-client/hooks/use-orders"
 import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
@@ -43,14 +44,15 @@ function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: 
  */
 export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { orderId: number; basePath?: string; isReadOnly?: boolean }) {
   const { data: order, isLoading } = useOrder(orderId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: session } = useTableSession(order?.tableSessionId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const [editingTotals, setEditingTotals] = useState(false)
   const issueInvoice = useIssueInvoice(orderId)
 
-  if (isLoading || !order) {
-    return <Skeleton className="mx-auto h-96 w-full max-w-5xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !order) return <NotFoundCard resource="Order" />
+  if (!order) return null
 
   return (
     <div className=" space-y-4">

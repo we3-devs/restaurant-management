@@ -24,7 +24,7 @@ export function CreateUserDialog() {
   const [open, setOpen] = useState(false)
   const createUser = useCreateUserWithRole()
   // Only roles meant to be handed out directly, cheapest-access-first — keeps this dropdown a short, unintimidating list instead of every role in the system.
-  const { data: roles } = useRoles({ limit: 100 })
+  const { data: roles, isLoading: rolesLoading } = useRoles({ limit: 100 })
   const assignableRoles = (roles?.data ?? [])
     .filter((role) => role.isAssignable && role.isActive)
     .sort((a, b) => b.rank - a.rank)
@@ -101,8 +101,8 @@ export function CreateUserDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No role yet" />
+                    <SelectTrigger className="w-full" disabled={rolesLoading}>
+                      <SelectValue placeholder={rolesLoading ? "Loading…" : "No role yet"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No role yet</SelectItem>

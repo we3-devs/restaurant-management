@@ -6,8 +6,9 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockTransfers, type StockTransfer } from "@/hooks/use-stock-transfers"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockTransferDialog } from "./create-stock-transfer-dialog"
@@ -31,6 +32,7 @@ export default function StockTransfersPage() {
     limit: 100,
     fromWarehouseId: warehouseFilter !== "all" ? Number(warehouseFilter) : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -62,8 +64,8 @@ export default function StockTransfersPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

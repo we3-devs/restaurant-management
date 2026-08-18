@@ -22,13 +22,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useAddonGroup, useDeleteAddonGroup, useUpdateAddonGroup } from "@/hooks/use-addon-groups"
 import { updateAddonGroupSchema, type UpdateAddonGroupInput } from "@/lib/validators/addon-groups"
 
 export function AddonGroupDetail({ addonGroupId }: { addonGroupId: number }) {
   const router = useRouter()
   const { data: addonGroup, isLoading } = useAddonGroup(addonGroupId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateAddonGroup = useUpdateAddonGroup(addonGroupId)
   const deleteAddonGroup = useDeleteAddonGroup()
 
@@ -68,9 +70,9 @@ export function AddonGroupDetail({ addonGroupId }: { addonGroupId: number }) {
     }
   }
 
-  if (isLoading || !addonGroup) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={4} />
+  if (!isLoading && !addonGroup) return <NotFoundCard resource="Addon group" />
+  if (!addonGroup) return null
 
   return (
     <div className="max-w-2xl space-y-6">

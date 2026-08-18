@@ -20,8 +20,9 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import {
   useCreateVariantListValue,
@@ -53,6 +54,7 @@ export function VariantListManager({
   const canManage = isSuperadmin || permissions.includes("food-variants.manage")
 
   const { data, isLoading } = useVariantList(list)
+  const showSkeleton = useDelayedLoading(isLoading)
   const createValue = useCreateVariantListValue(list)
   const deleteValue = useDeleteVariantListValue(list)
 
@@ -130,8 +132,8 @@ export function VariantListManager({
         </div>
       )}
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={4} />
       ) : (data?.length ?? 0) === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing here yet.</p>
       ) : (

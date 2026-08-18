@@ -4,7 +4,8 @@ import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { StatGridSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, type LoyaltySettings } from "@/hooks/use-settings"
 
@@ -13,6 +14,7 @@ export default function LoyaltyPage() {
   const canView = isSuperadmin || permissions.includes("loyalty.view")
 
   const { data, isLoading } = useSettingsCategory<LoyaltySettings>("loyalty")
+  const showSkeleton = useDelayedLoading(isLoading)
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>
@@ -32,8 +34,8 @@ export default function LoyaltyPage() {
         earned, redeemed and expired.
       </p>
 
-      {isLoading ? (
-        <Skeleton className="h-40 w-full" />
+      {showSkeleton ? (
+        <StatGridSkeleton count={6} className="sm:grid-cols-3 xl:grid-cols-3" />
       ) : (
         <Card>
           <CardHeader>

@@ -6,7 +6,8 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { StatusBadge } from "@rms/ui/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { TableSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
@@ -37,6 +38,7 @@ export default function OrdersPage() {
     outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -70,8 +72,8 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

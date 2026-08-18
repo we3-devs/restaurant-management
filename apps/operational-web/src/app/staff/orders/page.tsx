@@ -4,7 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { StatusBadge } from "@rms/ui/status-badge"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
@@ -33,6 +34,7 @@ export default function StaffOrdersPage() {
     },
     { enabled: !!outletId },
   )
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const orders = data?.data ?? []
   const visible = statusFilter === "open" ? orders.filter((order) => OPEN_STATUSES.includes(order.status)) : orders
@@ -58,8 +60,8 @@ export default function StaffOrdersPage() {
       </div>
 
       {!outletId && <p className="text-sm text-muted-foreground">Select an outlet to view orders.</p>}
-      {outletId && isLoading && <Skeleton className="h-64 w-full" />}
-      {outletId && !isLoading && visible.length === 0 && (
+      {outletId && showSkeleton && <ListSkeleton count={6} />}
+      {outletId && !showSkeleton && visible.length === 0 && (
         <p className="py-10 text-center text-sm text-muted-foreground">No orders to show.</p>
       )}
 

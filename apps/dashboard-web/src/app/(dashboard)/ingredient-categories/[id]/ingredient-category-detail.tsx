@@ -23,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import {
   useDeleteIngredientCategory,
   useIngredientCategories,
@@ -35,6 +36,7 @@ import { updateIngredientCategorySchema, type UpdateIngredientCategoryInput } fr
 export function IngredientCategoryDetail({ categoryId }: { categoryId: number }) {
   const router = useRouter()
   const { data: category, isLoading } = useIngredientCategory(categoryId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: categories } = useIngredientCategories({ limit: 100 })
   const updateCategory = useUpdateIngredientCategory(categoryId)
   const deleteCategory = useDeleteIngredientCategory()
@@ -74,9 +76,9 @@ export function IngredientCategoryDetail({ categoryId }: { categoryId: number })
     }
   }
 
-  if (isLoading || !category) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={4} />
+  if (!isLoading && !category) return <NotFoundCard resource="Ingredient category" />
+  if (!category) return null
 
   return (
     <div className="max-w-2xl space-y-6">

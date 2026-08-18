@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type InventorySettings } from "@/hooks/use-settings"
 import {
@@ -35,6 +36,7 @@ export default function InventorySettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<InventorySettings>("inventory")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<InventorySettings>("inventory")
 
   const form = useForm<InventorySettingsInput>({
@@ -65,8 +67,8 @@ export default function InventorySettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Inventory Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={5} />
       ) : (
         <Card>
           <CardHeader>

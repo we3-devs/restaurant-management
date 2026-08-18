@@ -8,7 +8,7 @@ import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
 import { useAddons } from "@rms/api-client/hooks/use-addons"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
@@ -97,7 +97,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
     <div className="flex w-full flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[45vh] space-y-2 overflow-y-auto">
-        {isLoading && <Skeleton className="h-32 w-full" />}
+        {isLoading && <ListSkeleton count={3} />}
         {!isLoading && (items?.data.length ?? 0) === 0 && localCart.items.length === 0 && (
           <p className="text-sm text-muted-foreground">No items yet — tap a food to add it.</p>
         )}

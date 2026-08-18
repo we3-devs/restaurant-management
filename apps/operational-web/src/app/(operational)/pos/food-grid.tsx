@@ -8,6 +8,7 @@ import { SearchIcon, UtensilsIcon } from "lucide-react"
 import { Badge } from "@rms/ui/badge"
 import { Card, CardContent } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
+import { CardGridSkeleton } from "@rms/ui/skeletons"
 import { apiClient } from "@rms/api-client/client"
 import { useFoods, type Food } from "@rms/api-client/hooks/use-foods"
 import { queryKeys } from "@rms/api-client/query-keys"
@@ -105,10 +106,11 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
         />
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-      {!isLoading && items.length === 0 && <p className="text-sm text-muted-foreground">No foods found.</p>}
-
-      {!isLoading && items.length > 0 && (
+      {isLoading ? (
+        <CardGridSkeleton count={12} columns={columns} />
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No foods found.</p>
+      ) : (
         <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
           <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => (

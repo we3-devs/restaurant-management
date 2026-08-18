@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useOutlets, type Outlet } from "@/hooks/use-outlets"
 import { CreateOutletDialog } from "./create-outlet-dialog"
 
@@ -12,6 +13,7 @@ const columns: ColumnDef<Outlet>[] = [{ accessorKey: "name", header: "Name" }]
 
 export default function OutletsPage() {
   const { data, isLoading } = useOutlets({ limit: 100 })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -26,8 +28,8 @@ export default function OutletsPage() {
         <CreateOutletDialog />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

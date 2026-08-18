@@ -5,7 +5,8 @@ import { ChefHatIcon } from "lucide-react"
 
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
-import { Skeleton } from "@rms/ui/skeleton"
+import { ListSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
@@ -39,6 +40,7 @@ export default function StaffKitchenPage() {
   useKitchenRealtime(effectiveOutletId)
   useWakeLock(!!effectiveOutletId)
   const { data, isLoading } = useKdsBootstrap(effectiveOutletId)
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
@@ -66,8 +68,8 @@ export default function StaffKitchenPage() {
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
-      ) : isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      ) : showSkeleton ? (
+        <ListSkeleton count={6} />
       ) : tickets.length === 0 && stations.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ChefHatIcon className="size-8 text-muted-foreground" />

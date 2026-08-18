@@ -5,6 +5,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
+import { RouteProgress } from "@rms/ui/route-progress";
 import { fetchBranding } from "@rms/api-client/branding";
 import { BrandColor } from "@rms/api-client/brand-color";
 import { BACKEND_API_BASE } from "@/lib/server/backend-client";
@@ -59,6 +60,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
+            <RouteProgress />
             <BrandColor />
             {children}
             <Toaster />

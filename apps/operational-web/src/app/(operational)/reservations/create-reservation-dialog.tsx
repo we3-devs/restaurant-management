@@ -28,8 +28,8 @@ import { createReservationSchema, type CreateReservationInput } from "@rms/valid
 
 export function CreateReservationDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
-  const { data: customers } = useCustomers({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 100 })
   const createReservation = useCreateReservation()
   const queryClient = useQueryClient()
 
@@ -51,8 +51,8 @@ export function CreateReservationDialog() {
   })
 
   const outletId = form.watch("outletId")
-  const { data: areas } = useDiningAreas({ outletId: outletId || undefined, limit: 100 })
-  const { data: tables } = useDiningTables({
+  const { data: areas, isLoading: areasLoading } = useDiningAreas({ outletId: outletId || undefined, limit: 100 })
+  const { data: tables, isLoading: tablesLoading } = useDiningTables({
     outletId: outletId || undefined,
     diningAreaId: diningAreaId ? Number(diningAreaId) : undefined,
     limit: 100,
@@ -117,8 +117,8 @@ export function CreateReservationDialog() {
                       setDiningTableId("")
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -144,8 +144,8 @@ export function CreateReservationDialog() {
                       setDiningTableId("")
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Any area" />
+                    <SelectTrigger className="w-full" disabled={areasLoading}>
+                      <SelectValue placeholder={areasLoading ? "Loading…" : "Any area"} />
                     </SelectTrigger>
                     <SelectContent>
                       {areas?.data.map((area) => (
@@ -159,8 +159,8 @@ export function CreateReservationDialog() {
                 <div className="space-y-1.5">
                   <FormLabel>Table (optional)</FormLabel>
                   <Select value={diningTableId} onValueChange={(value) => setDiningTableId(value ?? "")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Assign later" />
+                    <SelectTrigger className="w-full" disabled={tablesLoading}>
+                      <SelectValue placeholder={tablesLoading ? "Loading…" : "Assign later"} />
                     </SelectTrigger>
                     <SelectContent>
                       {tables?.data.map((table) => (
@@ -184,8 +184,8 @@ export function CreateReservationDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a customer" />
+                    <SelectTrigger className="w-full" disabled={customersLoading}>
+                      <SelectValue placeholder={customersLoading ? "Loading…" : "Select a customer"} />
                     </SelectTrigger>
                     <SelectContent>
                       {customers?.data.map((customer) => (

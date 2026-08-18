@@ -5,6 +5,7 @@ import { ShoppingCartIcon } from "lucide-react"
 
 import { Button } from "@rms/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@rms/ui/dialog"
+import { Skeleton } from "@rms/ui/skeleton"
 import { useOrderItems } from "@rms/api-client/hooks/use-orders"
 import { CartPanel } from "./cart-panel"
 import { useLocalCartContext } from "./local-cart-context"
@@ -15,7 +16,7 @@ import { useLocalCartContext } from "./local-cart-context"
  */
 export function FloatingCart({ orderId }: { orderId: number }) {
   const [open, setOpen] = useState(false)
-  const { data: items } = useOrderItems(orderId)
+  const { data: items, isLoading } = useOrderItems(orderId)
   const localCart = useLocalCartContext()
   const localCount = localCart.items.reduce((sum, item) => sum + item.quantity, 0)
   const itemCount = (items?.data.reduce((sum, item) => sum + item.quantity, 0) ?? 0) + localCount
@@ -28,10 +29,14 @@ export function FloatingCart({ orderId }: { orderId: number }) {
         className="fixed right-6 bottom-6 z-30 size-16 rounded-full p-0 shadow-lg"
       >
         <ShoppingCartIcon className="size-6" />
-        {itemCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-6 items-center justify-center rounded-full bg-destructive text-xs font-semibold text-destructive-foreground">
-            {itemCount}
-          </span>
+        {isLoading ? (
+          <Skeleton className="absolute -top-1 -right-1 size-6 rounded-full" />
+        ) : (
+          itemCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex size-6 items-center justify-center rounded-full bg-destructive text-xs font-semibold text-destructive-foreground">
+              {itemCount}
+            </span>
+          )
         )}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

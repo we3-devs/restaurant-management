@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSupplierCategories, useDeleteSupplier, useSupplier, useUpdateSupplier } from "@/hooks/use-suppliers"
 import { SUPPLIER_STATUSES, updateSupplierSchema, type UpdateSupplierInput } from "@/lib/validators/suppliers"
@@ -34,6 +35,7 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
   const canManage = isSuperadmin || permissions.includes("suppliers.manage")
 
   const { data: history, isLoading } = useSupplier(supplierId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: categories } = useSupplierCategories()
   const updateSupplier = useUpdateSupplier(supplierId)
   const deleteSupplier = useDeleteSupplier()
@@ -90,9 +92,9 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
     }
   }
 
-  if (isLoading || !supplier) {
-    return <Skeleton className="h-96 w-full max-w-3xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !supplier) return <NotFoundCard resource="Supplier" />
+  if (!supplier) return null
 
   const overLimit = supplier.creditLimit > 0 && supplier.outstandingBalance > supplier.creditLimit
 

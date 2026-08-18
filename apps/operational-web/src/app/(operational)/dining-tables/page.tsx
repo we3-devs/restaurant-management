@@ -5,7 +5,8 @@ import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@rms/ui/status-badge"
-import { Skeleton } from "@rms/ui/skeleton"
+import { TableSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
 import { useDiningTables, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
@@ -18,6 +19,7 @@ export default function DiningTablesPage() {
     limit: 100,
     outletId: outletId ?? undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: areas } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
 
   const areaName = (diningAreaId: number) =>
@@ -55,8 +57,8 @@ export default function DiningTablesPage() {
         <CreateDiningTableDialog />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

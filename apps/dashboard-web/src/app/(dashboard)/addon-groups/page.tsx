@@ -4,7 +4,8 @@ import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAddonGroups, type AddonGroup } from "@/hooks/use-addon-groups"
 import { CreateAddonGroupDialog } from "./create-addon-group-dialog"
@@ -27,6 +28,7 @@ const columns: ColumnDef<AddonGroup>[] = [
 
 export default function AddonGroupsPage() {
   const { data, isLoading } = useAddonGroups({ limit: 100 })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -41,8 +43,8 @@ export default function AddonGroupsPage() {
         <CreateAddonGroupDialog />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

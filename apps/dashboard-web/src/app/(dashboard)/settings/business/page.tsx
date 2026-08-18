@@ -8,7 +8,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type BusinessSettings } from "@/hooks/use-settings"
 import { businessSettingsSchema, type BusinessSettingsInput } from "@/lib/validators/settings"
@@ -31,6 +32,7 @@ export default function BusinessSettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<BusinessSettings>("business")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<BusinessSettings>("business")
 
   const form = useForm<BusinessSettingsInput>({
@@ -61,8 +63,8 @@ export default function BusinessSettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Business Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={6} />
       ) : (
         <Card>
           <CardHeader>

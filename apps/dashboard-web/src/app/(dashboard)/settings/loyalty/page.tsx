@@ -8,7 +8,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type LoyaltySettings } from "@/hooks/use-settings"
 import { loyaltySettingsSchema, type LoyaltySettingsInput } from "@/lib/validators/settings"
@@ -28,6 +29,7 @@ export default function LoyaltySettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<LoyaltySettings>("loyalty")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<LoyaltySettings>("loyalty")
 
   const form = useForm<LoyaltySettingsInput>({
@@ -58,8 +60,8 @@ export default function LoyaltySettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Loyalty Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={4} />
       ) : (
         <Card>
           <CardHeader>

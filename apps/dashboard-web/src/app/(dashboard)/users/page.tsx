@@ -33,8 +33,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useDeactivateUser, useUsers, type User } from "@/hooks/use-users"
 import { CreateUserDialog } from "./create-user-dialog"
@@ -74,6 +75,7 @@ export default function UsersPage() {
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const deactivateUser = useDeactivateUser(deactivateTarget?.id ?? 0)
 
   const columns = useMemo<ColumnDef<User>[]>(
@@ -187,8 +189,8 @@ export default function UsersPage() {
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <UsersIcon className="size-8 text-muted-foreground" />

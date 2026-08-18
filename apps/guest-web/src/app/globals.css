@@ -17,6 +17,19 @@
   --color-brand-600: oklch(0.55 0.196 258);
   --color-brand-700: oklch(0.49 0.18 258);
   --color-brand-800: oklch(0.42 0.15 258);
+
+  --color-muted: #F1F5F9;
+  --color-skeleton-highlight: #E2E8F0;
+  --animate-skeleton: skeleton-shimmer 1.8s ease-in-out infinite;
+
+  @keyframes skeleton-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
 }
 
 html {

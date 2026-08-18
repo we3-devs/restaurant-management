@@ -9,8 +9,9 @@ import { DataTablePagination } from "@/components/data-table-pagination"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { downloadReportExport, useReport, type ReportType } from "@/hooks/use-reports"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
@@ -139,6 +140,7 @@ export default function ReportsPage() {
 
   const params = { outletId, ...range, search: search || undefined, page, limit: PAGE_SIZE }
   const { data, isLoading, isPlaceholderData } = useReport(reportType, params)
+  const showSkeleton = useDelayedLoading(isLoading)
 
   async function handleExport(format: "csv" | "xlsx" | "pdf") {
     setExporting(format)
@@ -218,8 +220,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={6} />
       ) : !data || data.data.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <p className="text-sm font-medium">No data for this range</p>

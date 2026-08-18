@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
 import {
@@ -24,6 +25,7 @@ import { useWarehouses } from "@/hooks/use-warehouses"
 
 export function StockTransferDetail({ transferId }: { transferId: number }) {
   const { data: transfer, isLoading } = useStockTransfer(transferId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockTransferItems(transferId)
   const { data: ingredients } = useIngredients({ limit: 100 })
   const { data: warehouses } = useWarehouses({ limit: 100 })
@@ -64,9 +66,9 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
     }
   }
 
-  if (isLoading || !transfer) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !transfer) return <NotFoundCard resource="Stock transfer" />
+  if (!transfer) return null
 
   const isDraft = transfer.status === "draft"
   const fromWarehouse = warehouses?.data.find((w) => w.id === transfer.fromWarehouseId)

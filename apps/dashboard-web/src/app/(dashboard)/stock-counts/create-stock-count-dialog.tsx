@@ -17,7 +17,7 @@ import { createStockCountSchema, type CreateStockCountInput } from "@/lib/valida
 export function CreateStockCountDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const { data: warehouses } = useWarehouses({ limit: 100 })
+  const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createCount = useCreateStockCount()
 
   const form = useForm<CreateStockCountInput>({
@@ -52,8 +52,8 @@ export function CreateStockCountDialog() {
                 <FormItem>
                   <FormLabel>Warehouse</FormLabel>
                   <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a warehouse" />
+                    <SelectTrigger className="w-full" disabled={warehousesLoading}>
+                      <SelectValue placeholder={warehousesLoading ? "Loading…" : "Select a warehouse"} />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (

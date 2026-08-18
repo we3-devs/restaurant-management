@@ -25,7 +25,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useAddonGroups } from "@/hooks/use-addon-groups"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import {
@@ -56,6 +57,7 @@ import {
 export function FoodDetail({ foodId }: { foodId: number }) {
   const router = useRouter()
   const { data: food, isLoading } = useFood(foodId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: categories } = useFoodCategories({ limit: 100 })
   const updateFood = useUpdateFood(foodId)
   const deleteFood = useDeleteFood()
@@ -123,9 +125,9 @@ export function FoodDetail({ foodId }: { foodId: number }) {
     }
   }
 
-  if (isLoading || !food) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={8} />
+  if (!isLoading && !food) return <NotFoundCard resource="Food" />
+  if (!food) return null
 
   return (
     <div className="max-w-2xl space-y-6">

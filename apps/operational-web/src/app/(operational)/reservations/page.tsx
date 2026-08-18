@@ -22,7 +22,8 @@ import {
   DropdownMenuTrigger,
 } from "@rms/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { TableSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
@@ -68,6 +69,7 @@ export default function ReservationsPage() {
     outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const customerName = (customerId: number) =>
     customers?.data.find((c) => c.id === customerId)?.name ?? `#${customerId}`
@@ -174,8 +176,8 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <CalendarIcon className="size-8 text-muted-foreground" />

@@ -6,8 +6,9 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useOrders, type Order } from "@/hooks/use-orders"
@@ -48,6 +49,7 @@ export default function OrdersTrackingPage() {
     outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -84,8 +86,8 @@ export default function OrdersTrackingPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : (
         <div className={isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
           <Table>

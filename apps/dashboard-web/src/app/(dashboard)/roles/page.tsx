@@ -32,8 +32,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useDeleteRole, useRoles, type Role } from "@/hooks/use-roles"
 import { CreateRoleDialog } from "./create-role-dialog"
@@ -66,6 +67,7 @@ export default function RolesPage() {
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const deleteRole = useDeleteRole()
 
   const columns = useMemo<ColumnDef<Role>[]>(
@@ -161,8 +163,8 @@ export default function RolesPage() {
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <ShieldIcon className="size-8 text-muted-foreground" />

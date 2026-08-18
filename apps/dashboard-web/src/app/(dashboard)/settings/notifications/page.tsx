@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type NotificationSettings } from "@/hooks/use-settings"
 import { MyDeliveryPreferences } from "@/components/my-delivery-preferences"
@@ -31,6 +32,7 @@ export default function NotificationSettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<NotificationSettings>("notification")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<NotificationSettings>("notification")
 
   const form = useForm<NotificationSettingsInput>({
@@ -61,8 +63,8 @@ export default function NotificationSettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Notification Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={5} />
       ) : (
         <Card>
           <CardHeader>

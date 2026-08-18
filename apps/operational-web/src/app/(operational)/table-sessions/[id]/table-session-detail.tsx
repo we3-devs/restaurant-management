@@ -5,11 +5,13 @@ import { toast } from "sonner"
 import { StatusBadge } from "@rms/ui/status-badge"
 import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
-import { Skeleton } from "@rms/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useEndTableSession, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 
 export function TableSessionDetail({ sessionId }: { sessionId: number }) {
   const { data: session, isLoading } = useTableSession(sessionId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const endSession = useEndTableSession(sessionId)
 
   async function handleEnd() {
@@ -21,9 +23,9 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
     }
   }
 
-  if (isLoading || !session) {
-    return <Skeleton className="h-64 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !session) return <NotFoundCard resource="Table session" />
+  if (!session) return null
 
   const isActive = session.status === "active" || session.status === "billing"
 

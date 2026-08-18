@@ -23,7 +23,7 @@ import { ORDER_TYPES, createOrderSchema, type CreateOrderInput } from "@rms/vali
 
 export function CreateOrderDialog() {
   const [open, setOpen] = useState(false)
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
   const createOrder = useCreateOrder()
 
   const form = useForm<CreateOrderInput>({
@@ -33,7 +33,7 @@ export function CreateOrderDialog() {
 
   const selectedOutletId = form.watch("outletId")
   const orderType = form.watch("orderType")
-  const { data: sessions } = useTableSessions({
+  const { data: sessions, isLoading: sessionsLoading } = useTableSessions({
     outletId: selectedOutletId || undefined,
     status: "active",
     limit: 100,
@@ -72,8 +72,8 @@ export function CreateOrderDialog() {
                       form.setValue("tableSessionId", undefined)
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an outlet" />
+                    <SelectTrigger className="w-full" disabled={outletsLoading}>
+                      <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
                       {outlets?.data.map((outlet) => (
@@ -121,8 +121,8 @@ export function CreateOrderDialog() {
                       onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                       disabled={!selectedOutletId}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="No table session" />
+                      <SelectTrigger className="w-full" disabled={sessionsLoading}>
+                        <SelectValue placeholder={sessionsLoading ? "Loading…" : "No table session"} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No table session</SelectItem>

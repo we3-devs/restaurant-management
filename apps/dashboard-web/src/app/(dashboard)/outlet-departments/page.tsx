@@ -6,7 +6,8 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useOutletDepartments, type OutletDepartment } from "@/hooks/use-outlet-departments"
 import { useOutlets } from "@/hooks/use-outlets"
@@ -35,6 +36,7 @@ export default function OutletDepartmentsPage() {
     limit: 100,
     outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -66,8 +68,8 @@ export default function OutletDepartmentsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

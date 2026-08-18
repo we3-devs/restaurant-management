@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { ColorPickerField } from "@/components/ui/color-picker-field"
 import { ImageUploadField } from "@/components/ui/image-upload-field"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FormSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type AppearanceSettings } from "@/hooks/use-settings"
 import { appearanceSettingsSchema, type AppearanceSettingsInput } from "@/lib/validators/settings"
@@ -28,6 +29,7 @@ export default function AppearanceSettingsPage() {
   const canManage = isSuperadmin || permissions.includes("settings.manage")
 
   const { data, isLoading } = useSettingsCategory<AppearanceSettings>("appearance")
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<AppearanceSettings>("appearance")
 
   const form = useForm<AppearanceSettingsInput>({
@@ -58,8 +60,8 @@ export default function AppearanceSettingsPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Appearance Settings</h1>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <FormSkeleton fields={5} />
       ) : (
         <Card>
           <CardHeader>

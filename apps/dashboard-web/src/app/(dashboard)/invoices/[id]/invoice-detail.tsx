@@ -5,7 +5,8 @@ import { ChevronRightIcon, Download, Printer } from "lucide-react"
 
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useOrder, useOrderItems } from "@/hooks/use-orders"
 import { useOutlet } from "@/hooks/use-outlets"
 import { useCustomer } from "@/hooks/use-customers"
@@ -29,6 +30,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 
 export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
@@ -36,9 +38,9 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
 
   const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
 
-  if (isLoading || !order) {
-    return <Skeleton className="mx-auto h-96 w-full max-w-4xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !order) return <NotFoundCard resource="Invoice" />
+  if (!order) return null
 
   if (!order.invoiceNumber) {
     return (

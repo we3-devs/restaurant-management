@@ -5,7 +5,8 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ListSkeleton, StatGridSkeleton } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useEmployees } from "@/hooks/use-employees"
 import { useStaffDashboard } from "@/hooks/use-assignments"
@@ -15,6 +16,7 @@ export default function StaffDashboardPage() {
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: employees } = useEmployees({ limit: 200 })
   const { data, isLoading } = useStaffDashboard(outletFilter !== "all" ? Number(outletFilter) : undefined)
+  const showSkeleton = useDelayedLoading(isLoading || !data)
 
   const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? `#${id}`
 
@@ -39,9 +41,12 @@ export default function StaffDashboardPage() {
         </div>
       </div>
 
-      {isLoading || !data ? (
-        <Skeleton className="h-64 w-full" />
-      ) : (
+      {showSkeleton ? (
+        <div className="space-y-4">
+          <StatGridSkeleton count={5} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" />
+          <ListSkeleton count={3} />
+        </div>
+      ) : !data ? null : (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <Card>

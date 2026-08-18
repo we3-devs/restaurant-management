@@ -6,8 +6,9 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockOuts, type StockOut } from "@/hooks/use-stock-outs"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockOutDialog } from "./create-stock-out-dialog"
@@ -32,6 +33,7 @@ export default function StockOutsPage() {
     limit: 100,
     warehouseId: warehouseFilter !== "all" ? Number(warehouseFilter) : undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -63,8 +65,8 @@ export default function StockOutsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={6} columns={columns.length} />
       ) : (
         <Table>
           <TableHeader>

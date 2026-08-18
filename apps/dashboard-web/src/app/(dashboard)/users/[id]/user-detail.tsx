@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useRoles } from "@/hooks/use-roles"
 import {
   useAssignRole,
@@ -35,6 +36,7 @@ import { updateUserSchema, type UpdateUserInput } from "@/lib/validators/users"
 
 export function UserDetail({ userId }: { userId: number }) {
   const { data: user, isLoading } = useUser(userId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: assignments } = useUserRoleAssignments(userId)
   const { data: roles } = useRoles({ limit: 100 })
   const updateUser = useUpdateUser(userId)
@@ -92,9 +94,9 @@ export function UserDetail({ userId }: { userId: number }) {
     }
   }
 
-  if (isLoading || !user) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !user) return <NotFoundCard resource="User" />
+  if (!user) return null
 
   const activeAssignments = (assignments ?? []).filter((assignment) => assignment.isActive)
 

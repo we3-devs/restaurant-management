@@ -11,13 +11,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCustomer, useCustomerOutlets, useUpdateCustomer, useUpdateCustomerOutlet } from "@/hooks/use-customers"
 import { useOutlets } from "@/hooks/use-outlets"
 import { updateCustomerSchema, type UpdateCustomerInput } from "@/lib/validators/customers"
 
 export function CustomerDetail({ customerId }: { customerId: number }) {
   const { data: customer, isLoading } = useCustomer(customerId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateCustomer = useUpdateCustomer(customerId)
 
   const form = useForm<UpdateCustomerInput>({
@@ -45,9 +47,9 @@ export function CustomerDetail({ customerId }: { customerId: number }) {
     }
   }
 
-  if (isLoading || !customer) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={4} />
+  if (!isLoading && !customer) return <NotFoundCard resource="Customer" />
+  if (!customer) return null
 
   return (
     <div className="max-w-2xl space-y-6">

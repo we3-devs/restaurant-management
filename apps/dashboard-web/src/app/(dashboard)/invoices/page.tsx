@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useOrders, type Order } from "@/hooks/use-orders"
@@ -48,6 +49,7 @@ export default function InvoicesPage() {
     limit: PAGE_SIZE,
     outletId: outletId ?? undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const invoices = data?.data?.filter((order) => order.invoiceNumber) ?? []
 
@@ -66,8 +68,8 @@ export default function InvoicesPage() {
         </p>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : (
         <div className={isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
           {invoices.length > 0 ? (

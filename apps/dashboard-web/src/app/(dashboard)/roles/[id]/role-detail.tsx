@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { usePermissions, type Permission } from "@/hooks/use-permissions"
 import { useAssignPermission, useDeleteRole, useRole, useUnassignPermission, useUpdateRole } from "@/hooks/use-roles"
 import { updateRoleSchema, type UpdateRoleInput } from "@/lib/validators/roles"
@@ -29,6 +30,7 @@ import { updateRoleSchema, type UpdateRoleInput } from "@/lib/validators/roles"
 export function RoleDetail({ roleId }: { roleId: number }) {
   const router = useRouter()
   const { data: role, isLoading } = useRole(roleId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: permissions } = usePermissions()
   const updateRole = useUpdateRole(roleId)
   const deleteRole = useDeleteRole()
@@ -123,9 +125,9 @@ export function RoleDetail({ roleId }: { roleId: number }) {
     }
   }
 
-  if (isLoading || !role) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !role) return <NotFoundCard resource="Role" />
+  if (!role) return null
 
   const readOnly = role.isSystem
 

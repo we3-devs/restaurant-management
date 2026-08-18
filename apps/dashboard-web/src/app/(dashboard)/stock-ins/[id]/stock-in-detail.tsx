@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
 import {
@@ -23,6 +24,7 @@ import {
 
 export function StockInDetail({ stockInId }: { stockInId: number }) {
   const { data: stockIn, isLoading } = useStockIn(stockInId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockInItems(stockInId)
   const { data: ingredients } = useIngredients({ limit: 100 })
   const addItem = useAddStockInItem(stockInId)
@@ -68,9 +70,9 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
     }
   }
 
-  if (isLoading || !stockIn) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !stockIn) return <NotFoundCard resource="Stock-in" />
+  if (!stockIn) return null
 
   const isDraft = stockIn.status === "draft"
 

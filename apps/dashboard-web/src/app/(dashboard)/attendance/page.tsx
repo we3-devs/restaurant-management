@@ -26,8 +26,9 @@ import {
 } from "@/components/ui/dialog"
 import { Form, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useEmployees } from "@/hooks/use-employees"
 import { useOutlets } from "@/hooks/use-outlets"
@@ -60,6 +61,7 @@ export default function AttendancePage() {
     dateFrom: dateRange.dateFrom || undefined,
     dateTo: dateRange.dateTo || undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
   const clockOut = useClockOut()
 
   const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? `#${id}`
@@ -155,8 +157,8 @@ export default function AttendancePage() {
         />
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <CalendarClockIcon className="size-8 text-muted-foreground" />

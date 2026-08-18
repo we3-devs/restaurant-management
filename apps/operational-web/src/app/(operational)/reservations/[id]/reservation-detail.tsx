@@ -10,7 +10,8 @@ import { Button } from "@rms/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@rms/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { Skeleton } from "@rms/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useOutlet } from "@rms/api-client/hooks/use-outlets"
@@ -32,10 +33,11 @@ import type { Reservation } from "@rms/api-client/hooks/use-reservations"
 
 export function ReservationDetail({ reservationId }: { reservationId: number }) {
   const { data: reservation, isLoading } = useReservation(reservationId)
+  const showSkeleton = useDelayedLoading(isLoading)
 
-  if (isLoading || !reservation) {
-    return <Skeleton className="h-96 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !reservation) return <NotFoundCard resource="Reservation" />
+  if (!reservation) return null
 
   // Split into its own component, mounted only once `reservation` is
   // guaranteed to be loaded: useForm's `values` option syncs reactively,

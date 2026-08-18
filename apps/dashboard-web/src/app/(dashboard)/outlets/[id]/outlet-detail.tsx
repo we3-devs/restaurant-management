@@ -20,13 +20,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutlet, useOutlet, useUpdateOutlet } from "@/hooks/use-outlets"
 import { updateOutletSchema, type UpdateOutletInput } from "@/lib/validators/outlets"
 
 export function OutletDetail({ outletId }: { outletId: number }) {
   const router = useRouter()
   const { data: outlet, isLoading } = useOutlet(outletId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateOutlet = useUpdateOutlet(outletId)
   const deleteOutlet = useDeleteOutlet()
 
@@ -61,9 +63,9 @@ export function OutletDetail({ outletId }: { outletId: number }) {
     }
   }
 
-  if (isLoading || !outlet) {
-    return <Skeleton className="h-64 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={5} />
+  if (!isLoading && !outlet) return <NotFoundCard resource="Outlet" />
+  if (!outlet) return null
 
   return (
     <div className="max-w-2xl space-y-6">

@@ -18,8 +18,8 @@ const ingredientTypes = ["raw_material", "ready_product", "packaging", "consumab
 
 export function CreateIngredientDialog() {
   const [open, setOpen] = useState(false)
-  const { data: categories } = useIngredientCategories({ limit: 100 })
-  const { data: units } = useUnits({ limit: 100 })
+  const { data: categories, isLoading: categoriesLoading } = useIngredientCategories({ limit: 100 })
+  const { data: units, isLoading: unitsLoading } = useUnits({ limit: 100 })
   const createIngredient = useCreateIngredient()
 
   const form = useForm<CreateIngredientInput>({
@@ -57,8 +57,8 @@ export function CreateIngredientDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No category" />
+                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "No category"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No category</SelectItem>
@@ -138,8 +138,8 @@ export function CreateIngredientDialog() {
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a unit" />
+                    <SelectTrigger className="w-full" disabled={unitsLoading}>
+                      <SelectValue placeholder={unitsLoading ? "Loading…" : "Select a unit"} />
                     </SelectTrigger>
                     <SelectContent>
                       {units?.data.map((unit) => (

@@ -22,7 +22,7 @@ import { createAddonSchema, type CreateAddonInput } from "@/lib/validators/addon
 
 export function CreateAddonDialog() {
   const [open, setOpen] = useState(false)
-  const { data: addonGroups } = useAddonGroups({ limit: 100 })
+  const { data: addonGroups, isLoading: addonGroupsLoading } = useAddonGroups({ limit: 100 })
   const createAddon = useCreateAddon()
 
   const form = useForm<CreateAddonInput>({
@@ -60,8 +60,8 @@ export function CreateAddonDialog() {
                     value={field.value ? String(field.value) : "none"}
                     onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No group" />
+                    <SelectTrigger className="w-full" disabled={addonGroupsLoading}>
+                      <SelectValue placeholder={addonGroupsLoading ? "Loading…" : "No group"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No group</SelectItem>

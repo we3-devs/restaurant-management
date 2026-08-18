@@ -7,8 +7,9 @@ import { AwardIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useLoyaltyAccounts, type LoyaltyAccount } from "@/hooks/use-loyalty"
 import { AdjustLoyaltyPointsDialog } from "./adjust-loyalty-points-dialog"
@@ -28,6 +29,7 @@ export default function LoyaltyCustomersPage() {
     limit: PAGE_SIZE,
     search: search || undefined,
   })
+  const showSkeleton = useDelayedLoading(isLoading)
 
   const columns = useMemo<ColumnDef<LoyaltyAccount>[]>(
     () => [
@@ -99,8 +101,8 @@ export default function LoyaltyCustomersPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
+      {showSkeleton ? (
+        <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <AwardIcon className="size-8 text-muted-foreground" />

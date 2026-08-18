@@ -22,13 +22,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Checkbox } from "@rms/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@rms/ui/form"
 import { Label } from "@rms/ui/label"
-import { Skeleton } from "@rms/ui/skeleton"
+import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useDeleteDiningArea, useDiningArea, useUpdateDiningArea } from "@rms/api-client/hooks/use-dining-areas"
 import { updateDiningAreaSchema, type UpdateDiningAreaInput } from "@rms/validators/dining-areas"
 
 export function DiningAreaDetail({ areaId }: { areaId: number }) {
   const router = useRouter()
   const { data: area, isLoading } = useDiningArea(areaId)
+  const showSkeleton = useDelayedLoading(isLoading)
   const updateArea = useUpdateDiningArea(areaId)
   const deleteArea = useDeleteDiningArea()
 
@@ -62,9 +64,9 @@ export function DiningAreaDetail({ areaId }: { areaId: number }) {
     }
   }
 
-  if (isLoading || !area) {
-    return <Skeleton className="h-64 w-full max-w-2xl" />
-  }
+  if (showSkeleton) return <DetailPageSkeleton fields={4} />
+  if (!isLoading && !area) return <NotFoundCard resource="Dining area" />
+  if (!area) return null
 
   return (
     <div className="max-w-2xl space-y-6">

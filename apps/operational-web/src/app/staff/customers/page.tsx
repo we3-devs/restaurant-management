@@ -16,8 +16,9 @@ import {
 } from "@rms/ui/dialog"
 import { Input } from "@rms/ui/input"
 import { Label } from "@rms/ui/label"
-import { Skeleton } from "@rms/ui/skeleton"
+import { TableSkeleton } from "@rms/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useLoyaltyAccount } from "@rms/api-client/hooks/use-loyalty"
 import {
@@ -39,6 +40,7 @@ export default function StaffCustomersPage() {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Customer | null>(null)
   const { data, isLoading } = useCustomers({ search: search || undefined, limit: 50 })
+  const showSkeleton = useDelayedLoading(isLoading)
   const customers = data?.data ?? []
 
   return (
@@ -58,14 +60,14 @@ export default function StaffCustomersPage() {
         />
       </div>
 
-      {isLoading && <Skeleton className="h-64 w-full" />}
-      {!isLoading && customers.length === 0 && (
+      {showSkeleton && <TableSkeleton rows={8} columns={3} />}
+      {!showSkeleton && customers.length === 0 && (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {search ? "No customers match your search." : "No customers yet."}
         </p>
       )}
 
-      {!isLoading && customers.length > 0 && (
+      {!showSkeleton && customers.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow>
