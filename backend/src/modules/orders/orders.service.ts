@@ -21,6 +21,7 @@ import {
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { AddonsService } from '../addons/addons.service';
+import { CustomerCreditService } from '../customer-credit/customer-credit.service';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { CreateTableSessionDto } from '../table-sessions/dto/create-table-session.dto';
@@ -133,6 +134,7 @@ export class OrdersService {
     private readonly dataSource: DataSource,
     private readonly loyaltyService: LoyaltyService,
     private readonly settingsService: SettingsService,
+    private readonly customerCreditService: CustomerCreditService,
   ) {}
 
   // ---------------------------------------------------------------- orders
@@ -829,6 +831,14 @@ export class OrdersService {
             `Failed to reverse loyalty points for order ${saved.id}: ${(error as Error).message}`,
           );
         }
+      }
+      try {
+        // No-op if the order was never charged to a customer's tab.
+        await this.customerCreditService.reverseForRefund(saved.id, changedBy);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to reverse customer credit charge for order ${saved.id}: ${(error as Error).message}`,
+        );
       }
       const notification = await this.notificationsService.create({
         outletId: saved.outletId,

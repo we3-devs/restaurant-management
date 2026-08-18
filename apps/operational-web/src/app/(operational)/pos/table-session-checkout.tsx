@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateTableSessionPayment, useCompleteAllForTableSession } from "@rms/api-client/hooks/use-order-payments"
 import type { Order } from "@rms/api-client/hooks/use-orders"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
+import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
 /**
@@ -35,6 +36,8 @@ export function TableSessionCheckout({
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(totalDue)
+  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
   // Re-seeds the payment-amount field whenever the combined due changes
   // (e.g. after a payment lands) — mirrors CheckoutPanel's own pattern.
   const [seededDue, setSeededDue] = useState<number | null>(null)
@@ -49,8 +52,16 @@ export function TableSessionCheckout({
       toast.error("You're offline — reconnect to record a payment")
       return
     }
+    if (paymentMethod === "credit" && !creditCustomerId) {
+      toast.error("Select a customer to charge this to their tab")
+      return
+    }
     try {
-      await createPayment.mutateAsync({ method: paymentMethod, amount: paymentAmount })
+      await createPayment.mutateAsync({
+        method: paymentMethod,
+        amount: paymentAmount,
+        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+      })
       toast.success("Payment recorded across the table")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -125,11 +136,34 @@ export function TableSessionCheckout({
           onChange={(e) => setPaymentAmount(Number(e.target.value))}
         />
       </div>
+      {paymentMethod === "credit" && (
+        <Select
+          value={creditCustomerId ? String(creditCustomerId) : ""}
+          onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+        >
+          <SelectTrigger className="w-full" disabled={customersLoading}>
+            <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+          </SelectTrigger>
+          <SelectContent>
+            {customers?.data.map((customer) => (
+              <SelectItem key={customer.id} value={String(customer.id)}>
+                {customer.name}
+                {customer.phone ? ` (${customer.phone})` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Button
         variant="outline"
         size="sm"
         onClick={handlePay}
-        disabled={createPayment.isPending || paymentAmount <= 0 || !isOnline}
+        disabled={
+          createPayment.isPending ||
+          paymentAmount <= 0 ||
+          !isOnline ||
+          (paymentMethod === "credit" && !creditCustomerId)
+        }
       >
         {createPayment.isPending ? "Recording..." : "Pay across table"}
       </Button>

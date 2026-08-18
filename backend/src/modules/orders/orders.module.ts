@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonsModule } from '../addons/addons.module';
 import { AuthModule } from '../auth/auth.module';
+import { CustomerCreditModule } from '../customer-credit/customer-credit.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { FoodVariantsModule } from '../food-variants/food-variants.module';
@@ -68,6 +69,10 @@ import { TableSessionOpenController } from './table-session-open.controller';
     // chain can resolve to `undefined` mid-cycle at module-load time.
     forwardRef(() => LoyaltyModule),
     SettingsModule,
+    // Circular: CustomerCreditModule pulls in KitchenTicketsModule, which
+    // imports OrdersModule — without forwardRef this chain can resolve to
+    // `undefined` mid-cycle at module-load time (mirrors LoyaltyModule above).
+    forwardRef(() => CustomerCreditModule),
   ],
   controllers: [OrdersController, OrderItemsController, TableSessionOpenController],
   providers: [OrdersService],

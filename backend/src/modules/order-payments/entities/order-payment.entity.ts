@@ -50,8 +50,8 @@ export class OrderPayment {
   @JoinColumn({ name: 'order_id' })
   order: Order;
 
-  // customer_id maps a column with no entity yet (Customers domain isn't
-  // built) — left nullable and unset by the app.
+  // Set only when method="credit" — the customer whose tab this payment was
+  // charged to (see OrderPaymentsService.create -> CustomerCreditService).
   @Column({
     name: 'customer_id',
     type: 'bigint',

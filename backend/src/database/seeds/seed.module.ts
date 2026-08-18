@@ -1,7 +1,9 @@
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TimestampSubscriber } from '../../common/subscribers/timestamp.subscriber';
+import { WsTicketsModule } from '../../common/ws-tickets/ws-tickets.module';
 import configuration, { AppConfig } from '../../config/configuration';
 import { validate } from '../../config/env.validation';
 import { EmployeesModule } from '../../modules/employees/employees.module';
@@ -18,6 +20,8 @@ import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
+    CacheModule.register({ isGlobal: true }),
+    WsTicketsModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppConfig>) => {

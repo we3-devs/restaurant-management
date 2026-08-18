@@ -99,6 +99,8 @@ export const createOrderPaymentSchema = z.object({
   method: z.enum(ORDER_PAYMENT_METHODS),
   amount: z.number().min(0.01),
   note: z.string().optional(),
+  /** Required when method="credit" — the customer whose tab is charged. */
+  customerId: z.number().int().optional(),
 })
 
 export type CreateOrderPaymentInput = z.infer<typeof createOrderPaymentSchema>

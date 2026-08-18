@@ -43,8 +43,8 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
   },
   {
     href: "/staff/waiter/ready",
-    label: "Ready to deliver",
-    description: "Items the kitchen has finished",
+    label: "Queue",
+    description: "Ready-to-deliver items and call-waiter requests",
     icon: PackageCheckIcon,
     requires: "dining-tables.view",
     excludeRoleSlugs: ["cashier"],

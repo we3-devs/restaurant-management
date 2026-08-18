@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { CustomerCreditService } from '../customer-credit/customer-credit.service';
+import { CustomersService } from '../customers/customers.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from '../orders/entities/order.entity';
@@ -20,6 +22,8 @@ export class OrderPaymentsService {
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
     private readonly dataSource: DataSource,
+    private readonly customersService: CustomersService,
+    private readonly customerCreditService: CustomerCreditService,
   ) {}
 
   async findAll(
@@ -60,6 +64,20 @@ export class OrderPaymentsService {
     receivedBy: number,
   ): Promise<OrderPayment> {
     const type = dto.type ?? 'payment';
+    const method = dto.method ?? 'cash';
+
+    if (method === 'credit') {
+      if (type !== 'payment') {
+        throw new BadRequestException(
+          "Credit is only supported for payments — settle a customer's balance via POST /customer-credit/settlements instead of a refund.",
+        );
+      }
+      if (!dto.customerId) {
+        throw new BadRequestException('customerId is required when method="credit"');
+      }
+      // Fails fast, before the order is locked/mutated, if the customer doesn't exist.
+      await this.customersService.findOne(dto.customerId);
+    }
 
     // Row-locks the order for the duration of the check + insert so a
     // concurrent payment/refund on the same order can't read the same
@@ -102,10 +120,11 @@ export class OrderPaymentsService {
         const payment = manager.create(OrderPayment, {
           outletId: lockedOrder.outletId,
           orderId,
+          customerId: method === 'credit' ? dto.customerId! : null,
           receivedBy,
           paymentNumber: this.generatePaymentNumber(lockedOrder.outletId),
           type,
-          method: dto.method ?? 'cash',
+          method,
           provider: dto.provider ?? null,
           transactionReference: dto.transactionReference ?? null,
           amount: dto.amount,
@@ -119,6 +138,14 @@ export class OrderPaymentsService {
     );
 
     await this.ordersService.recalculatePayments(orderId);
+
+    if (saved.method === 'credit' && saved.customerId) {
+      await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {
+        orderId,
+        userId: receivedBy,
+        notes: `Order ${order.orderNumber}`,
+      });
+    }
 
     if (saved.status === 'completed' && saved.type === 'payment') {
       const notification = await this.notificationsService.create({
@@ -178,6 +205,7 @@ export class OrderPaymentsService {
             method: dto.method,
             amount: portion,
             note: dto.note,
+            customerId: dto.customerId,
           },
           receivedBy,
         ),

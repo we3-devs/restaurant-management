@@ -49,6 +49,7 @@ export type NotificationType =
   | 'settings_changed'
   | 'loyalty_points_earned'
   | 'loyalty_points_redeemed'
+  | 'customer_credit_limit_exceeded'
   | 'system';
 
 export type NotificationPriority = 'normal' | 'high' | 'urgent';

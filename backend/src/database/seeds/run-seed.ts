@@ -228,7 +228,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'foods', 'food-categories', 'food-variants', 'addon-groups', 'addons',
       'ingredients', 'ingredient-categories', 'units',
       'stock-ins', 'stock-outs', 'stock-transfers', 'stock-adjustments', 'stock-counts', 'ingredient-wastages',
-      'loyalty', 'settings',
+      'loyalty', 'customer-credit', 'settings',
     ],
     singlePermissions: [
       'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view',
@@ -250,7 +250,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     // orders.manage role goes through — see waiter/bartender below.
     singlePermissions: [
       'customers.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'dashboard.view',
-      'foods.view', 'food-categories.view', 'food-variants.view',
+      'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
     ],
     // Stale grants from an earlier version of this role definition, unused by
     // any cashier-reachable screen.
@@ -268,7 +268,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     // cashier above (FoodGrid, CategoryTabs, VariantPickerDialog).
     singlePermissions: [
       'dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view',
-      'foods.view', 'food-categories.view', 'food-variants.view',
+      'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
     ],
     position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
   },
@@ -830,6 +830,13 @@ async function run() {
     role.id,
     'loyalty',
     'Loyalty',
+  );
+  await upsertModulePermissions(
+    permissionRepo,
+    rolePermissionRepo,
+    role.id,
+    'customer-credit',
+    'Customer Credit',
   );
 
   const user = await upsertUser(

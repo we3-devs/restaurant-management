@@ -10,12 +10,15 @@ export interface CreateTableSessionPaymentInput {
   method: (typeof ORDER_PAYMENT_METHODS)[number]
   amount: number
   note?: string
+  /** Required when method="credit" — the customer whose tab is charged. */
+  customerId?: number
 }
 
 export interface OrderPayment {
   id: number
   outletId: number
   orderId: number
+  customerId: number | null
   receivedBy: number | null
   paymentNumber: string
   type: string

@@ -16,7 +16,8 @@ import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useUpdateOrder, useIssueInvoice, type Order } from "@rms/api-client/hooks/use-orders"
 import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
-import { useCustomer } from "@rms/api-client/hooks/use-customers"
+import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
+import { useCurrentUser } from "@rms/auth/current-user-context"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
 function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: string }) {
@@ -49,6 +50,12 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const [editingTotals, setEditingTotals] = useState(false)
   const issueInvoice = useIssueInvoice(orderId)
+  // Cashiers can record payments from this read-only staff view too — every
+  // other staff-shell role (waiter, bartender, cook, host) stays view-only
+  // here and settles bills through the POS checkout flow instead.
+  const { roleSlugs } = useCurrentUser()
+  const isCashier = roleSlugs.includes("cashier")
+  const canRecordPayment = !isReadOnly || isCashier
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !order) return <NotFoundCard resource="Order" />
@@ -95,7 +102,7 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
 
       <div className="mx-auto max-w-5xl grid gap-6 lg:grid-cols-2">
         <BillCard orderId={orderId} />
-        {!isReadOnly && <PaymentSummaryCard orderId={orderId} order={order} editingTotals={editingTotals} />}
+        {canRecordPayment && <PaymentSummaryCard orderId={orderId} order={order} editingTotals={editingTotals} />}
       </div>
     </div>
   )
@@ -185,6 +192,8 @@ function PaymentSummaryCard({
   const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [amount, setAmount] = useState(0)
   const [formMode, setFormMode] = useState<"none" | "payment" | "refund">("none")
+  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
   // Re-seeds the amount field to the current due whenever it changes (e.g.
   // after a payment lands), without needing an effect.
   const [seededDue, setSeededDue] = useState<number | null>(null)
@@ -224,8 +233,17 @@ function PaymentSummaryCard({
 
   async function handleSubmitPayment() {
     if (amount <= 0) return
+    if (formMode === "payment" && method === "credit" && !creditCustomerId) {
+      toast.error("Select a customer to charge this to their tab")
+      return
+    }
     try {
-      await createPayment.mutateAsync({ type: formMode === "refund" ? "refund" : "payment", method, amount })
+      await createPayment.mutateAsync({
+        type: formMode === "refund" ? "refund" : "payment",
+        method,
+        amount,
+        customerId: method === "credit" ? creditCustomerId : undefined,
+      })
       toast.success(formMode === "refund" ? "Refund recorded" : "Payment recorded")
       setFormMode("none")
     } catch (error) {
@@ -247,6 +265,7 @@ function PaymentSummaryCard({
               onClick={() => {
                 setFormMode("refund")
                 setAmount(order.paidAmount)
+                if (method === "credit") setMethod("cash")
               }}
             >
               Refund
@@ -318,21 +337,47 @@ function PaymentSummaryCard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ORDER_PAYMENT_METHODS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                  {ORDER_PAYMENT_METHODS
+                    // Credit is a customer's tab, not a refundable-from method — there's
+                    // no original credit charge to unambiguously reverse from here.
+                    .filter((option) => option !== "credit" || formMode === "payment")
+                    .map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             </div>
+            {formMode === "payment" && method === "credit" && (
+              <Select
+                value={creditCustomerId ? String(creditCustomerId) : ""}
+                onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+              >
+                <SelectTrigger className="w-full" disabled={customersLoading}>
+                  <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers?.data.map((customer) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {customer.name}
+                      {customer.phone ? ` (${customer.phone})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex gap-2">
               <Button
                 className="flex-1"
                 variant={formMode === "refund" ? "destructive" : "default"}
                 onClick={handleSubmitPayment}
-                disabled={createPayment.isPending || amount <= 0}
+                disabled={
+                  createPayment.isPending ||
+                  amount <= 0 ||
+                  (formMode === "payment" && method === "credit" && !creditCustomerId)
+                }
               >
                 {createPayment.isPending ? "Saving..." : formMode === "refund" ? "Record refund" : "Record payment"}
               </Button>

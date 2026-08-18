@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@rms/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useOrders, useUpdateOrder, useUpdateOrderStatus } from "@rms/api-client/hooks/use-orders"
+import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { TableSessionCheckout } from "./table-session-checkout"
@@ -46,6 +47,8 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
   const [serviceChargeAmount, setServiceChargeAmount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
+  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   // Re-seed the editable totals/payment-amount fields whenever a different
   // order loads, or the due amount changes after a payment — without an
@@ -86,8 +89,17 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
       toast.error("You're offline — reconnect to record a payment")
       return
     }
+    if (paymentMethod === "credit" && !creditCustomerId) {
+      toast.error("Select a customer to charge this to their tab")
+      return
+    }
     try {
-      await createPayment.mutateAsync({ type: "payment", method: paymentMethod, amount: paymentAmount })
+      await createPayment.mutateAsync({
+        type: "payment",
+        method: paymentMethod,
+        amount: paymentAmount,
+        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+      })
       toast.success("Payment recorded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -201,7 +213,11 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
           <div className="grid grid-cols-2 gap-2">
             <Select
               value={paymentMethod}
-              onValueChange={(value) => value && setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])}
+              onValueChange={(value) => {
+                if (!value) return
+                setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])
+                if (value === "credit") setCreditCustomerId(order.customerId ?? undefined)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -221,11 +237,34 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
               onChange={(e) => setPaymentAmount(Number(e.target.value))}
             />
           </div>
+          {paymentMethod === "credit" && (
+            <Select
+              value={creditCustomerId ? String(creditCustomerId) : ""}
+              onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+            >
+              <SelectTrigger className="w-full" disabled={customersLoading}>
+                <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+              </SelectTrigger>
+              <SelectContent>
+                {customers?.data.map((customer) => (
+                  <SelectItem key={customer.id} value={String(customer.id)}>
+                    {customer.name}
+                    {customer.phone ? ` (${customer.phone})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleAddPayment}
-            disabled={createPayment.isPending || paymentAmount <= 0 || !isOnline}
+            disabled={
+              createPayment.isPending ||
+              paymentAmount <= 0 ||
+              !isOnline ||
+              (paymentMethod === "credit" && !creditCustomerId)
+            }
           >
             {createPayment.isPending ? "Recording..." : "Add payment"}
           </Button>

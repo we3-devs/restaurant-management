@@ -304,6 +304,12 @@ export const queryKeys = {
     account: (customerId: number) => [...queryKeys.loyalty.all, "account", customerId] as const,
     transactions: (params?: unknown) => [...queryKeys.loyalty.all, "transactions", params] as const,
   },
+  customerCredit: {
+    all: ["customer-credit"] as const,
+    accounts: (params?: unknown) => [...queryKeys.customerCredit.all, "accounts", params] as const,
+    account: (customerId: number) => [...queryKeys.customerCredit.all, "account", customerId] as const,
+    transactions: (params?: unknown) => [...queryKeys.customerCredit.all, "transactions", params] as const,
+  },
   customerPortal: {
     all: ["customer-portal"] as const,
     profile: () => [...queryKeys.customerPortal.all, "profile"] as const,

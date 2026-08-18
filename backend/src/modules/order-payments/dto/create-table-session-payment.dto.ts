@@ -1,5 +1,6 @@
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 import type { OrderPaymentMethod } from '../entities/order-payment.entity';
 
 const ORDER_PAYMENT_METHODS: OrderPaymentMethod[] = [
@@ -32,4 +33,10 @@ export class CreateTableSessionPaymentDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @ApiPropertyOptional({ description: 'Required when method="credit" — the customer whose tab is charged' })
+  @ValidateIf((dto) => dto.method === 'credit')
+  @Type(() => Number)
+  @IsInt()
+  customerId?: number;
 }

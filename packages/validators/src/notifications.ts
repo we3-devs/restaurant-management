@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPES = [
   "employee_late",
   "shift_started",
   "shift_ended",
+  "customer_credit_limit_exceeded",
   "system",
 ] as const
 
@@ -51,6 +52,7 @@ export const NOTIFICATION_CATEGORY_GROUPS: Record<string, NotificationType[]> = 
     "low_supplier_credit",
   ],
   Staff: ["employee_clock_in", "employee_late", "shift_started", "shift_ended"],
+  Customers: ["customer_credit_limit_exceeded"],
   System: ["service_request", "report_generated", "user_created", "system"],
 }
 
@@ -87,5 +89,6 @@ export const NOTIFICATION_TOAST_VARIANT: Record<NotificationType, "success" | "e
   employee_late: "warning",
   shift_started: "info",
   shift_ended: "info",
+  customer_credit_limit_exceeded: "warning",
   system: "info",
 }

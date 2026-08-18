@@ -41,6 +41,7 @@ import { IngredientsModule } from './modules/ingredients/ingredients.module';
 import { InventoryStockModule } from './modules/inventory-stock/inventory-stock.module';
 import { KitchenTicketsModule } from './modules/kitchen-tickets/kitchen-tickets.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { CustomerCreditModule } from './modules/customer-credit/customer-credit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OrderPaymentsModule } from './modules/order-payments/order-payments.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -232,6 +233,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     UploadsModule,
     AuditLogsModule,
     LoyaltyModule,
+    CustomerCreditModule,
     CustomerAuthModule,
     CustomerPortalModule,
   ],
