@@ -50,8 +50,9 @@ export class PoolMetrics implements OnModuleInit {
         metrics.totalUs = totalUs;
         metrics.totalMs = Math.round(totalUs / 1000);
 
-        // Log slow queries (>50ms)
-        if (metrics.totalMs > 50) {
+        // Log slow queries (>50ms) — excludes the pool warm-up ping (app.module.ts),
+        // which is expected to take 100ms+ against a remote DB and isn't an app-level slowdown.
+        if (metrics.totalMs > 50 && metrics.query !== 'SELECT 1') {
           this.logger.warn(
             `[PERF:DB] query="${metrics.query}" total=${metrics.totalMs}ms (slow)`
           );
