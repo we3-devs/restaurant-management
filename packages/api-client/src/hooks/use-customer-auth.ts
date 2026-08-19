@@ -1,4 +1,8 @@
 import { useMutation } from "@tanstack/react-query"
+import {
+  clearStoredCustomerToken,
+  setStoredCustomerToken,
+} from "@rms/auth/client/customer-token-storage"
 import type { RequestOtpInput, VerifyOtpInput } from "@rms/validators/customer-portal"
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -26,13 +30,26 @@ export function useRequestOtp() {
 
 export function useVerifyOtp() {
   return useMutation({
-    mutationFn: (input: VerifyOtpInput) =>
-      post<{ customer: { id: number; name: string } }>("/api/customer-auth/otp/verify", input),
+    mutationFn: async (input: VerifyOtpInput) => {
+      const result = await post<{ customer: { id: number; name: string }; accessToken: string }>(
+        "/api/customer-auth/otp/verify",
+        input,
+      )
+      // Backstop copy — see customer-token-storage.ts. The httpOnly cookie
+      // set server-side is the normal path; this is what lets the guest
+      // session survive a browser/cookie jar that drops it.
+      setStoredCustomerToken(result.accessToken)
+      return result
+    },
   })
 }
 
 export function useCustomerLogout() {
   return useMutation({
-    mutationFn: () => post<{ ok: true }>("/api/customer-auth/logout", {}),
+    mutationFn: async () => {
+      const result = await post<{ ok: true }>("/api/customer-auth/logout", {})
+      clearStoredCustomerToken()
+      return result
+    },
   })
 }

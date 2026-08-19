@@ -13,12 +13,20 @@ export class CustomerUnauthorizedError extends Error {
 
 /**
  * Server-only fetch wrapper for the customer portal / QR-ordering endpoints.
- * Unlike backend-client.ts (staff), there is no refresh-token rotation here —
- * a 30-day customer JWT or a 12h guest JWT is reissued via sign-in/guest
- * session instead. See CustomerAuthModule on the backend.
+ * Both the customer and guest JWTs are non-expiring (see CustomerAuthService)
+ * — a session only ends via explicit sign-out.
  */
-export async function customerBackendFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = await getCustomerToken()
+export async function customerBackendFetch(
+  path: string,
+  init: RequestInit = {},
+  // Lets a caller (the /api/customer-backend proxy) pass through a token the
+  // client sent explicitly — e.g. from its localStorage backstop, see
+  // client/customer-token-storage.ts — instead of only ever trusting the
+  // httpOnly cookie, which is what a guest whose cookie never persisted
+  // wouldn't have.
+  tokenOverride?: string,
+): Promise<Response> {
+  const token = tokenOverride ?? (await getCustomerToken())
   const headers = new Headers(init.headers)
   if (token) {
     headers.set("Authorization", `Bearer ${token}`)

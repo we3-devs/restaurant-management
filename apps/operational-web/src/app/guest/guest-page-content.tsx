@@ -13,6 +13,10 @@ import { Skeleton } from "@rms/ui/skeleton"
 import { apiClient } from "@rms/api-client/client"
 import { customerApiClient } from "@rms/api-client/customer-client"
 import type { CurrentCustomer } from "@rms/auth/customer-dal"
+import {
+  clearStoredCustomerToken,
+  getStoredCustomerToken,
+} from "@rms/auth/client/customer-token-storage"
 import { useCustomerLogout } from "@rms/api-client/hooks/use-customer-auth"
 import { usePublicFoodCategories, usePublicFoods } from "@rms/api-client/hooks/use-guest-menu"
 import type { ServiceRequestType } from "@rms/api-client/hooks/use-service-requests"
@@ -55,12 +59,30 @@ function GuestPageInner({ initialCustomer }: { initialCustomer: CurrentCustomer 
 
   const logout = useCustomerLogout()
 
+  // Recovers the session client-side when the SSR cookie check above came up
+  // empty but a localStorage token exists — see customer-token-storage.ts.
+  // Only matters for a browser whose cookie jar dropped the httpOnly cookie
+  // (some mobile setups do); when the cookie worked, initialCustomer is
+  // already a "customer" and this never fires.
+  const [recoveredCustomer, setRecoveredCustomer] = useState<CurrentCustomer | null>(null)
+  useEffect(() => {
+    if (initialCustomer?.type === "customer") return
+    const token = getStoredCustomerToken()
+    if (!token) return
+    customerApiClient<CurrentCustomer>("/customer-auth/me")
+      .then(setRecoveredCustomer)
+      .catch(() => clearStoredCustomerToken())
+  }, [initialCustomer])
+
+  const customer = initialCustomer?.type === "customer" ? initialCustomer : recoveredCustomer
+
   // Loading is derived: no table resolved yet and the lookup hasn't failed.
   const loadingTable = tableCode !== "" && !table && !lookupFailed
-  const isVerifiedCustomer = initialCustomer?.type === "customer" && initialCustomer.sub !== null
+  const isVerifiedCustomer = customer?.type === "customer" && customer.sub !== null
 
   async function handleLogout() {
     await logout.mutateAsync()
+    setRecoveredCustomer(null)
     router.refresh()
   }
 

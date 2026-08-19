@@ -9,11 +9,24 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   const hasBody = request.method !== "GET" && request.method !== "HEAD"
   const body = hasBody ? await request.text() : undefined
 
+  // If the client sent its own token (from the localStorage backstop — see
+  // customer-client.ts), prefer that over the httpOnly cookie: it's the
+  // whole point of the backstop that this still works when the cookie
+  // didn't make it to the browser in the first place.
+  const authHeader = request.headers.get("authorization")
+  const tokenOverride = authHeader?.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice("bearer ".length).trim()
+    : undefined
+
   try {
-    const response = await customerBackendFetch(targetPath, {
-      method: request.method,
-      body: body || undefined,
-    })
+    const response = await customerBackendFetch(
+      targetPath,
+      {
+        method: request.method,
+        body: body || undefined,
+      },
+      tokenOverride,
+    )
 
     const responseBody = response.status === 204 ? null : await response.arrayBuffer()
     return new NextResponse(responseBody, {

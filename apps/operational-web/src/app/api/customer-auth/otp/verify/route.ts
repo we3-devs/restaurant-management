@@ -26,5 +26,9 @@ export async function POST(request: NextRequest) {
   const data = (await backendResponse.json()) as { accessToken: string; customer: { id: number; name: string } }
   await setCustomerToken(data.accessToken)
 
-  return NextResponse.json({ customer: data.customer })
+  // Also handed back to the client so it can save it to localStorage as a
+  // backstop (see customer-token-storage.ts) — the httpOnly cookie set above
+  // is invisible to JS by design, so that's the only way the client ever
+  // gets a copy of its own token.
+  return NextResponse.json({ customer: data.customer, accessToken: data.accessToken })
 }
