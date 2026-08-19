@@ -27,8 +27,9 @@ const STAGE_FILTERS: { stage: TicketStage; label: string; dot: string }[] = [
  * ticketStage() status machine — only the layout differs.
  */
 export default function StaffKitchenPage() {
-  const { permissions, isSuperadmin } = useCurrentUser()
+  const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
+  const isKitchenStaff = !isSuperadmin && roleSlugs.includes("cook")
   const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
 
   const [now, setNow] = useState(() => Date.now())
@@ -61,10 +62,21 @@ export default function StaffKitchenPage() {
   }, [stationFiltered])
 
   const visibleTickets = grouped[stage]
+  const stageFilters = isKitchenStaff ? STAGE_FILTERS.filter((filter) => filter.stage !== "ready") : STAGE_FILTERS
 
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <h1 className="text-lg font-semibold">Kitchen</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kitchen</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">Your prep queue</h1>
+        </div>
+        {tickets.length > 0 && (
+          <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs">
+            {tickets.length} active
+          </Badge>
+        )}
+      </div>
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
@@ -97,16 +109,18 @@ export default function StaffKitchenPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-1.5">
-            {STAGE_FILTERS.map((filter) => (
+          <div className="rounded-xl border bg-muted/40 p-1.5 shadow-sm">
+            <div className={`grid gap-1.5 ${stageFilters.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+            {stageFilters.map((filter) => (
               <button
                 key={filter.stage}
                 type="button"
                 onClick={() => setStage(filter.stage)}
-                className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border text-sm font-medium transition-colors ${
+                aria-pressed={stage === filter.stage}
+                className={`flex min-h-12 items-center justify-between gap-2 rounded-lg px-3 text-sm font-semibold transition-all ${
                   stage === filter.stage
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground"
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+                    : "text-muted-foreground hover:bg-background/70"
                 }`}
               >
                 <span className="flex items-center gap-1.5">
@@ -118,6 +132,7 @@ export default function StaffKitchenPage() {
                 </Badge>
               </button>
             ))}
+            </div>
           </div>
 
           <div className="flex-1 space-y-3">
@@ -125,7 +140,14 @@ export default function StaffKitchenPage() {
               <p className="py-12 text-center text-sm text-muted-foreground">Nothing here</p>
             ) : (
               visibleTickets.map((ticket) => (
-                <MobileTicketCard key={ticket.id} ticket={ticket} now={now} canManage={canManage} />
+                <MobileTicketCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  now={now}
+                  canManage={canManage}
+                  canMarkReady={!isKitchenStaff}
+                  canCancel={!isKitchenStaff}
+                />
               ))
             )}
           </div>

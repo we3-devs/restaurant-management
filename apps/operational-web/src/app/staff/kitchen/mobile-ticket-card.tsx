@@ -46,10 +46,14 @@ export function MobileTicketCard({
   ticket,
   now,
   canManage,
+  canMarkReady,
+  canCancel,
 }: {
   ticket: KitchenTicket
   now: number
   canManage: boolean
+  canMarkReady: boolean
+  canCancel: boolean
 }) {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const outletId = ticket.outletId
@@ -71,13 +75,13 @@ export function MobileTicketCard({
   return (
     <Card
       className={cn(
-        "gap-3 p-3",
+        "gap-4 overflow-hidden rounded-2xl border-0 p-0 shadow-sm ring-1 ring-border/70",
         stage === "ready" && "ring-2 ring-emerald-500/40",
-        stage === "preparing" && "ring-1 ring-sky-500/30",
+        stage === "preparing" && "ring-2 ring-sky-500/25",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+      <div className="flex items-start justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+        <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-1.5">
             <p className="text-base font-semibold leading-tight">{tableName ?? "Takeaway"}</p>
             <span className="text-xs text-muted-foreground">{orderLabel}</span>
@@ -88,14 +92,16 @@ export function MobileTicketCard({
             {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
           </p>
         </div>
-        <Badge variant={PRIORITY_VARIANT[ticket.priority]}>{ticket.priority}</Badge>
+        <Badge variant={PRIORITY_VARIANT[ticket.priority]} className="shrink-0 capitalize">
+          {ticket.priority}
+        </Badge>
       </div>
 
-      <ul className="space-y-1.5">
+      <ul className="space-y-2 px-4">
         {items.map((item) => (
           <li
             key={item.id}
-            className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-2"
+            className="flex items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2.5"
           >
             <div className="flex min-w-0 items-center gap-1.5">
               <ItemStatusIcon status={item.status} />
@@ -121,7 +127,7 @@ export function MobileTicketCard({
                 <RotateCcwIcon />
               </Button>
             )}
-            {canManage && item.status !== "served" && item.status !== "cancelled" && (
+            {canManage && canCancel && item.status !== "served" && item.status !== "cancelled" && (
               <Button
                 size="icon"
                 variant="ghost"
@@ -137,8 +143,8 @@ export function MobileTicketCard({
         ))}
       </ul>
 
-      {canManage && (
-        <div className="flex items-center gap-2">
+      {canManage && (stage === "incoming" || (stage === "preparing" && canMarkReady) || canCancel) && (
+        <div className="flex items-center gap-2 px-4 pb-4">
           {stage === "incoming" && (
             <Button
               className="h-14 flex-1 text-base"
@@ -149,7 +155,7 @@ export function MobileTicketCard({
               {start.isPending ? "Starting..." : "Start"}
             </Button>
           )}
-          {stage === "preparing" && (
+          {stage === "preparing" && canMarkReady && (
             <Button
               className="h-14 flex-1 text-base"
               variant="outline"
@@ -171,16 +177,18 @@ export function MobileTicketCard({
               {markServed.isPending ? "Marking..." : "Mark Served"}
             </Button>
           )}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-14"
-            disabled={cancelTicket.isPending}
-            onClick={() => setCancelConfirmOpen(true)}
-            aria-label="Cancel ticket"
-          >
-            <XIcon className="size-5" />
-          </Button>
+          {canCancel && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-14"
+              disabled={cancelTicket.isPending}
+              onClick={() => setCancelConfirmOpen(true)}
+              aria-label="Cancel ticket"
+            >
+              <XIcon className="size-5" />
+            </Button>
+          )}
         </div>
       )}
 
