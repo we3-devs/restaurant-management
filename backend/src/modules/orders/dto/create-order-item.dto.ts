@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import type { OrderItemPackagingType } from '../entities/order-item.entity';
+
+const ORDER_ITEM_PACKAGING_TYPES: OrderItemPackagingType[] = [
+  'plating',
+  'takeaway',
+];
 
 export class CreateOrderItemDto {
   @ApiProperty()
@@ -21,4 +27,13 @@ export class CreateOrderItemDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @ApiPropertyOptional({
+    enum: ORDER_ITEM_PACKAGING_TYPES,
+    default: 'plating',
+    description: 'Dine-in ("plating") vs takeaway — settable per item so one order can mix both.',
+  })
+  @IsOptional()
+  @IsIn(ORDER_ITEM_PACKAGING_TYPES)
+  packagingType?: OrderItemPackagingType;
 }

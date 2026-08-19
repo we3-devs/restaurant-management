@@ -7,7 +7,10 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import type { OrderItemStatus } from '../entities/order-item.entity';
+import type {
+  OrderItemPackagingType,
+  OrderItemStatus,
+} from '../entities/order-item.entity';
 
 const ORDER_ITEM_STATUSES: OrderItemStatus[] = [
   'stock_reserved',
@@ -16,6 +19,11 @@ const ORDER_ITEM_STATUSES: OrderItemStatus[] = [
   'ready',
   'served',
   'cancelled',
+];
+
+const ORDER_ITEM_PACKAGING_TYPES: OrderItemPackagingType[] = [
+  'plating',
+  'takeaway',
 ];
 
 // foodId/foodVariantId/orderId/preparationDepartmentId are immutable after
@@ -49,4 +57,12 @@ export class UpdateOrderItemDto {
   @IsOptional()
   @IsBoolean()
   isHeld?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ORDER_ITEM_PACKAGING_TYPES,
+    description: 'Dine-in ("plating") vs takeaway.',
+  })
+  @IsOptional()
+  @IsIn(ORDER_ITEM_PACKAGING_TYPES)
+  packagingType?: OrderItemPackagingType;
 }

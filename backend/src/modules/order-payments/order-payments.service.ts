@@ -79,6 +79,21 @@ export class OrderPaymentsService {
       }
       // Fails fast, before the order is locked/mutated, if the customer doesn't exist.
       await this.customersService.findOne(dto.customerId);
+
+      // Enforce the customer's credit limit (0/unset = no limit) — without
+      // this, chargeCredit() below only fires an over-limit notification
+      // after the fact instead of actually stopping the charge.
+      const account = await this.customerCreditService.getAccountByCustomer(
+        dto.customerId,
+      );
+      if (account.creditLimit > 0) {
+        const available = account.creditLimit - account.outstandingBalance;
+        if (dto.amount > available) {
+          throw new BadRequestException(
+            `Charge amount (${dto.amount}) exceeds the customer's remaining credit (${Math.max(available, 0)} of ${account.creditLimit} limit)`,
+          );
+        }
+      }
     }
 
     // Row-locks the order for the duration of the check + insert so a

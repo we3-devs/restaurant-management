@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+export type PackagingType = "plating" | "takeaway"
+
 export interface LocalCartItem {
   localId: string
   foodId: number
@@ -11,6 +13,7 @@ export interface LocalCartItem {
   quantity: number
   unitPrice: number
   note: string
+  packagingType: PackagingType
 }
 
 function storageKey(orderId: number) {
@@ -46,8 +49,11 @@ export function useLocalCart(orderId: number) {
   }, [orderId, items])
 
   const addItem = useCallback(
-    (item: Omit<LocalCartItem, "localId" | "quantity" | "note">) => {
-      setItems((prev) => [...prev, { ...item, localId: crypto.randomUUID(), quantity: 1, note: "" }])
+    (item: Omit<LocalCartItem, "localId" | "quantity" | "note" | "packagingType">) => {
+      setItems((prev) => [
+        ...prev,
+        { ...item, localId: crypto.randomUUID(), quantity: 1, note: "", packagingType: "plating" },
+      ])
     },
     [],
   )
@@ -66,7 +72,43 @@ export function useLocalCart(orderId: number) {
     setItems((prev) => prev.filter((item) => item.localId !== localId))
   }, [])
 
+  const updatePackagingType = useCallback((localId: string, packagingType: PackagingType) => {
+    setItems((prev) => prev.map((item) => (item.localId === localId ? { ...item, packagingType } : item)))
+  }, [])
+
+  /**
+   * Splits off `splitQuantity` units of a line into a second line with the
+   * opposite packaging — how a "half takeaway, half plating" order gets
+   * built from a single tap: the waiter adds one food line, then peels part
+   * of the quantity into its own takeaway (or plating) line.
+   */
+  const splitPackaging = useCallback((localId: string, splitQuantity: number) => {
+    setItems((prev) => {
+      const source = prev.find((item) => item.localId === localId)
+      if (!source || splitQuantity <= 0 || splitQuantity >= source.quantity) return prev
+      const otherType: PackagingType = source.packagingType === "takeaway" ? "plating" : "takeaway"
+      const splitOff: LocalCartItem = {
+        ...source,
+        localId: crypto.randomUUID(),
+        quantity: splitQuantity,
+        packagingType: otherType,
+      }
+      return prev.map((item) =>
+        item.localId === localId ? { ...item, quantity: item.quantity - splitQuantity } : item,
+      ).concat(splitOff)
+    })
+  }, [])
+
   const clear = useCallback(() => setItems([]), [])
 
-  return { items, addItem, updateQuantity, updateNote, removeItem, clear }
+  return {
+    items,
+    addItem,
+    updateQuantity,
+    updateNote,
+    removeItem,
+    updatePackagingType,
+    splitPackaging,
+    clear,
+  }
 }

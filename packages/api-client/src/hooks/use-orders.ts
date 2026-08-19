@@ -62,6 +62,7 @@ export interface OrderItem {
   status: string
   isHeld: boolean
   note: string | null
+  packagingType: "plating" | "takeaway"
   // Embedded by GET /order-items so cart/order-detail rows don't each need
   // their own /order-items/:id/addons and /order-items/:id/reservations call.
   addons: OrderItemAddon[]
@@ -266,7 +267,13 @@ export function useAddOrderItem(orderId: number) {
 export function useUpdateOrderItem(orderId: number, itemId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { quantity?: number; status?: string; note?: string; isHeld?: boolean }) =>
+    mutationFn: (input: {
+      quantity?: number
+      status?: string
+      note?: string
+      isHeld?: boolean
+      packagingType?: "plating" | "takeaway"
+    }) =>
       queuableApiClient<OrderItem>(
         `/order-items/${itemId}`,
         { method: "PATCH", body: JSON.stringify(input) },

@@ -22,6 +22,8 @@ export type OrderItemStatus =
   | 'served'
   | 'cancelled';
 
+export type OrderItemPackagingType = 'plating' | 'takeaway';
+
 @Entity({ name: 'order_items' })
 export class OrderItem {
   @PrimaryColumn({
@@ -129,6 +131,14 @@ export class OrderItem {
 
   @Column({ type: 'text', nullable: true })
   note: string | null;
+
+  @Column({
+    name: 'packaging_type',
+    type: 'varchar',
+    length: 20,
+    default: 'plating',
+  })
+  packagingType: OrderItemPackagingType;
 
   @Column({ name: 'cancel_reason', type: 'text', nullable: true })
   cancelReason: string | null;

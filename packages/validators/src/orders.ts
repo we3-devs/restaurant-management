@@ -35,6 +35,7 @@ export const ORDER_ITEM_STATUSES = [
   "served",
   "cancelled",
 ] as const
+export const ORDER_ITEM_PACKAGING_TYPES = ["plating", "takeaway"] as const
 export const ORDER_DISCOUNT_TYPES = ["flat", "percentage"] as const
 export const ORDER_TABLE_ASSIGNMENT_TYPES = [
   "reserved_copy",
@@ -67,6 +68,7 @@ export const createOrderItemSchema = z.object({
   foodId: z.number({ message: "Select a food" }).positive(),
   foodVariantId: z.number().positive().optional(),
   quantity: z.number().min(0.01),
+  packagingType: z.enum(ORDER_ITEM_PACKAGING_TYPES).optional(),
 })
 
 export type CreateOrderItemInput = z.infer<typeof createOrderItemSchema>

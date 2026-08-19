@@ -4,15 +4,19 @@ import { useState } from "react"
 import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { useCurrentUser } from "@rms/auth/current-user-context"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { ListSkeleton } from "@rms/ui/skeletons"
+import { useCustomerCreditAccount } from "@rms/api-client/hooks/use-customer-credit"
+import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
-import { useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
+import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import {
   useAddOrderItemsBatch,
   useFireHeldItems,
@@ -23,6 +27,7 @@ import {
   useUpdateOrderItem,
   type OrderItem,
 } from "@rms/api-client/hooks/use-orders"
+import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { useLocalCartContext } from "./local-cart-context"
 import type { LocalCartItem } from "./use-local-cart"
 
@@ -34,17 +39,81 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 }
 
+function round2(value: number) {
+  return Math.round(value * 100) / 100
+}
+
 export function CartPanel({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
   const { data: order } = useOrder(orderId)
   const { data: payments } = useOrderPayments(orderId)
+  const createPayment = useCreateOrderPayment(orderId)
+  const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
+  const user = useCurrentUser()
+  // Waiters take orders but don't collect payment — that's the cashier's
+  // job at the table (see floor/table-actions-dialog for the same split).
+  const canRecordPayment = user.isSuperadmin || user.roleSlugs.includes("cashier")
   const localCart = useLocalCartContext()
   const addItemsBatch = useAddOrderItemsBatch(orderId)
   const sendToKitchen = useSendOrderToKitchen(orderId)
   const fireHeld = useFireHeldItems(orderId)
   const isOnline = useOnlineStatus()
+
+  // Credit payments settle the order (it counts toward dueAmount same as
+  // cash) but the money itself sits on the customer's tab, not in the
+  // till — split it out of "Paid" so the waiter isn't misled into thinking
+  // cash/card was actually collected.
+  const creditAmount = round2(
+    (payments?.data ?? [])
+      .filter((p) => p.method === "credit")
+      .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0),
+  )
+  const cashPaidAmount = round2((order?.paidAmount ?? 0) - creditAmount)
+
+  const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
+  const [paymentAmount, setPaymentAmount] = useState(0)
+  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  // Shown to the cashier while charging to a tab, so they can see the
+  // customer's remaining headroom before it gets rejected server-side.
+  const { data: creditAccount } = useCustomerCreditAccount(creditCustomerId ?? 0)
+  const remainingCredit =
+    creditAccount && creditAccount.creditLimit > 0
+      ? round2(creditAccount.creditLimit - creditAccount.outstandingBalance)
+      : null
+
+  // Re-seed the payment amount whenever the due amount changes (order loads,
+  // or a payment lands) — without an effect, per React's "adjusting state
+  // when a prop changes" pattern.
+  const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
+  if (order && order.dueAmount !== seededDueAmount) {
+    setSeededDueAmount(order.dueAmount)
+    setPaymentAmount(order.dueAmount)
+  }
+
+  async function handleAddPayment() {
+    if (paymentAmount <= 0) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to record a payment")
+      return
+    }
+    if (paymentMethod === "credit" && !creditCustomerId) {
+      toast.error("Select a customer to charge this to their tab")
+      return
+    }
+    try {
+      await createPayment.mutateAsync({
+        type: "payment",
+        method: paymentMethod,
+        amount: paymentAmount,
+        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+      })
+      toast.success("Payment recorded")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record payment")
+    }
+  }
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
   const variantName = (foodVariantId: number | null) =>
@@ -71,6 +140,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
             foodVariantId: item.foodVariantId ?? undefined,
             quantity: item.quantity,
             note: item.note || undefined,
+            packagingType: item.packagingType,
           })),
         })
         localCart.clear()
@@ -113,6 +183,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
             item={item}
             foodName={foodName(item.foodId)}
             variantName={variantName(item.foodVariantId)}
+            canCancelAfterServed={canRecordPayment}
           />
         ))}
       </div>
@@ -151,7 +222,13 @@ export function CartPanel({ orderId }: { orderId: number }) {
               <span className="font-medium">Grand total</span>
               <span className="text-right font-medium">{order.grandTotal}</span>
               <span className="text-muted-foreground">Paid</span>
-              <span className="text-right">{order.paidAmount}</span>
+              <span className="text-right">{cashPaidAmount}</span>
+              {creditAmount > 0 && (
+                <>
+                  <span className="text-muted-foreground">Credit</span>
+                  <span className="text-right">{creditAmount}</span>
+                </>
+              )}
               <span className="font-medium">Due</span>
               <span className="text-right font-medium">{order.dueAmount}</span>
             </div>
@@ -168,6 +245,87 @@ export function CartPanel({ orderId }: { orderId: number }) {
                 ))}
               </div>
             )}
+
+            {canRecordPayment && (
+              <>
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])
+                      if (value === "credit") setCreditCustomerId(order.customerId ?? undefined)
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORDER_PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  />
+                </div>
+                {paymentMethod === "credit" && (
+                  <Select
+                    value={creditCustomerId ? String(creditCustomerId) : ""}
+                    onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+                  >
+                    <SelectTrigger className="w-full" disabled={customersLoading}>
+                      <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers?.data.map((customer) => (
+                        <SelectItem key={customer.id} value={String(customer.id)}>
+                          {customer.name}
+                          {customer.phone ? ` (${customer.phone})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {paymentMethod === "credit" && creditCustomerId && creditAccount && (
+                  <div className="grid grid-cols-2 gap-1 rounded-md border border-input p-2 text-xs">
+                    <span className="text-muted-foreground">Current credit owed</span>
+                    <span className="text-right">{creditAccount.outstandingBalance}</span>
+                    <span className="text-muted-foreground">Credit limit</span>
+                    <span className="text-right">{creditAccount.creditLimit > 0 ? creditAccount.creditLimit : "None"}</span>
+                    <span className="font-medium">Remaining credit</span>
+                    <span
+                      className={`text-right font-medium ${
+                        remainingCredit !== null && remainingCredit < paymentAmount ? "text-destructive" : ""
+                      }`}
+                    >
+                      {remainingCredit !== null ? remainingCredit : "Unlimited"}
+                    </span>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleAddPayment}
+                  disabled={
+                    createPayment.isPending ||
+                    paymentAmount <= 0 ||
+                    !isOnline ||
+                    (paymentMethod === "credit" && !creditCustomerId) ||
+                    (paymentMethod === "credit" && remainingCredit !== null && paymentAmount > remainingCredit)
+                  }
+                >
+                  {createPayment.isPending ? "Recording..." : "Add payment"}
+                </Button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -180,11 +338,13 @@ function CartItemRow({
   item,
   foodName,
   variantName,
+  canCancelAfterServed,
 }: {
   orderId: number
   item: OrderItem
   foodName: string
   variantName: string | null
+  canCancelAfterServed: boolean
 }) {
   const updateItem = useUpdateOrderItem(orderId, item.id)
   const removeItem = useRemoveOrderItem(orderId)
@@ -236,6 +396,11 @@ function CartItemRow({
                 {ITEM_STATUS_LABELS[item.status] ?? item.status}
               </Badge>
             ) : null}
+            {item.packagingType === "takeaway" && (
+              <Badge variant="outline" className="border-sky-500/50 text-xs text-sky-700 dark:text-sky-400">
+                Takeaway
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {item.unitPrice} each &middot; total {item.totalAmount}
@@ -257,7 +422,7 @@ function CartItemRow({
             {item.isHeld ? <PlayIcon className="text-emerald-500" /> : <PauseIcon className="text-amber-500" />}
           </Button>
         )}
-        {!isServed && (
+        {(!isServed || canCancelAfterServed) && (
           <Button variant="ghost" size="icon-sm" onClick={handleRemove} aria-label="Remove item">
             <XIcon />
           </Button>
@@ -281,6 +446,39 @@ function CartItemRow({
               <PlusIcon />
             </Button>
           </div>
+
+          {item.status === "stock_reserved" && (
+            <div className="flex overflow-hidden rounded-md border border-input w-fit">
+              <button
+                type="button"
+                disabled={updateItem.isPending}
+                onClick={() =>
+                  updateItem.mutateAsync({ packagingType: "plating" }).catch((error) => {
+                    toast.error(error instanceof Error ? error.message : "Failed to update item")
+                  })
+                }
+                className={`px-2 py-1 text-xs ${
+                  item.packagingType === "plating" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                Plating
+              </button>
+              <button
+                type="button"
+                disabled={updateItem.isPending}
+                onClick={() =>
+                  updateItem.mutateAsync({ packagingType: "takeaway" }).catch((error) => {
+                    toast.error(error instanceof Error ? error.message : "Failed to update item")
+                  })
+                }
+                className={`px-2 py-1 text-xs ${
+                  item.packagingType === "takeaway" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                Takeaway
+              </button>
+            </div>
+          )}
 
           <Input
             value={note}
@@ -344,6 +542,41 @@ function LocalCartItemRow({ item }: { item: LocalCartItem }) {
         >
           <PlusIcon />
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex overflow-hidden rounded-md border border-input">
+          <button
+            type="button"
+            onClick={() => localCart.updatePackagingType(item.localId, "plating")}
+            className={`px-2 py-1 text-xs ${
+              item.packagingType === "plating" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`}
+          >
+            Plating
+          </button>
+          <button
+            type="button"
+            onClick={() => localCart.updatePackagingType(item.localId, "takeaway")}
+            className={`px-2 py-1 text-xs ${
+              item.packagingType === "takeaway" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`}
+          >
+            Takeaway
+          </button>
+        </div>
+        {item.quantity > 1 && (
+          <button
+            type="button"
+            onClick={() => localCart.splitPackaging(item.localId, Math.floor(item.quantity / 2))}
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            title={`Split into ${Math.floor(item.quantity / 2)} ${
+              item.packagingType === "takeaway" ? "plating" : "takeaway"
+            } + ${item.quantity - Math.floor(item.quantity / 2)} ${item.packagingType}`}
+          >
+            Split half/half
+          </button>
+        )}
       </div>
 
       <Input

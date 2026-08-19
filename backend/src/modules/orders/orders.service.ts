@@ -1291,6 +1291,7 @@ export class OrdersService {
       unitPrice,
       totalAmount: round2(quantity * unitPrice),
       note: dto.note ?? null,
+      packagingType: dto.packagingType ?? 'plating',
     });
     const saved = await this.orderItemsRepository.save(item);
 
@@ -1344,6 +1345,9 @@ export class OrdersService {
       ...(dto.status !== undefined && { status: dto.status }),
       ...(dto.cancelReason !== undefined && {
         cancelReason: dto.cancelReason,
+      }),
+      ...(dto.packagingType !== undefined && {
+        packagingType: dto.packagingType,
       }),
     });
     if (dto.isHeld !== undefined) {

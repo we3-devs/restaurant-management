@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { OrderItemStatus } from '../entities/order-item.entity';
+import type {
+  OrderItemPackagingType,
+  OrderItemStatus,
+} from '../entities/order-item.entity';
 
 export class OrderItemResponseDto {
   @ApiProperty()
@@ -34,6 +37,9 @@ export class OrderItemResponseDto {
 
   @ApiProperty({ required: false, nullable: true })
   note: string | null;
+
+  @ApiProperty()
+  packagingType: OrderItemPackagingType;
 
   @ApiProperty()
   createdAt: Date;
