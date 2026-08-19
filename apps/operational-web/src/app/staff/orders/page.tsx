@@ -13,8 +13,6 @@ import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { ORDER_STATUSES } from "@rms/validators/orders"
 
-const OPEN_STATUSES: string[] = ORDER_STATUSES.filter((status) => status !== "completed" && status !== "cancelled")
-
 /**
  * Cashier-facing order list — table + customer per row instead of the full
  * cart/order-taking screen (that's still reachable by tapping a table from
@@ -31,13 +29,13 @@ export default function StaffOrdersPage() {
       outletId: outletId ?? undefined,
       limit: 100,
       status: statusFilter === "open" || statusFilter === "all" ? undefined : statusFilter,
+      excludeStatus: statusFilter === "open" ? ["completed", "cancelled"] : undefined,
     },
     { enabled: !!outletId },
   )
   const showSkeleton = useDelayedLoading(isLoading)
 
-  const orders = data?.data ?? []
-  const visible = statusFilter === "open" ? orders.filter((order) => OPEN_STATUSES.includes(order.status)) : orders
+  const visible = data?.data ?? []
 
   return (
     <div className="flex flex-col gap-3">

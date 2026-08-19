@@ -248,9 +248,15 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     // food-variants.view (FoodGrid, CategoryTabs, VariantPickerDialog on the
     // Billing screen) are all read by the same order-taking flow every
     // orders.manage role goes through — see waiter/bartender below.
+    // addons.view/outlets.view/settings.view — BillReceipt (bill panel,
+    // POS receipt, invoice view) reads addon names, the outlet name and
+    // Settings > POS header/footer text; without these the receipt was
+    // silently rendering with addon IDs and blank branding instead of 403ing
+    // loudly, since every field there has a fallback.
     singlePermissions: [
       'customers.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'dashboard.view',
       'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
+      'addons.view', 'outlets.view', 'settings.view',
     ],
     // Stale grants from an earlier version of this role definition, unused by
     // any cashier-reachable screen.
@@ -269,6 +275,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     singlePermissions: [
       'dining-tables.view', 'dining-areas.view', 'customers.view', 'loyalty.view', 'dashboard.view',
       'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
+      'addons.view', 'outlets.view', 'settings.view',
     ],
     position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
   },
@@ -285,6 +292,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     singlePermissions: [
       'ingredients.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'kitchen-tickets.manage',
       'foods.view', 'food-categories.view', 'food-variants.view',
+      'addons.view', 'outlets.view', 'settings.view',
     ],
     position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
   },

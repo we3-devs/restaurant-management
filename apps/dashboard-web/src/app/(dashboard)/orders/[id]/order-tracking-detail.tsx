@@ -2,15 +2,18 @@
 
 import Link from "next/link"
 import { ChevronRightIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { StatusBadge } from "@/components/status-badge"
 import { BillReceipt } from "@/components/bill-receipt"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useOrder } from "@/hooks/use-orders"
+import { useOrder, useOrderItems, useIssueInvoice, type OrderItem } from "@/hooks/use-orders"
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
+import { useFoods } from "@/hooks/use-foods"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -32,6 +35,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const showSkeleton = useDelayedLoading(isLoading)
+  const issueInvoice = useIssueInvoice(orderId)
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !order) return <NotFoundCard resource="Order" />
@@ -51,7 +55,30 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         <div className="flex items-center gap-2">
           <StatusBadge status={order.status} />
           <StatusBadge status={order.paymentStatus} />
+          {order.invoiceNumber ? (
+            <Button variant="outline" size="sm" render={<Link href={`/invoices/${orderId}`} />}>
+              View Invoice
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={issueInvoice.isPending}
+              onClick={() => {
+                issueInvoice.mutate(undefined, {
+                  onSuccess: () => toast.success("Invoice generated successfully"),
+                  onError: (error) => toast.error(`Failed to generate invoice: ${error.message}`),
+                })
+              }}
+            >
+              {issueInvoice.isPending ? "Generating..." : "Issue Invoice"}
+            </Button>
+          )}
         </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl">
+        <OrderItemTracking orderId={orderId} />
       </div>
 
       <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
@@ -68,6 +95,39 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Per-item kitchen status — the bill only shows price lines, never where an item actually is in the kitchen workflow. */
+function OrderItemTracking({ orderId }: { orderId: number }) {
+  const { data: items, isLoading } = useOrderItems(orderId)
+  const { data: foods } = useFoods({ limit: 500 })
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Order Items</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading && <p className="text-sm text-muted-foreground">Loading items…</p>}
+        {!isLoading && (items?.data.length ?? 0) === 0 && (
+          <p className="text-sm text-muted-foreground">No items on this order yet.</p>
+        )}
+        {items?.data.map((item: OrderItem) => (
+          <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {item.quantity} &times; {foodName(item.foodId)}
+              </p>
+              {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
+              {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}
+            </div>
+            <StatusBadge status={item.status} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 

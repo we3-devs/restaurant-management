@@ -1,6 +1,5 @@
 "use client"
 
-import { useMemo } from "react"
 import { BellRingIcon, CheckIcon, DropletIcon, HandIcon, ReceiptIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -27,19 +26,9 @@ function elapsedMinutes(since: string): number {
 }
 
 export function ServiceRequestsPanel({ outletId }: { outletId: number }) {
-  const { data, isLoading } = useServiceRequests({ outletId, limit: 100 })
+  const { data, isLoading } = useServiceRequests({ outletId, status: "pending", limit: 100 })
 
-  const open = useMemo(
-    () =>
-      (data?.data ?? []).filter(
-        (request) => request.status === "pending" || request.status === "in_progress",
-      ),
-    [data],
-  )
-  const recent = useMemo(
-    () => (data?.data ?? []).filter((request) => request.status === "resolved").slice(0, 5),
-    [data],
-  )
+  const open = data?.data ?? []
 
   if (isLoading) {
     return <ListSkeleton count={2} />
@@ -62,23 +51,6 @@ export function ServiceRequestsPanel({ outletId }: { outletId: number }) {
       {open.map((request) => (
         <RequestCard key={request.id} request={request} />
       ))}
-
-      {recent.length > 0 && (
-        <div className="space-y-1 pt-2">
-          <p className="text-xs font-medium text-muted-foreground">Recently resolved</p>
-          {recent.map((request) => (
-            <div key={request.id} className="flex items-center gap-2 px-1 text-sm opacity-60">
-              <CheckIcon className="size-3.5 text-emerald-500" />
-              <span className="truncate">
-                {request.diningTable?.name ?? `Table ${request.diningTableId}`} — {request.type}
-              </span>
-              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                {elapsedMinutes(request.resolvedAt ?? request.createdAt)}m ago
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

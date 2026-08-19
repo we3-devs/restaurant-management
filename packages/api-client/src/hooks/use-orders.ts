@@ -94,6 +94,8 @@ export interface ListOrdersParams {
   outletId?: number
   tableSessionId?: number
   status?: string
+  /** Statuses to leave out (e.g. ["completed", "cancelled"] for an "open orders" view). Ignored if `status` is set. */
+  excludeStatus?: string[]
 }
 
 export function useOrders(params: ListOrdersParams = {}, options?: { enabled?: boolean }) {

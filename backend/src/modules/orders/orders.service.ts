@@ -150,7 +150,7 @@ export class OrdersService {
     query: ListOrdersQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Order>> {
-    const { page, limit, search, outletId, tableSessionId, status } = query;
+    const { page, limit, search, outletId, tableSessionId, status, excludeStatus } = query;
     const where: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
@@ -162,6 +162,8 @@ export class OrdersService {
     }
     if (status !== undefined) {
       where.status = status;
+    } else if (excludeStatus?.length) {
+      where.status = Not(In(excludeStatus));
     }
     if (search) {
       where.orderNumber = ILike(`%${search}%`);
@@ -587,11 +589,13 @@ export class OrdersService {
       await this.addItem(saved.id, item);
     }
 
-    // Guests have no staff actor to drive this — reuses the exact same
-    // kitchen-send path staff use via POST /orders/:id/send-to-kitchen, so a
-    // guest order reaches the kitchen the moment it's placed instead of
-    // sitting invisibly until a staff member notices and sends it manually.
-    await this.sendToKitchen(saved.id, null);
+    // Deliberately NOT auto-sent to the kitchen: a guest placing an order
+    // should land in 'pending' ("Order sent" on the guest tracker) and stay
+    // there until a staff member reviews and accepts it — via the same
+    // POST /orders/:id/send-to-kitchen a staff-built cart uses (see
+    // cart-panel.tsx's "Place order" button), which is what actually
+    // advances 'pending' -> 'accepted'. Applies to every round a guest adds,
+    // not just the first — new items always wait for staff to send them.
 
     const notification = await this.notificationsService.create({
       outletId,

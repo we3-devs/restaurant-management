@@ -14,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
-import { useOrder, useUpdateOrder, useIssueInvoice, type Order } from "@rms/api-client/hooks/use-orders"
+import { useOrder, useOrderItems, useUpdateOrder, useIssueInvoice, type Order, type OrderItem } from "@rms/api-client/hooks/use-orders"
 import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
+import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
@@ -77,19 +78,25 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
           <Button variant="outline" size="sm" render={<Link href={`${basePath}/pos/receipt/${orderId}`} />}>
             POS Bill
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={issueInvoice.isPending || order.invoiceNumber !== null}
-            onClick={() => {
-              issueInvoice.mutate(undefined, {
-                onSuccess: () => toast.success("Invoice generated successfully"),
-                onError: (error) => toast.error(`Failed to generate invoice: ${error.message}`),
-              })
-            }}
-          >
-            {issueInvoice.isPending ? "Generating..." : order.invoiceNumber ? "Invoice Issued" : "Issue Invoice"}
-          </Button>
+          {order.invoiceNumber ? (
+            <Button variant="outline" size="sm" render={<Link href={`${basePath}/invoices/${orderId}`} />}>
+              View Invoice
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={issueInvoice.isPending}
+              onClick={() => {
+                issueInvoice.mutate(undefined, {
+                  onSuccess: () => toast.success("Invoice generated successfully"),
+                  onError: (error) => toast.error(`Failed to generate invoice: ${error.message}`),
+                })
+              }}
+            >
+              {issueInvoice.isPending ? "Generating..." : "Issue Invoice"}
+            </Button>
+          )}
           {!isReadOnly && order.status !== "completed" && (
             <Button variant="outline" size="sm" onClick={() => setEditingTotals((v) => !v)}>
               {editingTotals ? "Done editing" : "Edit"}
@@ -99,6 +106,10 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
       </div>
 
       {(session || customer) && <ContextDetailsCards session={session} customer={customer} />}
+
+      <div className="mx-auto max-w-5xl">
+        <OrderItemTrackingCard orderId={orderId} />
+      </div>
 
       <div className="mx-auto max-w-5xl grid gap-6 lg:grid-cols-2">
         <BillCard orderId={orderId} />
@@ -161,6 +172,44 @@ function ContextDetailsCards({
         </Card>
       )}
     </div>
+  )
+}
+
+/**
+ * Per-item kitchen status (sent to kitchen / preparing / ready / served /
+ * cancelled) — the bill/receipt below only ever shows price lines, never
+ * where an item actually is in the kitchen workflow, so this is the one
+ * place on the order page a waiter/cashier can see that at a glance.
+ */
+function OrderItemTrackingCard({ orderId }: { orderId: number }) {
+  const { data: items, isLoading } = useOrderItems(orderId)
+  const { data: foods } = useFoods({ limit: 500 })
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Order Items</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading && <p className="text-sm text-muted-foreground">Loading items…</p>}
+        {!isLoading && (items?.data.length ?? 0) === 0 && (
+          <p className="text-sm text-muted-foreground">No items on this order yet.</p>
+        )}
+        {items?.data.map((item: OrderItem) => (
+          <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {item.quantity} &times; {foodName(item.foodId)}
+              </p>
+              {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
+              {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}
+            </div>
+            <StatusBadge status={item.status} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
