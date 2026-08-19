@@ -2,13 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-export interface LocalCartAddon {
-  addonId: number
-  addonName: string
-  quantity: number
-  unitPrice: number
-}
-
 export interface LocalCartItem {
   localId: string
   foodId: number
@@ -18,7 +11,6 @@ export interface LocalCartItem {
   quantity: number
   unitPrice: number
   note: string
-  addons: LocalCartAddon[]
 }
 
 function storageKey(orderId: number) {
@@ -54,11 +46,8 @@ export function useLocalCart(orderId: number) {
   }, [orderId, items])
 
   const addItem = useCallback(
-    (item: Omit<LocalCartItem, "localId" | "quantity" | "note" | "addons">) => {
-      setItems((prev) => [
-        ...prev,
-        { ...item, localId: crypto.randomUUID(), quantity: 1, note: "", addons: [] },
-      ])
+    (item: Omit<LocalCartItem, "localId" | "quantity" | "note">) => {
+      setItems((prev) => [...prev, { ...item, localId: crypto.randomUUID(), quantity: 1, note: "" }])
     },
     [],
   )
@@ -77,27 +66,7 @@ export function useLocalCart(orderId: number) {
     setItems((prev) => prev.filter((item) => item.localId !== localId))
   }, [])
 
-  const addAddon = useCallback((localId: string, addon: LocalCartAddon) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.localId === localId && !item.addons.some((a) => a.addonId === addon.addonId)
-          ? { ...item, addons: [...item.addons, addon] }
-          : item,
-      ),
-    )
-  }, [])
-
-  const removeAddon = useCallback((localId: string, addonId: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.localId === localId
-          ? { ...item, addons: item.addons.filter((a) => a.addonId !== addonId) }
-          : item,
-      ),
-    )
-  }, [])
-
   const clear = useCallback(() => setItems([]), [])
 
-  return { items, addItem, updateQuantity, updateNote, removeItem, addAddon, removeAddon, clear }
+  return { items, addItem, updateQuantity, updateNote, removeItem, clear }
 }

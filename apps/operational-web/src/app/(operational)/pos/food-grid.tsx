@@ -152,11 +152,6 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                               variants
                             </Badge>
                           )}
-                          {food.hasAddons && (
-                            <Badge variant="secondary" className="text-xs">
-                              addons
-                            </Badge>
-                          )}
                         </div>
                       </div>
                     </CardContent>
