@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@rms/ui/button"
 import { CardGridSkeleton } from "@rms/ui/skeletons"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
+import { useOrder } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePosBootstrap } from "@rms/api-client/hooks/use-bootstrap"
 import { useOrderDeepLink } from "@/features/waiter/use-order-deep-link"
@@ -46,6 +47,12 @@ export default function StaffOrderTakingPage() {
     setChooserDismissedForTableId,
   } = useOrderDeepLink({ basePath: BASE_PATH, outletId, deepLinkOrderId, deepLinkTableId })
 
+  // A cancelled order can still be reached via a deep link (order switcher,
+  // stale browser history, a notification) — treat it as gone rather than
+  // rendering the live cart, which would let staff keep adding items to it.
+  const { data: activeOrder } = useOrder(activeOrderId ?? 0)
+  const isCancelledOrder = activeOrder?.status === "cancelled"
+
   useKitchenRealtime(effectiveOutletId)
   const bootstrap = usePosBootstrap(effectiveOutletId)
 
@@ -83,6 +90,12 @@ export default function StaffOrderTakingPage() {
       ) : !activeOrderId ? (
         <div className="flex-1 overflow-y-auto">
           <FloorBoard outletId={effectiveOutletId} basePath={BASE_PATH} />
+        </div>
+      ) : isCancelledOrder ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <p className="text-sm font-medium">This order was cancelled</p>
+          <p className="text-sm text-muted-foreground">It can no longer be edited.</p>
+          <Button onClick={() => router.push(BASE_PATH)}>Back to tables</Button>
         </div>
       ) : (
         <LocalCartProvider orderId={activeOrderId}>

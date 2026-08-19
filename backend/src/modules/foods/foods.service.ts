@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   FindOptionsWhere,
   ILike,
+  In,
   IsNull,
   QueryFailedError,
   Repository,
@@ -61,6 +62,12 @@ export class FoodsService {
     private readonly unitsService: UnitsService,
     private readonly skuCompositionService: SkuCompositionService,
   ) {}
+
+  /** Bulk name lookup for display-only consumers (e.g. order item rows) that need many foods by id without a full findAll roundtrip. */
+  async findByIds(ids: number[]): Promise<Food[]> {
+    if (ids.length === 0) return [];
+    return this.foodsRepository.find({ where: { id: In(ids) } });
+  }
 
   async findAll(query: ListFoodsQueryDto): Promise<PaginatedResponse<Food>> {
     const { page, limit, search, foodCategoryId } = query;

@@ -14,6 +14,7 @@ import { useOrder, useOrderItems, useIssueInvoice, type OrderItem } from "@/hook
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
+import { useFoodVariants } from "@/hooks/use-food-variants"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -102,7 +103,10 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
 function OrderItemTracking({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 500 })
+  const { data: variants } = useFoodVariants({ limit: 500 })
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const variantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   return (
     <Card>
@@ -119,6 +123,7 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
                 {item.quantity} &times; {foodName(item.foodId)}
+                {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
               </p>
               {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
               {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}

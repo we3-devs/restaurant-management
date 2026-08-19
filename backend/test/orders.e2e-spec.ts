@@ -16,6 +16,11 @@ import { OrderStatusHistory } from '../src/modules/orders/entities/order-status-
 import { Order } from '../src/modules/orders/entities/order.entity';
 import { OutletDepartment } from '../src/modules/outlet-departments/entities/outlet-department.entity';
 import { Outlet } from '../src/modules/outlets/entities/outlet.entity';
+import { Permission } from '../src/modules/roles/entities/permission.entity';
+import { RolePermission } from '../src/modules/roles/entities/role-permission.entity';
+import { Role } from '../src/modules/roles/entities/role.entity';
+import { UserRoleAssignment } from '../src/modules/roles/entities/user-role-assignment.entity';
+import { User } from '../src/modules/users/entities/user.entity';
 
 interface AuthResponseBody {
   accessToken: string;
@@ -33,6 +38,12 @@ interface OrderItemResponseBody {
   id: number;
   unitPrice: number;
   totalAmount: number;
+}
+
+interface UserResponseBody {
+  id: number;
+  email: string;
+  isActive: boolean;
 }
 
 describe('Orders (e2e)', () => {
@@ -237,7 +248,7 @@ describe('Orders (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`/api/orders/${orderId}/items`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ foodId, preparationDepartmentId: departmentId, quantity: 2 })
+      .send({ foodId, quantity: 2 })
       .expect(201);
 
     const body = response.body as OrderItemResponseBody;
@@ -298,5 +309,244 @@ describe('Orders (e2e)', () => {
       .expect(200);
     expect((order.body as OrderResponseBody).subtotal).toBe(0);
     expect((order.body as OrderResponseBody).grandTotal).toBe(0);
+  });
+
+  describe('GET /api/order-items — waiter shape and outlet scoping', () => {
+    let permissionRepo: Repository<Permission>;
+    let rolePermissionRepo: Repository<RolePermission>;
+    let roleRepo: Repository<Role>;
+    let assignmentRepo: Repository<UserRoleAssignment>;
+    let userRepo: Repository<User>;
+
+    let otherOutletId: number;
+    let ownOrderId: number;
+    let ownItemId: number;
+    let otherOrderId: number;
+    let scopedWaiterToken: string;
+    let waiterUserId: number;
+    let waiterRoleId: number;
+
+    const waiterUser = {
+      email: 'e2e-order-items-waiter@test.local',
+      password: 'Password@123',
+    };
+
+    beforeAll(async () => {
+      permissionRepo = app.get(getRepositoryToken(Permission));
+      rolePermissionRepo = app.get(getRepositoryToken(RolePermission));
+      roleRepo = app.get(getRepositoryToken(Role));
+      assignmentRepo = app.get(getRepositoryToken(UserRoleAssignment));
+      userRepo = app.get(getRepositoryToken(User));
+
+      // A second outlet the scoped waiter is never assigned to — the IDOR
+      // this suite is guarding against.
+      let otherOutlet = await outletRepo.findOne({
+        where: { name: 'E2E Orders Fixture Outlet B' },
+      });
+      if (!otherOutlet) {
+        otherOutlet = await outletRepo.save(
+          outletRepo.create({ name: 'E2E Orders Fixture Outlet B' }),
+        );
+      }
+      otherOutletId = otherOutlet.id;
+
+      // Reuse orders.view if seeded, same collision-avoidance as other suites.
+      let permission = await permissionRepo.findOne({
+        where: { slug: 'orders.view' },
+      });
+      if (!permission) {
+        permission = await permissionRepo.save(
+          permissionRepo.create({
+            name: 'View Orders',
+            slug: 'orders.view',
+            module: 'orders',
+            action: 'view',
+            level: 'global',
+          }),
+        );
+      }
+
+      let role = await roleRepo.findOne({
+        where: { slug: 'e2e-order-items-waiter-role' },
+      });
+      if (!role) {
+        role = await roleRepo.save(
+          roleRepo.create({
+            name: 'E2E Order Items Waiter',
+            slug: 'e2e-order-items-waiter-role',
+            level: 'global',
+            rank: 50,
+          }),
+        );
+      }
+
+      const existingLink = await rolePermissionRepo.findOne({
+        where: { roleId: role.id, permissionId: permission.id },
+      });
+      if (!existingLink) {
+        await rolePermissionRepo.save(
+          rolePermissionRepo.create({
+            roleId: role.id,
+            permissionId: permission.id,
+          }),
+        );
+      }
+
+      // Defensively clear a stale fixture user from a previously-aborted run.
+      const stale = await userRepo.findOne({
+        where: { email: waiterUser.email },
+      });
+      if (stale) {
+        await assignmentRepo.delete({ userId: stale.id });
+        await userRepo.delete(stale.id);
+      }
+
+      const created = await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'E2E Order Items Waiter',
+          email: waiterUser.email,
+          password: waiterUser.password,
+        })
+        .expect(201);
+      waiterUserId = (created.body as UserResponseBody).id;
+      waiterRoleId = role.id;
+
+      await request(app.getHttpServer())
+        .post(`/api/users/${waiterUserId}/role-assignments`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ roleId: role.id })
+        .expect(201);
+
+      // The role-assignments endpoint only ever creates 'global' scope
+      // (scopeType/outletId aren't client-settable yet — see
+      // CreateRoleAssignmentDto). Scope this one down to outletId (the
+      // suite's primary fixture outlet, set up in the outer beforeAll) by
+      // updating the row directly, so OutletAccessService actually has an
+      // outlet-restricted assignment to enforce against.
+      await assignmentRepo.update(
+        { userId: waiterUserId },
+        { scopeType: 'outlet', outletId },
+      );
+
+      const login = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send(waiterUser)
+        .expect(200);
+      ({ accessToken: scopedWaiterToken } = login.body as AuthResponseBody);
+
+      // Own-outlet order + item, and an addon on it, so the shape assertions
+      // below have something to check for `addonName` on too.
+      const ownOrder = await request(app.getHttpServer())
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ outletId, orderType: 'table' })
+        .expect(201);
+      ownOrderId = (ownOrder.body as OrderResponseBody).id;
+      createdOrderIds.push(ownOrderId);
+
+      const ownItem = await request(app.getHttpServer())
+        .post(`/api/orders/${ownOrderId}/items`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ foodId, quantity: 1 })
+        .expect(201);
+      ownItemId = (ownItem.body as OrderItemResponseBody).id;
+
+      await request(app.getHttpServer())
+        .post(`/api/order-items/${ownItemId}/addons`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ addonId, quantity: 1 })
+        .expect(201);
+
+      // Other-outlet order the scoped waiter must never be able to list.
+      const otherOrder = await request(app.getHttpServer())
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ outletId: otherOutletId, orderType: 'table' })
+        .expect(201);
+      otherOrderId = (otherOrder.body as OrderResponseBody).id;
+      createdOrderIds.push(otherOrderId);
+    });
+
+    afterAll(async () => {
+      if (waiterUserId) {
+        await assignmentRepo.delete({ userId: waiterUserId });
+        await userRepo.delete(waiterUserId);
+      }
+      if (waiterRoleId) {
+        await rolePermissionRepo.delete({ roleId: waiterRoleId });
+        await roleRepo.delete(waiterRoleId);
+      }
+    });
+
+    it('rejects listing another outlet\'s order items (IDOR)', async () => {
+      await request(app.getHttpServer())
+        .get(`/api/order-items?orderId=${otherOrderId}`)
+        .set('Authorization', `Bearer ${scopedWaiterToken}`)
+        .expect(403);
+    });
+
+    it('rejects an unscoped list request (orderId is required)', async () => {
+      await request(app.getHttpServer())
+        .get('/api/order-items')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+    });
+
+    it("allows listing the waiter's own outlet order items", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/order-items?orderId=${ownOrderId}`)
+        .set('Authorization', `Bearer ${scopedWaiterToken}`)
+        .expect(200);
+
+      const body = response.body as {
+        data: Record<string, unknown>[];
+      };
+      expect(body.data).toHaveLength(1);
+      const item = body.data[0];
+      expect(item.id).toBe(ownItemId);
+      expect(item.foodName).toBe('E2E Orders Fixture Food');
+      expect(item.addons).toHaveLength(1);
+      expect(
+        (item.addons as Record<string, unknown>[])[0].addonName,
+      ).toBe('E2E Orders Fixture Addon');
+    });
+
+    it('never exposes internal-only fields on the waiter shape', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/order-items?orderId=${ownOrderId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      const item = (response.body as { data: Record<string, unknown>[] })
+        .data[0];
+      for (const field of [
+        'createdAt',
+        'updatedAt',
+        'cancelReason',
+        'preparationDepartmentId',
+      ]) {
+        expect(item).not.toHaveProperty(field);
+      }
+      for (const field of [
+        'id',
+        'orderId',
+        'foodId',
+        'foodName',
+        'foodVariantId',
+        'variantName',
+        'quantity',
+        'unitPrice',
+        'totalAmount',
+        'status',
+        'isHeld',
+        'note',
+        'packagingType',
+        'addons',
+      ]) {
+        expect(item).toHaveProperty(field);
+      }
+    });
   });
 });

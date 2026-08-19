@@ -16,7 +16,7 @@ import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateOrder } from "@rms/api-client/hooks/use-orders"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
-import type { DiningTable } from "@rms/api-client/hooks/use-dining-tables"
+import type { PosBootstrapTable } from "@rms/api-client/hooks/use-bootstrap"
 import { useOpenTableSession, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@rms/validators/orders"
 
@@ -45,7 +45,7 @@ export function StartSaleDialog({
   onSaleStarted: (orderId: number) => void
   preselectedTableId?: number
   /** Already-loaded outlet tables (from usePosBootstrap) — avoids a redundant dining-tables request just to list available ones / resolve the preselected table's name. */
-  tables: DiningTable[]
+  tables: PosBootstrapTable[]
 }) {
   const [orderType, setOrderType] = useState<OrderType>("table")
   const [tableSessionId, setTableSessionId] = useState<string>("")

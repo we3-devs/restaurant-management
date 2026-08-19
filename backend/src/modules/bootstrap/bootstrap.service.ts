@@ -24,13 +24,60 @@ import { Warehouse } from '../warehouses/entities/warehouse.entity';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { PosBootstrapQueryDto } from './dto/pos-bootstrap-query.dto';
 import { ReservationsBootstrapQueryDto } from './dto/reservations-bootstrap-query.dto';
+import {
+  WaiterAddonDto,
+  WaiterDiningTableDto,
+  WaiterFoodCategoryDto,
+  WaiterOutletDepartmentDto,
+  WaiterOutletDto,
+  WaiterPosBootstrapResponseDto,
+} from './dto/waiter-pos-bootstrap-response.dto';
 
-export interface PosBootstrapResponse {
-  outlet: Outlet;
-  departments: OutletDepartment[];
-  tables: DiningTable[];
-  foodCategories: FoodCategory[];
-  addons: Addon[];
+function toWaiterOutlet(outlet: Outlet): WaiterOutletDto {
+  return { id: outlet.id, name: outlet.name };
+}
+
+function toWaiterDepartment(dept: OutletDepartment): WaiterOutletDepartmentDto {
+  return {
+    id: dept.id,
+    outletId: dept.outletId,
+    name: dept.name,
+    type: dept.type,
+    canPrepareOrder: dept.canPrepareOrder,
+  };
+}
+
+function toWaiterTable(table: DiningTable): WaiterDiningTableDto {
+  return {
+    id: table.id,
+    outletId: table.outletId,
+    diningAreaId: table.diningAreaId,
+    name: table.name,
+    code: table.code,
+    capacity: table.capacity,
+    // Straight passthrough of the live column — never hardcode/mask this.
+    status: table.status,
+    sortOrder: table.sortOrder,
+    isActive: table.isActive,
+  };
+}
+
+function toWaiterFoodCategory(category: FoodCategory): WaiterFoodCategoryDto {
+  return {
+    id: category.id,
+    parentId: category.parentId,
+    name: category.name,
+    sortOrder: category.sortOrder,
+  };
+}
+
+function toWaiterAddon(addon: Addon): WaiterAddonDto {
+  return {
+    id: addon.id,
+    addonGroupId: addon.addonGroupId,
+    name: addon.name,
+    price: addon.price,
+  };
 }
 
 export interface ReservationsBootstrapResponse {
@@ -71,9 +118,17 @@ export class BootstrapService {
     private readonly warehousesService: WarehousesService,
   ) {}
 
+  /**
+   * outletId has already been validated against the caller's outlet
+   * assignments (or superadmin) by BootstrapController before this runs —
+   * see OutletAccessService.assertOutletAccess. Departments/tables are
+   * fetched scoped to that outletId at the query level; food categories and
+   * addons have no outlet dimension anywhere in the schema (global catalog),
+   * so there's nothing to scope there.
+   */
   async getPosBootstrap(
     query: PosBootstrapQueryDto,
-  ): Promise<PosBootstrapResponse> {
+  ): Promise<WaiterPosBootstrapResponseDto> {
     const { outletId } = query;
 
     const [outlet, departments, tables, foodCategories, addons] =
@@ -90,11 +145,11 @@ export class BootstrapService {
       ]);
 
     return {
-      outlet,
-      departments: departments.data,
-      tables: tables.data,
-      foodCategories: foodCategories.data,
-      addons: addons.data,
+      outlet: toWaiterOutlet(outlet),
+      departments: departments.data.map(toWaiterDepartment),
+      tables: tables.data.map(toWaiterTable),
+      foodCategories: foodCategories.data.map(toWaiterFoodCategory),
+      addons: addons.data.map(toWaiterAddon),
     };
   }
 

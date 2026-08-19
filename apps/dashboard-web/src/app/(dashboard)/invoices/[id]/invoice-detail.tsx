@@ -11,6 +11,7 @@ import { useOrder, useOrderItems } from "@/hooks/use-orders"
 import { useOutlet } from "@/hooks/use-outlets"
 import { useCustomer } from "@/hooks/use-customers"
 import { useFoods } from "@/hooks/use-foods"
+import { useFoodVariants } from "@/hooks/use-food-variants"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -35,8 +36,11 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: foods } = useFoods({ limit: 500 })
+  const { data: variants } = useFoodVariants({ limit: 500 })
 
   const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const getVariantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data?.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !order) return <NotFoundCard resource="Invoice" />
@@ -141,7 +145,10 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
                 items.data.map((item, index) => (
                   <tr key={item.id} className={index !== (items.data?.length ?? 0) - 1 ? "border-b border-gray-200" : ""}>
                     <td className="py-3 text-left">
-                      <p className="font-medium text-gray-900">{getFoodName(item.foodId)}</p>
+                      <p className="font-medium text-gray-900">
+                        {getFoodName(item.foodId)}
+                        {getVariantName(item.foodVariantId) ? ` — ${getVariantName(item.foodVariantId)}` : ""}
+                      </p>
                       {item.addons && item.addons.length > 0 && (
                         <ul className="mt-1 text-xs text-gray-600">
                           {item.addons.map((addon) => (

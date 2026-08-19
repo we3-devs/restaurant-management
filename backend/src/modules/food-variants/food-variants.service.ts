@@ -9,6 +9,7 @@ import {
   DataSource,
   FindOptionsWhere,
   ILike,
+  In,
   QueryFailedError,
   Repository,
 } from 'typeorm';
@@ -53,6 +54,12 @@ export class FoodVariantsService {
     private readonly dataSource: DataSource,
     private readonly skuCompositionService: SkuCompositionService,
   ) {}
+
+  /** Bulk name lookup for display-only consumers (e.g. order item rows) that need many variants by id without a full findAll roundtrip. */
+  async findByIds(ids: number[]): Promise<FoodVariant[]> {
+    if (ids.length === 0) return [];
+    return this.variantsRepository.find({ where: { id: In(ids) } });
+  }
 
   async findAll(
     query: ListFoodVariantsQueryDto,

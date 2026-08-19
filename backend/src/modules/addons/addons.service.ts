@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AddonGroupsService } from '../addon-groups/addon-groups.service';
 import { IngredientsService } from '../ingredients/ingredients.service';
@@ -28,6 +28,12 @@ export class AddonsService {
     private readonly ingredientsService: IngredientsService,
     private readonly unitsService: UnitsService,
   ) {}
+
+  /** Bulk name lookup for display-only consumers (e.g. order item rows) that need many addons by id without a full findAll roundtrip. */
+  async findByIds(ids: number[]): Promise<Addon[]> {
+    if (ids.length === 0) return [];
+    return this.addonsRepository.find({ where: { id: In(ids) } });
+  }
 
   async findAll(query: ListAddonsQueryDto): Promise<PaginatedResponse<Addon>> {
     const { page, limit, search, addonGroupId } = query;

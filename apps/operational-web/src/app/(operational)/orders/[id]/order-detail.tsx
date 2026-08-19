@@ -18,6 +18,7 @@ import { useOrder, useOrderItems, useUpdateOrder, useIssueInvoice, type Order, t
 import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
+import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
@@ -184,7 +185,10 @@ function ContextDetailsCards({
 function OrderItemTrackingCard({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 500 })
+  const { data: variants } = useFoodVariants({ limit: 500 })
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const variantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   return (
     <Card>
@@ -201,6 +205,7 @@ function OrderItemTrackingCard({ orderId }: { orderId: number }) {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
                 {item.quantity} &times; {foodName(item.foodId)}
+                {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
               </p>
               {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
               {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}

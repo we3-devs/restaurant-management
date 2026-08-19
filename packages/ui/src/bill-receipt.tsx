@@ -3,6 +3,7 @@ import { TextSkeleton } from "./skeletons"
 import { useAddons } from "@rms/api-client/hooks/use-addons"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
+import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOutlet } from "@rms/api-client/hooks/use-outlets"
 import { useOrder, useOrderItems, type OrderItem } from "@rms/api-client/hooks/use-orders"
 import { useSettingsCategory, type PosSettings } from "@rms/api-client/hooks/use-settings"
@@ -20,10 +21,13 @@ export function BillReceipt({ orderId }: { orderId: number }) {
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: foods } = useFoods({ limit: 100 })
+  const { data: variants } = useFoodVariants({ limit: 100 })
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: posSettings } = useSettingsCategory<PosSettings>("pos")
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const variantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   // Six queries feed this receipt — hold the shape until the order itself
   // arrives so a blank (or "No items yet") flash never shows.
@@ -46,7 +50,16 @@ export function BillReceipt({ orderId }: { orderId: number }) {
         {(items?.data ?? []).length === 0 && (
           <p className="text-center text-xs text-muted-foreground">No items yet.</p>
         )}
-        {items?.data.map((item) => <BillItemRow key={item.id} item={item} name={foodName(item.foodId)} />)}
+        {items?.data.map((item) => (
+          <BillItemRow
+            key={item.id}
+            item={item}
+            name={
+              foodName(item.foodId) +
+              (variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : "")
+            }
+          />
+        ))}
       </div>
 
       <Separator />

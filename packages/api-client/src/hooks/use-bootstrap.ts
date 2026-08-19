@@ -31,12 +31,34 @@ import type { PaginatedResponse } from "../types"
  * hit instead of a network request.
  */
 
+// /pos/bootstrap is waiter-facing and intentionally returns a minimal
+// projection of each entity (no timestamps/internal fields, see
+// backend WaiterPosBootstrapResponseDto) — narrower than the full
+// Outlet/OutletDepartment/DiningTable/FoodCategory/Addon shapes those
+// hooks' own REST endpoints return. It's still safe to seed those hooks'
+// query caches from this data because every field the POS screen's
+// components actually read (name, status, capacity, diningAreaId, etc.)
+// is present; components that need the full shape (e.g. the dining-tables
+// floor-plan editor) live outside the POS screen and will simply issue
+// their own fresh request the first time they're visited.
+export type PosBootstrapOutlet = Pick<Outlet, "id" | "name">
+export type PosBootstrapDepartment = Pick<
+  OutletDepartment,
+  "id" | "outletId" | "name" | "type" | "canPrepareOrder"
+>
+export type PosBootstrapTable = Pick<
+  DiningTable,
+  "id" | "outletId" | "diningAreaId" | "name" | "code" | "capacity" | "status" | "isActive"
+>
+export type PosBootstrapFoodCategory = Pick<FoodCategory, "id" | "parentId" | "name" | "sortOrder">
+export type PosBootstrapAddon = Pick<Addon, "id" | "addonGroupId" | "name" | "price">
+
 export interface PosBootstrap {
-  outlet: Outlet
-  departments: OutletDepartment[]
-  tables: DiningTable[]
-  foodCategories: FoodCategory[]
-  addons: Addon[]
+  outlet: PosBootstrapOutlet
+  departments: PosBootstrapDepartment[]
+  tables: PosBootstrapTable[]
+  foodCategories: PosBootstrapFoodCategory[]
+  addons: PosBootstrapAddon[]
 }
 
 export function usePosBootstrap(outletId: number | null) {

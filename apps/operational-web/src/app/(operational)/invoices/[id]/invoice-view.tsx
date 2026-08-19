@@ -11,6 +11,7 @@ import { useOrder, useOrderItems } from "@rms/api-client/hooks/use-orders"
 import { useOutlet } from "@rms/api-client/hooks/use-outlets"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
+import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 
 function Breadcrumb({ orderId, orderNumber, basePath }: { orderId: number; orderNumber: string; basePath: string }) {
   return (
@@ -42,8 +43,11 @@ export function InvoiceView({ orderId, basePath = "" }: { orderId: number; baseP
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: foods } = useFoods({ limit: 500 })
+  const { data: variants } = useFoodVariants({ limit: 500 })
 
   const getFoodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const getVariantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !order) return <NotFoundCard resource="Order" />
@@ -137,7 +141,10 @@ export function InvoiceView({ orderId, basePath = "" }: { orderId: number; baseP
                 items.data.map((item, index) => (
                   <tr key={item.id} className={index !== (items.data?.length ?? 0) - 1 ? "border-b border-gray-200" : ""}>
                     <td className="py-3 text-left">
-                      <p className="font-medium text-gray-900">{getFoodName(item.foodId)}</p>
+                      <p className="font-medium text-gray-900">
+                        {getFoodName(item.foodId)}
+                        {getVariantName(item.foodVariantId) ? ` — ${getVariantName(item.foodVariantId)}` : ""}
+                      </p>
                       {item.note && <p className="mt-1 text-xs italic text-gray-500">Note: {item.note}</p>}
                     </td>
                     <td className="py-3 text-center text-gray-700">{item.quantity}</td>

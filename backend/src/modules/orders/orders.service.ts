@@ -53,6 +53,7 @@ import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { WaiterOrderItemResponseDto } from './dto/waiter-order-item-response.dto';
 import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -1149,24 +1150,96 @@ export class OrdersService {
 
   async listItems(
     query: ListOrderItemsQueryDto,
-  ): Promise<PaginatedResponse<OrderItemWithRelations>> {
+  ): Promise<PaginatedResponse<WaiterOrderItemResponseDto>> {
     const { page, limit, orderId } = query;
-    const where: FindOptionsWhere<OrderItem> = {};
-    if (orderId !== undefined) {
-      where.orderId = orderId;
-    }
 
     const [items, total] = await this.orderItemsRepository.findAndCount({
-      where,
+      where: { orderId },
       order: { createdAt: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
     return {
-      data: await this.attachItemRelations(items),
+      data: await this.toWaiterItems(items),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  /**
+   * Maps raw OrderItem rows to the minimal, name-enriched shape
+   * GET /order-items actually returns (see WaiterOrderItemResponseDto for
+   * why) — batches food/variant/addon name lookups instead of resolving
+   * them per item, same N+1-avoidance as attachItemRelations.
+   */
+  private async toWaiterItems(
+    items: OrderItem[],
+  ): Promise<WaiterOrderItemResponseDto[]> {
+    const foodIds = [...new Set(items.map((item) => item.foodId))];
+    const variantIds = [
+      ...new Set(
+        items
+          .map((item) => item.foodVariantId)
+          .filter((id): id is number => id !== null),
+      ),
+    ];
+    const itemIds = items.map((item) => item.id);
+
+    const [foods, variants, addons] = await Promise.all([
+      this.foodsService.findByIds(foodIds),
+      this.foodVariantsService.findByIds(variantIds),
+      itemIds.length
+        ? this.orderItemAddonsRepository.find({
+            where: { orderItemId: In(itemIds) },
+          })
+        : Promise.resolve([]),
+    ]);
+    const addonIds = [...new Set(addons.map((addon) => addon.addonId))];
+    const addonDefs = await this.addonsService.findByIds(addonIds);
+
+    const foodNameById = new Map(foods.map((food) => [food.id, food.name]));
+    const variantNameById = new Map(
+      variants.map((variant) => [variant.id, variant.name]),
+    );
+    const addonNameById = new Map(
+      addonDefs.map((addon) => [addon.id, addon.name]),
+    );
+    const addonsByItem = new Map<number, OrderItemAddon[]>();
+    for (const addon of addons) {
+      const group = addonsByItem.get(addon.orderItemId);
+      if (group) {
+        group.push(addon);
+      } else {
+        addonsByItem.set(addon.orderItemId, [addon]);
+      }
+    }
+
+    return items.map((item) => ({
+      id: item.id,
+      orderId: item.orderId,
+      foodId: item.foodId,
+      foodName: foodNameById.get(item.foodId) ?? `Item #${item.foodId}`,
+      foodVariantId: item.foodVariantId,
+      variantName:
+        item.foodVariantId !== null
+          ? (variantNameById.get(item.foodVariantId) ?? null)
+          : null,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalAmount: item.totalAmount,
+      status: item.status,
+      isHeld: item.isHeld,
+      note: item.note,
+      packagingType: item.packagingType,
+      addons: (addonsByItem.get(item.id) ?? []).map((addon) => ({
+        id: addon.id,
+        addonId: addon.addonId,
+        addonName: addonNameById.get(addon.addonId) ?? `Addon #${addon.addonId}`,
+        quantity: addon.quantity,
+        unitPrice: addon.unitPrice,
+        totalAmount: addon.totalAmount,
+      })),
+    }));
   }
 
   async findItem(id: number): Promise<OrderItem> {

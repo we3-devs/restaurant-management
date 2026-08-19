@@ -45,12 +45,34 @@ export class OrderItemsController {
     return item;
   }
 
+  /**
+   * Same choke point as assertItemAccess, but for the list endpoint: never
+   * trust query.orderId on its own — resolve the order it names and check
+   * the caller's outlet access before listing anything under it. Without
+   * this, any orders.view holder could page through another outlet's order
+   * items just by guessing/incrementing orderId (IDOR).
+   */
+  private async assertOrderAccess(orderId: number, user: User) {
+    const order = await this.ordersService.findOne(orderId);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      order.outletId,
+    );
+    return order;
+  }
+
   @Get()
   @RequirePermissions('orders.view')
   @ApiOperation({
-    summary: 'Lists order items (paginated, optional orderId filter)',
+    summary:
+      'Lists an order\'s items (paginated) — minimal, waiter-facing shape with food/variant names embedded so callers never need a follow-up request just to render a row.',
   })
-  findAll(@Query() query: ListOrderItemsQueryDto) {
+  async findAll(
+    @Query() query: ListOrderItemsQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertOrderAccess(query.orderId, user);
     return this.ordersService.listItems(query);
   }
 
