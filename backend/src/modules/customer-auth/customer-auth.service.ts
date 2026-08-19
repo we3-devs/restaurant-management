@@ -20,8 +20,6 @@ const OTP_TTL_SECONDS = 5 * 60;
 const OTP_RESEND_LOCK_SECONDS = 60;
 const OTP_MAX_VERIFY_ATTEMPTS = 5;
 const OTP_CLEANUP_INTERVAL_MS = 10 * 60_000;
-const GUEST_SESSION_EXPIRES_IN = '12h';
-const CUSTOMER_SESSION_EXPIRES_IN = '30d';
 
 /**
  * Postgres-backed replacement for the old Redis OTP flow (`SET NX EX`
@@ -177,9 +175,11 @@ export class CustomerAuthService {
       phone: customer.phone ?? undefined,
       email: customer.email ?? undefined,
     };
-    const accessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: CUSTOMER_SESSION_EXPIRES_IN,
-    });
+    // No expiresIn — a guest should stay signed in for the lifetime of the
+    // session, ended only by an explicit logout (see customer-session.ts's
+    // matching cookie maxAge), not by a token TTL silently kicking them out
+    // mid-visit or on a return trip.
+    const accessToken = await this.jwtService.signAsync(payload);
 
     return { accessToken, customer };
   }
@@ -189,9 +189,8 @@ export class CustomerAuthService {
       await this.diningTablesService.findOne(tableId);
     }
     const payload: CustomerJwtPayload = { sub: null, type: 'guest', tableId };
-    const accessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: GUEST_SESSION_EXPIRES_IN,
-    });
+    // No expiresIn — see the comment on the customer token above.
+    const accessToken = await this.jwtService.signAsync(payload);
     return { accessToken };
   }
 

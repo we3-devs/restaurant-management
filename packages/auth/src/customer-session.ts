@@ -4,12 +4,14 @@ import { cookies } from "next/headers"
 
 export const CUSTOMER_TOKEN_COOKIE = "customer_access_token"
 
-// Mirrors CustomerAuthService's signed-in-customer session expiry (30d).
-const CUSTOMER_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
-// Guest sessions are short-lived (12h) — see CustomerAuthService.guestSession.
-const GUEST_TOKEN_MAX_AGE_SECONDS = 12 * 60 * 60
+// Both the guest and signed-in-customer JWTs are now issued without an
+// expiresIn (see CustomerAuthService) — a guest stays logged in for the
+// lifetime of the session, ended only by explicit logout, never by a TTL. A
+// browser cookie still needs a concrete maxAge to survive restarts though, so
+// this is set as long as practical (10 years) rather than literally forever.
+const CUSTOMER_TOKEN_MAX_AGE_SECONDS = 10 * 365 * 24 * 60 * 60
 
-export async function setCustomerToken(token: string, isGuest = false): Promise<void> {
+export async function setCustomerToken(token: string): Promise<void> {
   const cookieStore = await cookies()
   const isProduction = process.env.NODE_ENV === "production"
 
@@ -18,7 +20,7 @@ export async function setCustomerToken(token: string, isGuest = false): Promise<
     secure: isProduction,
     sameSite: "lax",
     path: "/",
-    maxAge: isGuest ? GUEST_TOKEN_MAX_AGE_SECONDS : CUSTOMER_TOKEN_MAX_AGE_SECONDS,
+    maxAge: CUSTOMER_TOKEN_MAX_AGE_SECONDS,
   })
 }
 
