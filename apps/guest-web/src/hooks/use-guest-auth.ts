@@ -9,7 +9,7 @@ import {
 } from "@/lib/guest-auth";
 
 /**
- * Both snapshots return primitives straight out of sessionStorage, so React's
+ * Both snapshots return primitives straight out of localStorage, so React's
  * identity check stays stable between renders. The server snapshot is null —
  * these pages are force-dynamic, and a signed-out first paint is correct.
  */

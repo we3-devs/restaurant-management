@@ -21,8 +21,9 @@ export async function authFetch(path: string, init: RequestInit = {}) {
 
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
 
-  // A 30-day customer token can still be revoked or invalidated server-side;
-  // drop it so the UI falls back to the sign-in gate rather than looping on 401s.
+  // The token never expires on its own, but can still be revoked or become
+  // invalid server-side; drop it so the UI falls back to the sign-in gate
+  // rather than looping on 401s.
   if (res.status === 401) clearSession();
   return res;
 }
