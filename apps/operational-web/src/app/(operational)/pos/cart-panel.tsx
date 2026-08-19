@@ -7,12 +7,16 @@ import { toast } from "sonner"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { Separator } from "@rms/ui/separator"
 import { ListSkeleton } from "@rms/ui/skeletons"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
+import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
+import { useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import {
   useAddOrderItemsBatch,
   useFireHeldItems,
+  useOrder,
   useOrderItems,
   useRemoveOrderItem,
   useSendOrderToKitchen,
@@ -33,6 +37,9 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
 export function CartPanel({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
+  const { data: variants } = useFoodVariants({ limit: 100 })
+  const { data: order } = useOrder(orderId)
+  const { data: payments } = useOrderPayments(orderId)
   const localCart = useLocalCartContext()
   const addItemsBatch = useAddOrderItemsBatch(orderId)
   const sendToKitchen = useSendOrderToKitchen(orderId)
@@ -40,6 +47,8 @@ export function CartPanel({ orderId }: { orderId: number }) {
   const isOnline = useOnlineStatus()
 
   const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const variantName = (foodVariantId: number | null) =>
+    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
   const serverPendingCount = serverPendingItems.filter((item) => !item.isHeld).length
   const heldCount = serverPendingItems.filter((item) => item.isHeld).length
@@ -98,7 +107,13 @@ export function CartPanel({ orderId }: { orderId: number }) {
           <LocalCartItemRow key={item.localId} item={item} />
         ))}
         {items?.data.map((item) => (
-          <CartItemRow key={item.id} orderId={orderId} item={item} foodName={foodName(item.foodId)} />
+          <CartItemRow
+            key={item.id}
+            orderId={orderId}
+            item={item}
+            foodName={foodName(item.foodId)}
+            variantName={variantName(item.foodVariantId)}
+          />
         ))}
       </div>
       {heldCount > 0 && (
@@ -119,11 +134,58 @@ export function CartPanel({ orderId }: { orderId: number }) {
       >
         {isPlacing ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
+      {order && (
+        <>
+          <Separator />
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
+            <div className="grid grid-cols-2 gap-1 text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="text-right">{order.subtotal}</span>
+              <span className="text-muted-foreground">Discount</span>
+              <span className="text-right">{order.discountAmount}</span>
+              <span className="text-muted-foreground">Tax</span>
+              <span className="text-right">{order.taxAmount}</span>
+              <span className="text-muted-foreground">Service charge</span>
+              <span className="text-right">{order.serviceChargeAmount}</span>
+              <span className="font-medium">Grand total</span>
+              <span className="text-right font-medium">{order.grandTotal}</span>
+              <span className="text-muted-foreground">Paid</span>
+              <span className="text-right">{order.paidAmount}</span>
+              <span className="font-medium">Due</span>
+              <span className="text-right font-medium">{order.dueAmount}</span>
+            </div>
+            {(payments?.data.length ?? 0) > 0 && (
+              <div className="space-y-1 pt-1">
+                {payments?.data.map((payment) => (
+                  <div key={payment.id} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={payment.type === "refund" ? "destructive" : "secondary"}>{payment.type}</Badge>
+                      <span>{payment.method}</span>
+                    </div>
+                    <span>{payment.amount}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-function CartItemRow({ orderId, item, foodName }: { orderId: number; item: OrderItem; foodName: string }) {
+function CartItemRow({
+  orderId,
+  item,
+  foodName,
+  variantName,
+}: {
+  orderId: number
+  item: OrderItem
+  foodName: string
+  variantName: string | null
+}) {
   const updateItem = useUpdateOrderItem(orderId, item.id)
   const removeItem = useRemoveOrderItem(orderId)
   const [note, setNote] = useState(item.note ?? "")
@@ -161,7 +223,10 @@ function CartItemRow({ orderId, item, foodName }: { orderId: number; item: Order
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium">{foodName}</p>
+            <p className="text-sm font-medium">
+              {foodName}
+              {variantName ? ` — ${variantName}` : ""}
+            </p>
             {item.status === "stock_reserved" && item.isHeld ? (
               <Badge variant="outline" className="border-amber-500/50 text-xs text-amber-700 dark:text-amber-400">
                 Held
