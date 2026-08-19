@@ -1030,13 +1030,21 @@ export class OrdersService {
       return { createdTickets, readyMade };
     });
 
-    if (order.status === 'pending') {
-      await this.updateStatus(order.id, { status: 'accepted' }, changedBy);
-    }
-    await this.maybeAdvanceToServed(order.id, changedBy);
-
     const { createdTickets: tickets, readyMade } = ticketResult;
     const kitchenBound = tickets.filter((t) => t.departmentId !== null);
+
+    if (order.status === 'pending' && kitchenBound.length === 0) {
+      // Nothing sent needs a kitchen — every item was ready-made (drinks,
+      // pre-made snacks), so there's no ticket for kitchen staff to accept.
+      // Walk the order straight to whatever stage its items actually
+      // reached instead of stopping at 'accepted'.
+      await this.syncStatusFromItems(order.id, changedBy);
+    }
+    // Otherwise the order stays 'pending' ("placed") — it only becomes
+    // 'accepted' once kitchen staff act on the ticket (see
+    // KitchenTicketsService.startTicket -> syncStatusFromItems), not merely
+    // because staff sent it to the kitchen queue.
+    await this.maybeAdvanceToServed(order.id, changedBy);
     if (kitchenBound.length > 0) {
       this.kitchenTicketsService.notifyTicketsCreated(kitchenBound);
     }
