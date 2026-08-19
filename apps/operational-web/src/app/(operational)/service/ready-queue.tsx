@@ -21,12 +21,9 @@ export function ReadyQueue({ outletId }: { outletId: number }) {
 
   if (groups.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-12 text-center">
+      <div className="h-fill flex flex-col items-center gap-2 rounded-xl border border-dashed py-12 text-center">
         <CheckCircle2Icon className="size-8 text-muted-foreground" />
         <p className="text-sm font-medium">Ready queue is clear</p>
-        <p className="text-sm text-muted-foreground">
-          Dishes the kitchen marks ready will appear here for delivery.
-        </p>
       </div>
     )
   }

@@ -8,6 +8,7 @@ import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gatewa
 import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateTableSessionPaymentDto } from './dto/create-table-session-payment.dto';
 import { ListOrderPaymentsQueryDto } from './dto/list-order-payments-query.dto';
@@ -24,6 +25,7 @@ export class OrderPaymentsService {
     private readonly dataSource: DataSource,
     private readonly customersService: CustomersService,
     private readonly customerCreditService: CustomerCreditService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async findAll(
@@ -148,16 +150,37 @@ export class OrderPaymentsService {
     }
 
     if (saved.status === 'completed' && saved.type === 'payment') {
-      const notification = await this.notificationsService.create({
+      const notificationInput = {
         outletId: order.outletId,
-        type: 'payment_received',
+        type: 'payment_received' as const,
         title: `Payment received — ${order.orderNumber}`,
         body: `${saved.method} · ${saved.amount}`,
         orderId,
         actorUserId: receivedBy,
         data: JSON.stringify({ paymentId: saved.id }),
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      };
+
+      if (saved.method === 'cash') {
+        // Cash handling is sensitive (till counts, shortages) — scope
+        // delivery to superadmins plus whichever roles are configured under
+        // Settings > Notifications (default: manager, cashier).
+        const { cashNotificationRoles } = await this.settingsService.getNotificationSettings();
+        const roleSlugs = Array.isArray(cashNotificationRoles)
+          ? (cashNotificationRoles as string[])
+          : ['manager', 'cashier'];
+        const recipientUserIds = await this.notificationsService.getUserIdsByRole(
+          order.outletId,
+          roleSlugs,
+        );
+        const notification = await this.notificationsService.create(
+          notificationInput,
+          recipientUserIds,
+        );
+        this.gateway.notifyUsersNotificationCreated(recipientUserIds, notification);
+      } else {
+        const notification = await this.notificationsService.create(notificationInput);
+        this.gateway.notifyNotificationCreated(notification);
+      }
     }
 
     return saved;

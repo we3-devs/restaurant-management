@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class BusinessSettingsDto {
   @ApiPropertyOptional()
@@ -264,6 +264,13 @@ export class NotificationSettingsDto {
   @Type(() => Number)
   @IsNumber()
   reservationReminderMinutesBefore?: number;
+
+  /** Role slugs (e.g. 'manager', 'cashier') that receive cash-payment notifications, in addition to superadmins. */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  cashNotificationRoles?: string[];
 }
 
 export class AppearanceSettingsDto {

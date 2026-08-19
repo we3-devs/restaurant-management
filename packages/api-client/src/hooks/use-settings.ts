@@ -78,6 +78,7 @@ export interface NotificationSettings {
   lowStockThreshold?: number
   kitchenDelayThresholdMinutes?: number
   reservationReminderMinutesBefore?: number
+  cashNotificationRoles?: string[]
 }
 
 export interface AppearanceSettings {

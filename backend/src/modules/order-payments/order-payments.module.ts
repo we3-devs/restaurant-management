@@ -6,6 +6,7 @@ import { CustomersModule } from '../customers/customers.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OrdersModule } from '../orders/orders.module';
+import { SettingsModule } from '../settings/settings.module';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { OrderPayment } from './entities/order-payment.entity';
 import { OrderPaymentsController } from './order-payments.controller';
@@ -21,6 +22,7 @@ import { OrderPaymentsService } from './order-payments.service';
     KitchenTicketsModule,
     CustomersModule,
     CustomerCreditModule,
+    SettingsModule,
   ],
   controllers: [OrderPaymentsController],
   providers: [OrderPaymentsService],

@@ -82,6 +82,7 @@ export const notificationSettingsSchema = z.object({
   lowStockThreshold: z.number().optional(),
   kitchenDelayThresholdMinutes: z.number().optional(),
   reservationReminderMinutesBefore: z.number().optional(),
+  cashNotificationRoles: z.array(z.string()).optional(),
 })
 
 export type NotificationSettingsInput = z.infer<typeof notificationSettingsSchema>

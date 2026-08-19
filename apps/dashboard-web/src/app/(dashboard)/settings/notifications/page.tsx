@@ -14,6 +14,7 @@ import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type NotificationSettings } from "@/hooks/use-settings"
+import { useRoles } from "@/hooks/use-roles"
 import { MyDeliveryPreferences } from "@/components/my-delivery-preferences"
 import { notificationSettingsSchema, type NotificationSettingsInput } from "@/lib/validators/settings"
 
@@ -24,6 +25,7 @@ const defaultValues: NotificationSettingsInput = {
   lowStockThreshold: 0,
   kitchenDelayThresholdMinutes: 0,
   reservationReminderMinutesBefore: 0,
+  cashNotificationRoles: ["manager", "cashier"],
 }
 
 export default function NotificationSettingsPage() {
@@ -34,6 +36,8 @@ export default function NotificationSettingsPage() {
   const { data, isLoading } = useSettingsCategory<NotificationSettings>("notification")
   const showSkeleton = useDelayedLoading(isLoading)
   const updateSettings = useUpdateSettings<NotificationSettings>("notification")
+  const { data: rolesPage } = useRoles({ limit: 100 })
+  const roles = rolesPage?.data ?? []
 
   const form = useForm<NotificationSettingsInput>({
     resolver: zodResolver(notificationSettingsSchema),
@@ -165,6 +169,43 @@ export default function NotificationSettingsPage() {
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+                <FormField
+                  control={form.control}
+                  name="cashNotificationRoles"
+                  render={({ field }) => {
+                    const selected = field.value ?? []
+                    return (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Cash payment notifications go to</FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Superadmins always receive these; pick which additional roles should too.
+                        </p>
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          {roles
+                            .filter((role) => role.isActive)
+                            .map((role) => (
+                              <div key={role.id} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`cash-role-${role.slug}`}
+                                  checked={selected.includes(role.slug)}
+                                  disabled={!canManage}
+                                  onCheckedChange={(checked) => {
+                                    field.onChange(
+                                      checked === true
+                                        ? [...selected, role.slug]
+                                        : selected.filter((slug) => slug !== role.slug),
+                                    )
+                                  }}
+                                />
+                                <Label htmlFor={`cash-role-${role.slug}`}>{role.name}</Label>
+                              </div>
+                            ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
                 />
                 {canManage && (
                   <div className="col-span-2">

@@ -102,6 +102,7 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     lowStockThreshold: 10,
     kitchenDelayThresholdMinutes: 15,
     reservationReminderMinutesBefore: 60,
+    cashNotificationRoles: ['manager', 'cashier'],
   },
   appearance: {
     logoUrl: null,

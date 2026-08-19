@@ -103,6 +103,10 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       // existing coarse room-level model rather than introducing a new one.
       client.data.userId = payload.userId;
       client.data.isSuperadmin = payload.isSuperadmin;
+      // Lets targeted deliveries (e.g. cash-payment notifications, see
+      // notifyUsersNotificationCreated) reach this user without requiring
+      // them to have joined any particular outlet room.
+      void client.join(this.userRoom(payload.userId));
       return;
     }
 
@@ -173,6 +177,13 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
       .emit('notification.created', notification);
   }
 
+  /** Pushes a persisted notification to a specific set of users only (e.g. cash-payment notifications, scoped to admin/manager/cashier) rather than the whole outlet room. */
+  notifyUsersNotificationCreated(userIds: number[], notification: Notification): void {
+    for (const userId of userIds) {
+      this.server.to(this.userRoom(userId)).emit('notification.created', notification);
+    }
+  }
+
   /** Pushes a new guest/staff service request to the outlet's service queue screens. */
   notifyServiceRequestCreated(request: ServiceRequest): void {
     this.server
@@ -190,6 +201,10 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
 
   private outletRoom(outletId: number): string {
     return `outlet:${outletId}`;
+  }
+
+  private userRoom(userId: number): string {
+    return `user:${userId}`;
   }
 
   private customerRoom(customerId: number): string {

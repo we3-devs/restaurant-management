@@ -33,32 +33,73 @@ export class NotificationsService {
     private readonly pushService: PushService,
   ) {}
 
-  /** Persists a notification. The caller pushes it over the websocket (see KitchenTicketsGateway#notifyNotificationCreated). */
-  async create(input: Partial<Notification>): Promise<Notification> {
+  /**
+   * Persists a notification. The caller pushes it over the websocket (see
+   * KitchenTicketsGateway#notifyNotificationCreated). Pass `recipientUserIds`
+   * to scope external-channel delivery to a specific set of users (e.g. cash
+   * payments — see getUserIdsByRole) instead of the default outlet-wide fan-out.
+   */
+  async create(input: Partial<Notification>, recipientUserIds?: number[]): Promise<Notification> {
     const notification = await this.notificationsRepository.save(
       this.notificationsRepository.create(input),
     );
-    void this.dispatchExternalChannels(notification).catch((error: Error) =>
+    void this.dispatchExternalChannels(notification, recipientUserIds).catch((error: Error) =>
       this.logger.error(`External channel dispatch failed for notification ${notification.id}: ${error.message}`),
     );
     return notification;
   }
 
   /**
-   * Fans a notification out to email/SMS/push for every user with a role
-   * assignment on the notification's outlet, filtered by their preferences.
-   * In-app (feed + websocket) delivery is unaffected by this — it always
-   * happens regardless of these preferences (see the callers of `create`).
+   * Resolves the recipients for a role-scoped notification: superadmins
+   * (outlet-independent) plus any user holding one of the given role slugs
+   * (e.g. 'manager', 'cashier') via an active assignment on this outlet.
    */
-  private async dispatchExternalChannels(notification: Notification): Promise<void> {
+  async getUserIdsByRole(outletId: number, roleSlugs: string[]): Promise<number[]> {
+    const [superadmins, assignments] = await Promise.all([
+      this.usersRepository.find({ where: { isSuperadmin: true } }),
+      roleSlugs.length === 0
+        ? Promise.resolve([])
+        : this.userRoleAssignmentRepository
+            .createQueryBuilder('assignment')
+            .innerJoin('assignment.role', 'role')
+            .where('assignment.outlet_id = :outletId', { outletId })
+            .andWhere('assignment.is_active = true')
+            .andWhere('role.slug IN (:...roleSlugs)', { roleSlugs })
+            .select('assignment.user_id', 'userId')
+            .getRawMany<{ userId: string }>(),
+    ]);
+    return [
+      ...new Set([
+        ...superadmins.map((u) => u.id),
+        ...assignments.map((a) => Number(a.userId)),
+      ]),
+    ];
+  }
+
+  /**
+   * Fans a notification out to email/SMS/push for every user with a role
+   * assignment on the notification's outlet (or, if `recipientUserIds` is
+   * given, only those users), filtered by their preferences. In-app (feed +
+   * websocket) delivery is unaffected by this — it always happens regardless
+   * of these preferences (see the callers of `create`).
+   */
+  private async dispatchExternalChannels(
+    notification: Notification,
+    recipientUserIds?: number[],
+  ): Promise<void> {
     if (!this.emailService.isConfigured && !this.smsService.isConfigured && !this.pushService.isConfigured) {
       return;
     }
 
-    const assignments = await this.userRoleAssignmentRepository.find({
-      where: { outletId: notification.outletId, isActive: true },
-    });
-    const userIds = [...new Set(assignments.map((a) => a.userId))];
+    let userIds: number[];
+    if (recipientUserIds) {
+      userIds = recipientUserIds;
+    } else {
+      const assignments = await this.userRoleAssignmentRepository.find({
+        where: { outletId: notification.outletId, isActive: true },
+      });
+      userIds = [...new Set(assignments.map((a) => a.userId))];
+    }
     if (userIds.length === 0) return;
 
     const [users, preferenceRows] = await Promise.all([
