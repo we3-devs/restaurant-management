@@ -32,9 +32,9 @@ import { useLocalCartContext } from "./local-cart-context"
 import type { LocalCartItem } from "./use-local-cart"
 
 const ITEM_STATUS_LABELS: Record<string, string> = {
-  sent_to_kitchen: "Sent",
-  preparing: "Preparing",
-  ready: "Ready",
+  sent_to_kitchen: "Accepted",
+  preparing: "Accepted",
+  ready: "Prepared",
   served: "Served",
   cancelled: "Cancelled",
 }

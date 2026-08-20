@@ -18,9 +18,9 @@ import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
 const ITEM_STATUS_LABELS: Record<string, string> = {
   stock_reserved: "Pending",
-  sent_to_kitchen: "Sent",
-  preparing: "Preparing",
-  ready: "Ready",
+  sent_to_kitchen: "Accepted",
+  preparing: "Accepted",
+  ready: "Prepared",
   served: "Served",
   cancelled: "Cancelled",
 }

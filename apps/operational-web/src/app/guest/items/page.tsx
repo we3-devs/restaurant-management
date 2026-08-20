@@ -12,10 +12,10 @@ import { useGuestOrderRealtime } from "@/app/guest/guest-order-tracker"
 import { useMyGuestOrders, type GuestOrder, type GuestOrderItem } from "@rms/api-client/hooks/use-guest-orders"
 
 const ITEM_STATUS_LABEL: Record<string, string> = {
-  stock_reserved: "Queued",
-  sent_to_kitchen: "Sent to kitchen",
-  preparing: "Preparing",
-  ready: "Ready",
+  stock_reserved: "Placed",
+  sent_to_kitchen: "Accepted",
+  preparing: "Accepted",
+  ready: "Prepared",
   served: "Served",
   cancelled: "Cancelled",
 }

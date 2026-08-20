@@ -30,7 +30,7 @@ export function useGuestOrderRealtime(tableCode: string): void {
   }, [tableCode, queryClient])
 }
 
-const MILESTONES = ["Order sent", "Accepted", "Prepared", "Served"] as const
+const MILESTONES = ["Placed", "Accepted", "Prepared", "Served"] as const
 const CANCELLABLE_STATUSES = ["pending", "accepted"]
 
 // Order.status -> milestone stage. OrdersService.syncStatusFromItems now
