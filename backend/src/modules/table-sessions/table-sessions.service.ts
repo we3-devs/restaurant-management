@@ -227,6 +227,20 @@ export class TableSessionsService {
   }
 
   /**
+   * Sets or changes the session's customer of record — e.g. a cashier
+   * attaching a walk-in to a loyalty account, or correcting who a table was
+   * seated under. Unlike attachCustomerIfMissing(), this always overwrites.
+   */
+  async setCustomer(id: number, customerId: number): Promise<TableSession> {
+    const session = await this.findOne(id);
+    await this.customersService.findOne(customerId);
+    session.customerId = customerId;
+    const saved = await this.tableSessionsRepository.save(session);
+    await this.customersService.upsertVisit(customerId, session.outletId);
+    return saved;
+  }
+
+  /**
    * Ties a verified guest to a session that's already open (e.g. a staff
    * walk-in with no customer on record yet, or a second guest joining the
    * same table). Never overwrites a customerId that's already set — the

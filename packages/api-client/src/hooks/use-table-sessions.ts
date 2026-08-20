@@ -258,3 +258,19 @@ export function useTransferTableSession(id: number) {
     },
   })
 }
+
+/** Sets or changes the session's customer of record — e.g. cashier assigns a customer from the table popup. */
+export function useSetTableSessionCustomer(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (customerId: number) =>
+      apiClient<TableSession>(`/table-sessions/${id}/customer`, {
+        method: "POST",
+        body: JSON.stringify({ customerId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
+    },
+  })
+}

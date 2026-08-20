@@ -242,9 +242,15 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     rank: 40,
     description: 'Front-of-house billing and payment collection.',
     portal: 'staff',
-    fullModules: ['order-payments', 'orders', 'loyalty'],
-    // dining-areas.view (FloorBoard's area filter), table-sessions.view
-    // (StartSaleDialog's active-session lookup) and foods/food-categories/
+    // table-sessions and customers are full modules (not just .view) so a
+    // cashier can take payment and assign/change the customer on a table
+    // straight from the floor view's table popup, not only through the
+    // order-taking flow. The dialog itself still hides start/end/transfer
+    // for cashier via a role check (see table-actions-dialog.tsx) — this
+    // grant is API-level access, matching the codebase's existing pattern
+    // of coarse permission + role-gated UI (see orders.manage below).
+    fullModules: ['order-payments', 'orders', 'loyalty', 'table-sessions', 'customers'],
+    // dining-areas.view (FloorBoard's area filter) and foods/food-categories/
     // food-variants.view (FoodGrid, CategoryTabs, VariantPickerDialog on the
     // Billing screen) are all read by the same order-taking flow every
     // orders.manage role goes through — see waiter/bartender below.
@@ -254,7 +260,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     // silently rendering with addon IDs and blank branding instead of 403ing
     // loudly, since every field there has a fallback.
     singlePermissions: [
-      'customers.view', 'dining-tables.view', 'dining-areas.view', 'table-sessions.view', 'dashboard.view',
+      'dining-tables.view', 'dining-areas.view', 'dashboard.view',
       'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
       'addons.view', 'outlets.view', 'settings.view',
     ],

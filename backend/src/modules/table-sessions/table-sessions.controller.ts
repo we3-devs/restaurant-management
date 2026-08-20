@@ -14,6 +14,7 @@ import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
 import { ListTableSessionsQueryDto } from './dto/list-table-sessions-query.dto';
+import { SetTableSessionCustomerDto } from './dto/set-table-session-customer.dto';
 import { TransferTableSessionDto } from './dto/transfer-table-session.dto';
 import { TableSessionsService } from './table-sessions.service';
 
@@ -108,5 +109,19 @@ export class TableSessionsController {
   ) {
     await this.assertSessionAccess(id, user);
     return this.tableSessionsService.transfer(id, dto, user.id);
+  }
+
+  @Post(':id/customer')
+  @RequirePermissions('table-sessions.manage')
+  @ApiOperation({
+    summary: "Sets or changes the table session's customer of record",
+  })
+  async setCustomer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetTableSessionCustomerDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertSessionAccess(id, user);
+    return this.tableSessionsService.setCustomer(id, dto.customerId);
   }
 }

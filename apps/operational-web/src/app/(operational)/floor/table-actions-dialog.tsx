@@ -30,7 +30,13 @@ import {
   useCreateServiceRequest,
   type ServiceRequestType,
 } from "@rms/api-client/hooks/use-service-requests"
-import { useEndTableSession, useTableSessions, useTransferTableSession } from "@rms/api-client/hooks/use-table-sessions"
+import {
+  useEndTableSession,
+  useSetTableSessionCustomer,
+  useTableSessions,
+  useTransferTableSession,
+} from "@rms/api-client/hooks/use-table-sessions"
+import { CheckoutPanel } from "../pos/checkout-panel"
 
 function formatSeatedFor(startedAt: string | null): string | null {
   if (!startedAt) return null
@@ -77,6 +83,11 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
   const [transferTargetId, setTransferTargetId] = useState("")
   const [showTransfer, setShowTransfer] = useState(false)
   const createRequest = useCreateServiceRequest()
+
+  const setSessionCustomer = useSetTableSessionCustomer(activeSession?.id ?? 0)
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false)
+  const [sessionCustomerId, setSessionCustomerId] = useState("")
+  const [showCheckout, setShowCheckout] = useState(false)
 
   const queryClient = useQueryClient()
   const { data: customers } = useCustomers({ limit: 100 })
@@ -144,6 +155,18 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
       onClose()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to reserve table")
+    }
+  }
+
+  async function handleSetCustomer() {
+    if (!sessionCustomerId) return
+    try {
+      await setSessionCustomer.mutateAsync(Number(sessionCustomerId))
+      toast.success("Customer updated")
+      setShowCustomerPicker(false)
+      setSessionCustomerId("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update customer")
     }
   }
 
@@ -260,6 +283,65 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
 
             {isCashier && (
               <>
+                <Separator />
+
+                {/* Customer of record — assign or correct who the table is seated under. */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Customer</p>
+                  {showCustomerPicker ? (
+                    <div className="space-y-2">
+                      <Select value={sessionCustomerId} onValueChange={(value) => setSessionCustomerId(value ?? "")}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers?.data.map((customer) => (
+                            <SelectItem key={customer.id} value={String(customer.id)}>
+                              {customer.name}
+                              {customer.phone ? ` — ${customer.phone}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSetCustomer}
+                          disabled={!sessionCustomerId || setSessionCustomer.isPending}
+                        >
+                          {setSessionCustomer.isPending ? "Saving..." : "Save"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowCustomerPicker(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => setShowCustomerPicker(true)}>
+                      {activeSession.customer ? "Change customer" : "Assign customer"}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Payment — cashier takes payment for the table's order without leaving the floor view. */}
+                {activeOrder && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Payment</p>
+                    {showCheckout ? (
+                      <>
+                        <CheckoutPanel orderId={activeOrder.id} />
+                        <Button size="sm" variant="ghost" onClick={() => setShowCheckout(false)}>
+                          Close
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" onClick={() => setShowCheckout(true)}>
+                        Take payment
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <Separator />
 
                 {/* Call waiter — cashier raises the request on the guest's behalf. */}
