@@ -7,7 +7,7 @@ import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
-import { useEndTableSession, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { tableSessionName, useEndTableSession, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 
 export function TableSessionDetail({ sessionId }: { sessionId: number }) {
   const { data: session, isLoading } = useTableSession(sessionId)
@@ -33,7 +33,7 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">Table Session #{session.id}</h1>
+          <h1 className="text-lg font-semibold">Table Session — {tableSessionName(session)}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
               {session.diningTableName ?? "Loading…"}

@@ -8,7 +8,7 @@ import { StatusBadge } from "@rms/ui/status-badge"
 import { TableSkeleton } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
-import { useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { tableSessionName, useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { StartTableSessionDialog } from "./start-table-session-dialog"
@@ -27,6 +27,7 @@ export default function TableSessionsPage() {
 
   const columns = useMemo<ColumnDef<TableSession>[]>(
     () => [
+      { id: "session", header: "Session", cell: ({ row }) => tableSessionName(row.original) },
       { id: "diningTableId", header: "Table", cell: ({ row }) => tableName(row.original.diningTableId) },
       { accessorKey: "guestCount", header: "Guests" },
       {

@@ -38,6 +38,17 @@ export interface TableSession {
   updatedAt: string
 }
 
+/** Human-readable session label — the time it was opened, since sessions don't have their own name. */
+export function tableSessionName(session: Pick<TableSession, "startedAt" | "createdAt">): string {
+  const timestamp = session.startedAt ?? session.createdAt
+  return new Date(timestamp).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
 export interface ListTableSessionsParams {
   page?: number
   limit?: number

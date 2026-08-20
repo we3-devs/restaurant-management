@@ -18,7 +18,8 @@ import { Form, FormField, FormItem, FormLabel, FormMessage } from "@rms/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateOrder } from "@rms/api-client/hooks/use-orders"
 import { useOutlets } from "@rms/api-client/hooks/use-outlets"
-import { useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
+import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
+import { tableSessionName, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { ORDER_TYPES, createOrderSchema, type CreateOrderInput } from "@rms/validators/orders"
 
 export function CreateOrderDialog() {
@@ -38,6 +39,7 @@ export function CreateOrderDialog() {
     status: "active",
     limit: 100,
   })
+  const { data: diningTables } = useDiningTables({ outletId: selectedOutletId || undefined, limit: 200 })
 
   async function onSubmit(values: CreateOrderInput) {
     try {
@@ -128,7 +130,7 @@ export function CreateOrderDialog() {
                         <SelectItem value="none">No table session</SelectItem>
                         {sessions?.data.map((session) => (
                           <SelectItem key={session.id} value={String(session.id)}>
-                            Session #{session.id} (table #{session.diningTableId})
+                            {tableSessionName(session)} — {diningTables?.data.find((t) => t.id === session.diningTableId)?.name ?? "Loading…"}
                           </SelectItem>
                         ))}
                       </SelectContent>

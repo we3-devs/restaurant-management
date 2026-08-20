@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateOrder } from "@rms/api-client/hooks/use-orders"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import type { PosBootstrapTable } from "@rms/api-client/hooks/use-bootstrap"
-import { useOpenTableSession, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
+import { tableSessionName, useOpenTableSession, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@rms/validators/orders"
 
 type OrderType = (typeof ORDER_TYPES)[number]
@@ -195,7 +195,7 @@ export function StartSaleDialog({
                         <SelectItem value="none">None — seat a walk-in instead</SelectItem>
                         {sessions?.data.map((session) => (
                           <SelectItem key={session.id} value={String(session.id)}>
-                            Table #{session.diningTableId} (session #{session.id})
+                            {tables.find((t) => t.id === session.diningTableId)?.name ?? "Loading…"} ({tableSessionName(session)})
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -15,7 +15,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import { useOrder, useOrderItems, useUpdateOrder, useIssueInvoice, type Order, type OrderItem } from "@rms/api-client/hooks/use-orders"
-import { useTableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { tableSessionName, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
@@ -165,7 +165,7 @@ function ContextDetailsCards({
                   <span className="text-muted-foreground">Guests:</span> {session.guestCount}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Session:</span> #{session.id}
+                  <span className="text-muted-foreground">Session:</span> {tableSessionName(session)}
                 </p>
               </CardContent>
             </div>
