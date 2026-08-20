@@ -145,7 +145,7 @@ export default function StaffKitchenPage() {
                   ticket={ticket}
                   now={now}
                   canManage={canManage}
-                  canMarkReady={!isKitchenStaff}
+                  canMarkReady
                   canCancel={!isKitchenStaff}
                 />
               ))
