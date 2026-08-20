@@ -41,7 +41,7 @@ export function CreatePurchaseReturnDialog() {
 
   const returnablePos = (pos?.data ?? []).filter((p) => RECEIVED_STATUSES.includes(p.status))
   const receivedItems = (items ?? []).filter((item) => item.receivedQuantity > 0)
-  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
 
   function resetAll() {
     setPoId("")
@@ -110,7 +110,7 @@ export function CreatePurchaseReturnDialog() {
                 <SelectContent>
                   {returnablePos.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
-                      {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? `Supplier #${p.supplierId}`}
+                      {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? "Loading…"}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -49,7 +49,7 @@ export function OrderSwitcher({ outletId, activeOrderId }: { outletId: number; a
         existing.count += 1
       } else {
         tableEntries.set(order.tableSessionId, {
-          tableName: tableNameBySessionId.get(order.tableSessionId) ?? `Table #${diningTableId}`,
+          tableName: tableNameBySessionId.get(order.tableSessionId) ?? "Loading…",
           diningTableId,
           count: 1,
         })

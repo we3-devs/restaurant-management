@@ -23,7 +23,7 @@ export default function DiningTablesPage() {
   const { data: areas } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
 
   const areaName = (diningAreaId: number) =>
-    areas?.data.find((area) => area.id === diningAreaId)?.name ?? `#${diningAreaId}`
+    areas?.data.find((area) => area.id === diningAreaId)?.name ?? "Loading…"
 
   const columns = useMemo<ColumnDef<DiningTable>[]>(
     () => [

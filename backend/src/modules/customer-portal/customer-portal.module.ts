@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Customer } from '../customers/entities/customer.entity';
 import { CustomerAuthModule } from '../customer-auth/customer-auth.module';
+import { FoodsModule } from '../foods/foods.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { Order } from '../orders/entities/order.entity';
@@ -18,6 +19,7 @@ import { CustomerPortalService } from './customer-portal.service';
     // Registers the 'jwt-customer' passport strategy this controller's guard
     // depends on.
     CustomerAuthModule,
+    FoodsModule,
     LoyaltyModule,
     AuditLogsModule,
   ],

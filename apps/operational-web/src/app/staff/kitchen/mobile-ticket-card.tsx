@@ -67,9 +67,9 @@ export function MobileTicketCard({
   const items = ticket.items ?? []
   const stage = ticketStage(ticket)
   const tableName = ticket.order?.tableSession?.diningTable?.name
-  const orderLabel = ticket.order?.orderNumber ?? `#${ticket.orderId}`
+  const orderLabel = ticket.order?.orderNumber ?? "Loading…"
   const foodName = (item: KitchenTicketItem) =>
-    item.orderItem?.food?.name ?? `Food #${item.orderItem?.foodId ?? "?"}`
+    item.orderItem?.food?.name ?? "Loading…"
   const variantName = (item: KitchenTicketItem) => item.orderItem?.foodVariant?.name
 
   return (

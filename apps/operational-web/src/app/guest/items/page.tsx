@@ -30,7 +30,7 @@ const ITEM_STATUS_VARIANT: Record<string, "outline" | "info" | "success" | "seco
 }
 
 function itemName(item: GuestOrderItem): string {
-  const base = item.food?.name ?? `Item #${item.foodId}`
+  const base = item.food?.name ?? "Loading…"
   return item.foodVariant ? `${base} — ${item.foodVariant.name}` : base
 }
 

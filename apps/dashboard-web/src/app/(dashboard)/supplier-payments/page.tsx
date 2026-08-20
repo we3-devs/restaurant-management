@@ -63,7 +63,7 @@ export default function SupplierPaymentsPage() {
   const showSkeleton = useDelayedLoading(isLoading)
   const cancelPayment = useCancelSupplierPayment()
 
-  const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? `#${id}`
+  const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? "Loading…"
 
   async function handleCancel(id: number) {
     try {

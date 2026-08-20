@@ -294,7 +294,7 @@ function CustomerOutletsSection({ customerId }: { customerId: number }) {
   const { data: outlets } = useOutlets({ limit: 100 })
   const updateOutlet = useUpdateCustomerOutlet(customerId)
 
-  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? `#${outletId}`
+  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? "Loading…"
 
   async function handleToggleFavorite(outletId: number, isFavoriteOutlet: boolean) {
     try {

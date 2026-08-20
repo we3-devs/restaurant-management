@@ -45,7 +45,7 @@ export function OrderTrackerBar({ tableCode }: { tableCode: string }) {
               {ORDER_LABEL[current.status] ?? current.status}
             </p>
             <span className="shrink-0 text-[11px] text-slate-400">
-              {current.orderNumber ?? `#${current.id}`}
+              {current.orderNumber ?? "Loading…"}
               {openCount > 1 && ` +${openCount - 1}`}
             </span>
           </div>

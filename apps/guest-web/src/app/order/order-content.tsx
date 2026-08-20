@@ -191,7 +191,7 @@ export default function OrderContent() {
                     order.id === current.id ? "bg-white/70" : dotTone(order.status)
                   }`}
                 />
-                {order.orderNumber ?? `#${order.id}`}
+                {order.orderNumber ?? "Loading…"}
               </button>
             ))}
           </nav>

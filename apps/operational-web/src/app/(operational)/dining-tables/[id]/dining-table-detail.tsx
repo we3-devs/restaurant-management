@@ -26,12 +26,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useDeleteDiningTable, useDiningTable, useUpdateDiningTable } from "@rms/api-client/hooks/use-dining-tables"
+import { useOutlet } from "@rms/api-client/hooks/use-outlets"
 import { DINING_TABLE_STATUSES, updateDiningTableSchema, type UpdateDiningTableInput } from "@rms/validators/dining-tables"
 
 export function DiningTableDetail({ tableId }: { tableId: number }) {
   const router = useRouter()
   const { data: table, isLoading } = useDiningTable(tableId)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: outlet } = useOutlet(table?.outletId ?? 0)
   const updateTable = useUpdateDiningTable(tableId)
   const deleteTable = useDeleteDiningTable()
 
@@ -80,7 +82,7 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{table.name}</h1>
-          <p className="text-sm text-muted-foreground">outlet #{table.outletId}</p>
+          <p className="text-sm text-muted-foreground">{outlet?.name ?? "Loading…"}</p>
         </div>
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />

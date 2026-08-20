@@ -36,7 +36,7 @@ export default function LoyaltyCustomersPage() {
       {
         id: "customerName",
         header: "Customer",
-        cell: ({ row }) => row.original.customerName ?? `Customer #${row.original.customerId}`,
+        cell: ({ row }) => row.original.customerName ?? "Loading…",
       },
       {
         id: "currentPoints",

@@ -228,8 +228,8 @@ function AddonRecipes({ addonId }: { addonId: number }) {
   const [unitId, setUnitId] = useState("")
   const [quantity, setQuantity] = useState("")
 
-  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
-  const unitName = (id: number) => units?.data.find((u) => u.id === id)?.shortName ?? `#${id}`
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
+  const unitName = (id: number) => units?.data.find((u) => u.id === id)?.shortName ?? "Loading…"
 
   async function handleAdd() {
     if (!ingredientId || !unitId || !quantity) return

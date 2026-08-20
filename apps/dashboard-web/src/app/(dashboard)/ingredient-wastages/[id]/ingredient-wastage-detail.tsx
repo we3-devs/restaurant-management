@@ -110,7 +110,7 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
             <TableBody>
               {items?.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? `#${item.ingredientId}`}</TableCell>
+                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.unitCost}</TableCell>
                   <TableCell>{item.totalCost}</TableCell>

@@ -43,7 +43,7 @@ export function CreateGoodsReceivingDialog() {
   const createGrn = useCreateGoodsReceiving()
 
   const receivablePos = (pos?.data ?? []).filter((p) => p.status === "approved" || p.status === "partially_received")
-  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
 
   function resetAll() {
     setPoId("")
@@ -127,7 +127,7 @@ export function CreateGoodsReceivingDialog() {
                 <SelectContent>
                   {receivablePos.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
-                      {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? `Supplier #${p.supplierId}`}
+                      {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? "Loading…"}
                     </SelectItem>
                   ))}
                 </SelectContent>

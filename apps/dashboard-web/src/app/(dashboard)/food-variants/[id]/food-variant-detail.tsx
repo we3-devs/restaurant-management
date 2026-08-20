@@ -35,6 +35,7 @@ import {
   useUpsertFoodVariantOutlet,
 } from "@/hooks/use-food-variants"
 import { useOutlets } from "@/hooks/use-outlets"
+import { useFood } from "@/hooks/use-foods"
 import {
   useVariantList,
   type VariantListValue,
@@ -45,6 +46,7 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const router = useRouter()
   const { data: variant, isLoading } = useFoodVariant(variantId)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: food } = useFood(variant?.foodId ?? 0)
   const updateVariant = useUpdateFoodVariant(variantId)
   const deleteVariant = useDeleteFoodVariant()
 
@@ -105,7 +107,7 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{variant.name}</h1>
-          <p className="text-sm text-muted-foreground">food #{variant.foodId}</p>
+          <p className="text-sm text-muted-foreground">{food?.name ?? "Loading…"}</p>
         </div>
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
@@ -252,7 +254,7 @@ function FoodVariantOutletOverrides({ variantId }: { variantId: number }) {
   const [price, setPrice] = useState<string>("")
   const [isAvailable, setIsAvailable] = useState(true)
 
-  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? `#${outletId}`
+  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? "Loading…"
 
   async function handleAdd() {
     if (!selectedOutletId) return

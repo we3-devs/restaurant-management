@@ -74,7 +74,7 @@ export default (): AppConfig => ({
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? '',
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '400d',
   },
   bcrypt: {
     saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '10', 10),

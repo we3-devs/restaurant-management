@@ -61,7 +61,7 @@ export default function FoodVariantsPage() {
   const { data: variantList } = useVariantList("variants")
   const { data: subVariantList } = useVariantList("sub-variants")
   const lookup = (rows: VariantListValue[] | undefined) => (id: number | null) =>
-    id === null ? "—" : (rows?.find((r) => r.id === id)?.name ?? `#${id}`)
+    id === null ? "—" : (rows?.find((r) => r.id === id)?.name ?? "Loading…")
 
   const table = useReactTable({
     data: data?.data ?? [],

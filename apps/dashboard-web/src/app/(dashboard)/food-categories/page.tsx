@@ -22,7 +22,7 @@ export default function FoodCategoriesPage() {
       id: "parent",
       header: "Parent",
       cell: ({ row }) =>
-        row.original.parentId ? (nameById.get(row.original.parentId) ?? `#${row.original.parentId}`) : "—",
+        row.original.parentId ? (nameById.get(row.original.parentId) ?? "Loading…") : "—",
     },
     {
       id: "flags",

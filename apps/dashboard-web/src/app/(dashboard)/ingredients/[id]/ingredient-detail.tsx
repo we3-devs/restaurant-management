@@ -222,7 +222,7 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
               {stocks?.data.map((stock) => (
                 <TableRow key={stock.id}>
                   <TableCell>
-                    {warehouses?.data.find((w) => w.id === stock.warehouseId)?.name ?? `#${stock.warehouseId}`}
+                    {warehouses?.data.find((w) => w.id === stock.warehouseId)?.name ?? "Loading…"}
                   </TableCell>
                   <TableCell>{stock.quantity}</TableCell>
                   <TableCell>{stock.averageCost}</TableCell>

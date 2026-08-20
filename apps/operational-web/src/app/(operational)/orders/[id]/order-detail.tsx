@@ -159,7 +159,7 @@ function ContextDetailsCards({
               <CardContent className="space-y-2 text-sm">
                 <p>
                   <span className="text-muted-foreground">Table:</span>{" "}
-                  {session.diningTableName ?? `#${session.diningTableId}`}
+                  {session.diningTableName ?? "Loading…"}
                 </p>
                 <p>
                   <span className="text-muted-foreground">Guests:</span> {session.guestCount}
@@ -186,7 +186,7 @@ function OrderItemTrackingCard({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 500 })
   const { data: variants } = useFoodVariants({ limit: 500 })
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
   const variantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 

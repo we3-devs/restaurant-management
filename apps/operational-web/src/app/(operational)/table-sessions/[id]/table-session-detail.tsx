@@ -36,7 +36,7 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
           <h1 className="text-lg font-semibold">Table Session #{session.id}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
-              {session.diningTableName ?? `table #${session.diningTableId}`}
+              {session.diningTableName ?? "Loading…"}
             </p>
             <StatusBadge status={session.status} />
           </div>
@@ -55,11 +55,11 @@ export function TableSessionDetail({ sessionId }: { sessionId: number }) {
         <CardContent className="space-y-2 text-sm">
           <p>
             <span className="text-muted-foreground">Outlet:</span>{" "}
-            {session.outletName ?? `#${session.outletId}`}
+            {session.outletName ?? "Loading…"}
           </p>
           <p>
             <span className="text-muted-foreground">Table:</span>{" "}
-            {session.diningTableName ?? `#${session.diningTableId}`}
+            {session.diningTableName ?? "Loading…"}
           </p>
           <p>
             <span className="text-muted-foreground">Guests:</span> {session.guestCount}

@@ -79,8 +79,8 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
           <h1 className="text-lg font-semibold">{po.poNo}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
-              {supplier?.supplier.companyName ?? `Supplier #${po.supplierId}`} · {outlet?.name ?? `Outlet #${po.outletId}`} ·{" "}
-              {warehouse?.name ?? `Warehouse #${po.warehouseId}`}
+              {supplier?.supplier.companyName ?? "Loading…"} · {outlet?.name ?? "Loading…"} ·{" "}
+              {warehouse?.name ?? "Loading…"}
             </p>
           </div>
         </div>
@@ -209,7 +209,7 @@ function PurchaseOrderItemsSection({
   const removeItem = useRemovePurchaseOrderItem(purchaseOrderId)
   const [showForm, setShowForm] = useState(false)
 
-  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
   const canEditItems = canManage && status === "draft"
 
   const form = useForm<AddPurchaseOrderItemInput>({

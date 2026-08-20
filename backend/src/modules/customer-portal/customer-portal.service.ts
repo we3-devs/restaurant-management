@@ -11,6 +11,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Customer, CustomerAddress } from '../customers/entities/customer.entity';
+import { FoodsService } from '../foods/foods.service';
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
 import { LoyaltyTransaction } from '../loyalty/entities/loyalty-transaction.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
@@ -34,6 +35,7 @@ export class CustomerPortalService {
     private readonly orderItemsRepository: Repository<OrderItem>,
     private readonly loyaltyService: LoyaltyService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly foodsService: FoodsService,
   ) {}
 
   private async requireCustomer(customerId: number): Promise<Customer> {
@@ -207,7 +209,7 @@ export class CustomerPortalService {
   async getOrder(
     customerId: number,
     orderId: number,
-  ): Promise<Order & { items: OrderItem[] }> {
+  ): Promise<Order & { items: (OrderItem & { foodName: string })[] }> {
     const order = await this.ordersRepository.findOne({
       where: { id: orderId },
     });
@@ -220,7 +222,15 @@ export class CustomerPortalService {
     const items = await this.orderItemsRepository.find({
       where: { orderId },
     });
-    return { ...order, items };
+    const foods = await this.foodsService.findByIds(
+      items.map((item) => item.foodId),
+    );
+    const items_ = items.map((item) => ({
+      ...item,
+      foodName:
+        foods.find((food) => food.id === item.foodId)?.name ?? 'Unknown item',
+    }));
+    return { ...order, items: items_ };
   }
 
   // -------------------------------------------------------------- invoices

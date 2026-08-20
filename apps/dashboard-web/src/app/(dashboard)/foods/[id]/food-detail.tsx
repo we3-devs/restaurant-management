@@ -414,8 +414,8 @@ function FoodRecipes({ foodId }: { foodId: number }) {
   const [unitId, setUnitId] = useState("")
   const [quantity, setQuantity] = useState("")
 
-  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? `#${id}`
-  const unitName = (id: number) => units?.data.find((u) => u.id === id)?.shortName ?? `#${id}`
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
+  const unitName = (id: number) => units?.data.find((u) => u.id === id)?.shortName ?? "Loading…"
 
   async function handleAdd() {
     if (!ingredientId || !unitId || !quantity) return
@@ -530,7 +530,7 @@ function FoodOutletOverrides({ foodId }: { foodId: number }) {
   const [price, setPrice] = useState<string>("")
   const [isAvailable, setIsAvailable] = useState(true)
 
-  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? `#${outletId}`
+  const outletName = (outletId: number) => outlets?.data.find((o) => o.id === outletId)?.name ?? "Loading…"
 
   async function handleAdd() {
     if (!selectedOutletId) return
@@ -629,7 +629,7 @@ function FoodAddonGroups({ foodId, hasAddons }: { foodId: number; hasAddons: boo
   const [selectedGroupId, setSelectedGroupId] = useState<string>("")
 
   const groupName = (addonGroupId: number) =>
-    addonGroups?.data.find((g) => g.id === addonGroupId)?.name ?? `#${addonGroupId}`
+    addonGroups?.data.find((g) => g.id === addonGroupId)?.name ?? "Loading…"
 
   async function handleAssign() {
     if (!selectedGroupId) return

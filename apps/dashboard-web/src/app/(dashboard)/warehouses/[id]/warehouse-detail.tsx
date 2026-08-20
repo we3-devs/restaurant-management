@@ -25,12 +25,14 @@ import { Label } from "@/components/ui/label"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteWarehouse, useUpdateWarehouse, useWarehouse } from "@/hooks/use-warehouses"
+import { useOutlet } from "@/hooks/use-outlets"
 import { updateWarehouseSchema, type UpdateWarehouseInput } from "@/lib/validators/warehouses"
 
 export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
   const router = useRouter()
   const { data: warehouse, isLoading } = useWarehouse(warehouseId)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: outlet } = useOutlet(warehouse?.outletId ?? 0)
   const updateWarehouse = useUpdateWarehouse(warehouseId)
   const deleteWarehouse = useDeleteWarehouse()
 
@@ -79,7 +81,7 @@ export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{warehouse.name}</h1>
-          <p className="text-sm text-muted-foreground">outlet #{warehouse.outletId}</p>
+          <p className="text-sm text-muted-foreground">{outlet?.name ?? "Loading…"}</p>
         </div>
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />

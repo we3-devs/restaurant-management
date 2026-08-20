@@ -113,7 +113,7 @@ export default function StaffOrderTakingPage() {
           onOpenChange={(open) => {
             if (!open) setChooserDismissedForTableId(Number(deepLinkTableId))
           }}
-          tableName={deepLinkTableForChooser?.name ?? `Table #${deepLinkTableId}`}
+          tableName={deepLinkTableForChooser?.name ?? "Loading…"}
           tableSessionId={deepLinkSession.id}
           outletId={effectiveOutletId}
           orders={openOrdersForDeepLinkSession}

@@ -120,9 +120,9 @@ function ReservationDetailForm({
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">{customer?.name ?? `Customer #${reservation.customerId}`}</h1>
+          <h1 className="text-lg font-semibold">{customer?.name ?? "Loading…"}</h1>
           <div className="flex items-center gap-1.5">
-            <p className="text-sm text-muted-foreground">{outlet?.name ?? `Outlet #${reservation.outletId}`}</p>
+            <p className="text-sm text-muted-foreground">{outlet?.name ?? "Loading…"}</p>
             {customer?.phone && <p className="text-sm text-muted-foreground">&middot; {customer.phone}</p>}
             <Badge variant="secondary">{reservation.source}</Badge>
           </div>
@@ -364,7 +364,7 @@ function ReservationTablesSection({ reservationId, outletId }: { reservationId: 
   const unassignTable = useUnassignReservationTable(reservationId)
   const [selectedTableId, setSelectedTableId] = useState<string>("")
 
-  const tableName = (diningTableId: number) => tables?.data.find((t) => t.id === diningTableId)?.name ?? `#${diningTableId}`
+  const tableName = (diningTableId: number) => tables?.data.find((t) => t.id === diningTableId)?.name ?? "Loading…"
   const hasTable = (assignments?.length ?? 0) > 0
 
   // A reservation has one table in the normal case, so once one is picked,

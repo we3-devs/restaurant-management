@@ -46,7 +46,7 @@ function ReservationTableCell({ reservationId, outletId }: { reservationId: numb
   return (
     <>
       {assignments
-        .map((assignment) => tables?.data.find((t) => t.id === assignment.diningTableId)?.name ?? `#${assignment.diningTableId}`)
+        .map((assignment) => tables?.data.find((t) => t.id === assignment.diningTableId)?.name ?? "Loading…")
         .join(", ")}
     </>
   )
@@ -72,7 +72,7 @@ export default function ReservationsPage() {
   const showSkeleton = useDelayedLoading(isLoading)
 
   const customerName = (customerId: number) =>
-    customers?.data.find((c) => c.id === customerId)?.name ?? `#${customerId}`
+    customers?.data.find((c) => c.id === customerId)?.name ?? "Loading…"
   const customerPhone = (customerId: number) => customers?.data.find((c) => c.id === customerId)?.phone ?? "—"
 
   const columns = useMemo<ColumnDef<Reservation>[]>(

@@ -13,6 +13,7 @@ import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useCustomers } from "@/hooks/use-customers"
 import { useLoyaltyTransactions, type LoyaltyTransaction } from "@/hooks/use-loyalty"
 import { LOYALTY_TRANSACTION_TYPES } from "@/lib/validators/loyalty"
 
@@ -56,6 +57,8 @@ export default function LoyaltyTransactionsPage() {
 
   const { data, isLoading, isPlaceholderData } = useLoyaltyTransactions(params)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: customers } = useCustomers({ limit: 100 })
+  const customerName = (id: number) => customers?.data.find((c) => c.id === id)?.name ?? "Loading…"
 
   const columns = useMemo<ColumnDef<LoyaltyTransaction>[]>(
     () => [
@@ -67,7 +70,7 @@ export default function LoyaltyTransactionsPage() {
       {
         id: "customerId",
         header: "Customer",
-        cell: ({ row }) => `Customer #${row.original.customerId}`,
+        cell: ({ row }) => customerName(row.original.customerId),
       },
       {
         id: "type",
@@ -107,7 +110,8 @@ export default function LoyaltyTransactionsPage() {
         cell: ({ row }) => row.original.notes ?? "—",
       },
     ],
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customers],
   )
 
   const table = useReactTable({

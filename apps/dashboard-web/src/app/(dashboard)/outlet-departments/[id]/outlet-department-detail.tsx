@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutletDepartment, useOutletDepartment, useUpdateOutletDepartment } from "@/hooks/use-outlet-departments"
+import { useOutlet } from "@/hooks/use-outlets"
 import {
   OUTLET_DEPARTMENT_TYPES,
   updateOutletDepartmentSchema,
@@ -36,6 +37,7 @@ export function OutletDepartmentDetail({ departmentId }: { departmentId: number 
   const router = useRouter()
   const { data: department, isLoading } = useOutletDepartment(departmentId)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: outlet } = useOutlet(department?.outletId ?? 0)
   const updateDepartment = useUpdateOutletDepartment(departmentId)
   const deleteDepartment = useDeleteOutletDepartment()
 
@@ -92,7 +94,7 @@ export function OutletDepartmentDetail({ departmentId }: { departmentId: number 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{department.name}</h1>
-          <p className="text-sm text-muted-foreground">outlet #{department.outletId}</p>
+          <p className="text-sm text-muted-foreground">{outlet?.name ?? "Loading…"}</p>
         </div>
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />

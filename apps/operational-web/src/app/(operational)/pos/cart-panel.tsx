@@ -115,7 +115,7 @@ export function CartPanel({ orderId }: { orderId: number }) {
     }
   }
 
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
   const variantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []

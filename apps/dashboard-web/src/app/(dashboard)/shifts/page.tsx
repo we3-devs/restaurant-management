@@ -315,7 +315,7 @@ function ShiftAssignmentsDialog({ shift, canManage }: { shift: Shift; canManage:
     defaultValues: { shiftId: shift.id, employeeId: 0, assignedDate: new Date().toISOString().slice(0, 10) },
   })
 
-  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? `#${id}`
+  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? "Loading…"
 
   async function onSubmit(values: AssignShiftInput) {
     try {

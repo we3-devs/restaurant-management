@@ -6,8 +6,11 @@ export const ACCESS_TOKEN_COOKIE = "access_token"
 export const REFRESH_TOKEN_COOKIE = "refresh_token"
 
 // Mirrors the backend's JWT_ACCESS_EXPIRES_IN / JWT_REFRESH_EXPIRES_IN defaults.
+// Refresh token is long-lived (400d, the max browsers allow) so a login
+// persists until explicit logout or the user clears site data — the short
+// access token is silently refreshed underneath it (see backend-client.ts).
 const ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60
-const REFRESH_TOKEN_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+const REFRESH_TOKEN_MAX_AGE_SECONDS = 400 * 24 * 60 * 60
 
 export interface AuthTokens {
   accessToken: string

@@ -51,8 +51,8 @@ export default function EmployeesPage() {
   const showSkeleton = useDelayedLoading(isLoading)
 
   const positionName = (id: number | null) => positions?.find((p) => p.id === id)?.name ?? "—"
-  const outletName = (id: number) => outlets?.data.find((o) => o.id === id)?.name ?? `#${id}`
-  const departmentName = (id: number | null) => (id ? (departments?.data.find((d) => d.id === id)?.name ?? `#${id}`) : "—")
+  const outletName = (id: number) => outlets?.data.find((o) => o.id === id)?.name ?? "Loading…"
+  const departmentName = (id: number | null) => (id ? (departments?.data.find((d) => d.id === id)?.name ?? "Loading…") : "—")
 
   const columns = useMemo<ColumnDef<Employee>[]>(
     () => [

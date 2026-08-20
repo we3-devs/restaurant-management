@@ -18,7 +18,7 @@ export default function StaffDashboardPage() {
   const { data, isLoading } = useStaffDashboard(outletFilter !== "all" ? Number(outletFilter) : undefined)
   const showSkeleton = useDelayedLoading(isLoading || !data)
 
-  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? `#${id}`
+  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? "Loading…"
 
   return (
     <div className="space-y-4">

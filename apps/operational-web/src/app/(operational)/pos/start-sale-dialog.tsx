@@ -140,7 +140,7 @@ export function StartSaleDialog({
             <>
               <div className="space-y-1.5">
                 <Label>Table</Label>
-                <Input value={preselectedTable?.name ?? `Table #${preselectedTableId}`} disabled />
+                <Input value={preselectedTable?.name ?? "Loading…"} disabled />
               </div>
               <div className="space-y-1.5">
                 <Label>Customer (optional)</Label>

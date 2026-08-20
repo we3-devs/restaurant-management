@@ -45,7 +45,7 @@ export function InvoiceView({ orderId, basePath = "" }: { orderId: number; baseP
   const { data: foods } = useFoods({ limit: 500 })
   const { data: variants } = useFoodVariants({ limit: 500 })
 
-  const getFoodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const getFoodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
   const getVariantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 

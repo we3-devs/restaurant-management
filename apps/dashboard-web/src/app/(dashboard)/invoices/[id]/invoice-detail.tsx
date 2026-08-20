@@ -12,6 +12,7 @@ import { useOutlet } from "@/hooks/use-outlets"
 import { useCustomer } from "@/hooks/use-customers"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
+import { useAddons } from "@/hooks/use-addons"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -37,10 +38,12 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: foods } = useFoods({ limit: 500 })
   const { data: variants } = useFoodVariants({ limit: 500 })
+  const { data: addons } = useAddons({ limit: 500 })
 
-  const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? `Item #${foodId}`
+  const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? "Loading…"
   const getVariantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data?.find((v) => v.id === foodVariantId)?.name ?? null) : null
+  const getAddonName = (addonId: number) => addons?.data?.find((a) => a.id === addonId)?.name ?? "Loading…"
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !order) return <NotFoundCard resource="Invoice" />
@@ -153,7 +156,7 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
                         <ul className="mt-1 text-xs text-gray-600">
                           {item.addons.map((addon) => (
                             <li key={addon.id} className="ml-4">
-                              + Addon #{addon.addonId} (x{addon.quantity})
+                              + {getAddonName(addon.addonId)} (x{addon.quantity})
                             </li>
                           ))}
                         </ul>

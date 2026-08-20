@@ -15,6 +15,7 @@ import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useUsers } from "@/hooks/use-users"
 import { downloadAuditLogsExport, useAuditLogs, type AuditAction, type AuditLog } from "@/hooks/use-audit-logs"
 
 const PAGE_SIZE = 15
@@ -69,6 +70,9 @@ export default function AuditLogsPage() {
 
   const { data, isLoading, isPlaceholderData } = useAuditLogs(params)
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: users } = useUsers({ limit: 100 })
+  const userName = (id: number | null) =>
+    id ? (users?.data.find((u) => u.id === id)?.name ?? "Loading…") : "System"
 
   const columns = useMemo<ColumnDef<AuditLog>[]>(
     () => [
@@ -87,7 +91,7 @@ export default function AuditLogsPage() {
       {
         id: "userId",
         header: "User",
-        cell: ({ row }) => row.original.userId ?? "—",
+        cell: ({ row }) => userName(row.original.userId),
       },
       {
         id: "createdAt",
@@ -95,7 +99,8 @@ export default function AuditLogsPage() {
         cell: ({ row }) => new Date(row.original.createdAt).toLocaleString(),
       },
     ],
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [users],
   )
 
   const table = useReactTable({

@@ -129,8 +129,8 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
           <h1 className="text-lg font-semibold">{employee.name}</h1>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
-              {employee.employeeCode} · {outlet?.name ?? `Outlet #${employee.outletId}`}
-              {employee.departmentId && ` · ${currentDepartment?.name ?? `Department #${employee.departmentId}`}`}
+              {employee.employeeCode} · {outlet?.name ?? "Loading…"}
+              {employee.departmentId && ` · ${currentDepartment?.name ?? "Loading…"}`}
             </p>
             <Badge variant={employee.employmentStatus === "active" ? "secondary" : "outline"}>
               {employee.employmentStatus}

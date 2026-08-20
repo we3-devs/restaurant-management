@@ -64,7 +64,7 @@ export default function AttendancePage() {
   const showSkeleton = useDelayedLoading(isLoading)
   const clockOut = useClockOut()
 
-  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? `#${id}`
+  const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? "Loading…"
 
   async function handleClockOut(attendanceId: number) {
     try {

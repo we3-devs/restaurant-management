@@ -80,7 +80,7 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
         <div>
           <h1 className="text-lg font-semibold">{transfer.transferNo}</h1>
           <p className="text-sm text-muted-foreground">
-            {transfer.transferDate} · {fromWarehouse?.name ?? `#${transfer.fromWarehouseId}`} → {toWarehouse?.name ?? `#${transfer.toWarehouseId}`}
+            {transfer.transferDate} · {fromWarehouse?.name ?? "Loading…"} → {toWarehouse?.name ?? "Loading…"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
             <TableBody>
               {items?.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? `#${item.ingredientId}`}</TableCell>
+                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.requestedQuantity}</TableCell>
                   <TableCell>{item.unitCost}</TableCell>
                   <TableCell>{item.totalCost}</TableCell>

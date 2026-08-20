@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
@@ -8,18 +9,9 @@ import { TableSkeleton } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
 import { useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { StartTableSessionDialog } from "./start-table-session-dialog"
-
-const columns: ColumnDef<TableSession>[] = [
-  { accessorKey: "diningTableId", header: "Table #" },
-  { accessorKey: "guestCount", header: "Guests" },
-  {
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
-  },
-]
 
 export default function TableSessionsPage() {
   // Outlet is a global concept (see the header switcher) — this page just
@@ -30,6 +22,22 @@ export default function TableSessionsPage() {
     outletId: outletId ?? undefined,
   })
   const showSkeleton = useDelayedLoading(isLoading)
+  const { data: diningTables } = useDiningTables({ limit: 200, outletId: outletId ?? undefined })
+  const tableName = (id: number) => diningTables?.data.find((t) => t.id === id)?.name ?? "Loading…"
+
+  const columns = useMemo<ColumnDef<TableSession>[]>(
+    () => [
+      { id: "diningTableId", header: "Table", cell: ({ row }) => tableName(row.original.diningTableId) },
+      { accessorKey: "guestCount", header: "Guests" },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [diningTables],
+  )
 
   const table = useReactTable({
     data: data?.data ?? [],

@@ -111,7 +111,7 @@ export function StockAdjustmentDetail({ adjustmentId }: { adjustmentId: number }
             <TableBody>
               {items?.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? `#${item.ingredientId}`}</TableCell>
+                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.systemQuantity}</TableCell>
                   <TableCell>{item.actualQuantity}</TableCell>
                   <TableCell>{item.differenceQuantity}</TableCell>

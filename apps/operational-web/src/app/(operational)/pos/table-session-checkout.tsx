@@ -188,7 +188,7 @@ function OrderWithItems({ order }: { order: Order }) {
   const { data: items } = useOrderItems(order.id)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
   const variantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 

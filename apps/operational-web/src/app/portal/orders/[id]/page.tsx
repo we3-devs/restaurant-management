@@ -5,6 +5,7 @@ import { customerBackendFetch } from "@rms/auth/server/customer-backend-client"
 interface OrderItem {
   id: number
   foodId: number
+  foodName: string
   quantity: number
   unitPrice: number
   totalAmount: number
@@ -55,7 +56,7 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
           <tbody>
             {order.items.map((item) => (
               <tr key={item.id} className="border-b last:border-0">
-                <td className="p-2">#{item.foodId}</td>
+                <td className="p-2">{item.foodName}</td>
                 <td className="p-2">{item.quantity}</td>
                 <td className="p-2">{item.unitPrice}</td>
                 <td className="p-2">{item.totalAmount}</td>

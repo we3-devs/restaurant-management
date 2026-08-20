@@ -49,7 +49,7 @@ export default function PurchaseOrdersPage() {
   })
   const showSkeleton = useDelayedLoading(isLoading)
 
-  const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? `#${id}`
+  const supplierName = (id: number) => suppliers?.data.find((s) => s.id === id)?.companyName ?? "Loading…"
 
   const columns = useMemo<ColumnDef<PurchaseOrder>[]>(
     () => [
