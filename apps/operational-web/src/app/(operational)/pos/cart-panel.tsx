@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, PrinterIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -73,6 +74,23 @@ function CompletedSaleSummary({
   receiptPath: string
   tablesPath: string
 }) {
+  const router = useRouter()
+
+  // The order-taking screens behind this one (table pick, food grid, cart)
+  // are no longer valid once the sale is closed out — pressing browser Back
+  // must not resurrect them. Push a throwaway history entry the moment this
+  // view mounts, then on the resulting Back press (popstate), replace
+  // straight to the tables board instead of letting the browser pop back
+  // to whatever was there before.
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href)
+    function handlePopState() {
+      router.replace(tablesPath)
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [router, tablesPath])
+
   return (
     <div className="flex w-full flex-col gap-3">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
@@ -96,7 +114,7 @@ function CompletedSaleSummary({
         <PrinterIcon />
         View / print bill
       </Button>
-      <Button render={<Link href={tablesPath} />}>Go to tables</Button>
+      <Button onClick={() => router.replace(tablesPath)}>Go to tables</Button>
     </div>
   )
 }
