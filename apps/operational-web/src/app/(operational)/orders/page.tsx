@@ -1,87 +1,176 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table"
+import { ArrowDownIcon, ArrowUpIcon, ClipboardListIcon } from "lucide-react"
 
 import { StatusBadge } from "@rms/ui/status-badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
-import { ListSkeleton } from "@rms/ui/skeletons"
-import { useKdsBootstrap } from "@rms/api-client/hooks/use-kitchen-tickets"
+import { TableSkeleton } from "@rms/ui/skeletons"
+import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
+import { useCustomers } from "@rms/api-client/hooks/use-customers"
+import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
+import { tableSessionName, useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
+import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { CreateOrderDialog } from "./create-order-dialog"
 
-interface OrderItemRow {
-  id: number
-  label: string
-  price: number
-  status: string
+/** Same calendar day as `now`, in the browser's local timezone. */
+function isToday(isoDate: string): boolean {
+  const date = new Date(isoDate)
+  const now = new Date()
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  )
 }
 
-interface TableGroup {
+interface OrderRow {
+  order: Order
   tableName: string
-  items: OrderItemRow[]
+  customerName: string
+  sessionLabel: string
 }
 
 export default function OrdersPage() {
+  const router = useRouter()
   const { outletId } = useActiveOutlet()
-  const { data, isLoading } = useKdsBootstrap(outletId)
+  const [sorting, setSorting] = useState<SortingState>([])
 
-  const groups = useMemo<TableGroup[]>(() => {
-    const byTable = new Map<string, TableGroup>()
-    for (const ticket of data?.tickets ?? []) {
-      const tableName = ticket.order?.tableSession?.diningTable?.name ?? "Takeaway"
-      const rows: OrderItemRow[] = (ticket.items ?? []).map((item) => ({
-        id: item.id,
-        label: `${item.orderItem?.quantity ?? 1} × ${item.orderItem?.food?.name ?? "Item"}${
-          item.orderItem?.foodVariant?.name ? ` — ${item.orderItem.foodVariant.name}` : ""
-        }`,
-        price: item.orderItem?.totalAmount ?? 0,
-        status: item.status,
-      }))
-      const existing = byTable.get(tableName)
-      if (existing) {
-        existing.items.push(...rows)
-      } else {
-        byTable.set(tableName, { tableName, items: rows })
-      }
-    }
-    return [...byTable.values()]
-  }, [data])
+  // Every order/session/table/customer for the outlet, filtered to today
+  // client-side — the list endpoint has no date filter and a single day's
+  // volume is small enough this is cheap.
+  const { data: orders, isLoading } = useOrders({ outletId: outletId ?? undefined, limit: 200 })
+  const { data: sessions } = useTableSessions({ outletId: outletId ?? undefined, limit: 200 })
+  const { data: tables } = useDiningTables({ outletId: outletId ?? undefined, limit: 200 })
+  const { data: customers } = useCustomers({ limit: 200 })
+  const showSkeleton = useDelayedLoading(isLoading)
+
+  const rows = useMemo<OrderRow[]>(() => {
+    const sessionById = new Map<number, TableSession>((sessions?.data ?? []).map((s) => [s.id, s]))
+    const tableNameById = new Map<number, string>((tables?.data ?? []).map((t) => [t.id, t.name]))
+    const customerNameById = new Map<number, string>((customers?.data ?? []).map((c) => [c.id, c.name]))
+
+    return (orders?.data ?? [])
+      .filter((order) => isToday(order.createdAt))
+      .map((order) => {
+        const session = order.tableSessionId ? sessionById.get(order.tableSessionId) : undefined
+        const tableName = session ? (tableNameById.get(session.diningTableId) ?? "—") : order.orderType.replace(/_/g, " ")
+        const customerName = order.customerId
+          ? (customerNameById.get(order.customerId) ?? "Loading…")
+          : (session?.customer?.name ?? "Walk-in")
+        const sessionLabel = session ? tableSessionName(session) : "—"
+        return { order, tableName, customerName, sessionLabel }
+      })
+  }, [orders, sessions, tables, customers])
+
+  const columns = useMemo<ColumnDef<OrderRow>[]>(
+    () => [
+      { id: "table", header: "Table", accessorFn: (row) => row.tableName },
+      { id: "customer", header: "Customer", accessorFn: (row) => row.customerName },
+      { id: "session", header: "Session", accessorFn: (row) => row.sessionLabel },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.order.status,
+        cell: ({ row }) => <StatusBadge status={row.original.order.status} />,
+      },
+      {
+        id: "total",
+        header: "Total",
+        accessorFn: (row) => row.order.grandTotal,
+      },
+      {
+        id: "placedAt",
+        header: "Placed",
+        accessorFn: (row) => row.order.createdAt,
+        cell: ({ row }) => new Date(row.original.order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ],
+    [],
+  )
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    initialState: { sorting: [{ id: "placedAt", desc: true }] },
+  })
+
+  const isEmpty = !isLoading && rows.length === 0
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Orders</h1>
+        <h1 className="text-lg font-semibold">Today&apos;s orders</h1>
         <CreateOrderDialog />
       </div>
 
-      {isLoading ? (
-        <ListSkeleton count={3} />
-      ) : groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No active order items right now.</p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
-            <Card key={group.tableName}>
-              <CardHeader>
-                <CardTitle className="text-sm">{group.tableName}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {group.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.price}</p>
-                    </div>
-                    <StatusBadge status={item.status} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+      {!outletId && <p className="text-sm text-muted-foreground">Select an outlet to view orders.</p>}
+
+      {outletId && showSkeleton && <TableSkeleton rows={8} columns={columns.length} />}
+
+      {outletId && isEmpty && (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
+          <ClipboardListIcon className="size-8 text-muted-foreground" />
+          <p className="text-sm font-medium">No orders yet today</p>
         </div>
+      )}
+
+      {outletId && !showSkeleton && !isEmpty && (
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  const sortDirection = header.column.getIsSorted()
+                  return (
+                    <TableHead key={header.id}>
+                      {header.column.getCanSort() ? (
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 select-none"
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {sortDirection === "asc" && <ArrowUpIcon className="size-3.5" />}
+                          {sortDirection === "desc" && <ArrowDownIcon className="size-3.5" />}
+                        </button>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                    </TableHead>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/orders/${row.original.order.id}`)}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   )
