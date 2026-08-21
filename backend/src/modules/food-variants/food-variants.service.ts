@@ -22,6 +22,7 @@ import { CreateFoodVariantDto } from './dto/create-food-variant.dto';
 import { ListFoodVariantsQueryDto } from './dto/list-food-variants-query.dto';
 import { UpdateFoodVariantDto } from './dto/update-food-variant.dto';
 import { UpsertFoodVariantOutletDto } from './dto/upsert-food-variant-outlet.dto';
+import { FoodVariantResponseDto } from './dto/food-variant-response.dto';
 import { SubVariant } from '../variants/entities/sub-variant.entity';
 import { Variant } from '../variants/entities/variant.entity';
 import { FoodVariantOutlet } from './entities/food-variant-outlet.entity';
@@ -63,7 +64,7 @@ export class FoodVariantsService {
 
   async findAll(
     query: ListFoodVariantsQueryDto,
-  ): Promise<PaginatedResponse<FoodVariant>> {
+  ): Promise<PaginatedResponse<FoodVariantResponseDto>> {
     const { page, limit, search, foodId, variantId, subVariantId } = query;
     const where: FindOptionsWhere<FoodVariant> = {};
     if (foodId !== undefined) {
@@ -87,7 +88,7 @@ export class FoodVariantsService {
     });
 
     return {
-      data: variants,
+      data: variants.map((variant) => this.toResponse(variant)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -353,5 +354,22 @@ export class FoodVariantsService {
     }
 
     return { variant, price: override?.price ?? variant.price };
+  }
+
+  toResponse(variant: FoodVariant): FoodVariantResponseDto {
+    return {
+      id: variant.id,
+      foodId: variant.foodId,
+      variantId: variant.variantId,
+      subVariantId: variant.subVariantId,
+      name: variant.name,
+      sku: variant.sku,
+      price: variant.price,
+      isDefault: variant.isDefault,
+      isActive: variant.isActive,
+      sortOrder: variant.sortOrder,
+      createdAt: variant.createdAt,
+      updatedAt: variant.updatedAt,
+    };
   }
 }

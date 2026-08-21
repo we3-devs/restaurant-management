@@ -4,6 +4,7 @@ import { AccessDenied } from "@rms/ui/access-denied"
 import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
 import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderOutletSwitcher } from "@rms/ui/header-outlet-switcher"
+import { HeaderPortalSwitcher } from "@rms/ui/header-portal-switcher"
 import { HeaderSearchButton } from "@rms/ui/header-search-button"
 import { NotificationBell } from "@rms/ui/notification-bell"
 import { UserMenu } from "@rms/ui/user-menu"
@@ -47,6 +48,7 @@ export function DashboardChrome({
               <div className="flex flex-1 items-center justify-end gap-1.5">
                 <OfflineIndicator />
                 <HeaderOutletSwitcher />
+                <HeaderPortalSwitcher current="dashboard" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <ThemeToggle />
                 <NotificationBell />

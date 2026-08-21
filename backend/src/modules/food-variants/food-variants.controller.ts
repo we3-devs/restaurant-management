@@ -49,8 +49,9 @@ export class FoodVariantsController {
   @Get(':id')
   @RequirePermissions('food-variants.view')
   @ApiOperation({ summary: 'Gets a food variant' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.foodVariantsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const variant = await this.foodVariantsService.findOne(id);
+    return this.foodVariantsService.toResponse(variant);
   }
 
   @Post()
@@ -59,18 +60,20 @@ export class FoodVariantsController {
     summary:
       'Creates a food variant (setting isDefault unsets any other default for the same food)',
   })
-  create(@Body() dto: CreateFoodVariantDto) {
-    return this.foodVariantsService.create(dto);
+  async create(@Body() dto: CreateFoodVariantDto) {
+    const variant = await this.foodVariantsService.create(dto);
+    return this.foodVariantsService.toResponse(variant);
   }
 
   @Patch(':id')
   @RequirePermissions('food-variants.manage')
   @ApiOperation({ summary: 'Updates a food variant (foodId is immutable)' })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateFoodVariantDto,
   ) {
-    return this.foodVariantsService.update(id, dto);
+    const variant = await this.foodVariantsService.update(id, dto);
+    return this.foodVariantsService.toResponse(variant);
   }
 
   @Delete(':id')

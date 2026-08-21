@@ -12,6 +12,11 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { OrdersService } from '../orders/orders.service';
+import {
+  KdsBootstrapResponseDto,
+  KitchenTicketItemResponseDto,
+  KitchenTicketResponseDto,
+} from './dto/kitchen-ticket-response.dto';
 import { ListKitchenTicketsQueryDto } from './dto/list-kitchen-tickets-query.dto';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import type { KitchenTicketItemStatus } from './entities/kitchen-ticket-item.entity';
@@ -70,7 +75,7 @@ export class KitchenTicketsService {
 
   async findAll(
     query: ListKitchenTicketsQueryDto,
-  ): Promise<PaginatedResponse<KitchenTicket>> {
+  ): Promise<PaginatedResponse<KitchenTicketResponseDto>> {
     const { page, limit, outletId, orderId, departmentId, status } = query;
     const where: FindOptionsWhere<KitchenTicket> = {};
     if (outletId !== undefined) {
@@ -94,11 +99,12 @@ export class KitchenTicketsService {
     });
 
     return {
-      data: tickets,
+      data: tickets.map((ticket) => this.toResponse(ticket)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
 
+  /** Internal lookup — returns the raw entity, used by other methods in this service that need to mutate it. */
   async findOne(id: number): Promise<KitchenTicket> {
     const ticket = await this.ticketsRepository.findOne({ where: { id } });
     if (!ticket) {
@@ -107,13 +113,19 @@ export class KitchenTicketsService {
     return ticket;
   }
 
-  async listItems(ticketId: number): Promise<KitchenTicketItem[]> {
+  /** Controller-facing GET :id — same lookup as findOne(), mapped to the response DTO. */
+  async findOneResponse(id: number): Promise<KitchenTicketResponseDto> {
+    return this.toResponse(await this.findOne(id));
+  }
+
+  async listItems(ticketId: number): Promise<KitchenTicketItemResponseDto[]> {
     await this.findOne(ticketId);
-    return this.ticketItemsRepository.find({ where: { ticketId } });
+    const items = await this.ticketItemsRepository.find({ where: { ticketId } });
+    return items.map((item) => this.toItemResponse(item));
   }
 
   /** KDS screen bootstrap: stations for the outlet + its open/in-progress tickets, fully hydrated for display. */
-  async getKdsBootstrap(outletId: number): Promise<KdsBootstrapResponse> {
+  async getKdsBootstrap(outletId: number): Promise<KdsBootstrapResponseDto> {
     const [stations, tickets] = await Promise.all([
       this.departmentsRepository.find({
         where: { outletId, canPrepareOrder: true },
@@ -126,7 +138,15 @@ export class KitchenTicketsService {
       }),
     ]);
 
-    return { stations, tickets };
+    return {
+      stations: stations.map((station) => ({
+        id: station.id,
+        name: station.name,
+        type: station.type,
+        canPrepareOrder: station.canPrepareOrder,
+      })),
+      tickets: tickets.map((ticket) => this.toResponse(ticket)),
+    };
   }
 
   async updateItemStatus(
@@ -547,5 +567,85 @@ export class KitchenTicketsService {
       notified += 1;
     }
     return notified;
+  }
+
+  // ---------------------------------------------------------------- mapping
+
+  /**
+   * Public (not private) so both this service's own controller-facing
+   * methods and KitchenTicketsController itself (for the handful of
+   * mutation endpoints that return whatever entity their service method
+   * already produced) can map to the wire shape — mirrors UsersService's
+   * toResponse() convention. Nested order/department/items only populate
+   * when the source query actually loaded those relations (currently just
+   * getKdsBootstrap's TICKET_DISPLAY_RELATIONS) — safe to leave undefined
+   * otherwise, matching the DTO's optional fields.
+   */
+  toResponse(ticket: KitchenTicket): KitchenTicketResponseDto {
+    return {
+      id: ticket.id,
+      orderId: ticket.orderId,
+      outletId: ticket.outletId,
+      departmentId: ticket.departmentId,
+      status: ticket.status,
+      priority: ticket.priority,
+      startedAt: ticket.startedAt,
+      readyAt: ticket.readyAt,
+      servedAt: ticket.servedAt,
+      recalledAt: ticket.recalledAt,
+      recallCount: ticket.recallCount,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+      department: ticket.department
+        ? { id: ticket.department.id, name: ticket.department.name }
+        : ticket.department,
+      items: ticket.items?.map((item) => this.toItemResponse(item)),
+      order: ticket.order
+        ? {
+            id: ticket.order.id,
+            orderNumber: ticket.order.orderNumber,
+            tableSession: ticket.order.tableSession
+              ? {
+                  id: ticket.order.tableSession.id,
+                  diningTable: ticket.order.tableSession.diningTable
+                    ? {
+                        id: ticket.order.tableSession.diningTable.id,
+                        name: ticket.order.tableSession.diningTable.name,
+                      }
+                    : undefined,
+                }
+              : ticket.order.tableSession,
+          }
+        : undefined,
+    };
+  }
+
+  toItemResponse(item: KitchenTicketItem): KitchenTicketItemResponseDto {
+    return {
+      id: item.id,
+      ticketId: item.ticketId,
+      orderItemId: item.orderItemId,
+      status: item.status,
+      startedAt: item.startedAt,
+      readyAt: item.readyAt,
+      servedAt: item.servedAt,
+      recalledAt: item.recalledAt,
+      recallCount: item.recallCount,
+      orderItem: item.orderItem
+        ? {
+            id: item.orderItem.id,
+            foodId: item.orderItem.foodId,
+            foodVariantId: item.orderItem.foodVariantId,
+            quantity: item.orderItem.quantity,
+            note: item.orderItem.note,
+            food: item.orderItem.food
+              ? { id: item.orderItem.food.id, name: item.orderItem.food.name }
+              : undefined,
+            foodVariant: item.orderItem.foodVariant
+              ? { id: item.orderItem.foodVariant.id, name: item.orderItem.foodVariant.name }
+              : item.orderItem.foodVariant,
+          }
+        : undefined,
+    };
   }
 }

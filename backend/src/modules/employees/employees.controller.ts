@@ -51,7 +51,7 @@ export class EmployeesController {
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     const employee = await this.employeesService.findOne(id);
     await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
-    return employee;
+    return this.employeesService.findOneResponse(id);
   }
 
   @Post('employees') @RequirePermissions('employees.manage')

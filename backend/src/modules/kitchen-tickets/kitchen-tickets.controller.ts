@@ -53,7 +53,7 @@ export class KitchenTicketsController {
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Gets a kitchen ticket' })
   findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.kitchenTicketsService.findOne(id);
+    return this.kitchenTicketsService.findOneResponse(id);
   }
 
   @Get(':id/items')
@@ -69,22 +69,24 @@ export class KitchenTicketsController {
     summary:
       'Advances a kitchen ticket item through sent_to_kitchen -> preparing -> ready -> served (or -> cancelled)',
   })
-  updateItemStatus(
+  async updateItemStatus(
     @Param('id', ParseIntPipe) id: number,
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() dto: UpdateKitchenTicketItemStatusDto,
   ) {
-    return this.kitchenTicketsService.updateItemStatus(id, itemId, dto.status);
+    const ticket = await this.kitchenTicketsService.updateItemStatus(id, itemId, dto.status);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Patch(':id/priority')
   @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({ summary: "Sets a kitchen ticket's priority" })
-  updatePriority(
+  async updatePriority(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateKitchenTicketPriorityDto,
   ) {
-    return this.kitchenTicketsService.updatePriority(id, dto.priority);
+    const ticket = await this.kitchenTicketsService.updatePriority(id, dto.priority);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Post(':id/start')
@@ -93,8 +95,9 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Start': bulk-moves every sent_to_kitchen item to preparing",
   })
-  startTicket(@Param('id', ParseIntPipe) id: number) {
-    return this.kitchenTicketsService.startTicket(id);
+  async startTicket(@Param('id', ParseIntPipe) id: number) {
+    const ticket = await this.kitchenTicketsService.startTicket(id);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Post(':id/mark-ready')
@@ -103,8 +106,9 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Mark Ready': bulk-moves every sent/preparing item to ready",
   })
-  markTicketReady(@Param('id', ParseIntPipe) id: number) {
-    return this.kitchenTicketsService.markTicketReady(id);
+  async markTicketReady(@Param('id', ParseIntPipe) id: number) {
+    const ticket = await this.kitchenTicketsService.markTicketReady(id);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Post(':id/mark-served')
@@ -113,15 +117,17 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Mark Served': bulk-moves every ready item to served",
   })
-  markTicketServed(@Param('id', ParseIntPipe) id: number) {
-    return this.kitchenTicketsService.markTicketServed(id);
+  async markTicketServed(@Param('id', ParseIntPipe) id: number) {
+    const ticket = await this.kitchenTicketsService.markTicketServed(id);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Post(':id/cancel')
   @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({ summary: 'Cancels a kitchen ticket and its open items' })
-  cancelTicket(@Param('id', ParseIntPipe) id: number) {
-    return this.kitchenTicketsService.cancelTicket(id);
+  async cancelTicket(@Param('id', ParseIntPipe) id: number) {
+    const ticket = await this.kitchenTicketsService.cancelTicket(id);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 
   @Post(':id/items/:itemId/recall')
@@ -129,10 +135,11 @@ export class KitchenTicketsController {
   @ApiOperation({
     summary: 'Reopens a "ready"/"served" item back to "preparing"',
   })
-  recallItem(
+  async recallItem(
     @Param('id', ParseIntPipe) id: number,
     @Param('itemId', ParseIntPipe) itemId: number,
   ) {
-    return this.kitchenTicketsService.recallItem(id, itemId);
+    const ticket = await this.kitchenTicketsService.recallItem(id, itemId);
+    return this.kitchenTicketsService.toResponse(ticket);
   }
 }

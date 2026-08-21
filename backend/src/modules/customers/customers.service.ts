@@ -11,6 +11,10 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { SettingsService } from '../settings/settings.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import {
+  CustomerOutletResponseDto,
+  CustomerResponseDto,
+} from './dto/customer-response.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerOutletDto } from './dto/update-customer-outlet.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -33,7 +37,7 @@ export class CustomersService {
 
   async findAll(
     query: ListCustomersQueryDto,
-  ): Promise<PaginatedResponse<Customer>> {
+  ): Promise<PaginatedResponse<CustomerResponseDto>> {
     const { page, limit, search } = query;
     const where: FindOptionsWhere<Customer>[] | FindOptionsWhere<Customer> =
       search
@@ -52,12 +56,17 @@ export class CustomersService {
     });
 
     return {
-      data: customers,
+      data: customers.map((customer) => this.toResponse(customer)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
 
-  /** Internal lookup used by ReservationsService/OrdersService/TableSessionsService to validate a customerId. */
+  /**
+   * Internal lookup used by ReservationsService/OrdersService/TableSessionsService
+   * to validate a customerId, and by the controller for the detail endpoint.
+   * Returns the raw entity — callers that expose it externally must map it
+   * via `toResponse()`.
+   */
   async findOne(id: number): Promise<Customer> {
     const customer = await this.customersRepository.findOne({
       where: { id },
@@ -68,7 +77,11 @@ export class CustomersService {
     return customer;
   }
 
-  async create(dto: CreateCustomerDto): Promise<Customer> {
+  async findOneResponse(id: number): Promise<CustomerResponseDto> {
+    return this.toResponse(await this.findOne(id));
+  }
+
+  async create(dto: CreateCustomerDto): Promise<CustomerResponseDto> {
     const customer = this.customersRepository.create({
       name: dto.name,
       phone: dto.phone ?? null,
@@ -104,10 +117,10 @@ export class CustomersService {
       );
     }
 
-    return saved;
+    return this.toResponse(saved);
   }
 
-  async update(id: number, dto: UpdateCustomerDto): Promise<Customer> {
+  async update(id: number, dto: UpdateCustomerDto): Promise<CustomerResponseDto> {
     const customer = await this.findOne(id);
 
     Object.assign(customer, {
@@ -120,7 +133,8 @@ export class CustomersService {
     });
 
     try {
-      return await this.customersRepository.save(customer);
+      const saved = await this.customersRepository.save(customer);
+      return this.toResponse(saved);
     } catch (error) {
       throw this.mapUniqueViolation(error);
     }
@@ -141,20 +155,21 @@ export class CustomersService {
   async listOutlets(
     customerId: number,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
-  ): Promise<CustomerOutlet[]> {
+  ): Promise<CustomerOutletResponseDto[]> {
     await this.findOne(customerId);
     const where: FindOptionsWhere<CustomerOutlet> = { customerId };
     if (accessibleOutletIds !== 'ALL') {
       where.outletId = In(accessibleOutletIds);
     }
-    return this.customerOutletsRepository.find({ where });
+    const visits = await this.customerOutletsRepository.find({ where });
+    return visits.map((visit) => this.toOutletResponse(visit));
   }
 
   async updateOutlet(
     customerId: number,
     outletId: number,
     dto: UpdateCustomerOutletDto,
-  ): Promise<CustomerOutlet> {
+  ): Promise<CustomerOutletResponseDto> {
     await this.findOne(customerId);
     const visit = await this.customerOutletsRepository.findOne({
       where: { customerId, outletId },
@@ -166,7 +181,8 @@ export class CustomersService {
     }
 
     visit.isFavoriteOutlet = dto.isFavoriteOutlet;
-    return this.customerOutletsRepository.save(visit);
+    const saved = await this.customerOutletsRepository.save(visit);
+    return this.toOutletResponse(saved);
   }
 
   /**
@@ -217,6 +233,30 @@ export class CustomersService {
       `upsertVisit(${customerId}, ${outletId}) timing (ms): lookupOutlet=${lookupOutletMs} findExisting=${findMs} save=${Date.now() - saveStart} total=${Date.now() - start}`,
     );
     return result;
+  }
+
+  private toResponse(customer: Customer): CustomerResponseDto {
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      address: customer.address,
+      isActive: customer.isActive,
+      createdAt: customer.createdAt,
+    };
+  }
+
+  private toOutletResponse(visit: CustomerOutlet): CustomerOutletResponseDto {
+    return {
+      id: visit.id,
+      customerId: visit.customerId,
+      outletId: visit.outletId,
+      firstVisitedAt: visit.firstVisitedAt,
+      lastVisitedAt: visit.lastVisitedAt,
+      visitCount: visit.visitCount,
+      isFavoriteOutlet: visit.isFavoriteOutlet,
+    };
   }
 
   private mapUniqueViolation(error: unknown): unknown {

@@ -122,6 +122,20 @@ export class PermissionsService {
   }
 
   /**
+   * Whether the user can reach both apps: either an explicit 'both' role, or
+   * separate 'dashboard' and 'staff' role assignments combined. Drives the
+   * portal switcher in the header nav — getPortalAccess() only reports where
+   * "/" lands them, which collapses 'both' down to 'dashboard'.
+   */
+  async hasBothPortals(userId: number): Promise<boolean> {
+    const rows = await this.getActiveAssignmentRows(userId);
+    const portals = new Set(rows.map((row) => row.portal));
+    return (
+      portals.has('both') || (portals.has('dashboard') && portals.has('staff'))
+    );
+  }
+
+  /**
    * Distinct outlet IDs the user has an active, in-window role assignment
    * scoped to. Read-only lookup for the frontend's outlet picker — does not
    * change how PermissionsGuard evaluates access (see class doc above); an

@@ -5,6 +5,7 @@ import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
 import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderDepartmentSwitcher } from "@rms/ui/header-department-switcher"
 import { HeaderOutletSwitcher } from "@rms/ui/header-outlet-switcher"
+import { HeaderPortalSwitcher } from "@rms/ui/header-portal-switcher"
 import { HeaderSearchButton } from "@rms/ui/header-search-button"
 import { NotificationBell } from "@rms/ui/notification-bell"
 import { UserMenu } from "@rms/ui/user-menu"
@@ -47,6 +48,7 @@ export function OperationalChrome({
                 <OfflineIndicator />
                 <HeaderOutletSwitcher />
                 <HeaderDepartmentSwitcher />
+                <HeaderPortalSwitcher current="staff" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <ThemeToggle />
                 <NotificationBell />

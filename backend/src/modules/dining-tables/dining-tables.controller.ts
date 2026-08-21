@@ -101,7 +101,7 @@ export class DiningTablesController {
       user.isSuperadmin,
       table.outletId,
     );
-    return table;
+    return this.diningTablesService.toResponse(table);
   }
 
   @Post()
@@ -113,7 +113,8 @@ export class DiningTablesController {
       user.isSuperadmin,
       dto.outletId,
     );
-    return this.diningTablesService.create(dto);
+    const table = await this.diningTablesService.create(dto);
+    return this.diningTablesService.toResponse(table);
   }
 
   @Patch(':id')
@@ -132,7 +133,8 @@ export class DiningTablesController {
       user.isSuperadmin,
       table.outletId,
     );
-    return this.diningTablesService.update(id, dto);
+    const updated = await this.diningTablesService.update(id, dto);
+    return this.diningTablesService.toResponse(updated);
   }
 
   @Delete(':id')

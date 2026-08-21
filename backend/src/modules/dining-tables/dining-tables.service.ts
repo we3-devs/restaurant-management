@@ -12,6 +12,7 @@ import { OutletsService } from '../outlets/outlets.service';
 import { CreateDiningTableDto } from './dto/create-dining-table.dto';
 import { ListDiningTablesQueryDto } from './dto/list-dining-tables-query.dto';
 import { UpdateDiningTableDto } from './dto/update-dining-table.dto';
+import { DiningTableResponseDto } from './dto/dining-table-response.dto';
 import { DiningTable, DiningTableStatus } from './entities/dining-table.entity';
 
 @Injectable()
@@ -26,7 +27,7 @@ export class DiningTablesService {
   async findAll(
     query: ListDiningTablesQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
-  ): Promise<PaginatedResponse<DiningTable>> {
+  ): Promise<PaginatedResponse<DiningTableResponseDto>> {
     const { page, limit, search, outletId, diningAreaId, status } = query;
     const where: FindOptionsWhere<DiningTable> = {};
     if (outletId !== undefined) {
@@ -52,7 +53,7 @@ export class DiningTablesService {
     });
 
     return {
-      data: tables,
+      data: tables.map((table) => this.toResponse(table)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -157,5 +158,21 @@ export class DiningTablesService {
       );
     }
     return error;
+  }
+
+  toResponse(table: DiningTable): DiningTableResponseDto {
+    return {
+      id: table.id,
+      outletId: table.outletId,
+      diningAreaId: table.diningAreaId,
+      name: table.name,
+      code: table.code,
+      capacity: table.capacity,
+      status: table.status,
+      shape: table.shape,
+      isActive: table.isActive,
+      createdAt: table.createdAt,
+      updatedAt: table.updatedAt,
+    };
   }
 }

@@ -53,22 +53,25 @@ export class FoodsController {
   @Get(':id')
   @RequirePermissions('foods.view')
   @ApiOperation({ summary: 'Gets a food' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.foodsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const food = await this.foodsService.findOne(id);
+    return this.foodsService.toResponse(food);
   }
 
   @Post()
   @RequirePermissions('foods.manage')
   @ApiOperation({ summary: 'Creates a food' })
-  create(@Body() dto: CreateFoodDto) {
-    return this.foodsService.create(dto);
+  async create(@Body() dto: CreateFoodDto) {
+    const food = await this.foodsService.create(dto);
+    return this.foodsService.toResponse(food);
   }
 
   @Patch(':id')
   @RequirePermissions('foods.manage')
   @ApiOperation({ summary: 'Updates a food (slug is immutable)' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateFoodDto) {
-    return this.foodsService.update(id, dto);
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateFoodDto) {
+    const food = await this.foodsService.update(id, dto);
+    return this.foodsService.toResponse(food);
   }
 
   @Delete(':id')

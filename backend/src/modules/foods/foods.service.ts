@@ -26,6 +26,7 @@ import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
 import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
+import { FoodResponseDto } from './dto/food-response.dto';
 import { FoodAddonGroup } from './entities/food-addon-group.entity';
 import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
@@ -69,7 +70,9 @@ export class FoodsService {
     return this.foodsRepository.find({ where: { id: In(ids) } });
   }
 
-  async findAll(query: ListFoodsQueryDto): Promise<PaginatedResponse<Food>> {
+  async findAll(
+    query: ListFoodsQueryDto,
+  ): Promise<PaginatedResponse<FoodResponseDto>> {
     const { page, limit, search, foodCategoryId } = query;
     const where: FindOptionsWhere<Food> = {};
     if (foodCategoryId !== undefined) {
@@ -87,7 +90,7 @@ export class FoodsService {
     });
 
     return {
-      data: foods,
+      data: foods.map((food) => this.toResponse(food)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -481,5 +484,34 @@ export class FoodsService {
       return new ConflictException(`Slug "${slug}" is already in use`);
     }
     return error;
+  }
+
+  toResponse(food: Food): FoodResponseDto {
+    return {
+      id: food.id,
+      foodCategoryId: food.foodCategoryId,
+      name: food.name,
+      slug: food.slug,
+      sku: food.sku,
+      skuSegment: food.skuSegment,
+      imageUrl: food.imageUrl,
+      shortDescription: food.shortDescription,
+      description: food.description,
+      foodType: food.foodType,
+      itemType: food.itemType,
+      departmentType: food.departmentType,
+      basePrice: food.basePrice,
+      hasVariants: food.hasVariants,
+      hasAddons: food.hasAddons,
+      isRecipeEnabled: food.isRecipeEnabled,
+      isTaxable: food.isTaxable,
+      isDiscountable: food.isDiscountable,
+      isFeatured: food.isFeatured,
+      isActive: food.isActive,
+      preparationTime: food.preparationTime,
+      sortOrder: food.sortOrder,
+      createdAt: food.createdAt,
+      updatedAt: food.updatedAt,
+    };
   }
 }

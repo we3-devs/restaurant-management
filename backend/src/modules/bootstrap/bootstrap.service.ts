@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { Addon } from '../addons/entities/addon.entity';
 import { AddonsService } from '../addons/addons.service';
-import { Customer } from '../customers/entities/customer.entity';
+import { CustomerResponseDto } from '../customers/dto/customer-response.dto';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTable } from '../dining-tables/entities/dining-table.entity';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
@@ -82,7 +82,7 @@ function toWaiterAddon(addon: Addon): WaiterAddonDto {
 
 export interface ReservationsBootstrapResponse {
   reservations: PaginatedResponse<Reservation>;
-  customers: PaginatedResponse<Customer>;
+  customers: PaginatedResponse<CustomerResponseDto>;
   outlets: PaginatedResponse<Outlet>;
 }
 

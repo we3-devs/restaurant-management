@@ -15,6 +15,11 @@ export class AuthUserDto {
 
   @ApiProperty({ enum: ['dashboard', 'staff'] })
   portal: 'dashboard' | 'staff';
+
+  @ApiProperty({
+    description: 'Whether the user can reach both the dashboard and staff apps (drives the header portal switcher)',
+  })
+  hasBothPortals: boolean;
 }
 
 export class AuthResponseDto {

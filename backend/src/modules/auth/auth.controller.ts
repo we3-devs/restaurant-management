@@ -95,6 +95,9 @@ export class AuthController {
     const portal = user.isSuperadmin
       ? ('dashboard' as const)
       : await this.permissionsService.getPortalAccess(user.id);
+    const hasBothPortals = user.isSuperadmin
+      ? true
+      : await this.permissionsService.hasBothPortals(user.id);
     phases['portal'] = Math.round((this.nowMicros() - portalStartUs) / 1000);
 
     // Measure role fetch
@@ -111,7 +114,7 @@ export class AuthController {
     );
 
     return {
-      ...(await this.toAuthUser(user, portal)),
+      ...(await this.toAuthUser(user, portal, hasBothPortals)),
       permissions: Array.from(permissions),
       outletIds: [],  // Defer to outlet picker fetch
       departmentIds: [],  // Defer to department select fetch
@@ -164,18 +167,28 @@ export class AuthController {
   // separate /auth/me round trip just to make that decision. `me()` already
   // resolves portal itself (alongside permissions/outlets/roles in one
   // Promise.all) and passes it in to avoid resolving it twice.
-  private async toAuthUser(user: User, portal?: 'dashboard' | 'staff') {
+  private async toAuthUser(
+    user: User,
+    portal?: 'dashboard' | 'staff',
+    hasBothPortals?: boolean,
+  ) {
     const resolvedPortal =
       portal ??
       (user.isSuperadmin
         ? ('dashboard' as const)
         : await this.permissionsService.getPortalAccess(user.id));
+    const resolvedHasBothPortals =
+      hasBothPortals ??
+      (user.isSuperadmin
+        ? true
+        : await this.permissionsService.hasBothPortals(user.id));
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       isSuperadmin: user.isSuperadmin,
       portal: resolvedPortal,
+      hasBothPortals: resolvedHasBothPortals,
     };
   }
 }

@@ -9,6 +9,10 @@ import { Employee } from './entities/employee.entity';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/create-employee.dto';
 import { CreatePositionDto, UpdatePositionDto } from './dto/create-position.dto';
+import {
+  EmployeeResponseDto,
+  PositionResponseDto,
+} from './dto/employee-response.dto';
 
 @Injectable()
 export class EmployeesService {
@@ -20,17 +24,24 @@ export class EmployeesService {
   ) {}
 
   // ---- Positions ----
-  async findAllPositions(): Promise<Position[]> {
-    return this.positionRepo.find({ where: { isActive: true }, order: { name: 'ASC' }, relations: ['defaultRole'] });
+  async findAllPositions(): Promise<PositionResponseDto[]> {
+    const positions = await this.positionRepo.find({ where: { isActive: true }, order: { name: 'ASC' }, relations: ['defaultRole'] });
+    return positions.map((p) => this.toPositionResponse(p));
   }
   async findPosition(id: number): Promise<Position> {
     const p = await this.positionRepo.findOne({ where: { id }, relations: ['defaultRole'] }); if (!p) throw new NotFoundException(`Position ${id} not found`); return p;
   }
-  async createPosition(dto: CreatePositionDto): Promise<Position> {
-    return this.positionRepo.save(this.positionRepo.create(dto));
+  async findPositionResponse(id: number): Promise<PositionResponseDto> {
+    return this.toPositionResponse(await this.findPosition(id));
   }
-  async updatePosition(id: number, dto: UpdatePositionDto): Promise<Position> {
-    const p = await this.findPosition(id); Object.assign(p, dto); return this.positionRepo.save(p);
+  async createPosition(dto: CreatePositionDto): Promise<PositionResponseDto> {
+    const saved = await this.positionRepo.save(this.positionRepo.create(dto));
+    return this.toPositionResponse(saved);
+  }
+  async updatePosition(id: number, dto: UpdatePositionDto): Promise<PositionResponseDto> {
+    const p = await this.findPosition(id); Object.assign(p, dto);
+    const saved = await this.positionRepo.save(p);
+    return this.toPositionResponse(saved);
   }
   async removePosition(id: number): Promise<void> {
     await this.findPosition(id); await this.positionRepo.delete(id);
@@ -70,7 +81,7 @@ export class EmployeesService {
   async findAll(
     query: ListEmployeesQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
-  ): Promise<PaginatedResponse<Employee>> {
+  ): Promise<PaginatedResponse<EmployeeResponseDto>> {
     const { page, limit, search, outletId, positionId, employmentStatus } = query;
     const where: FindOptionsWhere<Employee> = {};
     if (outletId) where.outletId = outletId;
@@ -84,35 +95,98 @@ export class EmployeesService {
           { ...where, employeeCode: ILike(`%${search}%`) },
           { ...where, email: ILike(`%${search}%`) },
         ],
+        relations: ['position'],
         order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit,
       });
-      return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+      return {
+        data: data.map((e) => this.toResponse(e)),
+        meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      };
     }
-    const [data, total] = await this.employeeRepo.findAndCount({ where, order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit });
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+    const [data, total] = await this.employeeRepo.findAndCount({
+      where,
+      relations: ['position'],
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return {
+      data: data.map((e) => this.toResponse(e)),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
   }
 
+  /** Internal lookup — returns the raw entity (with position/defaultRole loaded) for outlet-access checks and other services. */
   async findOne(id: number): Promise<Employee> {
     const e = await this.employeeRepo.findOne({ where: { id }, relations: ['position', 'position.defaultRole'] });
     if (!e) throw new NotFoundException(`Employee ${id} not found`); return e;
   }
 
-  async create(dto: CreateEmployeeDto, createdBy: number): Promise<Employee> {
+  async findOneResponse(id: number): Promise<EmployeeResponseDto> {
+    return this.toResponse(await this.findOne(id));
+  }
+
+  async create(dto: CreateEmployeeDto, createdBy: number): Promise<EmployeeResponseDto> {
     const employee = await this.employeeRepo.save(this.employeeRepo.create({
       ...dto, employeeCode: generateDocumentNumber('EMP', dto.outletId), createdBy,
     }));
     await this.syncRoleFromPosition(employee);
-    return employee;
+    return this.toResponse(await this.findOne(employee.id));
   }
 
-  async update(id: number, dto: UpdateEmployeeDto): Promise<Employee> {
+  async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponseDto> {
     const e = await this.findOne(id); Object.assign(e, dto);
     const saved = await this.employeeRepo.save(e);
     await this.syncRoleFromPosition(saved);
-    return saved;
+    return this.toResponse(await this.findOne(saved.id));
   }
 
   async remove(id: number): Promise<void> {
     const e = await this.findOne(id); await this.employeeRepo.remove(e);
+  }
+
+  private toResponse(employee: Employee): EmployeeResponseDto {
+    return {
+      id: employee.id,
+      employeeCode: employee.employeeCode,
+      userId: employee.userId,
+      positionId: employee.positionId,
+      positionName: employee.position?.name ?? null,
+      outletId: employee.outletId,
+      departmentId: employee.departmentId,
+      name: employee.name,
+      email: employee.email,
+      phone: employee.phone,
+      photoUrl: employee.photoUrl,
+      joiningDate: employee.joiningDate,
+      employmentStatus: employee.employmentStatus,
+      emergencyContactName: employee.emergencyContactName,
+      emergencyContactPhone: employee.emergencyContactPhone,
+      emergencyContactRelation: employee.emergencyContactRelation,
+      isActive: employee.isActive,
+      createdAt: employee.createdAt,
+      updatedAt: employee.updatedAt,
+    };
+  }
+
+  private toPositionResponse(position: Position): PositionResponseDto {
+    return {
+      id: position.id,
+      name: position.name,
+      slug: position.slug,
+      description: position.description,
+      defaultRoleId: position.defaultRoleId,
+      defaultRole: position.defaultRole
+        ? {
+            id: position.defaultRole.id,
+            name: position.defaultRole.name,
+            slug: position.defaultRole.slug,
+            level: position.defaultRole.level,
+          }
+        : null,
+      isActive: position.isActive,
+      createdAt: position.createdAt,
+      updatedAt: position.updatedAt,
+    };
   }
 }

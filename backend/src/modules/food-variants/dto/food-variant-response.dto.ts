@@ -7,6 +7,12 @@ export class FoodVariantResponseDto {
   @ApiProperty()
   foodId: number;
 
+  @ApiProperty({ required: false, nullable: true })
+  variantId: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  subVariantId: number | null;
+
   @ApiProperty()
   name: string;
 
