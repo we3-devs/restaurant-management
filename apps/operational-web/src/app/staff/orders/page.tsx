@@ -50,7 +50,7 @@ const SORT_OPTIONS = [
  */
 export default function StaffOrdersPage() {
   const { outletId } = useActiveOutlet()
-  const [statusFilter, setStatusFilter] = useState<string>("open")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const [sort, setSort] = useState<(typeof SORT_OPTIONS)[number]["value"]>("placedAt-desc")
   const { data: orders, isLoading } = useOrders(
     {
