@@ -51,7 +51,9 @@ export function LoginForm() {
       // already carries isSuperadmin + portal, so we can go straight to the
       // right app instead of "/" → (cross-origin) "/dashboard" one hop at a
       // time. staff/layout.tsx still re-verifies and bounces on mismatch.
-      if (getLandingPath(body.user) === "/dashboard") {
+      // A hasBothPortals user explicitly chose to log in here (operational
+      // web), so they stay — only a dashboard-only user gets redirected.
+      if (!body.user.hasBothPortals && getLandingPath(body.user) === "/dashboard") {
         window.location.href = `${DASHBOARD_WEB_URL}/dashboard`
         return
       }

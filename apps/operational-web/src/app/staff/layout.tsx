@@ -27,11 +27,14 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const pathname = (await headers()).get("x-pathname") ?? ""
 
   // Mirrors (dashboard)/layout.tsx's cross-app bounce, other direction: a
-  // dashboard-portal user (or superadmin) who lands on "/staff" — the entry
+  // dashboard-only user (or superadmin) who lands on "/staff" — the entry
   // point root page.tsx redirects everyone to — belongs in dashboard-web
-  // instead. Deep links into other staff/* routes are unaffected, same as
-  // the dashboard-web equivalent.
-  if (pathname === "/staff" && getLandingPath(user) === "/dashboard") {
+  // instead. A user with hasBothPortals explicitly chose this app (e.g. via
+  // the operational-web login page or the portal switcher), so they stay put
+  // even though getLandingPath() would otherwise collapse them to dashboard.
+  // Deep links into other staff/* routes are unaffected, same as the
+  // dashboard-web equivalent.
+  if (pathname === "/staff" && !user.hasBothPortals && getLandingPath(user) === "/dashboard") {
     redirect(`${process.env.DASHBOARD_WEB_URL ?? "http://localhost:3000"}/`)
   }
 
