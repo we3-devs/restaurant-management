@@ -10,7 +10,13 @@ import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
-import { useOrder, useOrders, useUpdateOrder, useUpdateOrderStatus } from "@rms/api-client/hooks/use-orders"
+import {
+  useOrder,
+  useOrderItems,
+  useOrders,
+  useUpdateOrder,
+  useUpdateOrderStatus,
+} from "@rms/api-client/hooks/use-orders"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
@@ -21,6 +27,7 @@ const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 export function CheckoutPanel({ orderId }: { orderId: number }) {
   const router = useRouter()
   const { data: order } = useOrder(orderId)
+  const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
   const updateOrder = useUpdateOrder(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
@@ -66,6 +73,15 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
     setSeededDueAmount(order.dueAmount)
     setPaymentAmount(order.dueAmount)
   }
+
+  // Items still sitting in the cart (added but never "Send to kitchen"'d,
+  // or held) keep the order from ever reaching 'served', which is the only
+  // status 'completed' can follow — so the backend will reject the sale.
+  // Surface that up front instead of letting the cashier hit a confusing
+  // generic error after the fact.
+  const unsentItemCount = (orderItems?.data ?? []).filter(
+    (item) => item.status === "stock_reserved",
+  ).length
 
   if (!order) return null
 
@@ -273,9 +289,15 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
             className="w-full"
             size="lg"
             onClick={handleCompleteSale}
-            disabled={order.dueAmount > 0 || updateStatus.isPending || !isOnline}
+            disabled={order.dueAmount > 0 || unsentItemCount > 0 || updateStatus.isPending || !isOnline}
           >
-            {!isOnline ? "Offline" : order.dueAmount > 0 ? `Due ${order.dueAmount}` : "Complete sale"}
+            {!isOnline
+              ? "Offline"
+              : order.dueAmount > 0
+                ? `Due ${order.dueAmount}`
+                : unsentItemCount > 0
+                  ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
+                  : "Complete sale"}
           </Button>
         </>
       )}

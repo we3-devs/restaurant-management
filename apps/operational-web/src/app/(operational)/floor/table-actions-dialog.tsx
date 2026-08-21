@@ -283,6 +283,11 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
 
             {isCashier && (
               <>
+                {/* Order — cashier can add/adjust items on the table's order, not just take payment. */}
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleViewOrder}>View / add items</Button>
+                </div>
+
                 <Separator />
 
                 {/* Customer of record — assign or correct who the table is seated under. */}
@@ -385,9 +390,8 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
         {table.status === "available" && !showReserve && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              {isCashier
-                ? "This table is free."
-                : "This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or reserve it for later."}
+              This table is free. Start a sale from the POS screen and pick this table when seating a walk-in
+              {isCashier ? "." : ", or reserve it for later."}
             </p>
             {!isCashier && (
               <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
@@ -478,7 +482,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
           </p>
         )}
 
-        {!isCashier && table.status === "available" && !showReserve && (
+        {table.status === "available" && !showReserve && (
           <DialogFooter>
             <Button
               onClick={() => {
