@@ -102,7 +102,7 @@ export default function StaffOrderTakingPage() {
           <div className="flex flex-1 flex-col gap-3 overflow-hidden">
             <CategoryTabs categoryId={categoryId} onSelect={setCategoryId} />
             <FoodGrid categoryId={categoryId} />
-            <FloatingCart orderId={activeOrderId} />
+            <FloatingCart orderId={activeOrderId} basePath={BASE_PATH} />
           </div>
         </LocalCartProvider>
       )}

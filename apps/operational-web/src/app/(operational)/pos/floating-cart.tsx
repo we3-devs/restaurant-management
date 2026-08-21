@@ -14,7 +14,7 @@ import { useLocalCartContext } from "./local-cart-context"
  * Floating bubble per FRONTEND_DESIGN_SYSTEM.md's POS spec — the cart is
  * never permanently on screen; tapping the bubble opens it as a large modal.
  */
-export function FloatingCart({ orderId }: { orderId: number }) {
+export function FloatingCart({ orderId, basePath = "/pos" }: { orderId: number; basePath?: string }) {
   const [open, setOpen] = useState(false)
   const { data: items, isLoading } = useOrderItems(orderId)
   const localCart = useLocalCartContext()
@@ -42,7 +42,7 @@ export function FloatingCart({ orderId }: { orderId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogTitle className="sr-only">Cart</DialogTitle>
-          <CartPanel orderId={orderId} />
+          <CartPanel orderId={orderId} basePath={basePath} />
         </DialogContent>
       </Dialog>
     </>

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
+import Link from "next/link"
+import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, PrinterIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
@@ -25,6 +26,7 @@ import {
   useRemoveOrderItem,
   useSendOrderToKitchen,
   useUpdateOrderItem,
+  useUpdateOrderStatus,
   type OrderItem,
 } from "@rms/api-client/hooks/use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
@@ -43,13 +45,17 @@ function round2(value: number) {
   return Math.round(value * 100) / 100
 }
 
-export function CartPanel({ orderId }: { orderId: number }) {
+export function CartPanel({ orderId, basePath = "/pos" }: { orderId: number; basePath?: string }) {
+  // The receipt page is its own top-level staff-shell page (see
+  // staff/nav-items.ts), not nested under basePath.
+  const receiptPath = basePath.startsWith("/staff") ? `/staff/pos/receipt/${orderId}` : `/pos/receipt/${orderId}`
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
   const { data: order } = useOrder(orderId)
   const { data: payments } = useOrderPayments(orderId)
   const createPayment = useCreateOrderPayment(orderId)
+  const updateStatus = useUpdateOrderStatus(orderId)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
   const user = useCurrentUser()
   // Waiters take orders but don't collect payment — that's the cashier's
@@ -165,6 +171,23 @@ export function CartPanel({ orderId }: { orderId: number }) {
     }
   }
 
+  async function handleCompleteSale() {
+    if (!order) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to complete the sale")
+      return
+    }
+    try {
+      await updateStatus.mutateAsync("completed")
+      // Stay put instead of bouncing to the receipt page — the bill can be
+      // printed from the button above whenever it's needed, before or after
+      // completion — mirrors CheckoutPanel's own behavior.
+      toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to complete sale")
+    }
+  }
+
   return (
     <div className="flex w-full flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
@@ -209,7 +232,17 @@ export function CartPanel({ orderId }: { orderId: number }) {
         <>
           <Separator />
           <div className="space-y-1.5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}
+              >
+                <PrinterIcon />
+                View / print bill
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-1 text-sm">
               <span className="text-muted-foreground">Subtotal</span>
               <span className="text-right">{order.subtotal}</span>
@@ -323,6 +356,19 @@ export function CartPanel({ orderId }: { orderId: number }) {
                   }
                 >
                   {createPayment.isPending ? "Recording..." : "Add payment"}
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={handleCompleteSale}
+                  disabled={order.dueAmount > 0 || serverPendingItems.length > 0 || updateStatus.isPending || !isOnline}
+                >
+                  {!isOnline
+                    ? "Offline"
+                    : order.dueAmount > 0
+                      ? `Due ${order.dueAmount}`
+                      : serverPendingItems.length > 0
+                        ? `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
+                        : "Complete sale"}
                 </Button>
               </>
             )}
