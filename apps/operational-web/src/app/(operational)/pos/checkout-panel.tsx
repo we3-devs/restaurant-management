@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
@@ -24,8 +25,19 @@ import { TableSessionCheckout } from "./table-session-checkout"
 
 const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 
-export function CheckoutPanel({ orderId }: { orderId: number }) {
-  const router = useRouter()
+export function CheckoutPanel({
+  orderId,
+  basePath = "/pos",
+}: {
+  orderId: number
+  /** Order-taking/receipt route this panel navigates into — desktop POS by default, staff mobile passes its own route. */
+  basePath?: string
+}) {
+  // basePath is the order-taking route ("/pos" or "/staff/waiter/pos"), but
+  // the receipt page doesn't live under it — it's its own top-level
+  // staff-shell page (see staff/nav-items.ts) — so derive it separately
+  // rather than nesting off basePath.
+  const receiptPath = basePath.startsWith("/staff") ? `/staff/pos/receipt/${orderId}` : `/pos/receipt/${orderId}`
   const { data: order } = useOrder(orderId)
   const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
@@ -128,18 +140,12 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
       toast.error("You're offline — reconnect to complete the sale")
       return
     }
-    const subtotal = order.subtotal
     try {
       await updateStatus.mutateAsync("completed")
-      // Nothing was ever ordered — there's no bill to show or print, just
-      // close out the table.
-      if (subtotal === 0) {
-        toast.success("Table closed — no sale")
-        router.push("/floor")
-      } else {
-        toast.success("Sale complete")
-        router.push(`/pos/receipt/${orderId}`)
-      }
+      // Stay put instead of bouncing to the receipt page — the bill can be
+      // printed from the button above whenever it's needed, before or after
+      // completion.
+      toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete sale")
     }
@@ -147,6 +153,13 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
 
   return (
     <div className="space-y-3 border-t border-input pt-3">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
+          <PrinterIcon />
+          View / print bill
+        </Button>
+      </div>
+
       <div className="grid grid-cols-2 gap-1 text-sm">
         <span className="text-muted-foreground">Subtotal</span>
         <span className="text-right">{order.subtotal}</span>
@@ -211,7 +224,11 @@ export function CheckoutPanel({ orderId }: { orderId: number }) {
         // order (a guest QR order alongside a staff POS order, or two POS
         // rounds rung up separately) — settle and close the whole table in
         // one action instead of one order at a time.
-        <TableSessionCheckout tableSessionId={order.tableSessionId} orders={openSiblingOrders} />
+        <TableSessionCheckout
+          tableSessionId={order.tableSessionId}
+          orders={openSiblingOrders}
+          basePath={basePath}
+        />
       ) : (
         <>
           <div className="space-y-1.5">

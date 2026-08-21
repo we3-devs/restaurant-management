@@ -61,7 +61,7 @@ export function TableCard({
           <MoreVerticalIcon className="size-4" />
         </button>
       </div>
-      {open && <TableActionsDialog table={table} onClose={() => setOpen(false)} />}
+      {open && <TableActionsDialog table={table} onClose={() => setOpen(false)} basePath={basePath} />}
     </>
   )
 }

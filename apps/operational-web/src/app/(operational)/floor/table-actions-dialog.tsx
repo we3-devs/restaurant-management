@@ -48,7 +48,16 @@ function formatSeatedFor(startedAt: string | null): string | null {
   return `seated ${hours}h${remainder ? ` ${remainder}m` : ""} ago`
 }
 
-export function TableActionsDialog({ table, onClose }: { table: DiningTable; onClose: () => void }) {
+export function TableActionsDialog({
+  table,
+  onClose,
+  basePath = "/pos",
+}: {
+  table: DiningTable
+  onClose: () => void
+  /** Order-taking/checkout route this dialog navigates into — desktop POS by default, staff mobile passes its own route. */
+  basePath?: string
+}) {
   const router = useRouter()
   const user = useCurrentUser()
   // Cashiers get everything waiters get (order-taking, transfer, end session,
@@ -170,9 +179,9 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
 
   function handleViewOrder() {
     if (activeOrder) {
-      router.push(`/pos?orderId=${activeOrder.id}`)
+      router.push(`${basePath}?orderId=${activeOrder.id}`)
     } else {
-      router.push(`/pos`)
+      router.push(basePath)
     }
   }
 
@@ -272,7 +281,11 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
                   </Button>
                   {!isWaiter && (
                     <Button variant="destructive" onClick={handleEnd} disabled={endSession.isPending}>
-                      {endSession.isPending ? "Ending..." : "End session"}
+                      {endSession.isPending
+                        ? "Closing..."
+                        : activeOrder
+                          ? "End session"
+                          : "Close table (no order)"}
                     </Button>
                   )}
                 </div>
@@ -326,7 +339,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
                     <p className="text-xs font-medium text-muted-foreground">Payment</p>
                     {showCheckout ? (
                       <>
-                        <CheckoutPanel orderId={activeOrder.id} />
+                        <CheckoutPanel orderId={activeOrder.id} basePath={basePath} />
                         <Button size="sm" variant="ghost" onClick={() => setShowCheckout(false)}>
                           Close
                         </Button>
@@ -477,7 +490,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
             <Button
               onClick={() => {
                 onClose()
-                router.push("/pos")
+                router.push(basePath)
               }}
             >
               Go to POS

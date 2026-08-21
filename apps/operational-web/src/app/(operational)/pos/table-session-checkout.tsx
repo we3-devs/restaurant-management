@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
@@ -35,12 +36,18 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
 export function TableSessionCheckout({
   tableSessionId,
   orders,
+  basePath = "/pos",
 }: {
   tableSessionId: number
   orders: Order[]
+  /** Order-taking/receipt route this panel navigates into — desktop POS by default, staff mobile passes its own route. */
+  basePath?: string
 }) {
-  const router = useRouter()
   const isOnline = useOnlineStatus()
+  // basePath is the order-taking route ("/pos" or "/staff/waiter/pos"), but
+  // the receipt page is its own top-level staff-shell page (see
+  // staff/nav-items.ts) — mirrors CheckoutPanel's derivation.
+  const receiptPath = (id: number) => (basePath.startsWith("/staff") ? `/staff/pos/receipt/${id}` : `/pos/receipt/${id}`)
   const createPayment = useCreateTableSessionPayment(tableSessionId)
   const completeAll = useCompleteAllForTableSession(tableSessionId)
 
@@ -87,15 +94,10 @@ export function TableSessionCheckout({
     }
     try {
       const completed = await completeAll.mutateAsync()
-      // Nothing was ordered on any of this table's orders — there's no bill
-      // to show or print, just close out the table.
-      if (completed.every((order) => order.subtotal === 0)) {
-        toast.success("Table closed — no sale")
-        router.push("/floor")
-      } else {
-        toast.success("Table closed out")
-        router.push(`/pos/receipt/${completed[0].id}`)
-      }
+      // Stay put instead of bouncing to the receipt page — each order's bill
+      // can be printed from the buttons above whenever it's needed, before
+      // or after completion.
+      toast.success(completed.every((order) => order.subtotal === 0) ? "Table closed — no sale" : "Table closed out")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete the table")
     }
@@ -107,7 +109,7 @@ export function TableSessionCheckout({
 
       <div className="space-y-1.5">
         {orders.map((order) => (
-          <OrderWithItems key={order.id} order={order} />
+          <OrderWithItems key={order.id} order={order} receiptHref={receiptPath(order.id)} />
         ))}
       </div>
 
@@ -184,7 +186,7 @@ export function TableSessionCheckout({
 }
 
 /** One order's summary plus its item list — not-served items first, so the cashier sees at a glance what's still outstanding before what's already gone out. */
-function OrderWithItems({ order }: { order: Order }) {
+function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: string }) {
   const { data: items } = useOrderItems(order.id)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
@@ -204,9 +206,19 @@ function OrderWithItems({ order }: { order: Order }) {
           <p className="font-medium">#{order.orderNumber}</p>
           <p className="text-muted-foreground">{order.status}</p>
         </div>
-        <div className="text-right">
-          <p>{order.grandTotal}</p>
-          <p className="text-muted-foreground">Due {order.dueAmount}</p>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <p>{order.grandTotal}</p>
+            <p className="text-muted-foreground">Due {order.dueAmount}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="View / print bill"
+            render={<Link href={receiptHref} target="_blank" rel="noopener noreferrer" />}
+          >
+            <PrinterIcon className="size-4" />
+          </Button>
         </div>
       </div>
       {sortedItems.length > 0 && (
