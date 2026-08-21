@@ -51,11 +51,9 @@ function formatSeatedFor(startedAt: string | null): string | null {
 export function TableActionsDialog({ table, onClose }: { table: DiningTable; onClose: () => void }) {
   const router = useRouter()
   const user = useCurrentUser()
-  // Cashiers see the table and can call a waiter, but don't start/end/
-  // transfer sessions, reserve tables, or take orders — that's the waiter's
-  // job. See table-card.tsx for why this is keyed off the role rather than
-  // a permission (cashier shares orders.manage with bartender/waiter, who
-  // do need the order-taking flow this dialog otherwise gates).
+  // Cashiers get everything waiters get (order-taking, transfer, end session,
+  // reservations) plus cashier-only tools: customer assignment, in-dialog
+  // checkout, and calling a waiter on the guest's behalf.
   const isCashier = !user.isSuperadmin && user.roleSlugs.includes("cashier")
   // Waiters take and transfer orders but don't close out a table — that's
   // the cashier's/manager's call once payment is settled.
@@ -244,8 +242,7 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
               </div>
             )}
 
-            {!isCashier &&
-              (showTransfer ? (
+            {showTransfer ? (
                 <div className="space-y-2">
                   <Select value={transferTargetId} onValueChange={(value) => setTransferTargetId(value ?? "")}>
                     <SelectTrigger className="w-full">
@@ -279,15 +276,10 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
                     </Button>
                   )}
                 </div>
-              ))}
+              )}
 
             {isCashier && (
               <>
-                {/* Order — cashier can add/adjust items on the table's order, not just take payment. */}
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={handleViewOrder}>View / add items</Button>
-                </div>
-
                 <Separator />
 
                 {/* Customer of record — assign or correct who the table is seated under. */}
@@ -390,18 +382,16 @@ export function TableActionsDialog({ table, onClose }: { table: DiningTable; onC
         {table.status === "available" && !showReserve && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              This table is free. Start a sale from the POS screen and pick this table when seating a walk-in
-              {isCashier ? "." : ", or reserve it for later."}
+              This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or
+              reserve it for later.
             </p>
-            {!isCashier && (
-              <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
-                Reserve this table
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
+              Reserve this table
+            </Button>
           </div>
         )}
 
-        {!isCashier && table.status === "available" && showReserve && (
+        {table.status === "available" && showReserve && (
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>Customer</Label>
