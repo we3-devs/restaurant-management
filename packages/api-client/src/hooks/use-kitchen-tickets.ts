@@ -10,6 +10,8 @@ export interface KitchenTicketOrderItem {
   foodId: number
   foodVariantId: number | null
   quantity: number
+  unitPrice: number
+  totalAmount: number
   note: string | null
   food?: { id: number; name: string }
   foodVariant?: { id: number; name: string } | null

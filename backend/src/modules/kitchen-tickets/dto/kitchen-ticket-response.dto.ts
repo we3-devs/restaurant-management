@@ -27,6 +27,12 @@ export class KitchenTicketOrderItemResponseDto {
   @ApiProperty()
   quantity: number;
 
+  @ApiProperty()
+  unitPrice: number;
+
+  @ApiProperty()
+  totalAmount: number;
+
   @ApiProperty({ required: false, nullable: true })
   note: string | null;
 

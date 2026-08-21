@@ -637,6 +637,8 @@ export class KitchenTicketsService {
             foodId: item.orderItem.foodId,
             foodVariantId: item.orderItem.foodVariantId,
             quantity: item.orderItem.quantity,
+            unitPrice: item.orderItem.unitPrice,
+            totalAmount: item.orderItem.totalAmount,
             note: item.orderItem.note,
             food: item.orderItem.food
               ? { id: item.orderItem.food.id, name: item.orderItem.food.name }

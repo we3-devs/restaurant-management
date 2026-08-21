@@ -1,50 +1,51 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
+import { useMemo } from "react"
 
 import { StatusBadge } from "@rms/ui/status-badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
-import { TableSkeleton } from "@rms/ui/skeletons"
-import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@rms/ui/table"
-import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
+import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
+import { ListSkeleton } from "@rms/ui/skeletons"
+import { useKdsBootstrap } from "@rms/api-client/hooks/use-kitchen-tickets"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
-import { ORDER_STATUSES } from "@rms/validators/orders"
 import { CreateOrderDialog } from "./create-order-dialog"
 
-const columns: ColumnDef<Order>[] = [
-  { accessorKey: "orderNumber", header: "Order #" },
-  { accessorKey: "orderType", header: "Type" },
-  {
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
-  },
-  {
-    id: "paymentStatus",
-    header: "Payment",
-    cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} />,
-  },
-  { accessorKey: "grandTotal", header: "Total" },
-]
+interface OrderItemRow {
+  id: number
+  label: string
+  price: number
+  status: string
+}
+
+interface TableGroup {
+  tableName: string
+  items: OrderItemRow[]
+}
 
 export default function OrdersPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("all")
   const { outletId } = useActiveOutlet()
-  const { data, isLoading } = useOrders({
-    limit: 100,
-    outletId: outletId ?? undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-  })
-  const showSkeleton = useDelayedLoading(isLoading)
+  const { data, isLoading } = useKdsBootstrap(outletId)
 
-  const table = useReactTable({
-    data: data?.data ?? [],
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
+  const groups = useMemo<TableGroup[]>(() => {
+    const byTable = new Map<string, TableGroup>()
+    for (const ticket of data?.tickets ?? []) {
+      const tableName = ticket.order?.tableSession?.diningTable?.name ?? "Takeaway"
+      const rows: OrderItemRow[] = (ticket.items ?? []).map((item) => ({
+        id: item.id,
+        label: `${item.orderItem?.quantity ?? 1} × ${item.orderItem?.food?.name ?? "Item"}${
+          item.orderItem?.foodVariant?.name ? ` — ${item.orderItem.foodVariant.name}` : ""
+        }`,
+        price: item.orderItem?.totalAmount ?? 0,
+        status: item.status,
+      }))
+      const existing = byTable.get(tableName)
+      if (existing) {
+        existing.items.push(...rows)
+      } else {
+        byTable.set(tableName, { tableName, items: rows })
+      }
+    }
+    return [...byTable.values()]
+  }, [data])
 
   return (
     <div className="space-y-4">
@@ -53,54 +54,34 @@ export default function OrdersPage() {
         <CreateOrderDialog />
       </div>
 
-      <div className="flex gap-4">
-        <div className="w-64 space-y-1.5">
-          <label className="text-sm font-medium">Filter by status</label>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "all")}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {showSkeleton ? (
-        <TableSkeleton rows={6} columns={columns.length} />
+      {isLoading ? (
+        <ListSkeleton count={3} />
+      ) : groups.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No active order items right now.</p>
       ) : (
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.map((group) => (
+            <Card key={group.tableName}>
+              <CardHeader>
+                <CardTitle className="text-sm">{group.tableName}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {group.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.price}</p>
+                    </div>
+                    <StatusBadge status={item.status} />
+                  </div>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    <Link href={`/orders/${row.original.id}`} className="block">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </Link>
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   )
