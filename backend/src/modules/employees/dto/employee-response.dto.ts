@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EmploymentStatus } from '../entities/employee.entity';
+import type { EmploymentStatus } from '../entities/employee.entity';
 
 export class PositionDefaultRoleDto {
   @ApiProperty()
