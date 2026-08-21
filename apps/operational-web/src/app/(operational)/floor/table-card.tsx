@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { MoreVerticalIcon } from "lucide-react"
 
 import { cn } from "@rms/ui/cn"
-import { useCurrentUser } from "@rms/auth/current-user-context"
 import type { DiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { TableActionsDialog } from "./table-actions-dialog"
 
@@ -29,19 +28,13 @@ export function TableCard({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const user = useCurrentUser()
-  // Cashiers can see the floor and call a waiter, but don't start sessions,
-  // reserve tables, or take orders — the POS/order-taking flow the tap
-  // normally opens isn't part of their job. Send them to the actions dialog
-  // instead, which itself hides the order-taking/reserve/session actions.
-  const isCashier = !user.isSuperadmin && user.roleSlugs.includes("cashier")
 
   return (
     <>
       <div className="relative">
         <button
           type="button"
-          onClick={() => (isCashier ? setOpen(true) : router.push(`${basePath}?tableId=${table.id}`))}
+          onClick={() => router.push(`${basePath}?tableId=${table.id}`)}
           className={cn(
             "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
             STATUS_STYLES[table.status] ?? STATUS_STYLES.available,
@@ -56,19 +49,17 @@ export function TableCard({
             Arriving {new Date(arrivingAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
-        {!isCashier && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setOpen(true)
-            }}
-            aria-label="More table actions"
-            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-current opacity-60 hover:bg-black/10 hover:opacity-100"
-          >
-            <MoreVerticalIcon className="size-4" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+          aria-label="More table actions"
+          className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-current opacity-60 hover:bg-black/10 hover:opacity-100"
+        >
+          <MoreVerticalIcon className="size-4" />
+        </button>
       </div>
       {open && <TableActionsDialog table={table} onClose={() => setOpen(false)} />}
     </>
