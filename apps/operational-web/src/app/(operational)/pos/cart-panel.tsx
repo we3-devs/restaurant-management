@@ -27,6 +27,7 @@ import {
   useSendOrderToKitchen,
   useUpdateOrderItem,
   useUpdateOrderStatus,
+  type Order,
   type OrderItem,
 } from "@rms/api-client/hooks/use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
@@ -46,9 +47,67 @@ function round2(value: number) {
 }
 
 export function CartPanel({ orderId, basePath = "/pos" }: { orderId: number; basePath?: string }) {
-  // The receipt page is its own top-level staff-shell page (see
-  // staff/nav-items.ts), not nested under basePath.
-  const receiptPath = basePath.startsWith("/staff") ? `/staff/pos/receipt/${orderId}` : `/pos/receipt/${orderId}`
+  // The receipt page and the tables board are their own top-level
+  // staff-shell pages (see staff/nav-items.ts), not nested under basePath.
+  const isStaffShell = basePath.startsWith("/staff")
+  const receiptPath = isStaffShell ? `/staff/pos/receipt/${orderId}` : `/pos/receipt/${orderId}`
+  const tablesPath = isStaffShell ? "/staff/waiter/tables" : "/floor"
+  const { data: order } = useOrder(orderId)
+
+  // Nothing left to do once the sale is closed out — items can no longer be
+  // edited and payment is done, so collapse to a read-only summary instead
+  // of the full editable cart.
+  if (order?.status === "completed") {
+    return <CompletedSaleSummary order={order} receiptPath={receiptPath} tablesPath={tablesPath} />
+  }
+
+  return <EditableCart orderId={orderId} receiptPath={receiptPath} />
+}
+
+function CompletedSaleSummary({
+  order,
+  receiptPath,
+  tablesPath,
+}: {
+  order: Order
+  receiptPath: string
+  tablesPath: string
+}) {
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
+      <div className="grid grid-cols-2 gap-1 text-sm">
+        <span className="text-muted-foreground">Subtotal</span>
+        <span className="text-right">{order.subtotal}</span>
+        <span className="text-muted-foreground">Discount</span>
+        <span className="text-right">{order.discountAmount}</span>
+        <span className="text-muted-foreground">Tax</span>
+        <span className="text-right">{order.taxAmount}</span>
+        <span className="text-muted-foreground">Service charge</span>
+        <span className="text-right">{order.serviceChargeAmount}</span>
+        <span className="font-medium">Grand total</span>
+        <span className="text-right font-medium">{order.grandTotal}</span>
+        <span className="text-muted-foreground">Paid</span>
+        <span className="text-right">{order.paidAmount}</span>
+        <span className="font-medium">Due</span>
+        <span className="text-right font-medium">{order.dueAmount}</span>
+      </div>
+      <Button variant="outline" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
+        <PrinterIcon />
+        View / print bill
+      </Button>
+      <Button render={<Link href={tablesPath} />}>Go to tables</Button>
+    </div>
+  )
+}
+
+function EditableCart({
+  orderId,
+  receiptPath,
+}: {
+  orderId: number
+  receiptPath: string
+}) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })

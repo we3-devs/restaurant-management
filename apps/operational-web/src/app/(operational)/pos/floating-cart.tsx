@@ -6,7 +6,7 @@ import { ShoppingCartIcon } from "lucide-react"
 import { Button } from "@rms/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@rms/ui/dialog"
 import { Skeleton } from "@rms/ui/skeleton"
-import { useOrderItems } from "@rms/api-client/hooks/use-orders"
+import { useOrder, useOrderItems } from "@rms/api-client/hooks/use-orders"
 import { CartPanel } from "./cart-panel"
 import { useLocalCartContext } from "./local-cart-context"
 
@@ -16,6 +16,7 @@ import { useLocalCartContext } from "./local-cart-context"
  */
 export function FloatingCart({ orderId, basePath = "/pos" }: { orderId: number; basePath?: string }) {
   const [open, setOpen] = useState(false)
+  const { data: order } = useOrder(orderId)
   const { data: items, isLoading } = useOrderItems(orderId)
   const localCart = useLocalCartContext()
   const localCount = localCart.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -40,7 +41,10 @@ export function FloatingCart({ orderId, basePath = "/pos" }: { orderId: number; 
         )}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+          showCloseButton={order?.status !== "completed"}
+        >
           <DialogTitle className="sr-only">Cart</DialogTitle>
           <CartPanel orderId={orderId} basePath={basePath} />
         </DialogContent>
