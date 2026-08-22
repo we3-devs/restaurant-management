@@ -91,6 +91,69 @@ export function lastCompletedMonthNp(now: Date): PeriodWindowNp {
   };
 }
 
+/** Every completed daily window from `since` (inclusive) up to `until` (exclusive), oldest first. */
+export function dayWindowsNp(since: Date, until: Date): PeriodWindowNp[] {
+  const windows: PeriodWindowNp[] = [];
+  const limit = startOfDay(until);
+  let cursor = startOfDay(since);
+  while (cursor.getTime() + DAY_MS <= limit.getTime()) {
+    const periodEndAd = new Date(cursor.getTime() + DAY_MS);
+    windows.push({
+      periodType: 'daily',
+      periodStartAd: cursor,
+      periodEndAd,
+      periodStartBs: bsDateOnly(NepaliDate.fromAD(cursor)),
+      periodEndBs: bsDateOnly(NepaliDate.fromAD(periodEndAd)),
+    });
+    cursor = periodEndAd;
+  }
+  return windows;
+}
+
+/** Every completed Sun-Sat weekly window from `since` up to `until`, oldest first. */
+export function weekWindowsNp(since: Date, until: Date): PeriodWindowNp[] {
+  const windows: PeriodWindowNp[] = [];
+  const limit = startOfDay(until);
+  const start = startOfDay(since);
+  const daysSinceSunday = start.getDay();
+  let cursor = new Date(start.getTime() - daysSinceSunday * DAY_MS);
+  while (cursor.getTime() + 7 * DAY_MS <= limit.getTime()) {
+    const periodEndAd = new Date(cursor.getTime() + 7 * DAY_MS);
+    windows.push({
+      periodType: 'weekly',
+      periodStartAd: cursor,
+      periodEndAd,
+      periodStartBs: bsDateOnly(NepaliDate.fromAD(cursor)),
+      periodEndBs: bsDateOnly(NepaliDate.fromAD(periodEndAd)),
+    });
+    cursor = periodEndAd;
+  }
+  return windows;
+}
+
+/** Every completed Baisakh-Chaitra monthly window from `since` up to `until`, oldest first. */
+export function monthWindowsNp(since: Date, until: Date): PeriodWindowNp[] {
+  const windows: PeriodWindowNp[] = [];
+  const limit = startOfDay(until);
+  const sinceBs = NepaliDate.fromAD(startOfDay(since));
+  let cursor = new NepaliDate(sinceBs.getYear(), sinceBs.getMonth(), 1);
+  while (true) {
+    const next = new NepaliDate(cursor.getYear(), cursor.getMonth(), 1);
+    next.setMonth(cursor.getMonth() + 1);
+    const periodEndAd = next.toJsDate();
+    if (periodEndAd.getTime() > limit.getTime()) break;
+    windows.push({
+      periodType: 'monthly',
+      periodStartAd: cursor.toJsDate(),
+      periodEndAd,
+      periodStartBs: bsDateOnly(cursor),
+      periodEndBs: bsDateOnly(next),
+    });
+    cursor = next;
+  }
+  return windows;
+}
+
 function shortBs(d: NepaliDate): string {
   return d.format('MMMM D, YYYY');
 }

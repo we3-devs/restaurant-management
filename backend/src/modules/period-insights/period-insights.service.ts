@@ -9,11 +9,14 @@ import {
 import { PeriodInsightsComputeService } from './period-insights-compute.service';
 import {
   type PeriodWindow,
+  dayWindows,
   lastCompletedDay,
   lastCompletedMonth,
   lastCompletedWeek,
+  monthWindows,
   periodLabel,
   toDateOnlyString,
+  weekWindows,
 } from './period-insights.util';
 
 /** Sentinel PK for the unfiltered "all outlets" row, matching dashboard-cache. */
@@ -105,14 +108,22 @@ export class PeriodInsightsService {
   }
 
   /**
-   * Backfills daily rollups for the last N completed days (and, in passing,
-   * whichever weekly/monthly windows those days belong to) — for seeding
-   * history after this feature is first deployed.
+   * One-time full-history backfill: rolls up every completed daily/weekly/
+   * monthly window from `since` up to `now`, for every outlet. Used to make
+   * pre-existing order history operational once, after which the nightly
+   * scheduler keeps things current on its own.
    */
-  async backfillDays(days: number): Promise<void> {
-    for (let i = days; i >= 1; i -= 1) {
-      const asOf = new Date(Date.now() - (i - 1) * 24 * 60 * 60_000);
-      await this.rollupAllOutlets(lastCompletedDay(asOf));
+  async backfillHistory(since: Date, now = new Date()): Promise<void> {
+    const windows = [
+      ...dayWindows(since, now),
+      ...weekWindows(since, now),
+      ...monthWindows(since, now),
+    ];
+    for (const window of windows) {
+      await this.rollupAllOutlets(window);
     }
+    this.logger.log(
+      `Backfilled ${windows.length} AD period insight window(s) since ${toDateOnlyString(since)}`,
+    );
   }
 }

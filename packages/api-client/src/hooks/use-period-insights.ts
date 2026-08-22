@@ -93,3 +93,39 @@ export function useRebuildPeriodInsightsNp() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.periodInsights.all }),
   })
 }
+
+export interface PeriodInsightsBackfillStatus {
+  running: boolean
+  since: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  error: string | null
+}
+
+/**
+ * One-time "process all old data" backfill: rolls up every daily/weekly/
+ * monthly window since the earliest order ever placed, on both AD and BS
+ * calendars. Runs in the background on the server — poll
+ * `usePeriodInsightsBackfillStatus` for progress. After it finishes once,
+ * the nightly scheduler keeps insights current automatically.
+ */
+export function useStartPeriodInsightsBackfill() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient<PeriodInsightsBackfillStatus>("/period-insights/backfill", { method: "POST" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.periodInsights.backfillStatus() }),
+  })
+}
+
+/** Status of the most recent (or currently running) full-history backfill. Pass `refetchInterval` while running to poll. */
+export function usePeriodInsightsBackfillStatus(options?: {
+  refetchInterval?: number | false | ((query: { state: { data?: PeriodInsightsBackfillStatus } }) => number | false)
+}) {
+  return useQuery({
+    queryKey: queryKeys.periodInsights.backfillStatus(),
+    queryFn: () => apiClient<PeriodInsightsBackfillStatus>("/period-insights/backfill"),
+    refetchInterval: options?.refetchInterval,
+  })
+}

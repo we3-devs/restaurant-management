@@ -99,6 +99,48 @@ export function periodLabel(window: PeriodWindow): string {
   return `${startLabel} – ${endLabel}`;
 }
 
+/** Every completed daily window from `since` (inclusive) up to `until` (exclusive), oldest first. */
+export function dayWindows(since: Date, until: Date): PeriodWindow[] {
+  const windows: PeriodWindow[] = [];
+  const limit = startOfDay(until);
+  let cursor = startOfDay(since);
+  while (cursor.getTime() + DAY_MS <= limit.getTime()) {
+    const periodEnd = new Date(cursor.getTime() + DAY_MS);
+    windows.push({ periodType: 'daily', periodStart: cursor, periodEnd });
+    cursor = periodEnd;
+  }
+  return windows;
+}
+
+/** Every completed Mon-Sun weekly window from `since` up to `until`, oldest first. */
+export function weekWindows(since: Date, until: Date): PeriodWindow[] {
+  const windows: PeriodWindow[] = [];
+  const limit = startOfDay(until);
+  const start = startOfDay(since);
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  let cursor = new Date(start.getTime() - daysSinceMonday * DAY_MS);
+  while (cursor.getTime() + 7 * DAY_MS <= limit.getTime()) {
+    const periodEnd = new Date(cursor.getTime() + 7 * DAY_MS);
+    windows.push({ periodType: 'weekly', periodStart: cursor, periodEnd });
+    cursor = periodEnd;
+  }
+  return windows;
+}
+
+/** Every completed calendar-month window from `since` up to `until`, oldest first. */
+export function monthWindows(since: Date, until: Date): PeriodWindow[] {
+  const windows: PeriodWindow[] = [];
+  const limit = startOfDay(until);
+  let cursor = new Date(since.getFullYear(), since.getMonth(), 1);
+  while (true) {
+    const periodEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    if (periodEnd.getTime() > limit.getTime()) break;
+    windows.push({ periodType: 'monthly', periodStart: cursor, periodEnd });
+    cursor = periodEnd;
+  }
+  return windows;
+}
+
 /** True on the first calendar day of an ISO week (Monday). */
 export function isWeekBoundary(now: Date): boolean {
   return now.getDay() === 1;

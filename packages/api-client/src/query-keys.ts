@@ -140,6 +140,7 @@ export const queryKeys = {
     all: ["period-insights"] as const,
     list: (params?: unknown) => [...queryKeys.periodInsights.all, "ad", params] as const,
     listNp: (params?: unknown) => [...queryKeys.periodInsights.all, "np", params] as const,
+    backfillStatus: () => [...queryKeys.periodInsights.all, "backfill-status"] as const,
   },
   reports: {
     all: ["reports"] as const,

@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,13 +11,17 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useSettingsCategory, type BusinessSettings } from "@/hooks/use-settings"
+import { queryKeys } from "@/lib/query-keys"
 import {
   usePeriodInsights,
+  usePeriodInsightsBackfillStatus,
   usePeriodInsightsNp,
+  useStartPeriodInsightsBackfill,
   type PeriodInsight,
   type PeriodInsightNp,
   type PeriodInsightType,
 } from "@/hooks/use-period-insights"
+import { toast } from "sonner"
 import { BreakdownView, ChartsView, StatCardsView } from "./period-insight-sections"
 
 type Period = PeriodInsightType
@@ -66,6 +71,20 @@ export default function SummaryPage() {
     [rows, selectedId],
   )
 
+  const { data: backfillStatus } = usePeriodInsightsBackfillStatus({
+    refetchInterval: (query) => (query.state.data?.running ? 3000 : false),
+  })
+  const startBackfill = useStartPeriodInsightsBackfill()
+  const isBackfillRunning = backfillStatus?.running ?? false
+  const queryClient = useQueryClient()
+  const wasBackfillRunning = useRef(false)
+  useEffect(() => {
+    if (wasBackfillRunning.current && !isBackfillRunning) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.periodInsights.all })
+    }
+    wasBackfillRunning.current = isBackfillRunning
+  }, [isBackfillRunning, queryClient])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -77,6 +96,20 @@ export default function SummaryPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isBackfillRunning || startBackfill.isPending}
+            onClick={() => {
+              startBackfill.mutate(undefined, {
+                onSuccess: () => toast.info("Processing all historical orders into insights — this runs in the background."),
+                onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to start backfill"),
+              })
+            }}
+          >
+            {isBackfillRunning ? "Processing history…" : "Process all old data"}
+          </Button>
           <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-1">
             {PERIODS.map((p) => (
               <Button

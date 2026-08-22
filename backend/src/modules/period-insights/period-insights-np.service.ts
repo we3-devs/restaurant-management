@@ -10,10 +10,13 @@ import { PeriodInsightsComputeService } from './period-insights-compute.service'
 import { toDateOnlyString } from './period-insights.util';
 import {
   type PeriodWindowNp,
+  dayWindowsNp,
   lastCompletedDayNp,
   lastCompletedMonthNp,
   lastCompletedWeekNp,
+  monthWindowsNp,
   periodLabelNp,
+  weekWindowsNp,
 } from './period-insights-np.util';
 
 /** Sentinel PK for the unfiltered "all outlets" row, matching dashboard-cache. */
@@ -103,5 +106,24 @@ export class PeriodInsightsNpService {
       this.rollupWeekly(now),
       this.rollupMonthly(now),
     ]);
+  }
+
+  /**
+   * One-time full-history backfill: rolls up every completed daily/weekly/
+   * monthly BS window from `since` up to `now`, for every outlet. See
+   * PeriodInsightsService.backfillHistory for the AD counterpart.
+   */
+  async backfillHistory(since: Date, now = new Date()): Promise<void> {
+    const windows = [
+      ...dayWindowsNp(since, now),
+      ...weekWindowsNp(since, now),
+      ...monthWindowsNp(since, now),
+    ];
+    for (const window of windows) {
+      await this.rollupAllOutlets(window);
+    }
+    this.logger.log(
+      `Backfilled ${windows.length} BS period insight window(s) since ${toDateOnlyString(since)}`,
+    );
   }
 }
