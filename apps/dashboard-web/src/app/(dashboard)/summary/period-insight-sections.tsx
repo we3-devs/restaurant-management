@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatCard } from "@/components/stat-card"
 import type { PeriodInsightPayload } from "@/hooks/use-period-insights"
-import { CHART_COLOR, ChartTooltip, money } from "../_shared/dashboard-sections"
+import { CHART_COLOR, ChartTooltip, money } from "../_shared/chart-utils"
 
 /**
  * Pure, payload-driven counterparts of the `_shared/dashboard-sections.tsx`
