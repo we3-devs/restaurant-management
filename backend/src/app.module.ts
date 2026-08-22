@@ -26,6 +26,7 @@ import { CustomerAuthModule } from './modules/customer-auth/customer-auth.module
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DashboardCacheModule } from './modules/dashboard-cache/dashboard-cache.module';
+import { PeriodInsightsModule } from './modules/period-insights/period-insights.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { GoodsReceivingModule } from './modules/goods-receiving/goods-receiving.module';
@@ -228,6 +229,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     BootstrapModule,
     DashboardModule,
     DashboardCacheModule,
+    PeriodInsightsModule,
     ReportsModule,
     SettingsModule,
     UploadsModule,

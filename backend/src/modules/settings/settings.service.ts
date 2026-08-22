@@ -18,7 +18,10 @@ import {
   PosSettingsDto,
   ReservationSettingsDto,
 } from './dto/settings-category.dto';
-import { GlobalSetting, SettingsCategory } from './entities/global-setting.entity';
+import {
+  GlobalSetting,
+  SettingsCategory,
+} from './entities/global-setting.entity';
 
 const CACHE_TTL_SECONDS = 3600;
 
@@ -55,6 +58,8 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     businessHours: null,
     timezone: 'Asia/Kathmandu',
     currency: 'NPR',
+    /** AD (Gregorian) or BS (Bikram Sambat) — which calendar period-insight rollups/reports default to. */
+    calendarSystem: 'AD',
   },
   pos: {
     receiptPrefix: 'INV',
@@ -145,7 +150,9 @@ export class SettingsService {
     return `${publicUrl}/api/uploads/${match[1]}`;
   }
 
-  private assertKnownCategory(category: string): asserts category is SettingsCategory {
+  private assertKnownCategory(
+    category: string,
+  ): asserts category is SettingsCategory {
     if (!CATEGORIES.includes(category as SettingsCategory)) {
       throw new BadRequestException(
         `Unknown settings category "${category}" — expected one of ${CATEGORIES.join(', ')}`,
@@ -154,7 +161,9 @@ export class SettingsService {
   }
 
   async get(category: SettingsCategory): Promise<Record<string, unknown>> {
-    const cached = await this.cache.get<Record<string, unknown>>(cacheKey(category));
+    const cached = await this.cache.get<Record<string, unknown>>(
+      cacheKey(category),
+    );
     if (cached) return cached;
 
     const row = await this.settingsRepository.findOne({ where: { category } });
@@ -165,7 +174,9 @@ export class SettingsService {
 
   async getAll(): Promise<Record<SettingsCategory, Record<string, unknown>>> {
     const entries = await Promise.all(
-      CATEGORIES.map(async (category) => [category, await this.get(category)] as const),
+      CATEGORIES.map(
+        async (category) => [category, await this.get(category)] as const,
+      ),
     );
     return Object.fromEntries(entries) as Record<
       SettingsCategory,

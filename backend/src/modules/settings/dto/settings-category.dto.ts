@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class BusinessSettingsDto {
   @ApiPropertyOptional()
@@ -35,7 +42,9 @@ export class BusinessSettingsDto {
   @IsString()
   vatNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Freeform text, e.g. a JSON-encoded weekly schedule' })
+  @ApiPropertyOptional({
+    description: 'Freeform text, e.g. a JSON-encoded weekly schedule',
+  })
   @IsOptional()
   @IsString()
   businessHours?: string;
@@ -49,19 +58,37 @@ export class BusinessSettingsDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @ApiPropertyOptional({
+    enum: ['AD', 'BS'],
+    description:
+      'Which calendar period-insight rollups/reports default to — AD (Gregorian) or BS (Bikram Sambat).',
+  })
+  @IsOptional()
+  @IsIn(['AD', 'BS'])
+  calendarSystem?: 'AD' | 'BS';
 }
 
-const BILL_NUMBER_RESET_PERIODS = ['never', 'daily', 'monthly', 'yearly'] as const;
+const BILL_NUMBER_RESET_PERIODS = [
+  'never',
+  'daily',
+  'monthly',
+  'yearly',
+] as const;
 
 export class PosSettingsDto {
   @ApiPropertyOptional({
-    description: "Prefix for guest-facing bill numbers, e.g. 'BILL' -> BILL-20260803-0007",
+    description:
+      "Prefix for guest-facing bill numbers, e.g. 'BILL' -> BILL-20260803-0007",
   })
   @IsOptional()
   @IsString()
   receiptPrefix?: string;
 
-  @ApiPropertyOptional({ description: 'Zero-padding width for the sequence portion of the bill number, e.g. 4 -> 0007' })
+  @ApiPropertyOptional({
+    description:
+      'Zero-padding width for the sequence portion of the bill number, e.g. 4 -> 0007',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -69,7 +96,8 @@ export class PosSettingsDto {
 
   @ApiPropertyOptional({
     enum: BILL_NUMBER_RESET_PERIODS,
-    description: 'How often the bill number sequence resets back to 1 — never, or on a daily/monthly/yearly boundary',
+    description:
+      'How often the bill number sequence resets back to 1 — never, or on a daily/monthly/yearly boundary',
   })
   @IsOptional()
   @IsIn(BILL_NUMBER_RESET_PERIODS)

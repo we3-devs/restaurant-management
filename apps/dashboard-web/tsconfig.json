@@ -43,6 +43,7 @@
       "@/components/theme-toggle": ["../../packages/ui/src/theme-toggle"],
       "@/components/data-table-pagination": ["../../packages/ui/src/data-table-pagination"],
       "@/components/date-range-filter": ["../../packages/ui/src/date-range-filter"],
+      "@/components/date-picker": ["../../packages/ui/src/date-picker"],
       "@/components/qr-code": ["../../packages/ui/src/qr-code"],
       "@/components/my-delivery-preferences": ["../../packages/ui/src/my-delivery-preferences"],
       "@/components/bill-receipt": ["../../packages/ui/src/bill-receipt"],

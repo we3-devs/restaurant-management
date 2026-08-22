@@ -22,6 +22,8 @@ export interface BusinessSettings {
   businessHours?: string
   timezone?: string
   currency?: string
+  /** Which calendar period-insight rollups/reports default to. */
+  calendarSystem?: "AD" | "BS"
 }
 
 export interface PosSettings {

@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
@@ -24,7 +25,13 @@ const defaultValues: BusinessSettingsInput = {
   businessHours: "",
   timezone: "",
   currency: "",
+  calendarSystem: "AD",
 }
+
+const CALENDAR_SYSTEMS = [
+  { value: "AD", label: "AD (Gregorian)" },
+  { value: "BS", label: "BS (Bikram Sambat)" },
+] as const
 
 export default function BusinessSettingsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -168,6 +175,28 @@ export default function BusinessSettingsPage() {
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
                       <FormControl disabled={!canManage} {...field} />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="calendarSystem"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Calendar system</FormLabel>
+                      <Select value={field.value ?? "AD"} onValueChange={field.onChange} disabled={!canManage}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CALENDAR_SYSTEMS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -136,6 +136,11 @@ export const queryKeys = {
     breakdown: (params?: unknown) => [...queryKeys.dashboard.all, "breakdown", params] as const,
     inventoryActivity: (params?: unknown) => [...queryKeys.dashboard.all, "inventory-activity", params] as const,
   },
+  periodInsights: {
+    all: ["period-insights"] as const,
+    list: (params?: unknown) => [...queryKeys.periodInsights.all, "ad", params] as const,
+    listNp: (params?: unknown) => [...queryKeys.periodInsights.all, "np", params] as const,
+  },
   reports: {
     all: ["reports"] as const,
     detail: (type: string, params?: unknown) => [...queryKeys.reports.all, type, params] as const,

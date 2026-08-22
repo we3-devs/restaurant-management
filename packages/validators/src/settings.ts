@@ -11,6 +11,7 @@ export const businessSettingsSchema = z.object({
   businessHours: z.string().optional(),
   timezone: z.string().optional(),
   currency: z.string().optional(),
+  calendarSystem: z.enum(["AD", "BS"]).optional(),
 })
 
 export type BusinessSettingsInput = z.infer<typeof businessSettingsSchema>
