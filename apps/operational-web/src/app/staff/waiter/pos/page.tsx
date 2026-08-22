@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@rms/ui/button"
@@ -52,6 +52,14 @@ export default function StaffOrderTakingPage() {
   // rendering the live cart, which would let staff keep adding items to it.
   const { data: activeOrder } = useOrder(activeOrderId ?? 0)
   const isCancelledOrder = activeOrder?.status === "cancelled"
+
+  // Same deal for a completed sale reached this way (table tapped again,
+  // deep link, or browser Back past the cart panel's own history guard) —
+  // bounce straight back to the tables board instead of showing a dead order.
+  const isCompletedOrder = activeOrder?.status === "completed"
+  useEffect(() => {
+    if (isCompletedOrder) router.replace(BASE_PATH)
+  }, [isCompletedOrder, router])
 
   useKitchenRealtime(effectiveOutletId)
   const bootstrap = usePosBootstrap(effectiveOutletId)

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { ClockIcon, DropletIcon, HandIcon, ReceiptIcon, UsersIcon } from "lucide-react"
+import { ClockIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
@@ -27,16 +27,13 @@ import { useDiningTables, type DiningTable } from "@rms/api-client/hooks/use-din
 import { useOrders } from "@rms/api-client/hooks/use-orders"
 import { useCreateReservation, type Reservation } from "@rms/api-client/hooks/use-reservations"
 import {
-  useCreateServiceRequest,
-  type ServiceRequestType,
-} from "@rms/api-client/hooks/use-service-requests"
-import {
   useEndTableSession,
   useSetTableSessionCustomer,
   useTableSessions,
   useTransferTableSession,
 } from "@rms/api-client/hooks/use-table-sessions"
 import { CheckoutPanel } from "../pos/checkout-panel"
+import { TableQrCode } from "./table-qr-code"
 
 function formatSeatedFor(startedAt: string | null): string | null {
   if (!startedAt) return null
@@ -89,7 +86,6 @@ export function TableActionsDialog({
   })
   const [transferTargetId, setTransferTargetId] = useState("")
   const [showTransfer, setShowTransfer] = useState(false)
-  const createRequest = useCreateServiceRequest()
 
   const setSessionCustomer = useSetTableSessionCustomer(activeSession?.id ?? 0)
   const [showCustomerPicker, setShowCustomerPicker] = useState(false)
@@ -100,21 +96,13 @@ export function TableActionsDialog({
   const { data: customers } = useCustomers({ limit: 100 })
   const createReservation = useCreateReservation()
   const [showReserve, setShowReserve] = useState(false)
+  const [showQr, setShowQr] = useState(false)
   const [reserveCustomerId, setReserveCustomerId] = useState("")
   const [reserveAt, setReserveAt] = useState("")
   const [reserveGuestCount, setReserveGuestCount] = useState(table.capacity)
   const [reserveDepositAmount, setReserveDepositAmount] = useState(0)
   const [reserveSpecialRequest, setReserveSpecialRequest] = useState("")
   const [reserveInternalNote, setReserveInternalNote] = useState("")
-
-  async function handleCallWaiter(type: ServiceRequestType) {
-    try {
-      await createRequest.mutateAsync({ diningTableId: table.id, type })
-      toast.success("Request sent to the service queue")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send request")
-    }
-  }
 
   async function handleEnd() {
     try {
@@ -176,6 +164,9 @@ export function TableActionsDialog({
       toast.error(error instanceof Error ? error.message : "Failed to update customer")
     }
   }
+
+  const guestUrl =
+    table.code && typeof window !== "undefined" ? `${window.location.origin}/guest?table=${table.code}` : null
 
   function handleViewOrder() {
     if (activeOrder) {
@@ -276,9 +267,11 @@ export function TableActionsDialog({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={handleViewOrder}>View / add items</Button>
-                  <Button variant="outline" onClick={() => setShowTransfer(true)}>
-                    Transfer table
-                  </Button>
+                  {!isWaiter && (
+                    <Button variant="outline" onClick={() => setShowTransfer(true)}>
+                      Transfer table
+                    </Button>
+                  )}
                   {!isWaiter && (
                     <Button variant="destructive" onClick={handleEnd} disabled={endSession.isPending}>
                       {endSession.isPending
@@ -351,42 +344,6 @@ export function TableActionsDialog({
                     )}
                   </div>
                 )}
-
-                <Separator />
-
-                {/* Call waiter — cashier raises the request on the guest's behalf. */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Call waiter</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={createRequest.isPending}
-                      onClick={() => handleCallWaiter("water")}
-                    >
-                      <DropletIcon className="text-sky-500" />
-                      Water
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={createRequest.isPending}
-                      onClick={() => handleCallWaiter("bill")}
-                    >
-                      <ReceiptIcon className="text-amber-500" />
-                      Bill
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={createRequest.isPending}
-                      onClick={() => handleCallWaiter("assistance")}
-                    >
-                      <HandIcon />
-                      Help
-                    </Button>
-                  </div>
-                </div>
               </>
             )}
           </div>
@@ -398,9 +355,38 @@ export function TableActionsDialog({
               This table is free. Start a sale from the POS screen and pick this table when seating a walk-in, or
               reserve it for later.
             </p>
-            <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
-              Reserve this table
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {isCashier && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    onClose()
+                    router.push(`${basePath}?tableId=${table.id}`)
+                  }}
+                >
+                  Start sale
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setShowReserve(true)}>
+                Reserve this table
+              </Button>
+              {isCashier && (
+                <Button variant="outline" size="sm" onClick={() => setShowQr((v) => !v)}>
+                  {showQr ? "Hide table QR" : "Show table QR"}
+                </Button>
+              )}
+            </div>
+            {isCashier && showQr && (
+              <div className="flex justify-center pt-1">
+                {guestUrl ? (
+                  <TableQrCode value={guestUrl} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    This table has no code set, so it can&apos;t have a guest ordering QR yet.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -485,7 +471,7 @@ export function TableActionsDialog({
           </p>
         )}
 
-        {table.status === "available" && !showReserve && (
+        {table.status === "available" && !showReserve && !isCashier && (
           <DialogFooter>
             <Button
               onClick={() => {

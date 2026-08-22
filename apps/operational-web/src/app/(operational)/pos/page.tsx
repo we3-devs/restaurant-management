@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@rms/ui/button"
@@ -45,6 +45,15 @@ export default function PosPage() {
   // rendering the live cart, which would let staff keep adding items to it.
   const { data: activeOrder } = useOrder(activeOrderId ?? 0)
   const isCancelledOrder = activeOrder?.status === "cancelled"
+
+  // Same deal for a completed sale reached this way (table tapped again from
+  // the floor board, deep link, or plain browser Back past the cart panel's
+  // own history guard) — the table's session is closed, so bounce straight
+  // back to the floor instead of resurrecting the food grid for a dead order.
+  const isCompletedOrder = activeOrder?.status === "completed"
+  useEffect(() => {
+    if (isCompletedOrder) router.replace("/pos")
+  }, [isCompletedOrder, router])
 
   // Keep the cart's item status badges live as the kitchen advances items
   // (Sent -> Preparing -> Ready) — same KDS socket the /kitchen board uses.
@@ -100,6 +109,10 @@ export default function PosPage() {
           <p className="text-sm font-medium">This order was cancelled</p>
           <p className="text-sm text-muted-foreground">It can no longer be edited.</p>
           <Button onClick={() => router.push("/pos")}>Back to floor</Button>
+        </div>
+      ) : isCompletedOrder ? (
+        <div className="flex flex-1 items-center justify-center">
+          <CardGridSkeleton count={4} columns={2} className="w-full max-w-md" />
         </div>
       ) : (
         <LocalCartProvider orderId={activeOrderId}>

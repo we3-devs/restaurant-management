@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { MoreVerticalIcon } from "lucide-react"
 
 import { cn } from "@rms/ui/cn"
+import { useCurrentUser } from "@rms/auth/current-user-context"
 import type { DiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { TableActionsDialog } from "./table-actions-dialog"
 
@@ -27,7 +28,14 @@ export function TableCard({
   basePath?: string
 }) {
   const router = useRouter()
+  const user = useCurrentUser()
   const [open, setOpen] = useState(false)
+
+  // Waiters have nothing to do on a free table beyond tapping it to seat a
+  // walk-in — reserving/QR/start-sale are cashier/manager tools, so skip the
+  // menu entirely rather than show an empty-feeling dialog.
+  const isWaiter = !user.isSuperadmin && user.roleSlugs.includes("waiter")
+  const showMenu = !(isWaiter && table.status === "available")
 
   return (
     <>
@@ -49,17 +57,19 @@ export function TableCard({
             Arriving {new Date(arrivingAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            setOpen(true)
-          }}
-          aria-label="More table actions"
-          className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-current opacity-60 hover:bg-black/10 hover:opacity-100"
-        >
-          <MoreVerticalIcon className="size-4" />
-        </button>
+        {showMenu && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen(true)
+            }}
+            aria-label="More table actions"
+            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-current opacity-60 hover:bg-black/10 hover:opacity-100"
+          >
+            <MoreVerticalIcon className="size-4" />
+          </button>
+        )}
       </div>
       {open && <TableActionsDialog table={table} onClose={() => setOpen(false)} basePath={basePath} />}
     </>
