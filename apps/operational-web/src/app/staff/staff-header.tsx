@@ -5,9 +5,10 @@ import { NotificationBell } from "@rms/ui/notification-bell"
 import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { UserMenu } from "@rms/ui/user-menu"
 import { Skeleton } from "@rms/ui/skeleton"
+import { HeaderPortalLink } from "@rms/ui/header-portal-switcher"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
-/** Compact header for the staff mobile shell — no sidebar, no command palette, no switchers a phone-sized screen has no room for. */
+/** Compact header for the staff mobile shell — no sidebar, no command palette. The full portal Select doesn't fit, so dual-portal users get an icon-only jump link instead. */
 export function StaffHeader() {
   const { outlets, outletId, isLoadingOutlets } = useActiveOutlet()
   const outletName = outlets.find((o) => o.id === outletId)?.name
@@ -26,6 +27,7 @@ export function StaffHeader() {
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <OfflineIndicator />
+        <HeaderPortalLink current="staff" />
         <NotificationBell />
         <ThemeToggle />
         <UserMenu profileHref="/staff/profile" />

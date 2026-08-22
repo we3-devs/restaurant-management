@@ -3,10 +3,41 @@
 import { LayoutDashboardIcon, UtensilsIcon } from "lucide-react"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
+import { Button } from "./button"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
 const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL ?? "http://localhost:3100"
 const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL ?? "http://localhost:3000"
+
+function targetPortalUrl(current: "dashboard" | "staff") {
+  return current === "dashboard" ? `${OPERATIONAL_WEB_URL}/` : `${DASHBOARD_WEB_URL}/dashboard`
+}
+
+/**
+ * Icon-only jump link for cramped headers (e.g. the staff mobile shell) that
+ * have no room for the full Select. Same `hasBothPortals` gate as
+ * `HeaderPortalSwitcher` — just navigates straight to the other app instead
+ * of presenting a picker.
+ */
+export function HeaderPortalLink({ current }: { current: "dashboard" | "staff" }) {
+  const user = useCurrentUser()
+
+  if (!user.hasBothPortals) return null
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 text-muted-foreground"
+      title={current === "dashboard" ? "Switch to Operational" : "Switch to Dashboard"}
+      onClick={() => {
+        window.location.href = targetPortalUrl(current)
+      }}
+    >
+      {current === "dashboard" ? <UtensilsIcon className="size-4" /> : <LayoutDashboardIcon className="size-4" />}
+    </Button>
+  )
+}
 
 /**
  * Lets users who hold both dashboard and staff role assignments (or are
