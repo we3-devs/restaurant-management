@@ -6,8 +6,10 @@ import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
+import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { OrderDiscountForm } from "@rms/ui/order-discount-form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
@@ -15,12 +17,11 @@ import {
   useOrder,
   useOrderItems,
   useOrders,
-  useUpdateOrder,
   useUpdateOrderStatus,
 } from "@rms/api-client/hooks/use-orders"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
-import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { TableSessionCheckout } from "./table-session-checkout"
 
 const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
@@ -41,7 +42,6 @@ export function CheckoutPanel({
   const { data: order } = useOrder(orderId)
   const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
-  const updateOrder = useUpdateOrder(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
   const createPayment = useCreateOrderPayment(orderId)
   const isOnline = useOnlineStatus()
@@ -60,10 +60,6 @@ export function CheckoutPanel({
     (candidate) => !CLOSED_ORDER_STATUSES.has(candidate.status),
   )
 
-  const [discountType, setDiscountType] = useState<string>("none")
-  const [discountValue, setDiscountValue] = useState(0)
-  const [taxAmount, setTaxAmount] = useState(0)
-  const [serviceChargeAmount, setServiceChargeAmount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
@@ -72,15 +68,7 @@ export function CheckoutPanel({
   // Re-seed the editable totals/payment-amount fields whenever a different
   // order loads, or the due amount changes after a payment — without an
   // effect, per React's "adjusting state when a prop changes" pattern.
-  const [seededOrderId, setSeededOrderId] = useState<number | null>(null)
   const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && order.id !== seededOrderId) {
-    setSeededOrderId(order.id)
-    setDiscountType(order.discountType ?? "none")
-    setDiscountValue(order.discountValue)
-    setTaxAmount(order.taxAmount)
-    setServiceChargeAmount(order.serviceChargeAmount)
-  }
   if (order && order.dueAmount !== seededDueAmount) {
     setSeededDueAmount(order.dueAmount)
     setPaymentAmount(order.dueAmount)
@@ -96,20 +84,6 @@ export function CheckoutPanel({
   ).length
 
   if (!order) return null
-
-  async function handleSaveTotals() {
-    try {
-      await updateOrder.mutateAsync({
-        discountType: discountType === "none" ? undefined : (discountType as "flat" | "percentage"),
-        discountValue,
-        taxAmount,
-        serviceChargeAmount,
-      })
-      toast.success("Totals updated")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update totals")
-    }
-  }
 
   async function handleAddPayment() {
     if (paymentAmount <= 0) return
@@ -160,62 +134,9 @@ export function CheckoutPanel({
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 text-sm">
-        <span className="text-muted-foreground">Subtotal</span>
-        <span className="text-right">{order.subtotal}</span>
-        <span className="text-muted-foreground">Discount</span>
-        <span className="text-right">{order.discountAmount}</span>
-        <span className="text-muted-foreground">Tax</span>
-        <span className="text-right">{order.taxAmount}</span>
-        <span className="text-muted-foreground">Service charge</span>
-        <span className="text-right">{order.serviceChargeAmount}</span>
-        <span className="font-medium">Grand total</span>
-        <span className="text-right font-medium">{order.grandTotal}</span>
-        <span className="text-muted-foreground">Paid</span>
-        <span className="text-right">{order.paidAmount}</span>
-        <span className="font-medium">Due</span>
-        <span className="text-right font-medium">{order.dueAmount}</span>
-      </div>
+      <BillSummary order={order} />
 
-      <div className="grid grid-cols-2 gap-2">
-        <Select value={discountType} onValueChange={(value) => value && setDiscountType(value)}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No discount</SelectItem>
-            {ORDER_DISCOUNT_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="number"
-          step="0.01"
-          value={discountValue}
-          onChange={(e) => setDiscountValue(Number(e.target.value))}
-          placeholder="Discount value"
-        />
-        <Input
-          type="number"
-          step="0.01"
-          value={taxAmount}
-          onChange={(e) => setTaxAmount(Number(e.target.value))}
-          placeholder="Tax"
-        />
-        <Input
-          type="number"
-          step="0.01"
-          value={serviceChargeAmount}
-          onChange={(e) => setServiceChargeAmount(Number(e.target.value))}
-          placeholder="Service charge"
-        />
-      </div>
-      <Button variant="outline" size="sm" onClick={handleSaveTotals} disabled={updateOrder.isPending}>
-        {updateOrder.isPending ? "Saving..." : "Apply"}
-      </Button>
+      <OrderDiscountForm orderId={orderId} />
 
       <Separator />
 

@@ -71,13 +71,19 @@ export class PeriodInsightsService {
     );
   }
 
-  /** Rolls up one period window for every outlet plus the unfiltered "all outlets" row. */
+  /**
+   * Rolls up one period window for every outlet plus the unfiltered "all
+   * outlets" row. Sequential, not Promise.all — a full-history backfill can
+   * fan this out across many windows already, and running every outlet's
+   * queries concurrently on top of that exhausts the connection pool
+   * (Supabase's pooler in particular).
+   */
   private async rollupAllOutlets(window: PeriodWindow): Promise<void> {
     const outlets = await this.outletsService.findAllUnpaginated();
-    await Promise.all([
-      this.rollupOne(undefined, window),
-      ...outlets.map((outlet) => this.rollupOne(outlet.id, window)),
-    ]);
+    await this.rollupOne(undefined, window);
+    for (const outlet of outlets) {
+      await this.rollupOne(outlet.id, window);
+    }
     this.logger.log(
       `Rolled up ${window.periodType} insight (${toDateOnlyString(window.periodStart)}) for ${outlets.length} outlet(s)`,
     );

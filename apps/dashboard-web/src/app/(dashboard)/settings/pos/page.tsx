@@ -24,8 +24,6 @@ const defaultValues: PosSettingsInput = {
   receiptFooter: "",
   receiptHeader: "",
   autoPrint: false,
-  serviceChargePercent: 0,
-  defaultTaxPercent: 0,
   defaultPaymentMethod: "",
   billNumberDigits: 4,
   billNumberResetPeriod: "daily",
@@ -271,40 +269,6 @@ export default function PosSettingsPage() {
                     <FormItem className="col-span-2">
                       <FormLabel>Receipt footer</FormLabel>
                       <FormControl disabled={!canManage} {...field} />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="serviceChargePercent"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Service charge %</FormLabel>
-                      <FormControl
-                        type="number"
-                        step="0.01"
-                        disabled={!canManage}
-                        value={field.value ?? 0}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="defaultTaxPercent"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Default tax %</FormLabel>
-                      <FormControl
-                        type="number"
-                        step="0.01"
-                        disabled={!canManage}
-                        value={field.value ?? 0}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
                       <FormMessage />
                     </FormItem>
                   )}

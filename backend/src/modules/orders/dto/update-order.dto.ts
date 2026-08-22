@@ -22,16 +22,4 @@ export class UpdateOrderDto {
   @IsNumber()
   @Min(0)
   discountValue?: number;
-
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  taxAmount?: number;
-
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  serviceChargeAmount?: number;
 }

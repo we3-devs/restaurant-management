@@ -8,8 +8,10 @@ import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { Badge } from "@rms/ui/badge"
+import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { OrderDiscountForm } from "@rms/ui/order-discount-form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { ListSkeleton } from "@rms/ui/skeletons"
@@ -94,22 +96,7 @@ function CompletedSaleSummary({
   return (
     <div className="flex w-full flex-col gap-3">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
-      <div className="grid grid-cols-2 gap-1 text-sm">
-        <span className="text-muted-foreground">Subtotal</span>
-        <span className="text-right">{order.subtotal}</span>
-        <span className="text-muted-foreground">Discount</span>
-        <span className="text-right">{order.discountAmount}</span>
-        <span className="text-muted-foreground">Tax</span>
-        <span className="text-right">{order.taxAmount}</span>
-        <span className="text-muted-foreground">Service charge</span>
-        <span className="text-right">{order.serviceChargeAmount}</span>
-        <span className="font-medium">Grand total</span>
-        <span className="text-right font-medium">{order.grandTotal}</span>
-        <span className="text-muted-foreground">Paid</span>
-        <span className="text-right">{order.paidAmount}</span>
-        <span className="font-medium">Due</span>
-        <span className="text-right font-medium">{order.dueAmount}</span>
-      </div>
+      <BillSummary order={order} />
       <Button variant="outline" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
         <PrinterIcon />
         View / print bill
@@ -325,10 +312,6 @@ function EditableCart({
               <span className="text-right">{order.subtotal}</span>
               <span className="text-muted-foreground">Discount</span>
               <span className="text-right">{order.discountAmount}</span>
-              <span className="text-muted-foreground">Tax</span>
-              <span className="text-right">{order.taxAmount}</span>
-              <span className="text-muted-foreground">Service charge</span>
-              <span className="text-right">{order.serviceChargeAmount}</span>
               <span className="font-medium">Grand total</span>
               <span className="text-right font-medium">{order.grandTotal}</span>
               <span className="text-muted-foreground">Paid</span>
@@ -342,6 +325,7 @@ function EditableCart({
               <span className="font-medium">Due</span>
               <span className="text-right font-medium">{order.dueAmount}</span>
             </div>
+            {canRecordPayment && <OrderDiscountForm orderId={orderId} />}
             {(payments?.data.length ?? 0) > 0 && (
               <div className="space-y-1 pt-1">
                 {payments?.data.map((payment) => (

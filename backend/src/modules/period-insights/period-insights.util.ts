@@ -16,8 +16,19 @@ function startOfDay(date: Date): Date {
   return d;
 }
 
+/**
+ * Formats using local calendar components, not `toISOString()` — the
+ * windows themselves (`startOfDay` et al.) are built from local wall-clock
+ * dates, and `periodLabel`/`shortDate` below also read local components.
+ * Formatting via UTC here shifts the stored date backward for any positive
+ * UTC offset (e.g. Nepal, UTC+5:45), producing a period_start that
+ * disagrees with the label and can collide with an adjacent day's row.
+ */
 function toDateOnly(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export function toDateOnlyString(date: Date): string {

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { PeriodInsightsBackfillService } from './period-insights-backfill.service';
 import { PeriodInsightsNpService } from './period-insights-np.service';
 import { PeriodInsightsService } from './period-insights.service';
 
@@ -20,9 +21,13 @@ export class PeriodInsightsScheduler implements OnModuleInit {
   constructor(
     private readonly periodInsightsService: PeriodInsightsService,
     private readonly periodInsightsNpService: PeriodInsightsNpService,
+    private readonly backfillService: PeriodInsightsBackfillService,
   ) {}
 
   async onModuleInit(): Promise<void> {
+    // Runs the one-time full-history backfill in the background if this is
+    // the first boot with no period_insights rows yet — otherwise a no-op.
+    void this.backfillService.runOnceIfNeverRun();
     try {
       await Promise.all([
         this.periodInsightsService.rollupAll(),

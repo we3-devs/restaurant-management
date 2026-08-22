@@ -21,8 +21,6 @@ export const posSettingsSchema = z.object({
   receiptFooter: z.string().optional(),
   receiptHeader: z.string().optional(),
   autoPrint: z.boolean().optional(),
-  serviceChargePercent: z.number().optional(),
-  defaultTaxPercent: z.number().optional(),
   defaultPaymentMethod: z.string().optional(),
   billNumberDigits: z.number().optional(),
   billNumberResetPeriod: z.enum(["never", "daily", "monthly", "yearly"]).optional(),

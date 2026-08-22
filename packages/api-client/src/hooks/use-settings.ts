@@ -32,8 +32,6 @@ export interface PosSettings {
   receiptFooter?: string
   receiptHeader?: string
   autoPrint?: boolean
-  serviceChargePercent?: number
-  defaultTaxPercent?: number
   defaultPaymentMethod?: string
   /** Zero-padding width for the bill number's sequence portion, e.g. 4 -> 0007. */
   billNumberDigits?: number

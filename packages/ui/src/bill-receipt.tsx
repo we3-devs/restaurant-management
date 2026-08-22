@@ -73,14 +73,6 @@ export function BillReceipt({ orderId }: { orderId: number }) {
           <span className="text-muted-foreground">Discount</span>
           <span>-{order.discountAmount}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Tax</span>
-          <span>{order.taxAmount}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Service charge</span>
-          <span>{order.serviceChargeAmount}</span>
-        </div>
         <div className="flex justify-between font-medium">
           <span>Grand total</span>
           <span>{order.grandTotal}</span>

@@ -120,18 +120,6 @@ export class PosSettingsDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  serviceChargePercent?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  defaultTaxPercent?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsString()
   defaultPaymentMethod?: string;
 }

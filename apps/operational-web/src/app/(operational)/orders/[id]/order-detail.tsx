@@ -14,13 +14,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
-import { useOrder, useOrderItems, useUpdateOrder, useIssueInvoice, type Order, type OrderItem } from "@rms/api-client/hooks/use-orders"
+import { OrderDiscountForm } from "@rms/ui/order-discount-form"
+import { useOrder, useOrderItems, useIssueInvoice, type Order, type OrderItem } from "@rms/api-client/hooks/use-orders"
 import { tableSessionName, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useCurrentUser } from "@rms/auth/current-user-context"
-import { ORDER_DISCOUNT_TYPES, ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 
 function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: string }) {
   return (
@@ -98,7 +99,7 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
               {issueInvoice.isPending ? "Generating..." : "Issue Invoice"}
             </Button>
           )}
-          {!isReadOnly && order.status !== "completed" && (
+          {canRecordPayment && order.status !== "completed" && (
             <Button variant="outline" size="sm" onClick={() => setEditingTotals((v) => !v)}>
               {editingTotals ? "Done editing" : "Edit"}
             </Button>
@@ -240,7 +241,6 @@ function PaymentSummaryCard({
   editingTotals: boolean
 }) {
   const createPayment = useCreateOrderPayment(orderId)
-  const updateOrder = useUpdateOrder(orderId)
   const { data: payments } = useOrderPayments(orderId)
 
   const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
@@ -256,34 +256,7 @@ function PaymentSummaryCard({
     setAmount(order.dueAmount)
   }
 
-  const [discountType, setDiscountType] = useState<string>("none")
-  const [discountValue, setDiscountValue] = useState(0)
-  const [taxAmount, setTaxAmount] = useState(0)
-  const [serviceChargeAmount, setServiceChargeAmount] = useState(0)
-  const [seededOrderId, setSeededOrderId] = useState<number | null>(null)
-  if (order.id !== seededOrderId) {
-    setSeededOrderId(order.id)
-    setDiscountType(order.discountType ?? "none")
-    setDiscountValue(order.discountValue)
-    setTaxAmount(order.taxAmount)
-    setServiceChargeAmount(order.serviceChargeAmount)
-  }
-
   const isLocked = order.status === "completed"
-
-  async function handleSaveTotals() {
-    try {
-      await updateOrder.mutateAsync({
-        discountType: discountType === "none" ? undefined : (discountType as "flat" | "percentage"),
-        discountValue,
-        taxAmount,
-        serviceChargeAmount,
-      })
-      toast.success("Totals updated")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update totals")
-    }
-  }
 
   async function handleSubmitPayment() {
     if (amount <= 0) return
@@ -340,47 +313,9 @@ function PaymentSummaryCard({
       <CardContent className="flex h-full flex-col space-y-4">
         {editingTotals && !isLocked && (
           <div className="space-y-2 border-b border-input  py-4">
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={discountType} onValueChange={(value) => value && setDiscountType(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No discount</SelectItem>
-                  {ORDER_DISCOUNT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                step="0.01"
-                value={discountValue}
-                onChange={(e) => setDiscountValue(Number(e.target.value))}
-                placeholder="Discount value"
-              />
-              <Input
-                type="number"
-                step="0.01"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(Number(e.target.value))}
-                placeholder="Tax"
-              />
-              <Input
-                type="number"
-                step="0.01"
-                value={serviceChargeAmount}
-                onChange={(e) => setServiceChargeAmount(Number(e.target.value))}
-                placeholder="Service charge"
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={handleSaveTotals} disabled={updateOrder.isPending}>
-              {updateOrder.isPending ? "Saving..." : "Apply"}
-            </Button>
+            <OrderDiscountForm orderId={orderId} />
           </div>
-        )}       
+        )}
 
         {formMode !== "none" && (
           <div className="space-y-2">
@@ -460,10 +395,6 @@ function PaymentSummaryCard({
           <span className="text-right sm:text-left">{order.subtotal}</span>
           <span className="text-muted-foreground">Discount  :</span>
           <span className="text-right sm:text-left">{order.discountAmount}</span>
-          <span className="text-muted-foreground">Tax :</span>
-          <span className="text-right sm:text-left">{order.taxAmount}</span>
-          <span className="text-muted-foreground">Service charge :</span>
-          <span className="text-right sm:text-left">{order.serviceChargeAmount}</span>
           <span className="font-medium">Grand Total :</span>
           <span className="text-right font-medium sm:text-left">{order.grandTotal}</span>
           <span className="text-muted-foreground">Paid :</span>

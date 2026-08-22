@@ -73,12 +73,13 @@ export class PeriodInsightsNpService {
     );
   }
 
+  /** Sequential, not Promise.all — see the AD PeriodInsightsService.rollupAllOutlets for why. */
   private async rollupAllOutlets(window: PeriodWindowNp): Promise<void> {
     const outlets = await this.outletsService.findAllUnpaginated();
-    await Promise.all([
-      this.rollupOne(undefined, window),
-      ...outlets.map((outlet) => this.rollupOne(outlet.id, window)),
-    ]);
+    await this.rollupOne(undefined, window);
+    for (const outlet of outlets) {
+      await this.rollupOne(outlet.id, window);
+    }
     this.logger.log(
       `Rolled up ${window.periodType} NP insight (${window.periodStartBs}) for ${outlets.length} outlet(s)`,
     );

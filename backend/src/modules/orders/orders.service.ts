@@ -671,32 +671,11 @@ export class OrdersService {
         `Discount (${discountValue}) cannot exceed the order subtotal (${subtotal})`,
       );
     }
-    // No dedicated "max tax/service-charge %" setting exists yet — bounding
-    // each to the subtotal itself is a sane hard ceiling against a
-    // wildly-out-of-range value while still allowing any real-world rate.
-    if (dto.taxAmount !== undefined && dto.taxAmount > subtotal) {
-      throw new BadRequestException(
-        `Tax amount (${dto.taxAmount}) cannot exceed the order subtotal (${subtotal})`,
-      );
-    }
-    if (
-      dto.serviceChargeAmount !== undefined &&
-      dto.serviceChargeAmount > subtotal
-    ) {
-      throw new BadRequestException(
-        `Service charge (${dto.serviceChargeAmount}) cannot exceed the order subtotal (${subtotal})`,
-      );
-    }
-
     Object.assign(order, {
       ...(dto.note !== undefined && { note: dto.note }),
       ...(dto.discountType !== undefined && { discountType: dto.discountType }),
       ...(dto.discountValue !== undefined && {
         discountValue: dto.discountValue,
-      }),
-      ...(dto.taxAmount !== undefined && { taxAmount: dto.taxAmount }),
-      ...(dto.serviceChargeAmount !== undefined && {
-        serviceChargeAmount: dto.serviceChargeAmount,
       }),
     });
     await this.ordersRepository.save(order);
@@ -1705,11 +1684,7 @@ export class OrdersService {
           ? round2((subtotal * order.discountValue) / 100)
           : 0;
     const grandTotal = round2(
-      subtotal -
-        discountAmount -
-        order.loyaltyDiscountAmount +
-        order.taxAmount +
-        order.serviceChargeAmount,
+      subtotal - discountAmount - order.loyaltyDiscountAmount,
     );
 
     order.subtotal = subtotal;

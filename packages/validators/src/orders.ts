@@ -58,8 +58,6 @@ export const updateOrderSchema = z.object({
   note: z.string().optional(),
   discountType: z.enum(ORDER_DISCOUNT_TYPES).optional(),
   discountValue: z.number().min(0),
-  taxAmount: z.number().min(0),
-  serviceChargeAmount: z.number().min(0),
 })
 
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>

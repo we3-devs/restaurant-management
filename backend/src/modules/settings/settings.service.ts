@@ -66,8 +66,6 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     receiptFooter: 'Thank you for dining with us!',
     receiptHeader: null,
     autoPrint: true,
-    serviceChargePercent: 0,
-    defaultTaxPercent: 0,
     defaultPaymentMethod: 'cash',
     billNumberDigits: 4,
     billNumberResetPeriod: 'daily',

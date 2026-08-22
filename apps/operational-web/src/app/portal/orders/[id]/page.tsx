@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { verifyCustomerSession } from "@rms/auth/customer-dal"
 import { customerBackendFetch } from "@rms/auth/server/customer-backend-client"
+import { BillSummary } from "@rms/ui/bill-summary"
 
 interface OrderItem {
   id: number
@@ -18,7 +19,6 @@ interface OrderDetail {
   paymentStatus: string
   subtotal: number
   discountAmount: number
-  taxAmount: number
   grandTotal: number
   paidAmount: number
   dueAmount: number
@@ -66,19 +66,8 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
         </table>
       </div>
 
+      <BillSummary order={order} />
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <span className="text-muted-foreground">Subtotal</span>
-        <span className="text-right">{order.subtotal}</span>
-        <span className="text-muted-foreground">Discount</span>
-        <span className="text-right">-{order.discountAmount}</span>
-        <span className="text-muted-foreground">Tax</span>
-        <span className="text-right">{order.taxAmount}</span>
-        <span className="font-medium">Grand total</span>
-        <span className="text-right font-medium">{order.grandTotal}</span>
-        <span className="text-muted-foreground">Paid</span>
-        <span className="text-right">{order.paidAmount}</span>
-        <span className="text-muted-foreground">Due</span>
-        <span className="text-right">{order.dueAmount}</span>
         {order.loyaltyPointsEarned > 0 && (
           <>
             <span className="text-muted-foreground">Loyalty points earned</span>

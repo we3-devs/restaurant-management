@@ -144,8 +144,6 @@ function PaymentSummary({
   order: {
     subtotal: number
     discountAmount: number
-    taxAmount: number
-    serviceChargeAmount: number
     grandTotal: number
     paidAmount: number
     dueAmount: number
@@ -176,10 +174,6 @@ function PaymentSummary({
           <span className="text-right sm:text-left">{order.subtotal}</span>
           <span className="text-muted-foreground">Discount :</span>
           <span className="text-right sm:text-left">{order.discountAmount}</span>
-          <span className="text-muted-foreground">Tax :</span>
-          <span className="text-right sm:text-left">{order.taxAmount}</span>
-          <span className="text-muted-foreground">Service charge :</span>
-          <span className="text-right sm:text-left">{order.serviceChargeAmount}</span>
           <span className="font-medium">Grand Total :</span>
           <span className="text-right font-medium sm:text-left">{order.grandTotal}</span>
           <span className="text-muted-foreground">Paid :</span>

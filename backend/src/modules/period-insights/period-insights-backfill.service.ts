@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from '../orders/entities/order.entity';
+import { PeriodInsightNp } from './entities/period-insight-np.entity';
+import { PeriodInsight } from './entities/period-insight.entity';
 import { PeriodInsightsNpService } from './period-insights-np.service';
 import { PeriodInsightsService } from './period-insights.service';
 
@@ -35,12 +37,35 @@ export class PeriodInsightsBackfillService {
   constructor(
     @InjectRepository(Order)
     private readonly ordersRepo: Repository<Order>,
+    @InjectRepository(PeriodInsight)
+    private readonly periodInsightRepo: Repository<PeriodInsight>,
+    @InjectRepository(PeriodInsightNp)
+    private readonly periodInsightNpRepo: Repository<PeriodInsightNp>,
     private readonly periodInsightsService: PeriodInsightsService,
     private readonly periodInsightsNpService: PeriodInsightsNpService,
   ) {}
 
   getStatus(): BackfillStatus {
     return this.status;
+  }
+
+  /**
+   * Auto-runs the full-history backfill the first time this app ever boots
+   * against a database with orders but no period_insights rows yet — so
+   * "process all old data" happens on its own without an admin having to
+   * find and click the button. A no-op on every later boot, since by then
+   * rows exist (the nightly scheduler keeps adding to them regardless).
+   */
+  async runOnceIfNeverRun(): Promise<void> {
+    const [adCount, npCount] = await Promise.all([
+      this.periodInsightRepo.count(),
+      this.periodInsightNpRepo.count(),
+    ]);
+    if (adCount > 0 || npCount > 0) return;
+    this.logger.log(
+      'No period insights found yet — running the one-time full-history backfill.',
+    );
+    this.start();
   }
 
   /** Kicks off the backfill in the background and returns immediately. */
@@ -81,10 +106,10 @@ export class PeriodInsightsBackfillService {
       const since = new Date(earliest.earliest);
       this.status.since = since.toISOString();
 
-      await Promise.all([
-        this.periodInsightsService.backfillHistory(since),
-        this.periodInsightsNpService.backfillHistory(since),
-      ]);
+      // Sequential, not Promise.all — avoids doubling concurrent DB load on
+      // top of the already-sequential per-outlet rollups (see rollupAllOutlets).
+      await this.periodInsightsService.backfillHistory(since);
+      await this.periodInsightsNpService.backfillHistory(since);
 
       this.status = {
         ...this.status,

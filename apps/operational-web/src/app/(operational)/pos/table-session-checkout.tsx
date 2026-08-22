@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { OrderDiscountForm } from "@rms/ui/order-discount-form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateTableSessionPayment, useCompleteAllForTableSession } from "@rms/api-client/hooks/use-order-payments"
 import { useOrderItems, type Order } from "@rms/api-client/hooks/use-orders"
@@ -237,6 +238,9 @@ function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: str
           ))}
         </div>
       )}
+      <div className="mt-1.5 border-t border-input pt-1.5">
+        <OrderDiscountForm orderId={order.id} />
+      </div>
     </div>
   )
 }
