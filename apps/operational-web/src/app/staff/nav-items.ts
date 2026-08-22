@@ -1,4 +1,4 @@
-import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, UsersIcon } from "lucide-react"
+import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, SoupIcon, UsersIcon } from "lucide-react"
 
 export interface StaffNavItem {
   href: string
@@ -48,6 +48,14 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     icon: PackageCheckIcon,
     requires: "dining-tables.view",
     excludeRoleSlugs: ["cashier"],
+  },
+  {
+    href: "/staff/waiter/prep",
+    label: "Prep",
+    description: "Items still being prepared or waiting to be served",
+    icon: SoupIcon,
+    requires: "orders.manage",
+    excludeRoleSlugs: ["waiter"],
   },
   {
     href: "/staff/orders",
