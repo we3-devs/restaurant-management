@@ -116,4 +116,4 @@ export function isStaffRouteBlockedForRole(
       item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug)) &&
       (pathname === item.href || pathname.startsWith(`${item.href}/`)),
   )
-}/
+}

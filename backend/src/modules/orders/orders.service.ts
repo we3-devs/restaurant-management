@@ -1210,6 +1210,8 @@ export class OrdersService {
       isHeld: item.isHeld,
       note: item.note,
       packagingType: item.packagingType,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
       addons: (addonsByItem.get(item.id) ?? []).map((addon) => ({
         id: addon.id,
         addonId: addon.addonId,

@@ -65,6 +65,10 @@ export interface OrderItem {
   isHeld: boolean
   note: string | null
   packagingType: "plating" | "takeaway"
+  /** When the item was added to the order (its ordered time). */
+  createdAt: string
+  /** Last status change (sent → preparing → ready → served) — the order-tracking "updated" time. */
+  updatedAt: string
   // Embedded by GET /order-items so cart/order-detail rows don't each need
   // their own /order-items/:id/addons and /order-items/:id/reservations call.
   addons: OrderItemAddon[]
