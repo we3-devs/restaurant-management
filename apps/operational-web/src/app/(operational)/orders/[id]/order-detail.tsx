@@ -47,7 +47,17 @@ function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: 
  * (breadcrumb, receipt) inside whichever shell rendered it instead of
  * always bouncing into the desktop one.
  */
-export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { orderId: number; basePath?: string; isReadOnly?: boolean }) {
+export function OrderDetail({
+  orderId,
+  basePath = "",
+  isReadOnly = false,
+  trackingOnly = false,
+}: {
+  orderId: number
+  basePath?: string
+  isReadOnly?: boolean
+  trackingOnly?: boolean
+}) {
   const { data: order, isLoading } = useOrder(orderId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: session } = useTableSession(order?.tableSessionId ?? 0)
@@ -64,6 +74,28 @@ export function OrderDetail({ orderId, basePath = "", isReadOnly = false }: { or
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !order) return <NotFoundCard resource="Order" />
   if (!order) return null
+
+  if (trackingOnly) {
+    return (
+      <div className="space-y-4">
+        <Breadcrumb orderNumber={order.orderNumber} basePath={basePath} />
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-semibold">Order tracking</h1>
+            <p className="text-sm text-muted-foreground">{order.orderNumber}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={order.status} />
+            <StatusBadge status={order.paymentStatus} />
+          </div>
+        </div>
+        {(session || customer) && <ContextDetailsCards session={session} customer={customer} />}
+        <div className="mx-auto max-w-5xl">
+          <OrderItemTrackingCard orderId={orderId} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className=" space-y-4">

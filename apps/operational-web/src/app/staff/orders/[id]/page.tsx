@@ -1,4 +1,5 @@
 import { OrderDetail } from "@/app/(operational)/orders/[id]/order-detail"
+import { getCurrentUser } from "@rms/auth/dal"
 
 /**
  * Staff-shell counterpart to (operational)/orders/[id] — shows order items and
@@ -12,5 +13,15 @@ import { OrderDetail } from "@/app/(operational)/orders/[id]/order-detail"
  */
 export default async function StaffOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return <OrderDetail orderId={Number(id)} basePath="/staff" isReadOnly />
+  const user = await getCurrentUser()
+  const isWaiter = !user.isSuperadmin && user.roleSlugs.includes("waiter")
+
+  return (
+    <OrderDetail
+      orderId={Number(id)}
+      basePath="/staff"
+      isReadOnly
+      trackingOnly={isWaiter}
+    />
+  )
 }
