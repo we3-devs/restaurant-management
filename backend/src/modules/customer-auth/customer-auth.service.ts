@@ -10,6 +10,7 @@ import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppConfig } from '../../config/configuration';
+import { normalizeNepalPhone } from '../../common/phone';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { Customer } from '../customers/entities/customer.entity';
@@ -57,13 +58,14 @@ export class CustomerAuthService {
     if (!phone && !email) {
       throw new BadRequestException('phone or email is required');
     }
-    return (phone ?? email!).trim().toLowerCase();
+    return (phone ? normalizeNepalPhone(phone) : email!).trim().toLowerCase();
   }
 
   async requestOtp(
     phone?: string,
     email?: string,
   ): Promise<{ sent: true; registered: boolean; devCode?: string }> {
+    if (phone) phone = normalizeNepalPhone(phone);
     const identifier = this.resolveIdentifier(phone, email);
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -124,6 +126,7 @@ export class CustomerAuthService {
     code: string,
     name?: string,
   ): Promise<{ accessToken: string; customer: Customer } > {
+    if (phone) phone = normalizeNepalPhone(phone);
     const identifier = this.resolveIdentifier(phone, email);
 
     // Atomic increment (replaces INCR+EXPIRE) — the row's own expires_at is
@@ -207,7 +210,7 @@ export class CustomerAuthService {
     return this.customersRepository.save(
       this.customersRepository.create({
         name: name?.trim() || phone || email || 'Guest',
-        phone: phone ?? null,
+        phone: phone ?? '',
         email: email ?? null,
       }),
     );

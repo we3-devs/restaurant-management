@@ -5,8 +5,10 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Matches,
   MinLength,
 } from 'class-validator';
+import { NEPAL_PHONE_PATTERN } from '../../../common/phone';
 
 export class CreateCustomerDto {
   @ApiProperty({ example: 'Jane Doe' })
@@ -16,10 +18,12 @@ export class CreateCustomerDto {
   name: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
   @IsString()
   @MaxLength(255)
-  phone?: string;
+  @Matches(NEPAL_PHONE_PATTERN, {
+    message: 'phone must be a valid Nepal mobile number',
+  })
+  phone: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { normalizeNepalPhone } from '../../common/phone';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { SettingsService } from '../settings/settings.service';
@@ -82,9 +83,10 @@ export class CustomersService {
   }
 
   async create(dto: CreateCustomerDto): Promise<CustomerResponseDto> {
+    const phone = normalizeNepalPhone(dto.phone);
     const customer = this.customersRepository.create({
       name: dto.name,
-      phone: dto.phone ?? null,
+      phone,
       email: dto.email ?? null,
       address: dto.address ?? null,
       dateOfBirth: dto.dateOfBirth ?? null,
@@ -122,10 +124,11 @@ export class CustomersService {
 
   async update(id: number, dto: UpdateCustomerDto): Promise<CustomerResponseDto> {
     const customer = await this.findOne(id);
+    const phone = dto.phone !== undefined ? normalizeNepalPhone(dto.phone) : undefined;
 
     Object.assign(customer, {
       ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.phone !== undefined && { phone: dto.phone }),
+      ...(phone !== undefined && { phone }),
       ...(dto.email !== undefined && { email: dto.email }),
       ...(dto.address !== undefined && { address: dto.address }),
       ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),
