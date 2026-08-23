@@ -30,6 +30,7 @@ export const navGroupDefs: NavGroupDef[] = [
     links: [
       { href: "/dashboard", label: "Dashboard", permission: true },
       { href: "/summary", label: "Summary", permission: "dashboard.view" },
+      { href: "/analytics", label: "Analytics", permission: "dashboard.view" },
       { href: "/tables", label: "Tables", permission: "dining-tables.view" },
       { href: "/orders", label: "Orders", permission: "orders.view" },
       { href: "/invoices", label: "Invoices", permission: "orders.view" },

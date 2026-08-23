@@ -49,4 +49,14 @@ export class DashboardController {
   getInventoryActivity(@Query() query: DashboardQueryDto) {
     return this.dashboardService.getInventoryActivity(query);
   }
+
+  @Get('analytics')
+  @RequirePermissions('dashboard.view')
+  @ApiOperation({
+    summary:
+      'Sales/Finance/Operations/Inventory/Customers analytics for the /analytics page: peak hours, sales by category, discount & refund totals with trend, order status %, kitchen prep performance, ingredient consumption ranking, and new-vs-returning customers. Returns both the requested range and the equivalent prior range for computing % changes. Cached ~60s per outlet/date-range.',
+  })
+  getAnalytics(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getAnalytics(query);
+  }
 }

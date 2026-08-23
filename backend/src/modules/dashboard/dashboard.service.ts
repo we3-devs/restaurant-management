@@ -83,6 +83,59 @@ export interface DashboardInventoryActivity {
   recentActivity: DashboardSummary['recentActivity'];
 }
 
+/** Aggregations backing the `/analytics` dashboard page's Sales/Finance/Operations/Inventory/Customers tabs. */
+export interface DashboardAnalytics {
+  peakHours: { hour: number; orderCount: number; revenue: number }[];
+  salesByCategory: {
+    categoryId: number;
+    categoryName: string;
+    revenue: number;
+    orderCount: number;
+  }[];
+  discountRefund: {
+    totalDiscount: number;
+    discountedOrderCount: number;
+    avgDiscount: number;
+    totalRefunded: number;
+    refundCount: number;
+    refundRate: number;
+    trend: { date: string; discountAmount: number }[];
+  };
+  orderStatus: { status: string; count: number; percentage: number }[];
+  prepPerformance: {
+    expectedMinutes: number;
+    avgMinutes: number | null;
+    fastestMinutes: number | null;
+    slowestMinutes: number | null;
+    totalTickets: number;
+    onTimeCount: number;
+    delayedCount: number;
+    trend: { date: string; avgMinutes: number }[];
+  };
+  ingredientConsumption: {
+    mostConsumed: {
+      ingredientId: number;
+      ingredientName: string;
+      totalConsumed: number;
+      unitName: string | null;
+    }[];
+    leastConsumed: {
+      ingredientId: number;
+      ingredientName: string;
+      totalConsumed: number;
+      unitName: string | null;
+    }[];
+  };
+  customerAnalytics: {
+    totalCustomers: number;
+    newCustomers: number;
+    returningCustomers: number;
+    avgSpend: number;
+    avgOrdersPerCustomer: number;
+    trend: { date: string; newCount: number; returningCount: number }[];
+  };
+}
+
 /**
  * Thin router: the default date range (no dateFrom/dateTo, or an explicit
  * range matching it) reads from DashboardCacheService's precomputed cache
@@ -169,6 +222,39 @@ export class DashboardService {
     return this.cache.wrap(
       `dashboard:inventory-activity:default:${range.outletId ?? 'all'}`,
       () => this.cacheService.getInventoryActivity(range.outletId),
+      CACHE_TTL_MS,
+    );
+  }
+
+  /**
+   * Analytics for `/analytics`: current-range aggregations plus the
+   * equivalent-length immediately-preceding range, so the frontend's
+   * insights strip can compute real % changes (revenue, busiest hour
+   * shift, etc.) without a second round trip. Not backed by the
+   * precomputed cache tables — always computed live, wrapped by the same
+   * 60s in-memory cache as the custom-range fallback paths above.
+   */
+  async getAnalytics(query: DashboardQueryDto): Promise<{
+    current: DashboardAnalytics;
+    previous: DashboardAnalytics;
+  }> {
+    const range = this.resolveRange(query);
+    const durationMs = range.to.getTime() - range.from.getTime();
+    const previousRange: ResolvedRange = {
+      outletId: range.outletId,
+      from: new Date(range.from.getTime() - durationMs),
+      to: new Date(range.from.getTime()),
+    };
+    const isDefault = this.isDefaultRange(query, range);
+    return this.cache.wrap(
+      this.cacheKey('analytics', range, isDefault),
+      async () => {
+        const [current, previous] = await Promise.all([
+          this.compute.computeAnalytics(range),
+          this.compute.computeAnalytics(previousRange),
+        ]);
+        return { current, previous };
+      },
       CACHE_TTL_MS,
     );
   }
