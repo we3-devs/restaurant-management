@@ -15,6 +15,7 @@ import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
+import { formatTime } from "@/features/kitchen/ticket-stage"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -118,19 +119,32 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
         {!isLoading && (items?.data.length ?? 0) === 0 && (
           <p className="text-sm text-muted-foreground">No items on this order yet.</p>
         )}
-        {items?.data.map((item: OrderItem) => (
-          <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {item.quantity} &times; {foodName(item.foodId)}
-                {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
-              </p>
-              {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
-              {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}
+        {items?.data.map((item: OrderItem) => {
+          // updatedAt tracks the last status change (sent → preparing → ready →
+          // served). Only surface it once it diverges from the order time, so a
+          // freshly-added item reads "Ordered …" instead of "Ordered X · X".
+          const statusMovedAt =
+            new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime() > 60_000
+              ? formatTime(item.updatedAt)
+              : null
+          return (
+            <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {item.quantity} &times; {foodName(item.foodId)}
+                  {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Ordered {formatTime(item.createdAt)}
+                  {statusMovedAt ? ` · updated ${statusMovedAt}` : ""}
+                </p>
+                {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
+                {item.note && <p className="truncate text-xs text-muted-foreground">{item.note}</p>}
+              </div>
+              <StatusBadge status={item.status} />
             </div>
-            <StatusBadge status={item.status} />
-          </div>
-        ))}
+          )
+        })}
       </CardContent>
     </Card>
   )

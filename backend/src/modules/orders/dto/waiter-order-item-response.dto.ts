@@ -31,11 +31,13 @@ export class WaiterOrderItemAddonResponseDto {
 
 /**
  * The shape GET /order-items actually returns. Deliberately smaller than the
- * OrderItem entity: no createdAt/updatedAt/cancelReason/preparationDepartmentId
- * (internal bookkeeping a waiter's cart/order-detail row never renders), and
- * food/variant names are resolved server-side and embedded — the whole point
- * being that a waiter screen can render every row from this one response,
- * without a second request just to turn foodId/foodVariantId into text.
+ * OrderItem entity: no cancelReason/preparationDepartmentId (internal
+ * bookkeeping a waiter's cart/order-detail row never renders). createdAt/
+ * updatedAt ARE included so order-tracking views can show when each item was
+ * ordered and when it last changed status. food/variant names are resolved
+ * server-side and embedded — the whole point being that a waiter screen can
+ * render every row from this one response, without a second request just to
+ * turn foodId/foodVariantId into text.
  */
 export class WaiterOrderItemResponseDto {
   @ApiProperty()
@@ -76,6 +78,14 @@ export class WaiterOrderItemResponseDto {
 
   @ApiProperty()
   packagingType: OrderItemPackagingType;
+
+  /** When the item was added to the order (i.e. its ordered time). */
+  @ApiProperty()
+  createdAt: Date;
+
+  /** Last status change (sent → preparing → ready → served) — the order-tracking "updated" time. */
+  @ApiProperty()
+  updatedAt: Date;
 
   @ApiProperty({ type: [WaiterOrderItemAddonResponseDto] })
   addons: WaiterOrderItemAddonResponseDto[];
