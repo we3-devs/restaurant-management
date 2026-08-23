@@ -8,7 +8,7 @@ import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Card } from "@rms/ui/card"
 import { ListSkeleton } from "@rms/ui/skeletons"
-import { useMarkOrderReadyItemsServed } from "@rms/api-client/hooks/use-orders"
+import { useMarkOrderReadyItemServed } from "@rms/api-client/hooks/use-orders"
 import { useReadyQueueGroups, type ReadyGroup } from "@/features/waiter/use-ready-queue"
 import { elapsedMinutes } from "@rms/api-client/kitchen/ticket-stage"
 
@@ -52,13 +52,14 @@ function ReadyGroupCard({
   now: number
   outletId: number
 }) {
-  const markServed = useMarkOrderReadyItemsServed(group.orderId, outletId)
-  const [confirming, setConfirming] = useState(false)
+  const markServed = useMarkOrderReadyItemServed(group.orderId, outletId)
+  const [confirming, setConfirming] = useState<number | null>(null)
 
-  async function handleDeliver() {
+  async function handleDeliver(itemId: number) {
     try {
-      await markServed.mutateAsync()
-      toast.success(`${group.tableName} items delivered`)
+      await markServed.mutateAsync(itemId)
+      setConfirming(null)
+      toast.success("Item delivered")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to mark delivered")
     }
@@ -77,27 +78,7 @@ function ReadyGroupCard({
             Ready {elapsedMinutes(group.earliestReadyAt, now)}m ago
           </p>
         </div>
-        {confirming ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="default"
-              disabled={markServed.isPending}
-              onClick={handleDeliver}
-            >
-              <PackageCheckIcon />
-              {markServed.isPending ? "Delivering..." : "Confirm"}
-            </Button>
-          </div>
-        ) : (
-          <Button size="sm" onClick={() => setConfirming(true)} disabled={markServed.isPending}>
-            <PackageCheckIcon />
-            Mark Delivered
-          </Button>
-        )}
+        <span className="text-xs text-muted-foreground">Deliver items one by one</span>
       </div>
 
       <ul className="space-y-1">
@@ -107,7 +88,19 @@ function ReadyGroupCard({
             className="flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5 text-sm"
           >
             <ChefHatIcon className="size-3.5 shrink-0 text-emerald-500" />
-            <span className="truncate font-medium">{item.label}</span>
+            <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+            {confirming === item.id ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button>
+                <Button size="sm" disabled={markServed.isPending} onClick={() => handleDeliver(item.id)}>
+                  <PackageCheckIcon /> Confirm
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" disabled={markServed.isPending} onClick={() => setConfirming(item.id)}>
+                <PackageCheckIcon /> Deliver
+              </Button>
+            )}
           </li>
         ))}
       </ul>

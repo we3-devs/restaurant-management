@@ -3,6 +3,7 @@
 import { BellRingIcon, PackageCheckIcon } from "lucide-react"
 
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
+import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
 import { ReadyQueue } from "@/app/(operational)/service/ready-queue"
 import { ServiceRequestsPanel } from "@/app/(operational)/service/service-requests-panel"
 
@@ -15,6 +16,7 @@ import { ServiceRequestsPanel } from "@/app/(operational)/service/service-reques
  */
 export default function StaffQueuePage() {
   const { outletId } = useActiveOutlet()
+  useKitchenRealtime(outletId)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">

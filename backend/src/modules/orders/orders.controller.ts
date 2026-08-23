@@ -299,6 +299,20 @@ export class OrdersController {
     return this.kitchenTicketsService.markOrderReadyItemsServed(id);
   }
 
+  @Post(':id/mark-ready-item-served/:ticketItemId')
+  @RequirePermissions('orders.manage')
+  @ApiOperation({
+    summary: "Waitstaff 'Mark Delivered': serves one ready kitchen item",
+  })
+  async markReadyItemServed(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('ticketItemId', ParseIntPipe) ticketItemId: number,
+    @CurrentUser() user: User,
+  ) {
+    await this.assertOrderAccess(id, user);
+    return this.kitchenTicketsService.markOrderReadyItemServed(id, ticketItemId);
+  }
+
   @Post(':id/fire-held-items')
   @RequirePermissions('orders.manage')
   @ApiOperation({

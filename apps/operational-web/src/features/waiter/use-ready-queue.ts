@@ -7,7 +7,7 @@ export interface ReadyGroup {
   orderId: number
   tableName: string
   orderNumber: string
-  itemLabels: { id: number; label: string; readyAt: string | null }[]
+  itemLabels: { id: number; ticketId: number; label: string; readyAt: string | null }[]
   earliestReadyAt: string
 }
 
@@ -37,10 +37,11 @@ export function useReadyQueueGroups(outletId: number | null) {
       if (readyItems.length === 0) continue
       const existing = byOrder.get(ticket.orderId)
       const tableName = ticket.order?.tableSession?.diningTable?.name ?? "Takeaway"
-      const orderNumber = ticket.order?.orderNumber ?? `#${ticket.orderId}`
+      const orderNumber = ticket.order?.orderNumber ?? String(ticket.orderId)
       const labels = readyItems.map((item) => ({
         id: item.id,
-        label: `${item.orderItem?.food?.name ?? "Item"} ×${item.orderItem?.quantity ?? 1}`,
+        ticketId: ticket.id,
+        label: `${item.orderItem?.food?.name ?? "Item"}${item.orderItem?.foodVariant?.name ? ` · ${item.orderItem.foodVariant.name}` : ""} ×${item.orderItem?.quantity ?? 1}`,
         readyAt: item.readyAt,
       }))
       if (existing) {
@@ -50,7 +51,7 @@ export function useReadyQueueGroups(outletId: number | null) {
         byOrder.set(ticket.orderId, {
           orderId: ticket.orderId,
           tableName,
-          orderNumber,
+            orderNumber: `#${orderNumber}`,
           itemLabels: labels,
           earliestReadyAt: labels.reduce(
             (min, l) => (l.readyAt && (!min || l.readyAt < min) ? l.readyAt : min),

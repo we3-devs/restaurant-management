@@ -298,6 +298,20 @@ export function useMarkOrderReadyItemsServed(orderId: number, outletId: number |
   })
 }
 
+/** Waitstaff "Mark Delivered" for one ready kitchen item. */
+export function useMarkOrderReadyItemServed(orderId: number, outletId: number | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketItemId: number) =>
+      apiClient<unknown>(`/orders/${orderId}/mark-ready-item-served/${ticketItemId}`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
+      if (outletId) queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
+    },
+  })
+}
+
 export function useOrderItems(orderId: number) {
   return useQuery({
     queryKey: queryKeys.orders.items(orderId),

@@ -462,6 +462,45 @@ export class KitchenTicketsService {
     return tickets;
   }
 
+  /** Marks exactly one ready kitchen item as delivered by the waitstaff. */
+  async markOrderReadyItemServed(
+    orderId: number,
+    ticketItemId: number,
+  ): Promise<KitchenTicket> {
+    const item = await this.ticketItemsRepository
+      .createQueryBuilder('ticketItem')
+      .innerJoinAndSelect('ticketItem.ticket', 'ticket')
+      .where('ticketItem.id = :ticketItemId', { ticketItemId })
+      .andWhere('ticket.order_id = :orderId', { orderId })
+      .getOne();
+
+    if (!item) {
+      throw new NotFoundException(
+        `Ready item ${ticketItemId} was not found on order ${orderId}`,
+      );
+    }
+    if (item.status !== 'ready') {
+      throw new BadRequestException(
+        `Item ${ticketItemId} is not ready to be delivered (status: ${item.status})`,
+      );
+    }
+
+    const now = new Date();
+    item.status = 'served';
+    item.servedAt = now;
+    await this.ticketItemsRepository.save(item);
+    await this.orderItemsRepository.update(
+      { id: item.orderItemId },
+      { status: 'served' },
+    );
+
+    const ticket = await this.recomputeTicketStatus(item.ticketId);
+    this.gateway.notifyTicketUpdated(ticket);
+    this.gateway.notifyItemUpdated(ticket.outletId, item);
+    await this.ordersService.maybeAdvanceToServed(orderId, null);
+    return ticket;
+  }
+
   /**
    * Persists + pushes a "Table X — items ready" notification so the POS bell
    * and the waiter service queue pick it up without polling.
