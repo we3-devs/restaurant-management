@@ -72,6 +72,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     description: "Look up or add a customer",
     icon: UsersIcon,
     requires: "customers.view",
+    excludeRoleSlugs: ["waiter"],
   },
 ]
 
@@ -81,12 +82,16 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
  * reached only via a table tap from Tables, not a direct tab, but it still
  * needs the same permission check a nav entry would have given it.
  */
-const STAFF_EXTRA_ROUTE_PERMISSIONS: { href: string; permission: StaffNavItem["requires"] }[] = [
+const STAFF_EXTRA_ROUTE_PERMISSIONS: {
+  href: string
+  permission: StaffNavItem["requires"]
+  excludeRoleSlugs?: string[]
+}[] = [
   { href: "/staff/waiter/pos", permission: "orders.manage" },
   // /staff/pos/receipt/[orderId] — the staff-shell counterpart to
   // (operational)/pos/receipt, linked from OrderDetail's "POS Bill"/
   // "Invoice" buttons when rendered with basePath="/staff".
-  { href: "/staff/pos", permission: "orders.manage" },
+  { href: "/staff/pos", permission: "orders.manage", excludeRoleSlugs: ["waiter"] },
 ]
 
 /** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
@@ -115,5 +120,9 @@ export function isStaffRouteBlockedForRole(
     (item) =>
       item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug)) &&
       (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  ) || STAFF_EXTRA_ROUTE_PERMISSIONS.some(
+    (entry) =>
+      entry.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug)) &&
+      (pathname === entry.href || pathname.startsWith(`${entry.href}/`)),
   )
 }

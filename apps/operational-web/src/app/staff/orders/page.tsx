@@ -13,6 +13,7 @@ import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { tableSessionName, useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { ORDER_STATUSES } from "@rms/validators/orders"
+import { useCurrentUser } from "@rms/auth/current-user-context"
 
 /** Same calendar day as `now`, in the browser's local timezone. */
 function isToday(isoDate: string): boolean {
@@ -42,6 +43,8 @@ interface OrderRow {
  */
 export default function StaffOrdersPage() {
   const { outletId } = useActiveOutlet()
+  const { isSuperadmin, roleSlugs } = useCurrentUser()
+  const isWaiter = !isSuperadmin && roleSlugs.includes("waiter")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const { data: orders, isLoading } = useOrders(
     {
@@ -108,14 +111,14 @@ export default function StaffOrdersPage() {
 
       <div className="space-y-2">
         {rows.map((row) => (
-          <OrderRowCard key={row.order.id} row={row} />
+          <OrderRowCard key={row.order.id} row={row} isWaiter={isWaiter} />
         ))}
       </div>
     </div>
   )
 }
 
-function OrderRowCard({ row }: { row: OrderRow }) {
+function OrderRowCard({ row, isWaiter }: { row: OrderRow; isWaiter: boolean }) {
   const { order, tableName, customerName, sessionLabel } = row
 
   return (
@@ -132,10 +135,12 @@ function OrderRowCard({ row }: { row: OrderRow }) {
         </div>
         <p className="truncate text-xs text-muted-foreground">{sessionLabel}</p>
       </div>
-      <div className="shrink-0 text-right text-sm">
-        <p className="font-medium">{order.grandTotal}</p>
-        {order.dueAmount > 0 && <p className="text-destructive">Due {order.dueAmount}</p>}
-      </div>
+      {!isWaiter && (
+        <div className="shrink-0 text-right text-sm">
+          <p className="font-medium">{order.grandTotal}</p>
+          {order.dueAmount > 0 && <p className="text-destructive">Due {order.dueAmount}</p>}
+        </div>
+      )}
     </Link>
   )
 }
