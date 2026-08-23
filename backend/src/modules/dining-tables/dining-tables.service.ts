@@ -131,9 +131,21 @@ export class DiningTablesService {
     await this.diningTablesRepository.remove(table);
   }
 
-  /** Used by TableSessionsService to flip table status without a full DTO round-trip. */
+  /**
+   * Used by TableSessionsService to flip table status without a full DTO
+   * round-trip. Load-then-save (the same shape update() above uses) rather
+   * than a bare `update({ id }, { status })` on purpose: a QueryBuilder
+   * update hands RealtimeChangeSubscriber only the values-set — `{ status }`,
+   * with no outletId and no databaseEntity — so extractOutletId() returns
+   * null and broadcastResourceChanged() falls through to its "no outlet
+   * scope" branch, emitting `dining_tables` to *every* connected socket in
+   * *every* outlet. Saving a loaded entity gives the subscriber the real row,
+   * keeping the invalidation inside the owning outlet's room.
+   */
   async setStatus(id: number, status: DiningTableStatus): Promise<void> {
-    await this.diningTablesRepository.update({ id }, { status });
+    const table = await this.findOne(id);
+    table.status = status;
+    await this.diningTablesRepository.save(table);
   }
 
   private async assertAreaBelongsToOutlet(

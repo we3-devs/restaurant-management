@@ -3,7 +3,7 @@ import { apiClient } from "../client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
 import type { CreateTableSessionInput, OpenTableSessionInput, TransferTableSessionInput } from "@rms/validators/table-sessions"
-import type { DiningTable, ListDiningTablesParams } from "./use-dining-tables"
+import { patchDiningTableStatus } from "./use-dining-tables"
 import type { ListOrdersParams, Order } from "./use-orders"
 
 export interface TableSessionCustomerSummary {
@@ -154,40 +154,23 @@ function patchOrderLists(queryClient: QueryClient, order: Order) {
 }
 
 /**
- * Flips a dining table to "occupied" everywhere it's cached — the detail
- * query plus every list query that currently holds that row (found by id,
- * not by re-deriving which area/outlet filters it belongs to, since the
- * mutation response doesn't carry the full DiningTable). A list filtered to
- * a status the table no longer matches (e.g. `status: "available"`) has the
- * row removed instead of just relabeled, so it doesn't linger there stale.
+ * Resolves which dining table a session is sitting at, from cache only — so
+ * the occupancy patches below can run synchronously in an onSuccess without
+ * an extra GET. Prefers the detail query, falling back to scanning cached
+ * lists. Returns null when nothing cached knows, in which case callers skip
+ * their optimistic patch and let the refetch settle it.
  */
-function patchDiningTableOccupied(queryClient: QueryClient, diningTableId: number) {
-  queryClient.setQueryData<DiningTable>(queryKeys.diningTables.detail(diningTableId), (old) =>
-    old ? { ...old, status: "occupied" } : old,
-  )
+export function findCachedDiningTableId(queryClient: QueryClient, tableSessionId: number): number | null {
+  const detail = queryClient.getQueryData<TableSession>(queryKeys.tableSessions.detail(tableSessionId))
+  if (detail) return detail.diningTableId
 
-  const entries = queryClient.getQueriesData<PaginatedResponse<DiningTable>>({
-    queryKey: queryKeys.diningTables.lists(),
-  })
-  for (const [key, data] of entries) {
-    if (!data) continue
-    const index = data.data.findIndex((table) => table.id === diningTableId)
-    if (index === -1) continue
-
-    const params = (key[2] as ListDiningTablesParams | undefined) ?? {}
-    if (params.status !== undefined && params.status !== "occupied") {
-      const total = Math.max(data.meta.total - 1, 0)
-      queryClient.setQueryData(key, {
-        data: data.data.filter((table) => table.id !== diningTableId),
-        meta: { ...data.meta, total, totalPages: Math.ceil(total / data.meta.limit) || 1 },
-      })
-      continue
-    }
-
-    const nextRows = [...data.data]
-    nextRows[index] = { ...nextRows[index], status: "occupied" }
-    queryClient.setQueryData(key, { ...data, data: nextRows })
+  for (const [, data] of queryClient.getQueriesData<PaginatedResponse<TableSession>>({
+    queryKey: queryKeys.tableSessions.lists(),
+  })) {
+    const match = data?.data.find((session) => session.id === tableSessionId)
+    if (match) return match.diningTableId
   }
+  return null
 }
 
 /**
@@ -200,7 +183,8 @@ function patchDiningTableOccupied(queryClient: QueryClient, diningTableId: numbe
  * The response already carries the full tableSession and order, so every
  * cache this used to `invalidateQueries()` (and therefore refetch over the
  * network) is instead patched in place from that response — see
- * patchTableSessionLists/patchOrderLists/patchDiningTableOccupied above.
+ * patchTableSessionLists/patchOrderLists above and patchDiningTableStatus in
+ * use-dining-tables.ts.
  */
 export function useOpenTableSession() {
   const queryClient = useQueryClient()
@@ -216,7 +200,7 @@ export function useOpenTableSession() {
 
       patchTableSessionLists(queryClient, result.session)
       patchOrderLists(queryClient, result.order)
-      patchDiningTableOccupied(queryClient, result.session.diningTableId)
+      patchDiningTableStatus(queryClient, result.session.diningTableId, "occupied")
 
       // Pre-seeds the exact query useOrderDeepLink issues right after this
       // (`useOrders({ tableSessionId, limit: 100 })` once its own
@@ -238,10 +222,23 @@ export function useEndTableSession(id: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => apiClient<TableSession>(`/table-sessions/${id}/end`, { method: "POST" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+    onSuccess: (session) => {
+      // Ending the session frees the table server-side
+      // (TableSessionsService#end -> DiningTablesService#setStatus), so paint
+      // it available right away — the mirror of the "occupied" patch seating
+      // already does, which is why seating used to feel instant and closing
+      // out didn't.
+      if (session?.diningTableId) {
+        patchDiningTableStatus(queryClient, session.diningTableId, "available")
+      }
+      // refetchType "all" because the floor board is usually unmounted at
+      // this point (staff are on the POS/checkout screen): the default
+      // active-only invalidation would just flag these stale and defer the
+      // GET until the board is next mounted, stacking the round trip on top
+      // of the navigation instead of overlapping with it.
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists(), refetchType: "all" })
       queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists(), refetchType: "all" })
     },
   })
 }
@@ -251,10 +248,19 @@ export function useTransferTableSession(id: number) {
   return useMutation({
     mutationFn: (input: TransferTableSessionInput) =>
       apiClient<TableSession>(`/table-sessions/${id}/transfer`, { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+    onSuccess: (session, input) => {
+      // Transfer frees the old table and occupies the new one in the same
+      // call — patch both so neither card waits on the refetch. The old id
+      // comes from cache (the response only carries the new one).
+      const previousDiningTableId = findCachedDiningTableId(queryClient, id)
+      if (previousDiningTableId !== null && previousDiningTableId !== input.newDiningTableId) {
+        patchDiningTableStatus(queryClient, previousDiningTableId, "available")
+      }
+      patchDiningTableStatus(queryClient, session?.diningTableId ?? input.newDiningTableId, "occupied")
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists(), refetchType: "all" })
       queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists(), refetchType: "all" })
     },
   })
 }

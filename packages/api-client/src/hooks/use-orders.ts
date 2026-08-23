@@ -1,8 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { apiClient } from "../client"
 import { queuableApiClient } from "../offline/queuable-api-client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
+import { patchDiningTableStatus } from "./use-dining-tables"
+import { findCachedDiningTableId } from "./use-table-sessions"
 import type {
   CreateOrderInput,
   CreateOrderItemAddonInput,
@@ -183,17 +185,73 @@ export function useUpdateOrder(id: number) {
   })
 }
 
+const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
+
+/**
+ * True only when the cache can *positively confirm* that no other order on
+ * this session is still open — i.e. that completing this one is what ends the
+ * session and frees the table. OrdersService#freeTableForCompletedOrder only
+ * frees the table when the completed order was the last active one, so
+ * guessing wrong here would flash a table green that the backend left
+ * occupied.
+ *
+ * Deliberately conservative: it needs a cached list actually scoped to this
+ * tableSessionId, skips `status`/`search`-filtered lists (a
+ * `status: "completed"` list would trivially look like everything is closed)
+ * and partially-cached pages. Returning false on an unknown cache is the safe
+ * direction — the caller just skips its optimistic patch and lets the refetch
+ * settle it.
+ */
+function isLastOpenOrderForSession(
+  queryClient: QueryClient,
+  tableSessionId: number,
+  completedOrderId: number,
+): boolean {
+  let confirmed = false
+  for (const [key, data] of queryClient.getQueriesData<PaginatedResponse<Order>>({
+    queryKey: queryKeys.orders.lists(),
+  })) {
+    if (!data) continue
+    const params = (key[2] as ListOrdersParams | undefined) ?? {}
+    if (params.tableSessionId !== tableSessionId) continue
+    if (params.status !== undefined || params.search) continue
+    if (data.data.length < data.meta.total) continue
+    if (
+      data.data.some(
+        (order) => order.id !== completedOrderId && !CLOSED_ORDER_STATUSES.has(order.status),
+      )
+    ) {
+      return false
+    }
+    confirmed = true
+  }
+  return confirmed
+}
+
 export function useUpdateOrderStatus(id: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (status: string) =>
       apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-    onSuccess: () => {
+    onSuccess: (order, status) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
-      // Completing a dine-in order can auto-end its table session server-side.
-      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+      // Completing a dine-in order can auto-end its table session server-side
+      // (OrdersService#freeTableForCompletedOrder), freeing the table with it.
+      // refetchType "all" because the floor board is usually unmounted at this
+      // point — staff complete the sale from the POS/checkout screen — and the
+      // default active-only invalidation would merely flag its dining-tables
+      // query stale, deferring the GET until the board is next mounted.
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists(), refetchType: "all" })
+      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists(), refetchType: "all" })
+
+      // ...and paint the table available immediately, so it doesn't sit red
+      // until that refetch lands. Only when the cache can prove this was the
+      // session's last open order (see isLastOpenOrderForSession).
+      if (status !== "completed" || !order?.tableSessionId) return
+      if (!isLastOpenOrderForSession(queryClient, order.tableSessionId, id)) return
+      const diningTableId = findCachedDiningTableId(queryClient, order.tableSessionId)
+      if (diningTableId !== null) patchDiningTableStatus(queryClient, diningTableId, "available")
     },
   })
 }

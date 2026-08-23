@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "../client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
+import { patchDiningTableStatus } from "./use-dining-tables"
+import { findCachedDiningTableId } from "./use-table-sessions"
 import type { Order } from "./use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import type { CreateOrderPaymentInput } from "@rms/validators/orders"
@@ -78,8 +80,17 @@ export function useCompleteAllForTableSession(tableSessionId: number) {
       apiClient<Order[]>(`/orders/table-sessions/${tableSessionId}/complete-all`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+      // Completing every open order on the session ends it server-side
+      // (OrdersService#freeTableForCompletedOrder), which frees the table —
+      // so paint it available now instead of leaving it red until the floor
+      // board's GET lands.
+      const diningTableId = findCachedDiningTableId(queryClient, tableSessionId)
+      if (diningTableId !== null) patchDiningTableStatus(queryClient, diningTableId, "available")
+      // refetchType "all": the floor board is unmounted while staff are on
+      // this checkout screen, so an active-only invalidation would defer the
+      // refetch until they navigate back to it.
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists(), refetchType: "all" })
+      queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists(), refetchType: "all" })
     },
   })
 }
