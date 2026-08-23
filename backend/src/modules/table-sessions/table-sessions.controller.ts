@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -13,6 +14,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
+import { AssignTableSessionCustomerDto } from './dto/assign-table-session-customer.dto';
 import { ListTableSessionsQueryDto } from './dto/list-table-sessions-query.dto';
 import { SetTableSessionCustomerDto } from './dto/set-table-session-customer.dto';
 import { TransferTableSessionDto } from './dto/transfer-table-session.dto';
@@ -123,5 +125,26 @@ export class TableSessionsController {
   ) {
     await this.assertSessionAccess(id, user);
     return this.tableSessionsService.setCustomer(id, dto.customerId);
+  }
+
+  @Get(':id/customers')
+  @RequirePermissions('table-sessions.view')
+  async listCustomers(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertSessionAccess(id, user);
+    return this.tableSessionsService.listCustomers(id);
+  }
+
+  @Post(':id/customers')
+  @RequirePermissions('table-sessions.manage')
+  async addCustomer(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignTableSessionCustomerDto, @CurrentUser() user: User) {
+    await this.assertSessionAccess(id, user);
+    return this.tableSessionsService.addCustomer(id, dto.customerId);
+  }
+
+  @Delete(':id/customers/:customerId')
+  @RequirePermissions('table-sessions.manage')
+  async removeCustomer(@Param('id', ParseIntPipe) id: number, @Param('customerId', ParseIntPipe) customerId: number, @CurrentUser() user: User) {
+    await this.assertSessionAccess(id, user);
+    return this.tableSessionsService.removeCustomer(id, customerId);
   }
 }

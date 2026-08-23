@@ -9,12 +9,13 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSession } from './entities/table-session.entity';
+import { TableSessionCustomer } from './entities/table-session-customer.entity';
 import { TableSessionsController } from './table-sessions.controller';
 import { TableSessionsService } from './table-sessions.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TableSession, LoyaltyAccount]),
+    TypeOrmModule.forFeature([TableSession, TableSessionCustomer, LoyaltyAccount]),
     AuthModule,
     DiningTablesModule,
     OutletsModule,

@@ -21,6 +21,7 @@ export interface TableSession {
   customerId: number | null
   // Populated by both the list endpoint and GET /table-sessions/:id.
   customer?: TableSessionCustomerSummary | null
+  customers?: TableSessionCustomerSummary[]
   // Only populated by GET /table-sessions/:id (findOneDetailed) — the list
   // endpoint's rows already show table/outlet context from their own filters.
   outletName?: string
@@ -275,6 +276,43 @@ export function useSetTableSessionCustomer(id: number) {
         body: JSON.stringify({ customerId }),
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
+    },
+  })
+}
+
+export function useTableSessionCustomers(id: number) {
+  return useQuery({
+    queryKey: [...queryKeys.tableSessions.detail(id), "customers"],
+    queryFn: () => apiClient<TableSessionCustomerSummary[]>(`/table-sessions/${id}/customers`),
+    enabled: id > 0,
+  })
+}
+
+export function useAddTableSessionCustomer(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (customerId: number) =>
+      apiClient<TableSessionCustomerSummary[]>(`/table-sessions/${id}/customers`, {
+        method: "POST",
+        body: JSON.stringify({ customerId }),
+      }),
+    onSuccess: (customers) => {
+      queryClient.setQueryData([...queryKeys.tableSessions.detail(id), "customers"], customers)
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
+    },
+  })
+}
+
+export function useRemoveTableSessionCustomer(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (customerId: number) =>
+      apiClient<TableSessionCustomerSummary[]>(`/table-sessions/${id}/customers/${customerId}`, { method: "DELETE" }),
+    onSuccess: (customers) => {
+      queryClient.setQueryData([...queryKeys.tableSessions.detail(id), "customers"], customers)
       queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.detail(id) })
     },

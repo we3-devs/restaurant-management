@@ -29,6 +29,7 @@ import { CreateTableSessionDto } from './dto/create-table-session.dto';
 import { ListTableSessionsQueryDto } from './dto/list-table-sessions-query.dto';
 import { TransferTableSessionDto } from './dto/transfer-table-session.dto';
 import { TableSession } from './entities/table-session.entity';
+import { TableSessionCustomer } from './entities/table-session-customer.entity';
 
 const OPEN_SESSION_STATUSES: TableSession['status'][] = ['active', 'billing'];
 
@@ -41,6 +42,7 @@ export interface TableSessionCustomerSummary {
 
 export type TableSessionWithCustomer = Omit<TableSession, 'customer'> & {
   customer: TableSessionCustomerSummary | null;
+  customers: TableSessionCustomerSummary[];
 };
 
 export type TableSessionDetail = TableSessionWithCustomer & {
@@ -82,6 +84,8 @@ export class TableSessionsService {
   constructor(
     @InjectRepository(TableSession)
     private readonly tableSessionsRepository: Repository<TableSession>,
+    @InjectRepository(TableSessionCustomer)
+    private readonly sessionCustomersRepository: Repository<TableSessionCustomer>,
     @InjectRepository(LoyaltyAccount)
     private readonly loyaltyAccountsRepository: Repository<LoyaltyAccount>,
     private readonly diningTablesService: DiningTablesService,
@@ -144,10 +148,19 @@ export class TableSessionsService {
   private async attachCustomerSummaries(
     sessions: TableSession[],
   ): Promise<TableSessionWithCustomer[]> {
+    const sessionCustomerRows = sessions.length
+      ? await this.sessionCustomersRepository.find({
+          where: { tableSessionId: In(sessions.map((session) => session.id)) },
+          relations: ['customer'],
+        })
+      : [];
     const customerIds = [
       ...new Set(
-        sessions
+        sessionCustomerRows
+          .map((row) => row.customer?.id)
+          .concat(sessions
           .map((session) => session.customer?.id)
+          .filter((id): id is number => id !== undefined))
           .filter((id): id is number => id !== undefined),
       ),
     ];
@@ -160,7 +173,25 @@ export class TableSessionsService {
       loyaltyAccounts.map((account) => [account.customerId, account.tier]),
     );
 
-    return sessions.map((session) => ({
+    return sessions.map((session) => {
+      const summaries = sessionCustomerRows
+        .filter((row) => row.tableSessionId === session.id && row.customer)
+        .map((row) => ({
+          id: row.customer.id,
+          name: row.customer.name,
+          phone: row.customer.phone,
+          loyaltyTier: tierByCustomerId.get(row.customer.id) ?? null,
+        }));
+      const primaryCustomer = session.customer;
+      if (primaryCustomer && !summaries.some((customer) => customer.id === primaryCustomer.id)) {
+        summaries.unshift({
+          id: primaryCustomer.id,
+          name: primaryCustomer.name,
+          phone: primaryCustomer.phone,
+          loyaltyTier: tierByCustomerId.get(primaryCustomer.id) ?? null,
+        });
+      }
+      return {
       ...session,
       customer: session.customer
         ? {
@@ -170,7 +201,9 @@ export class TableSessionsService {
             loyaltyTier: tierByCustomerId.get(session.customer.id) ?? null,
           }
         : null,
-    }));
+      customers: summaries,
+      };
+    });
   }
 
   /** Internal lookup used by OrdersService to validate a tableSessionId. */
@@ -236,8 +269,51 @@ export class TableSessionsService {
     await this.customersService.findOne(customerId);
     session.customerId = customerId;
     const saved = await this.tableSessionsRepository.save(session);
+    await this.sessionCustomersRepository.upsert({ tableSessionId: id, customerId }, ['tableSessionId', 'customerId']);
+    await this.attachCustomerToOrders(id, customerId);
     await this.customersService.upsertVisit(customerId, session.outletId);
     return saved;
+  }
+
+  async listCustomers(id: number): Promise<TableSessionCustomerSummary[]> {
+    const session = await this.findOne(id);
+    const rows = await this.sessionCustomersRepository.find({ where: { tableSessionId: id }, relations: ['customer'] });
+    if (session.customerId && !rows.some((row) => row.customerId === session.customerId)) {
+      await this.sessionCustomersRepository.upsert({ tableSessionId: id, customerId: session.customerId }, ['tableSessionId', 'customerId']);
+      return this.listCustomers(id);
+    }
+    return rows.filter((row) => row.customer).map((row) => ({ id: row.customer.id, name: row.customer.name, phone: row.customer.phone, loyaltyTier: null }));
+  }
+
+  async addCustomer(id: number, customerId: number): Promise<TableSessionCustomerSummary[]> {
+    const session = await this.findOne(id);
+    await this.customersService.findOne(customerId);
+    await this.sessionCustomersRepository.upsert({ tableSessionId: id, customerId }, ['tableSessionId', 'customerId']);
+    await this.attachCustomerToOrders(id, customerId);
+    if (!session.customerId) {
+      session.customerId = customerId;
+      await this.tableSessionsRepository.save(session);
+    }
+    await this.customersService.upsertVisit(customerId, session.outletId);
+    return this.listCustomers(id);
+  }
+
+  async removeCustomer(id: number, customerId: number): Promise<TableSessionCustomerSummary[]> {
+    const session = await this.findOne(id);
+    if (session.customerId === customerId) {
+      throw new BadRequestException('The primary customer cannot be removed from a table session');
+    }
+    await this.sessionCustomersRepository.delete({ tableSessionId: id, customerId });
+    return this.listCustomers(id);
+  }
+
+  private async attachCustomerToOrders(tableSessionId: number, customerId: number): Promise<void> {
+    await this.dataSource.query(
+      `INSERT INTO order_customers (order_id, customer_id)
+       SELECT id, $2 FROM orders WHERE table_session_id = $1
+       ON CONFLICT DO NOTHING`,
+      [tableSessionId, customerId],
+    );
   }
 
   /**
@@ -251,11 +327,13 @@ export class TableSessionsService {
     customerId: number,
   ): Promise<TableSession> {
     const session = await this.findOne(id);
-    if (session.customerId !== null) {
-      return session;
+    await this.sessionCustomersRepository.upsert({ tableSessionId: id, customerId }, ['tableSessionId', 'customerId']);
+    await this.attachCustomerToOrders(id, customerId);
+    let saved = session;
+    if (session.customerId === null) {
+      session.customerId = customerId;
+      saved = await this.tableSessionsRepository.save(session);
     }
-    session.customerId = customerId;
-    const saved = await this.tableSessionsRepository.save(session);
     // First time this session gets a customer of record — counts as one
     // dine-in visit. The no-op guard above means this only ever fires once
     // per session, even if more guests place orders on it afterwards.
@@ -334,7 +412,14 @@ export class TableSessionsService {
       startedAt: new Date(),
       startedBy,
     });
-    return manager.save(session);
+    const saved = await manager.save(session);
+    if (dto.customerId !== undefined) {
+      await manager.insert(TableSessionCustomer, {
+        tableSessionId: saved.id,
+        customerId: dto.customerId,
+      });
+    }
+    return saved;
   }
 
   /**
