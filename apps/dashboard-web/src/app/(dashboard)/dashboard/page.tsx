@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const canViewOrders = has("orders.view")
   const canViewKitchen = has("orders.view")
   const canViewTables = has("dining-tables.view")
-  const canViewInventory = has("dashboard.view")
+  const canViewDashboardStats = has("dashboard.view")
   const canViewStaff = has("attendance.view")
   const quickActions = QUICK_ACTIONS.filter((action) => has(action.permission))
 
@@ -79,7 +79,7 @@ export default function DashboardPage() {
           enabled={dataEnabled}
           canViewOrders={canViewOrders}
           canViewKitchen={canViewKitchen}
-          canViewInventory={canViewInventory}
+          canViewDashboardStats={canViewDashboardStats}
         />
       </div>
 
@@ -89,8 +89,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {canViewInventory ? <RevenueSnapshotSection outletId={outletId} enabled={dataEnabled} /> : null}
-        {canViewInventory ? <PaymentStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
+        {canViewDashboardStats ? <RevenueSnapshotSection outletId={outletId} enabled={dataEnabled} /> : null}
+        {canViewDashboardStats ? <PaymentStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
       </div>
 
       {canViewStaff ? (

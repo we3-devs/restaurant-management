@@ -32,7 +32,10 @@ import { useAttendanceToday } from "@/hooks/use-attendance"
 import { money, pctChange } from "./chart-utils"
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
 export function todayRange() {
@@ -245,19 +248,19 @@ const SEVERITY_BADGE: Record<AttentionItem["severity"], "destructive" | "warning
 export interface NeedsAttentionSectionProps extends OperationalSectionProps {
   canViewOrders: boolean
   canViewKitchen: boolean
-  canViewInventory: boolean
+  canViewDashboardStats: boolean
 }
 
-export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canViewKitchen, canViewInventory }: NeedsAttentionSectionProps) {
+export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canViewKitchen, canViewDashboardStats }: NeedsAttentionSectionProps) {
   const ordersQuery = useOrders(
     { outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 30 },
     { enabled: enabled && canViewOrders },
   )
   const kdsQuery = useKdsBootstrap(enabled && canViewKitchen ? outletId : null)
-  const statsQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled: enabled && canViewInventory })
+  const statsQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled: enabled && canViewDashboardStats })
 
   const isLoading =
-    (canViewOrders && ordersQuery.isLoading) || (canViewKitchen && kdsQuery.isLoading) || (canViewInventory && statsQuery.isLoading)
+    (canViewOrders && ordersQuery.isLoading) || (canViewKitchen && kdsQuery.isLoading) || (canViewDashboardStats && statsQuery.isLoading)
   const showSkeleton = useDelayedLoading(isLoading)
 
   const items = useMemo<AttentionItem[]>(() => {

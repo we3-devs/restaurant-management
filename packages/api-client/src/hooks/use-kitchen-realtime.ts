@@ -37,7 +37,7 @@ export function useKitchenRealtime(outletId: number | null): void {
       queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
     }
     const invalidateService = () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(outletId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests.all })
     }
 
