@@ -35,8 +35,7 @@ import type {
   PrepPerformance,
   SalesByCategory,
 } from "@/hooks/use-analytics"
-import { CHART_COLOR, ChartTooltip, money } from "../_shared/chart-utils"
-import { pctChange } from "../_shared/operational-sections"
+import { CHART_COLOR, ChartTooltip, money, pctChange } from "../_shared/chart-utils"
 
 /** New-chart-only palette per design constraint: cyan/amber/emerald, not indigo/violet. */
 export const CHART_CYAN = "var(--chart-3)"

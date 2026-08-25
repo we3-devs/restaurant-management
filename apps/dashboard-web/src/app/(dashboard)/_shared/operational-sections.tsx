@@ -29,7 +29,7 @@ import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useDiningTables } from "@/hooks/use-dining-tables"
 import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useAttendanceToday } from "@/hooks/use-attendance"
-import { money } from "./chart-utils"
+import { money, pctChange } from "./chart-utils"
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -43,11 +43,6 @@ export function todayRange() {
 function yesterdayRange() {
   const y = isoDate(new Date(Date.now() - 24 * 60 * 60_000))
   return { dateFrom: y, dateTo: y }
-}
-
-export function pctChange(current: number, previous: number): number | undefined {
-  if (!previous) return undefined
-  return Math.round(((current - previous) / previous) * 1000) / 10
 }
 
 function minutesSince(iso: string): number {

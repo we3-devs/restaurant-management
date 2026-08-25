@@ -6,6 +6,12 @@ export function money(value: number): string {
 
 export const CHART_COLOR = "var(--chart-1)"
 
+export function pctChange(current: number, previous: number): number | undefined {
+  if (!previous) return undefined
+  const rounded = Math.round(((current - previous) / previous) * 1000) / 10
+  return rounded === 0 ? 0 : rounded
+}
+
 export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
   if (!active || !payload?.length) return null
   return (
