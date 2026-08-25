@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
@@ -55,14 +55,20 @@ export class EmployeesService {
    */
   private async syncRoleFromPosition(employee: Employee): Promise<void> {
     if (!employee.userId || !employee.positionId) return;
-    const position = await this.positionRepo.findOne({ where: { id: employee.positionId } });
+    const position = await this.positionRepo.findOne({
+      where: { id: employee.positionId },
+      relations: ['defaultRole'],
+    });
     if (!position?.defaultRoleId) return;
+
+    const isGlobal = position.defaultRole?.level === 'global';
+    const outletId = isGlobal ? null : employee.outletId;
 
     const existing = await this.userRoleAssignmentRepo.findOne({
       where: {
         userId: employee.userId,
         roleId: position.defaultRoleId,
-        outletId: employee.outletId,
+        outletId: outletId ?? IsNull(),
       },
     });
     if (existing) return;
@@ -71,8 +77,8 @@ export class EmployeesService {
       this.userRoleAssignmentRepo.create({
         userId: employee.userId,
         roleId: position.defaultRoleId,
-        scopeType: 'outlet',
-        outletId: employee.outletId,
+        scopeType: isGlobal ? 'global' : 'outlet',
+        outletId,
       }),
     );
   }

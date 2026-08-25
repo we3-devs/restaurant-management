@@ -36,6 +36,7 @@ import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDeleteRole, useRoles, type Role } from "@/hooks/use-roles"
 import { CreateRoleDialog } from "./create-role-dialog"
 
@@ -52,6 +53,8 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function RolesPage() {
   const router = useRouter()
+  const { permissions, isSuperadmin } = useCurrentUser()
+  const canManage = isSuperadmin || permissions.includes("roles.manage")
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebouncedValue(search, 300)
   const [page, setPage] = useState(1)
@@ -110,7 +113,7 @@ export default function RolesPage() {
                 <DropdownMenuItem onClick={() => router.push(`/roles/${row.original.id}`)}>
                   View details
                 </DropdownMenuItem>
-                {!row.original.isSystem && (
+                {canManage && !row.original.isSystem && (
                   <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(row.original)}>
                     Delete
                   </DropdownMenuItem>
@@ -121,7 +124,7 @@ export default function RolesPage() {
         ),
       },
     ],
-    [router],
+    [router, canManage],
   )
 
   const table = useReactTable({
@@ -150,7 +153,7 @@ export default function RolesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Roles</h1>
-        <CreateRoleDialog />
+        {canManage && <CreateRoleDialog />}
       </div>
 
       <div className="relative w-72">

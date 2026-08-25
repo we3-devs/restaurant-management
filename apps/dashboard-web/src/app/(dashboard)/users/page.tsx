@@ -37,6 +37,7 @@ import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDeactivateUser, useUsers, type User } from "@/hooks/use-users"
 import { CreateUserDialog } from "./create-user-dialog"
 
@@ -60,6 +61,8 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function UsersPage() {
   const router = useRouter()
+  const { permissions, isSuperadmin } = useCurrentUser()
+  const canManage = isSuperadmin || permissions.includes("users.manage")
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebouncedValue(search, 300)
   const [page, setPage] = useState(1)
@@ -133,7 +136,7 @@ export default function UsersPage() {
                 <DropdownMenuItem onClick={() => router.push(`/users/${row.original.id}`)}>
                   View details
                 </DropdownMenuItem>
-                {row.original.isActive && (
+                {canManage && row.original.isActive && (
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => setDeactivateTarget(row.original)}
@@ -147,7 +150,7 @@ export default function UsersPage() {
         ),
       },
     ],
-    [router],
+    [router, canManage],
   )
 
   const table = useReactTable({
@@ -176,7 +179,7 @@ export default function UsersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Users</h1>
-        <CreateUserDialog />
+        {canManage && <CreateUserDialog />}
       </div>
 
       <div className="relative w-72">

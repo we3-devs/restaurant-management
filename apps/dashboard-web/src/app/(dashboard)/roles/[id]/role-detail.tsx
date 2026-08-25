@@ -23,12 +23,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { usePermissions, type Permission } from "@/hooks/use-permissions"
 import { useAssignPermission, useDeleteRole, useRole, useUnassignPermission, useUpdateRole } from "@/hooks/use-roles"
 import { updateRoleSchema, type UpdateRoleInput } from "@/lib/validators/roles"
 
 export function RoleDetail({ roleId }: { roleId: number }) {
   const router = useRouter()
+  const { permissions: userPermissions, isSuperadmin } = useCurrentUser()
+  const canManage = isSuperadmin || userPermissions.includes("roles.manage")
   const { data: role, isLoading } = useRole(roleId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: permissions } = usePermissions()
@@ -129,7 +132,8 @@ export function RoleDetail({ roleId }: { roleId: number }) {
   if (!isLoading && !role) return <NotFoundCard resource="Role" />
   if (!role) return null
 
-  const readOnly = role.isSystem
+  const readOnly = role.isSystem || !canManage
+  const canDelete = canManage && !role.isSystem
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -138,7 +142,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
           <h1 className="text-lg font-semibold">{role.name}</h1>
           <p className="text-sm text-muted-foreground">{role.slug}</p>
         </div>
-        {!readOnly && (
+        {canDelete && (
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
             <AlertDialogContent>
@@ -159,9 +163,14 @@ export function RoleDetail({ roleId }: { roleId: number }) {
         )}
       </div>
 
-      {readOnly && (
+      {role.isSystem && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
           This is a system role — it cannot be edited or deleted.
+        </p>
+      )}
+      {!role.isSystem && !canManage && (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          You don&apos;t have permission to edit this role.
         </p>
       )}
 

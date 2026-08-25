@@ -23,6 +23,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useRoles } from "@/hooks/use-roles"
 import {
   useAssignRole,
@@ -35,6 +36,9 @@ import {
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators/users"
 
 export function UserDetail({ userId }: { userId: number }) {
+  const { permissions, isSuperadmin } = useCurrentUser()
+  const canManageUsers = isSuperadmin || permissions.includes("users.manage")
+  const canManageRoles = isSuperadmin || permissions.includes("roles.manage")
   const { data: user, isLoading } = useUser(userId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: assignments } = useUserRoleAssignments(userId)
@@ -112,7 +116,7 @@ export function UserDetail({ userId }: { userId: number }) {
             </Badge>
           </div>
         </div>
-        {user.isActive && (
+        {user.isActive && canManageUsers && (
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="destructive">Deactivate</Button>} />
             <AlertDialogContent>
@@ -147,7 +151,7 @@ export function UserDetail({ userId }: { userId: number }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Name</FormLabel>
-                    <FormControl {...field} />
+                    <FormControl disabled={!canManageUsers} {...field} />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -158,14 +162,16 @@ export function UserDetail({ userId }: { userId: number }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>
-                    <FormControl type="email" {...field} />
+                    <FormControl type="email" disabled={!canManageUsers} {...field} />
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={updateUser.isPending}>
-                {updateUser.isPending ? "Saving..." : "Save changes"}
-              </Button>
+              {canManageUsers && (
+                <Button type="submit" disabled={updateUser.isPending}>
+                  {updateUser.isPending ? "Saving..." : "Save changes"}
+                </Button>
+              )}
             </form>
           </Form>
         </CardContent>
@@ -183,33 +189,37 @@ export function UserDetail({ userId }: { userId: number }) {
             {activeAssignments.map((assignment) => (
               <div key={assignment.id} className="flex items-center gap-1.5">
                 <Badge variant="secondary">{assignment.roleName}</Badge>
-                <Button variant="ghost" size="sm" onClick={() => handleRevoke(assignment.id)}>
-                  Revoke
-                </Button>
+                {canManageRoles && (
+                  <Button variant="ghost" size="sm" onClick={() => handleRevoke(assignment.id)}>
+                    Revoke
+                  </Button>
+                )}
               </div>
             ))}
           </div>
 
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-1.5">
-              <label className="text-sm font-medium">Assign a role</label>
-              <Select value={selectedRoleId} onValueChange={(value) => setSelectedRoleId(String(value))}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles?.data.map((role) => (
-                    <SelectItem key={role.id} value={String(role.id)}>
-                      {role.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {canManageRoles && (
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-sm font-medium">Assign a role</label>
+                <Select value={selectedRoleId} onValueChange={(value) => setSelectedRoleId(String(value))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles?.data.map((role) => (
+                      <SelectItem key={role.id} value={String(role.id)}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleAssign} disabled={!selectedRoleId || assignRole.isPending}>
+                Assign
+              </Button>
             </div>
-            <Button onClick={handleAssign} disabled={!selectedRoleId || assignRole.isPending}>
-              Assign
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
