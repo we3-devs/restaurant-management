@@ -672,7 +672,7 @@ export class DashboardComputeService {
         'ingredient',
         'ingredient.id = reservation.ingredient_id',
       )
-      .leftJoin('units', 'unit', 'unit.id = ingredient.unit_id')
+      .leftJoin('units', 'unit', 'unit.id = ingredient.base_unit_id')
       .innerJoin('order_items', 'item', 'item.id = reservation.order_item_id')
       .innerJoin('orders', 'order', 'order.id = item.order_id')
       .where('"order".created_at BETWEEN :from AND :to', {

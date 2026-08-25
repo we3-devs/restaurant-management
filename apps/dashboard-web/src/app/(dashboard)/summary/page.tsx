@@ -38,7 +38,8 @@ export default function SummaryPage() {
   useCurrentUser()
   const { outletId, isLoadingOutlets } = useActiveOutlet()
   const [period, setPeriod] = useState<Period>("daily")
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  // `id` comes back over JSON as a string (Postgres bigint), so compare as strings.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data: businessSettings, isLoading: isLoadingSettings } =
     useSettingsCategory<BusinessSettings>("business")
@@ -67,7 +68,7 @@ export default function SummaryPage() {
   // an effect) means switching period/calendar/outlet just naturally shows
   // the newest row of the new set without any extra state to keep in sync.
   const selected = useMemo(
-    () => rows.find((r) => r.id === selectedId) ?? rows[0],
+    () => rows.find((r) => String(r.id) === selectedId) ?? rows[0],
     [rows, selectedId],
   )
 
@@ -125,7 +126,7 @@ export default function SummaryPage() {
           </div>
           <Select
             value={selected ? String(selected.id) : undefined}
-            onValueChange={(value) => setSelectedId(Number(value))}
+            onValueChange={(value) => setSelectedId(value)}
             disabled={rows.length === 0}
           >
             <SelectTrigger className="w-56">
