@@ -509,7 +509,7 @@ export class DashboardComputeService {
   private async getDiscountRefund(
     range: ResolvedRange,
   ): Promise<DashboardAnalytics['discountRefund']> {
-    const [totalsRow, refundRow, trendRows] = await Promise.all([
+    const [totalsRow, refundRow, trendRows, orderCount] = await Promise.all([
       this.ordersInRange(range)
         .select('COALESCE(SUM(order.discount_amount), 0)', 'totalDiscount')
         .addSelect(
@@ -542,13 +542,13 @@ export class DashboardComputeService {
         .groupBy('date')
         .orderBy('date', 'ASC')
         .getRawMany<{ date: string; discountAmount: string }>(),
+      this.ordersInRange(range).getCount(),
     ]);
 
     const totalDiscount = Number(totalsRow?.totalDiscount ?? 0);
     const discountedOrderCount = Number(totalsRow?.discountedOrderCount ?? 0);
     const totalRefunded = Number(refundRow?.totalRefunded ?? 0);
     const refundCount = Number(refundRow?.refundCount ?? 0);
-    const orderCount = await this.ordersInRange(range).getCount();
 
     return {
       totalDiscount,
@@ -769,15 +769,16 @@ export class DashboardComputeService {
     const trendRows = await this.ordersRepository.manager.query(
       `
       SELECT day::date AS date,
-        COUNT(*) FILTER (WHERE first_order.first_order_at::date = day::date) AS "newCount",
-        COUNT(*) FILTER (WHERE customer_orders."orderDate" = day::date AND first_order.first_order_at::date < day::date) AS "returningCount"
+        COUNT(DISTINCT customer_orders.customer_id) FILTER (WHERE first_order.first_order_at::date = day::date) AS "newCount",
+        COUNT(DISTINCT customer_orders.customer_id) FILTER (WHERE first_order.first_order_at::date < day::date) AS "returningCount"
       FROM generate_series($1::date, $2::date, interval '1 day') AS day
       LEFT JOIN LATERAL (
-        SELECT "order".customer_id, "order".created_at::date AS "orderDate"
+        SELECT DISTINCT "order".customer_id
         FROM orders "order"
         WHERE "order".status != 'cancelled'
+          AND "order".created_at::date = day::date
           ${range.outletId !== undefined ? 'AND "order".outlet_id = $3' : ''}
-      ) customer_orders ON customer_orders."orderDate" = day::date
+      ) customer_orders ON true
       LEFT JOIN LATERAL (
         SELECT MIN(o2.created_at) AS first_order_at
         FROM orders o2

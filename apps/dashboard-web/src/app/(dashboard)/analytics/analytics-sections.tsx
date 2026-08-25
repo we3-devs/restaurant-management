@@ -36,6 +36,7 @@ import type {
   SalesByCategory,
 } from "@/hooks/use-analytics"
 import { CHART_COLOR, ChartTooltip, money } from "../_shared/chart-utils"
+import { pctChange } from "../_shared/operational-sections"
 
 /** New-chart-only palette per design constraint: cyan/amber/emerald, not indigo/violet. */
 export const CHART_CYAN = "var(--chart-3)"
@@ -85,11 +86,6 @@ export interface Insight {
   text: string
 }
 
-function pctChange(current: number, previous: number): number | null {
-  if (previous === 0) return current === 0 ? 0 : null
-  return ((current - previous) / previous) * 100
-}
-
 /** Computes 3-5 one-line insights purely from the fetched current-vs-previous analytics payloads. No hardcoded/random content. */
 export function buildInsights(current: DashboardAnalytics, previous: DashboardAnalytics): Insight[] {
   const insights: Insight[] = []
@@ -97,7 +93,7 @@ export function buildInsights(current: DashboardAnalytics, previous: DashboardAn
   const currentRevenue = current.peakHours.reduce((sum, h) => sum + h.revenue, 0)
   const previousRevenue = previous.peakHours.reduce((sum, h) => sum + h.revenue, 0)
   const revenueChange = pctChange(currentRevenue, previousRevenue)
-  if (revenueChange !== null) {
+  if (revenueChange !== undefined) {
     insights.push({
       text: `Revenue is ${revenueChange >= 0 ? "up" : "down"} ${Math.abs(revenueChange).toFixed(1)}% vs the previous period (${money(currentRevenue)} vs ${money(previousRevenue)}).`,
     })
@@ -113,10 +109,10 @@ export function buildInsights(current: DashboardAnalytics, previous: DashboardAn
     insights.push({ text: `${topCategory.categoryName} is the top-selling category with ${money(topCategory.revenue)} in revenue.` })
   }
 
-  const lowestConsumed = current.ingredientConsumption.mostConsumed[0]
-  if (lowestConsumed) {
+  const topConsumed = current.ingredientConsumption.mostConsumed[0]
+  if (topConsumed) {
     insights.push({
-      text: `${lowestConsumed.ingredientName} is the most-consumed ingredient (${lowestConsumed.totalConsumed.toLocaleString()} ${lowestConsumed.unitName ?? "units"}).`,
+      text: `${topConsumed.ingredientName} is the most-consumed ingredient (${topConsumed.totalConsumed.toLocaleString()} ${topConsumed.unitName ?? "units"}).`,
     })
   }
 

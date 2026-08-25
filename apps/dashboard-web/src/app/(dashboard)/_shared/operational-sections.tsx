@@ -45,7 +45,7 @@ function yesterdayRange() {
   return { dateFrom: y, dateTo: y }
 }
 
-function pctChange(current: number, previous: number): number | undefined {
+export function pctChange(current: number, previous: number): number | undefined {
   if (!previous) return undefined
   return Math.round(((current - previous) / previous) * 1000) / 10
 }
