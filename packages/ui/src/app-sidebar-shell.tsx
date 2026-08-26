@@ -37,7 +37,7 @@ export function AppSidebarShell({
     <>
       <aside
         id="dashboard-sidebar"
-        className={`sticky inset-y-0 left-0 z-40 flex h-screen shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar transition-[width,transform] duration-200 max-lg:shadow-xl lg:translate-x-0 ${collapsed ? "w-16" : "w-64"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex h-screen shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar transition-[width,transform] duration-200 max-lg:shadow-xl lg:sticky lg:translate-x-0 ${collapsed ? "w-16" : "w-64"}`}
       >
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
           {branding.logoUrl ? (
