@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity';
+import { UNTRACKED_INGREDIENT_TYPES } from '../ingredient-categories/ingredient-category-type.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from '../orders/entities/order.entity';
 import type {
@@ -261,7 +262,15 @@ export class DashboardComputeService {
         'ingredient.id = stock.ingredient_id',
       )
       .innerJoin('warehouses', 'warehouse', 'warehouse.id = stock.warehouse_id')
+      .innerJoin(
+        'ingredient_categories',
+        'category',
+        'category.id = ingredient.ingredient_category_id',
+      )
       .where('ingredient.is_active = true')
+      .andWhere('category.type NOT IN (:...untrackedTypes)', {
+        untrackedTypes: UNTRACKED_INGREDIENT_TYPES,
+      })
       .andWhere(
         '(stock.quantity <= ingredient.reorder_level OR stock.quantity <= ingredient.minimum_stock)',
       );
@@ -282,7 +291,15 @@ export class DashboardComputeService {
         .createQueryBuilder()
         .select('COUNT(*)', 'count')
         .from('ingredients', 'ingredient')
+        .innerJoin(
+          'ingredient_categories',
+          'category',
+          'category.id = ingredient.ingredient_category_id',
+        )
         .where('ingredient.is_active = true')
+        .andWhere('category.type NOT IN (:...untrackedTypes)', {
+          untrackedTypes: UNTRACKED_INGREDIENT_TYPES,
+        })
         .getRawOne<{ count: string }>(),
     ]);
 
@@ -675,9 +692,17 @@ export class DashboardComputeService {
       .leftJoin('units', 'unit', 'unit.id = ingredient.base_unit_id')
       .innerJoin('order_items', 'item', 'item.id = reservation.order_item_id')
       .innerJoin('orders', 'order', 'order.id = item.order_id')
+      .innerJoin(
+        'ingredient_categories',
+        'category',
+        'category.id = ingredient.ingredient_category_id',
+      )
       .where('"order".created_at BETWEEN :from AND :to', {
         from: range.from,
         to: range.to,
+      })
+      .andWhere('category.type NOT IN (:...untrackedTypes)', {
+        untrackedTypes: UNTRACKED_INGREDIENT_TYPES,
       })
       .groupBy('ingredient.id')
       .addGroupBy('ingredient.name')

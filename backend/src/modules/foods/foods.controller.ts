@@ -12,8 +12,11 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
@@ -27,7 +30,10 @@ import { FoodsService } from './foods.service';
 @ApiBearerAuth()
 @Controller('foods')
 export class FoodsController {
-  constructor(private readonly foodsService: FoodsService) {}
+  constructor(
+    private readonly foodsService: FoodsService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   @Get()
   @RequirePermissions('foods.view')
@@ -97,10 +103,12 @@ export class FoodsController {
   @ApiOperation({
     summary: 'Creates or updates the outlet override for a food (upsert)',
   })
-  upsertOutletOverride(
+  async upsertOutletOverride(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpsertFoodOutletDto,
+    @CurrentUser() user: User,
   ) {
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, dto.outletId);
     return this.foodsService.upsertOutletOverride(id, dto);
   }
 
@@ -111,10 +119,12 @@ export class FoodsController {
     summary:
       'Removes an outlet override (reverts to available-everywhere-at-base-price)',
   })
-  removeOutletOverride(
+  async removeOutletOverride(
     @Param('id', ParseIntPipe) id: number,
     @Param('outletId', ParseIntPipe) outletId: number,
+    @CurrentUser() user: User,
   ) {
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, outletId);
     return this.foodsService.removeOutletOverride(id, outletId);
   }
 

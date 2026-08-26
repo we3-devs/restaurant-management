@@ -39,7 +39,7 @@ export function CreateGoodsReceivingDialog() {
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
-  const { data: ingredients } = useIngredients({ limit: 200 })
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
   const createGrn = useCreateGoodsReceiving()
 
   const receivablePos = (pos?.data ?? []).filter((p) => p.status === "approved" || p.status === "partially_received")

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
@@ -11,6 +12,7 @@ import { StockInsService } from './stock-ins.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([IngredientStockIn, IngredientStockInItem]),
+    AuthModule,
     WarehousesModule,
     IngredientsModule,
     InventoryStockModule,

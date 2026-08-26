@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonGroupsModule } from '../addon-groups/addon-groups.module';
+import { AuthModule } from '../auth/auth.module';
 import { FoodCategoriesModule } from '../food-categories/food-categories.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { OutletsModule } from '../outlets/outlets.module';
@@ -16,6 +17,7 @@ import { SkuCompositionService } from './sku-composition.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Food, FoodOutlet, FoodAddonGroup, FoodRecipe]),
+    AuthModule,
     FoodCategoriesModule,
     OutletsModule,
     AddonGroupsModule,

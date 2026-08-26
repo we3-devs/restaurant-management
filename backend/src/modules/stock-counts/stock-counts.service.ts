@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { IngredientsService } from '../ingredients/ingredients.service';
@@ -36,11 +36,14 @@ export class StockCountsService {
 
   async findAll(
     query: ListStockCountsQueryDto,
+    accessibleWarehouseIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<IngredientStockCount>> {
     const { page, limit, warehouseId, status, search } = query;
     const where: FindOptionsWhere<IngredientStockCount> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
+    } else if (accessibleWarehouseIds !== 'ALL') {
+      where.warehouseId = In(accessibleWarehouseIds);
     }
     if (status !== undefined) {
       where.status = status;
@@ -119,7 +122,8 @@ export class StockCountsService {
     dto: CreateStockCountItemDto,
   ): Promise<IngredientStockCountItem> {
     await this.assertStatus(countId, 'draft');
-    await this.ingredientsService.findOne(dto.ingredientId);
+    const ingredient = await this.ingredientsService.findOne(dto.ingredientId);
+    this.ingredientsService.assertTrackable(ingredient);
 
     return this.itemsRepository.save(
       this.itemsRepository.create({

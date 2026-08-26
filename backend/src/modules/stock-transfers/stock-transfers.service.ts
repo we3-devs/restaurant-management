@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { IngredientsService } from '../ingredients/ingredients.service';
@@ -37,6 +37,7 @@ export class StockTransfersService {
 
   async findAll(
     query: ListStockTransfersQueryDto,
+    accessibleWarehouseIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<IngredientStockTransfer>> {
     const { page, limit, fromWarehouseId, toWarehouseId, status, search } =
       query;
@@ -54,8 +55,20 @@ export class StockTransfersService {
       where.transferNo = ILike(`%${search}%`);
     }
 
+    // A transfer is visible if either leg touches an accessible warehouse —
+    // narrowing to only fully-accessible transfers would hide legitimate
+    // inbound/outbound transfers at the caller's own outlet.
+    const scoped =
+      accessibleWarehouseIds === 'ALL' ||
+      (fromWarehouseId !== undefined && toWarehouseId !== undefined)
+        ? [where]
+        : [
+            { ...where, fromWarehouseId: In(accessibleWarehouseIds) },
+            { ...where, toWarehouseId: In(accessibleWarehouseIds) },
+          ];
+
     const [data, total] = await this.transfersRepository.findAndCount({
-      where,
+      where: scoped,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -131,7 +144,8 @@ export class StockTransfersService {
     dto: CreateStockTransferItemDto,
   ): Promise<IngredientStockTransferItem> {
     await this.assertDraft(transferId);
-    await this.ingredientsService.findOne(dto.ingredientId);
+    const ingredient = await this.ingredientsService.findOne(dto.ingredientId);
+    this.ingredientsService.assertTrackable(ingredient);
 
     return this.itemsRepository.save(
       this.itemsRepository.create({

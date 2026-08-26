@@ -10,7 +10,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCreateIngredientCategory, useIngredientCategories } from "@/hooks/use-ingredient-categories"
-import { createIngredientCategorySchema, type CreateIngredientCategoryInput } from "@/lib/validators/ingredient-categories"
+import {
+  createIngredientCategorySchema,
+  ingredientTypes,
+  type CreateIngredientCategoryInput,
+} from "@/lib/validators/ingredient-categories"
 
 export function CreateIngredientCategoryDialog() {
   const [open, setOpen] = useState(false)
@@ -19,14 +23,14 @@ export function CreateIngredientCategoryDialog() {
 
   const form = useForm<CreateIngredientCategoryInput>({
     resolver: zodResolver(createIngredientCategorySchema),
-    defaultValues: { parentId: undefined, name: "", slug: "", code: "" },
+    defaultValues: { parentId: undefined, name: "", slug: "", code: "", type: "raw_material" },
   })
 
   async function onSubmit(values: CreateIngredientCategoryInput) {
     try {
       await createCategory.mutateAsync(values)
       toast.success(`Category "${values.name}" created`)
-      form.reset({ parentId: undefined, name: "", slug: "", code: "" })
+      form.reset({ parentId: undefined, name: "", slug: "", code: "", type: "raw_material" })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create category")
@@ -97,6 +101,28 @@ export function CreateIngredientCategoryDialog() {
                 <FormItem>
                   <FormLabel>Code (optional)</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ingredientTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

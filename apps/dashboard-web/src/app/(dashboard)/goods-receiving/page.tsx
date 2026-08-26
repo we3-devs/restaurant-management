@@ -229,7 +229,7 @@ export default function GoodsReceivingPage() {
 
 function GoodsReceivingItemsList({ grnId }: { grnId: number }) {
   const { data: items, isLoading } = useGoodsReceivingItems(grnId)
-  const { data: ingredients } = useIngredients({ limit: 200 })
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
   const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
 
   if (isLoading) return <TableSkeleton rows={4} columns={5} />

@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
+import type { IngredientType } from '../ingredient-category-type.util';
 
 @Entity({ name: 'ingredient_categories' })
 export class IngredientCategory {
@@ -27,6 +28,9 @@ export class IngredientCategory {
 
   @Column({ type: 'varchar', length: 50, nullable: true, unique: true })
   code: string | null;
+
+  @Column({ type: 'varchar', length: 20 })
+  type: IngredientType;
 
   @Column({
     name: 'parent_id',

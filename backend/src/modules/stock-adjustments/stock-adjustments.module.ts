@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
@@ -16,6 +17,7 @@ import { StockAdjustmentsService } from './stock-adjustments.service';
       IngredientStockAdjustment,
       IngredientStockAdjustmentItem,
     ]),
+    AuthModule,
     WarehousesModule,
     IngredientsModule,
     InventoryStockModule,

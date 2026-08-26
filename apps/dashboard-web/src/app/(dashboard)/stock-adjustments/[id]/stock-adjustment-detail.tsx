@@ -26,7 +26,7 @@ export function StockAdjustmentDetail({ adjustmentId }: { adjustmentId: number }
   const { data: adjustment, isLoading } = useStockAdjustment(adjustmentId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockAdjustmentItems(adjustmentId)
-  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const addItem = useAddStockAdjustmentItem(adjustmentId)
   const removeItem = useRemoveStockAdjustmentItem(adjustmentId)
   const approve = useApproveStockAdjustment(adjustmentId)

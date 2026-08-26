@@ -7,11 +7,15 @@ import type { CreateIngredientInput, UpdateIngredientInput } from "@rms/validato
 
 export interface Ingredient {
   id: number
-  ingredientCategoryId: number | null
+  ingredientCategoryId: number
+  category: {
+    id: number
+    name: string
+    type: "raw_material" | "ready_product" | "packaging" | "consumable" | "beverage"
+  }
   name: string
   slug: string
   code: string
-  type: "raw_material" | "ready_product" | "packaging" | "consumable"
   baseUnitId: number
   isActive: boolean
 }
@@ -21,7 +25,10 @@ export interface ListIngredientsParams {
   limit?: number
   search?: string
   ingredientCategoryId?: number
+  /** Filters by the ingredient's category's type. */
   type?: string
+  /** Only return ingredients whose category's type supports stock tracking (beverage, packaging, consumable). */
+  trackableOnly?: boolean
 }
 
 export function useIngredients(params: ListIngredientsParams = {}) {

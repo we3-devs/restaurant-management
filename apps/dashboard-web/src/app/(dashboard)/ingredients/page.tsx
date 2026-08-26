@@ -16,7 +16,16 @@ import { CreateIngredientDialog } from "./create-ingredient-dialog"
 const columns: ColumnDef<Ingredient>[] = [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "code", header: "Code" },
-  { accessorKey: "type", header: "Type" },
+  {
+    id: "category",
+    header: "Category",
+    cell: ({ row }) => (
+      <span>
+        {row.original.category.name}{" "}
+        <span className="text-muted-foreground">({row.original.category.type})</span>
+      </span>
+    ),
+  },
   {
     id: "flags",
     header: "",

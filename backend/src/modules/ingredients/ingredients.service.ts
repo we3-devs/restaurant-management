@@ -1,10 +1,17 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import {
+  FindOptionsWhere,
+  ILike,
+  In,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { IngredientCategoriesService } from '../ingredient-categories/ingredient-categories.service';
 import { UnitsService } from '../units/units.service';
@@ -12,6 +19,10 @@ import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { ListIngredientsQueryDto } from './dto/list-ingredients-query.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
 import { Ingredient } from './entities/ingredient.entity';
+import {
+  isTrackableIngredientType,
+  TRACKED_INGREDIENT_TYPES,
+} from '../ingredient-categories/ingredient-category-type.util';
 
 @Injectable()
 export class IngredientsService {
@@ -25,13 +36,16 @@ export class IngredientsService {
   async findAll(
     query: ListIngredientsQueryDto,
   ): Promise<PaginatedResponse<Ingredient>> {
-    const { page, limit, search, ingredientCategoryId, type } = query;
+    const { page, limit, search, ingredientCategoryId, type, trackableOnly } =
+      query;
     const where: FindOptionsWhere<Ingredient> = {};
     if (ingredientCategoryId !== undefined) {
       where.ingredientCategoryId = ingredientCategoryId;
     }
     if (type !== undefined) {
-      where.type = type;
+      where.category = { type };
+    } else if (trackableOnly) {
+      where.category = { type: In(TRACKED_INGREDIENT_TYPES) };
     }
     if (search) {
       where.name = ILike(`%${search}%`);
@@ -39,6 +53,7 @@ export class IngredientsService {
 
     const [ingredients, total] = await this.ingredientsRepository.findAndCount({
       where,
+      relations: { category: true },
       order: { name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -54,11 +69,21 @@ export class IngredientsService {
   async findOne(id: number): Promise<Ingredient> {
     const ingredient = await this.ingredientsRepository.findOne({
       where: { id },
+      relations: { category: true },
     });
     if (!ingredient) {
       throw new NotFoundException(`Ingredient ${id} not found`);
     }
     return ingredient;
+  }
+
+  /** Throws when the ingredient's category's type doesn't support stock tracking (raw_material, ready_product). */
+  assertTrackable(ingredient: Ingredient): void {
+    if (!isTrackableIngredientType(ingredient.category.type)) {
+      throw new BadRequestException(
+        `Ingredient "${ingredient.name}" (type: ${ingredient.category.type}) does not support stock tracking.`,
+      );
+    }
   }
 
   async create(dto: CreateIngredientDto): Promise<Ingredient> {
@@ -69,18 +94,15 @@ export class IngredientsService {
     if (dto.defaultUsageUnitId !== undefined) {
       await this.unitsService.findOne(dto.defaultUsageUnitId);
     }
-    if (dto.ingredientCategoryId !== undefined) {
-      await this.ingredientCategoriesService.findOne(dto.ingredientCategoryId);
-    }
+    await this.ingredientCategoriesService.findOne(dto.ingredientCategoryId);
 
     const ingredient = this.ingredientsRepository.create({
-      ingredientCategoryId: dto.ingredientCategoryId ?? null,
+      ingredientCategoryId: dto.ingredientCategoryId,
       name: dto.name,
       slug: dto.slug,
       code: dto.code,
       barcode: dto.barcode ?? null,
       image: dto.image ?? null,
-      type: dto.type ?? 'raw_material',
       baseUnitId: dto.baseUnitId,
       defaultPurchaseUnitId: dto.defaultPurchaseUnitId ?? null,
       defaultUsageUnitId: dto.defaultUsageUnitId ?? null,
@@ -124,11 +146,7 @@ export class IngredientsService {
       ingredient.defaultUsageUnitId = dto.defaultUsageUnitId;
     }
     if (dto.ingredientCategoryId !== undefined) {
-      if (dto.ingredientCategoryId !== null) {
-        await this.ingredientCategoriesService.findOne(
-          dto.ingredientCategoryId,
-        );
-      }
+      await this.ingredientCategoriesService.findOne(dto.ingredientCategoryId);
       ingredient.ingredientCategoryId = dto.ingredientCategoryId;
     }
 
@@ -137,7 +155,6 @@ export class IngredientsService {
       ...(dto.code !== undefined && { code: dto.code }),
       ...(dto.barcode !== undefined && { barcode: dto.barcode }),
       ...(dto.image !== undefined && { image: dto.image }),
-      ...(dto.type !== undefined && { type: dto.type }),
       ...(dto.minimumStock !== undefined && { minimumStock: dto.minimumStock }),
       ...(dto.reorderLevel !== undefined && { reorderLevel: dto.reorderLevel }),
       ...(dto.reorderQuantity !== undefined && {

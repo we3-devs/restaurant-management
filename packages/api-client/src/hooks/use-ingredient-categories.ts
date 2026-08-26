@@ -14,6 +14,7 @@ export interface IngredientCategory {
   slug: string
   code: string | null
   parentId: number | null
+  type: "raw_material" | "ready_product" | "packaging" | "consumable" | "beverage"
   isActive: boolean
 }
 

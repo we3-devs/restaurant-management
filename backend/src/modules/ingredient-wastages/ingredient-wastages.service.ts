@@ -117,7 +117,8 @@ export class IngredientWastagesService {
     dto: CreateIngredientWastageItemDto,
   ): Promise<IngredientWastageItem> {
     await this.assertDraft(wastageId);
-    await this.ingredientsService.findOne(dto.ingredientId);
+    const ingredient = await this.ingredientsService.findOne(dto.ingredientId);
+    this.ingredientsService.assertTrackable(ingredient);
 
     return this.itemsRepository.save(
       this.itemsRepository.create({

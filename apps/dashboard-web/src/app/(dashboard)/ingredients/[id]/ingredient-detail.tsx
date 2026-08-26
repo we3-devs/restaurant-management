@@ -32,8 +32,6 @@ import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { updateIngredientSchema, type UpdateIngredientInput } from "@/lib/validators/ingredients"
 
-const ingredientTypes = ["raw_material", "ready_product", "packaging", "consumable"] as const
-
 export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
   const router = useRouter()
   const { data: ingredient, isLoading } = useIngredient(ingredientId)
@@ -46,16 +44,15 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
 
   const form = useForm<UpdateIngredientInput>({
     resolver: zodResolver(updateIngredientSchema),
-    defaultValues: { ingredientCategoryId: undefined, name: "", code: "", type: "raw_material", isActive: true },
+    defaultValues: { ingredientCategoryId: 0, name: "", code: "", isActive: true },
   })
 
   useEffect(() => {
     if (ingredient) {
       form.reset({
-        ingredientCategoryId: ingredient.ingredientCategoryId ?? undefined,
+        ingredientCategoryId: ingredient.ingredientCategoryId,
         name: ingredient.name,
         code: ingredient.code,
-        type: ingredient.type,
         isActive: ingredient.isActive,
       })
     }
@@ -119,14 +116,13 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
                   <FormItem>
                     <FormLabel>Category</FormLabel>
                     <Select
-                      value={field.value ? String(field.value) : "none"}
-                      onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(value) => field.onChange(Number(value))}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="No category" />
+                        <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No category</SelectItem>
                         {categories?.data.map((category) => (
                           <SelectItem key={category.id} value={String(category.id)}>
                             {category.name}
@@ -156,28 +152,6 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
                   <FormItem>
                     <FormLabel>Code</FormLabel>
                     <FormControl {...field} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ingredientTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

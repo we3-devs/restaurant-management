@@ -36,7 +36,7 @@ export function CreatePurchaseReturnDialog() {
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
-  const { data: ingredients } = useIngredients({ limit: 200 })
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
   const createReturn = useCreatePurchaseReturn()
 
   const returnablePos = (pos?.data ?? []).filter((p) => RECEIVED_STATUSES.includes(p.status))

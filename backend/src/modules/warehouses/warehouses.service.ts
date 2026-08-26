@@ -157,6 +157,23 @@ export class WarehousesService {
     }
   }
 
+  /**
+   * Internal lookup used by stock-movement controllers (stock-ins/outs/
+   * adjustments/counts/transfers) to translate an outlet-access grant into
+   * the set of warehouse ids they're allowed to touch, since those
+   * resources are scoped by warehouseId rather than outletId directly.
+   */
+  async findIdsForOutlets(outletIds: number[]): Promise<number[]> {
+    if (outletIds.length === 0) {
+      return [];
+    }
+    const warehouses = await this.warehousesRepository.find({
+      where: { outletId: In(outletIds) },
+      select: ['id'],
+    });
+    return warehouses.map((w) => w.id);
+  }
+
   /** Internal lookup used by OrdersService to resolve where to reserve/consume ingredient stock. */
   async findDefaultForOutlet(outletId: number): Promise<Warehouse> {
     const warehouse = await this.warehousesRepository.findOne({

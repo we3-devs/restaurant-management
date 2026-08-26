@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { IngredientsService } from '../ingredients/ingredients.service';
@@ -40,11 +40,14 @@ export class StockAdjustmentsService {
 
   async findAll(
     query: ListStockAdjustmentsQueryDto,
+    accessibleWarehouseIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<IngredientStockAdjustment>> {
     const { page, limit, warehouseId, status, search } = query;
     const where: FindOptionsWhere<IngredientStockAdjustment> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
+    } else if (accessibleWarehouseIds !== 'ALL') {
+      where.warehouseId = In(accessibleWarehouseIds);
     }
     if (status !== undefined) {
       where.status = status;
@@ -129,7 +132,8 @@ export class StockAdjustmentsService {
     dto: CreateStockAdjustmentItemDto,
   ): Promise<IngredientStockAdjustmentItem> {
     const adjustment = await this.assertDraft(adjustmentId);
-    await this.ingredientsService.findOne(dto.ingredientId);
+    const ingredient = await this.ingredientsService.findOne(dto.ingredientId);
+    this.ingredientsService.assertTrackable(ingredient);
 
     const currentStock = await this.warehouseIngredientStocksService.getStock(
       adjustment.warehouseId,

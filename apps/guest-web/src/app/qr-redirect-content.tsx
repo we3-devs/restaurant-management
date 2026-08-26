@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { useBranding } from "@/hooks/use-branding";
 import Skeleton from "@/components/skeleton";
 
 export default function QRRedirectContent() {
@@ -18,8 +19,7 @@ export default function QRRedirectContent() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="text-center">
-        <h1 className="text-3xl font-bold mb-4">Welcome!</h1>
-        <Skeleton className="mx-auto h-4 w-44" />
+        <h1 className="text-3xl font-bold mb-4">Welcome to !</h1>
       </div>
     </div>
   );

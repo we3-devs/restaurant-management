@@ -4,6 +4,7 @@ import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import { PurchaseOrdersService } from '../purchase-orders/purchase-orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
@@ -22,6 +23,7 @@ export class GoodsReceivingService {
     @InjectRepository(GoodsReceivingItem) private readonly itemsRepo: Repository<GoodsReceivingItem>,
     private readonly poService: PurchaseOrdersService,
     private readonly stockService: WarehouseIngredientStocksService,
+    private readonly ingredientsService: IngredientsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
     private readonly suppliersService: SuppliersService,
@@ -77,6 +79,9 @@ export class GoodsReceivingService {
           if (newReceived > poItem.quantity) {
             throw new BadRequestException(`Over-receiving PO item ${item.purchaseOrderItemId}: ordered ${poItem.quantity}, already received ${poItem.receivedQuantity}, attempting to receive ${item.quantityReceived}`);
           }
+
+          const ingredient = await this.ingredientsService.findOne(item.ingredientId);
+          this.ingredientsService.assertTrackable(ingredient);
 
           const itemTotalCost = round2((item.unitCost ?? poItem.unitCost) * item.quantityReceived);
           await manager.getRepository(GoodsReceivingItem).save(manager.getRepository(GoodsReceivingItem).create({

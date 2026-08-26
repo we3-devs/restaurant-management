@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -7,6 +8,8 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { INGREDIENT_TYPES } from '../ingredient-category-type.util';
+import type { IngredientType } from '../ingredient-category-type.util';
 
 export class CreateIngredientCategoryDto {
   @ApiPropertyOptional()
@@ -33,4 +36,12 @@ export class CreateIngredientCategoryDto {
   @IsString()
   @MaxLength(50)
   code?: string;
+
+  @ApiProperty({
+    enum: INGREDIENT_TYPES,
+    description:
+      'Determines whether ingredients in this category get real warehouse stock tracking.',
+  })
+  @IsIn(INGREDIENT_TYPES)
+  type: IngredientType;
 }

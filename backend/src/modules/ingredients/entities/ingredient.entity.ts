@@ -3,14 +3,14 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
-
-export type IngredientType =
-  'raw_material' | 'ready_product' | 'packaging' | 'consumable';
+import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
 
 export type CostingMethod =
   | 'fifo'
@@ -32,9 +32,12 @@ export class Ingredient {
     name: 'ingredient_category_id',
     type: 'bigint',
     transformer: new BigIntTransformer(),
-    nullable: true,
   })
-  ingredientCategoryId: number | null;
+  ingredientCategoryId: number;
+
+  @ManyToOne(() => IngredientCategory)
+  @JoinColumn({ name: 'ingredient_category_id' })
+  category: IngredientCategory;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;
@@ -50,9 +53,6 @@ export class Ingredient {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   image: string | null;
-
-  @Column({ type: 'varchar', length: 20, default: 'raw_material' })
-  type: IngredientType;
 
   @Column({
     name: 'base_unit_id',

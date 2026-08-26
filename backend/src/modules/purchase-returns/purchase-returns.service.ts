@@ -4,6 +4,7 @@ import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { SuppliersService } from '../suppliers/suppliers.service';
@@ -18,6 +19,7 @@ export class PurchaseReturnsService {
     @InjectRepository(PurchaseReturn) private readonly prRepo: Repository<PurchaseReturn>,
     @InjectRepository(PurchaseReturnItem) private readonly itemsRepo: Repository<PurchaseReturnItem>,
     private readonly stockService: WarehouseIngredientStocksService,
+    private readonly ingredientsService: IngredientsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
     private readonly suppliersService: SuppliersService,
@@ -58,6 +60,9 @@ export class PurchaseReturnsService {
 
       if (dto.items?.length) {
         for (const item of dto.items) {
+          const ingredient = await this.ingredientsService.findOne(item.ingredientId);
+          this.ingredientsService.assertTrackable(ingredient);
+
           const totalCost = (item.unitCost ?? 0) * item.quantity;
           await manager.getRepository(PurchaseReturnItem).save(manager.getRepository(PurchaseReturnItem).create({
             purchaseReturnId: pr.id, purchaseOrderItemId: item.purchaseOrderItemId,

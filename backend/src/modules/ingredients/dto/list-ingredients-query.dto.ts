@@ -1,14 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-
-const INGREDIENT_TYPES = [
-  'raw_material',
-  'ready_product',
-  'packaging',
-  'consumable',
-] as const;
+import { INGREDIENT_TYPES } from '../../ingredient-categories/ingredient-category-type.util';
+import type { IngredientType } from '../../ingredient-categories/ingredient-category-type.util';
 
 export class ListIngredientsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
@@ -22,8 +17,20 @@ export class ListIngredientsQueryDto extends PaginationQueryDto {
   @IsInt()
   ingredientCategoryId?: number;
 
-  @ApiPropertyOptional({ enum: INGREDIENT_TYPES })
+  @ApiPropertyOptional({
+    enum: INGREDIENT_TYPES,
+    description: "Filters by the ingredient's category's type.",
+  })
   @IsOptional()
   @IsIn(INGREDIENT_TYPES)
-  type?: (typeof INGREDIENT_TYPES)[number];
+  type?: IngredientType;
+
+  @ApiPropertyOptional({
+    description:
+      "When true, only return ingredients whose category's type supports stock tracking (beverage, packaging, consumable).",
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  trackableOnly?: boolean;
 }

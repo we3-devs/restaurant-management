@@ -14,8 +14,6 @@ import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
 import { useUnits } from "@/hooks/use-units"
 import { createIngredientSchema, type CreateIngredientInput } from "@/lib/validators/ingredients"
 
-const ingredientTypes = ["raw_material", "ready_product", "packaging", "consumable"] as const
-
 export function CreateIngredientDialog() {
   const [open, setOpen] = useState(false)
   const { data: categories, isLoading: categoriesLoading } = useIngredientCategories({ limit: 100 })
@@ -24,14 +22,14 @@ export function CreateIngredientDialog() {
 
   const form = useForm<CreateIngredientInput>({
     resolver: zodResolver(createIngredientSchema),
-    defaultValues: { ingredientCategoryId: undefined, name: "", slug: "", code: "", type: "raw_material", baseUnitId: 0 },
+    defaultValues: { ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 },
   })
 
   async function onSubmit(values: CreateIngredientInput) {
     try {
       await createIngredient.mutateAsync(values)
       toast.success(`Ingredient "${values.name}" created`)
-      form.reset({ ingredientCategoryId: undefined, name: "", slug: "", code: "", type: "raw_material", baseUnitId: 0 })
+      form.reset({ ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create ingredient")
@@ -52,16 +50,15 @@ export function CreateIngredientDialog() {
               name="ingredientCategoryId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category (optional)</FormLabel>
+                  <FormLabel>Category</FormLabel>
                   <Select
-                    value={field.value ? String(field.value) : "none"}
-                    onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
+                    value={field.value ? String(field.value) : ""}
+                    onValueChange={(value) => field.onChange(Number(value))}
                   >
                     <SelectTrigger className="w-full" disabled={categoriesLoading}>
-                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "No category"} />
+                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "Select a category"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No category</SelectItem>
                       {categories?.data.map((category) => (
                         <SelectItem key={category.id} value={String(category.id)}>
                           {category.name}
@@ -102,28 +99,6 @@ export function CreateIngredientDialog() {
                 <FormItem>
                   <FormLabel>Code</FormLabel>
                   <FormControl placeholder="ING-0001" {...field} />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Type</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ingredientTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

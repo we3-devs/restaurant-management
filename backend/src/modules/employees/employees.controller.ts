@@ -66,6 +66,12 @@ export class EmployeesController {
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEmployeeDto, @CurrentUser() user: User) {
     const employee = await this.employeesService.findOne(id);
     await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
+    if (dto.outletId !== undefined && dto.outletId !== employee.outletId) {
+      // dto.outletId can move the employee (and their synced role assignment)
+      // to a different outlet — the target outlet must be checked too, or a
+      // caller could transfer an employee into an outlet they don't control.
+      await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, dto.outletId);
+    }
     return this.employeesService.update(id, dto);
   }
 

@@ -12,13 +12,6 @@ import {
   MinLength,
 } from 'class-validator';
 
-const INGREDIENT_TYPES = [
-  'raw_material',
-  'ready_product',
-  'packaging',
-  'consumable',
-] as const;
-
 const COSTING_METHODS = [
   'fifo',
   'lifo',
@@ -28,10 +21,9 @@ const COSTING_METHODS = [
 ] as const;
 
 export class CreateIngredientDto {
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ description: 'Determines the ingredient\'s type/trackability' })
   @IsInt()
-  ingredientCategoryId?: number;
+  ingredientCategoryId: number;
 
   @ApiProperty({ example: 'Chicken Breast' })
   @IsString()
@@ -63,11 +55,6 @@ export class CreateIngredientDto {
   @IsString()
   @MaxLength(255)
   image?: string;
-
-  @ApiPropertyOptional({ enum: INGREDIENT_TYPES, default: 'raw_material' })
-  @IsOptional()
-  @IsIn(INGREDIENT_TYPES)
-  type?: (typeof INGREDIENT_TYPES)[number] = 'raw_material';
 
   @ApiProperty({ description: 'The smallest/main stock calculation unit' })
   @IsInt()

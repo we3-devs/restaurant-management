@@ -27,7 +27,7 @@ export function StockCountDetail({ countId }: { countId: number }) {
   const { data: count, isLoading } = useStockCount(countId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockCountItems(countId)
-  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const addItem = useAddStockCountItem(countId)
   const removeItem = useRemoveStockCountItem(countId)
   const complete = useCompleteStockCount(countId)

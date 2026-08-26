@@ -31,7 +31,11 @@ import {
   useIngredientCategory,
   useUpdateIngredientCategory,
 } from "@/hooks/use-ingredient-categories"
-import { updateIngredientCategorySchema, type UpdateIngredientCategoryInput } from "@/lib/validators/ingredient-categories"
+import {
+  ingredientTypes,
+  updateIngredientCategorySchema,
+  type UpdateIngredientCategoryInput,
+} from "@/lib/validators/ingredient-categories"
 
 export function IngredientCategoryDetail({ categoryId }: { categoryId: number }) {
   const router = useRouter()
@@ -43,7 +47,7 @@ export function IngredientCategoryDetail({ categoryId }: { categoryId: number })
 
   const form = useForm<UpdateIngredientCategoryInput>({
     resolver: zodResolver(updateIngredientCategorySchema),
-    defaultValues: { parentId: undefined, name: "", code: "", isActive: true },
+    defaultValues: { parentId: undefined, name: "", code: "", type: "raw_material", isActive: true },
   })
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export function IngredientCategoryDetail({ categoryId }: { categoryId: number })
         parentId: category.parentId ?? undefined,
         name: category.name,
         code: category.code ?? "",
+        type: category.type,
         isActive: category.isActive,
       })
     }
@@ -154,6 +159,28 @@ export function IngredientCategoryDetail({ categoryId }: { categoryId: number })
                   <FormItem>
                     <FormLabel>Code</FormLabel>
                     <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingredientTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

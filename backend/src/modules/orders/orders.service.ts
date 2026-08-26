@@ -30,6 +30,7 @@ import { TableSession } from '../table-sessions/entities/table-session.entity';
 import { FoodVariantsService } from '../food-variants/food-variants.service';
 import { FoodsService } from '../foods/foods.service';
 import { IngredientsService } from '../ingredients/ingredients.service';
+import { isTrackableIngredientType } from '../ingredient-categories/ingredient-category-type.util';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
 import { KitchenTicketItem } from '../kitchen-tickets/entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity';
@@ -1870,6 +1871,9 @@ export class OrdersService {
         const ingredient = await this.ingredientsService.findOne(
           recipe.ingredientId,
         );
+        if (!isTrackableIngredientType(ingredient.category.type)) {
+          continue;
+        }
         const multiplier = await this.unitsService.findConversionMultiplier(
           recipe.unitId,
           ingredient.baseUnitId,
@@ -1899,6 +1903,9 @@ export class OrdersService {
         const ingredient = await this.ingredientsService.findOne(
           recipe.ingredientId,
         );
+        if (!isTrackableIngredientType(ingredient.category.type)) {
+          continue;
+        }
         const multiplier = await this.unitsService.findConversionMultiplier(
           recipe.unitId,
           ingredient.baseUnitId,

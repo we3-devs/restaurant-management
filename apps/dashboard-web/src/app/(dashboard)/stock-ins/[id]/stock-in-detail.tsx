@@ -26,7 +26,7 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
   const { data: stockIn, isLoading } = useStockIn(stockInId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockInItems(stockInId)
-  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const addItem = useAddStockInItem(stockInId)
   const removeItem = useRemoveStockInItem(stockInId)
   const approve = useApproveStockIn(stockInId)

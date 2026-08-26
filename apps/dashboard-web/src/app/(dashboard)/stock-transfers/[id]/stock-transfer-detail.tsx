@@ -27,7 +27,7 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
   const { data: transfer, isLoading } = useStockTransfer(transferId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockTransferItems(transferId)
-  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const { data: warehouses } = useWarehouses({ limit: 100 })
   const addItem = useAddStockTransferItem(transferId)
   const removeItem = useRemoveStockTransferItem(transferId)

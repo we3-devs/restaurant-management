@@ -65,6 +65,7 @@ export class IngredientCategoriesService {
       name: dto.name,
       slug: dto.slug,
       code: dto.code ?? null,
+      type: dto.type,
     });
 
     try {
@@ -101,6 +102,7 @@ export class IngredientCategoriesService {
     Object.assign(category, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.code !== undefined && { code: dto.code }),
+      ...(dto.type !== undefined && { type: dto.type }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
 

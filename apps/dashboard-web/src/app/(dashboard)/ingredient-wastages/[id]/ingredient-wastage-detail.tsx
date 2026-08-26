@@ -26,7 +26,7 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
   const { data: wastage, isLoading } = useIngredientWastage(wastageId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useIngredientWastageItems(wastageId)
-  const { data: ingredients } = useIngredients({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const addItem = useAddIngredientWastageItem(wastageId)
   const removeItem = useRemoveIngredientWastageItem(wastageId)
   const approve = useApproveIngredientWastage(wastageId)

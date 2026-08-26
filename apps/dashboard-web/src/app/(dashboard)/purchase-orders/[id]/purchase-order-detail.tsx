@@ -204,7 +204,7 @@ function PurchaseOrderItemsSection({
   canManage: boolean
   items: { id: number; ingredientId: number; quantity: number; unit: string | null; unitCost: number; discount: number; tax: number; total: number; receivedQuantity: number; remainingQuantity: number }[]
 }) {
-  const { data: ingredients } = useIngredients({ limit: 200 })
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
   const addItem = useAddPurchaseOrderItem(purchaseOrderId)
   const removeItem = useRemovePurchaseOrderItem(purchaseOrderId)
   const [showForm, setShowForm] = useState(false)
