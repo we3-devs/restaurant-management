@@ -9,6 +9,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { IngredientsService } from '../ingredients/ingredients.service';
 import { WarehouseIngredientStocksService } from '../inventory-stock/warehouse-ingredient-stocks.service';
+import { UnitsService } from '../units/units.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { CreateStockInItemDto } from './dto/create-stock-in-item.dto';
 import { CreateStockInDto } from './dto/create-stock-in.dto';
@@ -32,6 +33,7 @@ export class StockInsService {
     private readonly warehousesService: WarehousesService,
     private readonly ingredientsService: IngredientsService,
     private readonly warehouseIngredientStocksService: WarehouseIngredientStocksService,
+    private readonly unitsService: UnitsService,
   ) {}
 
   async findAll(
@@ -124,15 +126,23 @@ export class StockInsService {
     const ingredient = await this.ingredientsService.findOne(dto.ingredientId);
     this.ingredientsService.assertTrackable(ingredient);
 
+    const multiplier = dto.unitId
+      ? await this.unitsService.findConversionMultiplier(
+          dto.unitId,
+          ingredient.baseUnitId,
+        )
+      : 1;
+    const quantity = dto.quantity * multiplier;
+
     const unitCost = dto.unitCost ?? 0;
     return this.itemsRepository.save(
       this.itemsRepository.create({
         ingredientStockInId: stockInId,
         ingredientId: dto.ingredientId,
         ingredientBatchId: null,
-        quantity: dto.quantity,
+        quantity,
         unitCost,
-        totalCost: round2(dto.quantity * unitCost),
+        totalCost: round2(quantity * unitCost),
       }),
     );
   }

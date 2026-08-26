@@ -11,6 +11,14 @@ export class CreateStockInItemDto {
   @Min(0.0001)
   quantity: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Unit the quantity was entered in. Defaults to the ingredient base unit. Must have a conversion path to the base unit.',
+  })
+  @IsOptional()
+  @IsInt()
+  unitId?: number;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsNumber()

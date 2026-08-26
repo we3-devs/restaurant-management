@@ -7,12 +7,12 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { useUnitConversions, useUnits } from "@/hooks/use-units"
 import {
   useAddStockInItem,
   useApproveStockIn,
@@ -27,6 +27,7 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useStockInItems(stockInId)
   const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
+  const { data: units } = useUnits({ limit: 100 })
   const addItem = useAddStockInItem(stockInId)
   const removeItem = useRemoveStockInItem(stockInId)
   const approve = useApproveStockIn(stockInId)
@@ -35,6 +36,23 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
   const [ingredientId, setIngredientId] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitCost, setUnitCost] = useState("")
+  const [unitId, setUnitId] = useState("")
+
+  const selectedIngredient = ingredients?.data.find((i) => i.id === Number(ingredientId))
+  const baseUnitId = selectedIngredient?.baseUnitId ?? 0
+  const { data: unitConversions } = useUnitConversions(baseUnitId)
+  const baseUnit = units?.data.find((u) => u.id === baseUnitId)
+  const linkedUnits = [
+    ...(baseUnit ? [baseUnit] : []),
+    ...(unitConversions
+      ?.map((c) => units?.data.find((u) => u.id === c.toUnitId))
+      .filter((u): u is NonNullable<typeof u> => Boolean(u)) ?? []),
+  ]
+
+  function handleIngredientChange(value: string | null) {
+    setIngredientId(value ?? "")
+    setUnitId("")
+  }
 
   async function handleAddItem() {
     if (!ingredientId || !quantity) return
@@ -42,11 +60,13 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
       await addItem.mutateAsync({
         ingredientId: Number(ingredientId),
         quantity: Number(quantity),
+        unitId: unitId ? Number(unitId) : undefined,
         unitCost: Number(unitCost || 0),
       })
       setIngredientId("")
       setQuantity("")
       setUnitCost("")
+      setUnitId("")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add item")
     }
@@ -98,7 +118,7 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
         </div>
       </div>
 
-      <Card>
+      <Card className="w-fit">
         <CardHeader>
           <CardTitle>Items</CardTitle>
         </CardHeader>
@@ -106,18 +126,23 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Ingredient</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit cost</TableHead>
+                <TableHead className="w-64">Ingredient</TableHead>
+                <TableHead className="w-28">Quantity</TableHead>
+                <TableHead className="w-28">Unit</TableHead>
+                <TableHead className="w-28">Unit cost</TableHead>
                 <TableHead>Total</TableHead>
                 {isDraft && <TableHead />}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items?.map((item) => (
+              {items?.map((item) => {
+                const ingredient = ingredients?.data.find((i) => i.id === item.ingredientId)
+                const unit = units?.data.find((u) => u.id === ingredient?.baseUnitId)
+                return (
                 <TableRow key={item.id}>
-                  <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
+                  <TableCell>{ingredient?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{unit?.shortName ?? "—"}</TableCell>
                   <TableCell>{item.unitCost}</TableCell>
                   <TableCell>{item.totalCost}</TableCell>
                   {isDraft && (
@@ -128,40 +153,58 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
                     </TableCell>
                   )}
                 </TableRow>
-              ))}
+                )
+              })}
+              {isDraft && (
+                <TableRow>
+                  <TableCell>
+                    <Select value={ingredientId} onValueChange={handleIngredientChange}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Select an ingredient" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingredients?.data.map((ingredient) => (
+                          <SelectItem key={ingredient.id} value={String(ingredient.id)}>
+                            {ingredient.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="100" />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={unitId || (baseUnitId ? String(baseUnitId) : "")}
+                      onValueChange={(value) => setUnitId(value ?? "")}
+                      disabled={!ingredientId}
+                    >
+                      <SelectTrigger className="w-28">
+                        <SelectValue placeholder="Unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {linkedUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={String(unit.id)}>
+                            {unit.shortName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="50" />
+                  </TableCell>
+                  <TableCell />
+                  <TableCell>
+                    <Button onClick={handleAddItem} disabled={addItem.isPending}>
+                      Add
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
-
-          {isDraft && (
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1.5">
-                <Label>Ingredient</Label>
-                <Select value={ingredientId} onValueChange={(value) => setIngredientId(value ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select an ingredient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ingredients?.data.map((ingredient) => (
-                      <SelectItem key={ingredient.id} value={String(ingredient.id)}>
-                        {ingredient.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-28 space-y-1.5">
-                <Label>Quantity</Label>
-                <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="100" />
-              </div>
-              <div className="w-28 space-y-1.5">
-                <Label>Unit cost</Label>
-                <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="50" />
-              </div>
-              <Button onClick={handleAddItem} disabled={addItem.isPending}>
-                Add
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

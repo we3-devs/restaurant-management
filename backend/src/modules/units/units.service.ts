@@ -116,21 +116,57 @@ export class UnitsService {
     return this.unitConversionsRepository.find({ where: { fromUnitId } });
   }
 
+  /**
+   * Creates a fromUnit → toUnit conversion and keeps the reverse direction
+   * (toUnit → fromUnit, multiplier 1/multiplier) in sync automatically —
+   * inserted if it doesn't exist yet, or updated in place if it does, so a
+   * unit pair never ends up with an inconsistent reverse multiplier.
+   */
   async addConversion(
     fromUnitId: number,
     dto: CreateUnitConversionDto,
   ): Promise<UnitConversion> {
+    if (fromUnitId === dto.toUnitId) {
+      throw new BadRequestException('A unit cannot be converted to itself');
+    }
     await this.findOne(fromUnitId);
     await this.findOne(dto.toUnitId);
 
+    const isActive = dto.isActive ?? true;
+    const reverseMultiplier = 1 / dto.multiplier;
+
     try {
-      return await this.unitConversionsRepository.save(
-        this.unitConversionsRepository.create({
-          fromUnitId,
-          toUnitId: dto.toUnitId,
-          multiplier: dto.multiplier,
-          isActive: dto.isActive ?? true,
-        }),
+      return await this.unitConversionsRepository.manager.transaction(
+        async (manager) => {
+          const forward = await manager.save(
+            manager.create(UnitConversion, {
+              fromUnitId,
+              toUnitId: dto.toUnitId,
+              multiplier: dto.multiplier,
+              isActive,
+            }),
+          );
+
+          const existingReverse = await manager.findOne(UnitConversion, {
+            where: { fromUnitId: dto.toUnitId, toUnitId: fromUnitId },
+          });
+          if (existingReverse) {
+            existingReverse.multiplier = reverseMultiplier;
+            existingReverse.isActive = isActive;
+            await manager.save(existingReverse);
+          } else {
+            await manager.save(
+              manager.create(UnitConversion, {
+                fromUnitId: dto.toUnitId,
+                toUnitId: fromUnitId,
+                multiplier: reverseMultiplier,
+                isActive,
+              }),
+            );
+          }
+
+          return forward;
+        },
       );
     } catch (error) {
       if (
@@ -167,6 +203,7 @@ export class UnitsService {
     return conversion.multiplier;
   }
 
+  /** Also removes the paired reverse conversion (toUnit → fromUnit), if one exists. */
   async removeConversion(id: number): Promise<void> {
     const conversion = await this.unitConversionsRepository.findOne({
       where: { id },
@@ -175,5 +212,9 @@ export class UnitsService {
       throw new NotFoundException(`Unit conversion ${id} not found`);
     }
     await this.unitConversionsRepository.delete(id);
+    await this.unitConversionsRepository.delete({
+      fromUnitId: conversion.toUnitId,
+      toUnitId: conversion.fromUnitId,
+    });
   }
 }

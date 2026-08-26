@@ -233,6 +233,9 @@ export function UnitDetail({ unitId }: { unitId: number }) {
               Add
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            The reverse conversion is created automatically with multiplier 1 / multiplier.
+          </p>
         </CardContent>
       </Card>
     </div>

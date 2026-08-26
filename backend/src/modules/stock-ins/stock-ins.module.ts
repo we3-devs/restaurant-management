@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { InventoryStockModule } from '../inventory-stock/inventory-stock.module';
+import { UnitsModule } from '../units/units.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { IngredientStockInItem } from './entities/ingredient-stock-in-item.entity';
 import { IngredientStockIn } from './entities/ingredient-stock-in.entity';
@@ -16,6 +17,7 @@ import { StockInsService } from './stock-ins.service';
     WarehousesModule,
     IngredientsModule,
     InventoryStockModule,
+    UnitsModule,
   ],
   controllers: [StockInsController],
   providers: [StockInsService],

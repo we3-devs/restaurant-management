@@ -13,6 +13,7 @@ export type CreateStockInInput = z.infer<typeof createStockInSchema>
 export const createStockInItemSchema = z.object({
   ingredientId: z.number({ message: "Select an ingredient" }).positive(),
   quantity: z.number().positive("Quantity must be positive"),
+  unitId: z.number().positive().optional(),
   unitCost: z.number().min(0, "Unit cost cannot be negative"),
 })
 
