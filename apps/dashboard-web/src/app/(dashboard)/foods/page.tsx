@@ -13,6 +13,7 @@ import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useFoods, type Food } from "@/hooks/use-foods"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
+import { ImportFoodsDialog } from "./import-foods-dialog"
 
 const columns: ColumnDef<Food>[] = [
   { accessorKey: "name", header: "Name" },
@@ -51,7 +52,10 @@ export default function FoodsPage() {
       <FoodsBackgroundPrefetch />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Foods</h1>
-        <CreateFoodDialog />
+        <div className="flex gap-2">
+          <ImportFoodsDialog />
+          <CreateFoodDialog />
+        </div>
       </div>
 
       <div className="w-64 space-y-1.5">

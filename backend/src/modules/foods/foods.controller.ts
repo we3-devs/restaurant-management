@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,8 +11,11 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -20,10 +24,13 @@ import { User } from '../users/entities/user.entity';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
+import { ImportFoodsCommitDto } from './dto/import-foods-commit.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
+import { RevalidateFoodsImportDto } from './dto/revalidate-foods-import.dto';
 import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
+import { FoodsImportService } from './foods-import.service';
 import { FoodsService } from './foods.service';
 
 @ApiTags('foods')
@@ -32,6 +39,7 @@ import { FoodsService } from './foods.service';
 export class FoodsController {
   constructor(
     private readonly foodsService: FoodsService,
+    private readonly foodsImportService: FoodsImportService,
     private readonly outletAccess: OutletAccessService,
   ) {}
 
@@ -156,6 +164,50 @@ export class FoodsController {
     @Param('addonGroupId', ParseIntPipe) addonGroupId: number,
   ) {
     return this.foodsService.unassignAddonGroup(id, addonGroupId);
+  }
+
+  @Post('import/preview')
+  @RequirePermissions('foods.manage')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({
+    summary:
+      'Parses and validates an uploaded CSV/Excel file of menu items, without saving anything',
+  })
+  async previewImport(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('A CSV or Excel file is required');
+    }
+    return this.foodsImportService.previewImport(
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+  }
+
+  @Post('import/revalidate')
+  @RequirePermissions('foods.manage')
+  @ApiOperation({
+    summary:
+      'Re-runs import validation against hand-edited preview rows (slug/sku uniqueness, category lookup)',
+  })
+  revalidateImport(@Body() dto: RevalidateFoodsImportDto) {
+    return this.foodsImportService.revalidateRows(dto.rows);
+  }
+
+  @Post('import/commit')
+  @RequirePermissions('foods.manage')
+  @ApiOperation({
+    summary: 'Creates the foods from a previously previewed, corrected import',
+  })
+  commitImport(@Body() dto: ImportFoodsCommitDto) {
+    return this.foodsImportService.commitImport(dto.rows);
   }
 
   @Get(':id/recipes')
