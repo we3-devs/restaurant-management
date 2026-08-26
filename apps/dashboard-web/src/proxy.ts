@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/session"
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/session"
 
 // Routes that must be reachable without a (staff) session. /guest (QR
 // ordering, its own customer-JWT auth) moved to operational-web along with
@@ -16,7 +16,12 @@ function isAuthRoute(pathname: string): boolean {
  * called from (dashboard)/layout.tsx.
  */
 export function proxy(request: NextRequest) {
-  const hasSession = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
+  // Access token cookie is short-lived (15min) and expires long before the
+  // refresh token; checking only the access token would bounce an idle user
+  // to /login even though their session is silently renewable in the DAL.
+  const hasSession = Boolean(
+    request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? request.cookies.get(REFRESH_TOKEN_COOKIE)?.value,
+  )
   const { pathname } = request.nextUrl
   const isAuth = isAuthRoute(pathname)
 

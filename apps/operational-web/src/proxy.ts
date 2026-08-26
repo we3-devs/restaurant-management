@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE } from "@rms/auth/session"
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@rms/auth/session"
 
 // Routes that must be reachable without a (staff) session: the login page
 // and the whole /guest subtree — the QR ordering/tracking flow guests use
@@ -17,7 +17,12 @@ function isAuthRoute(pathname: string): boolean {
  * called from the route group layouts.
  */
 export function proxy(request: NextRequest) {
-  const hasSession = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
+  // Access token cookie is short-lived (15min) and expires long before the
+  // refresh token; checking only the access token would bounce an idle user
+  // to /login even though their session is silently renewable in the DAL.
+  const hasSession = Boolean(
+    request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? request.cookies.get(REFRESH_TOKEN_COOKIE)?.value,
+  )
   const { pathname } = request.nextUrl
   const isAuth = isAuthRoute(pathname)
 
