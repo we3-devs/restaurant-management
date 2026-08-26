@@ -1,7 +1,8 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const createFoodCategorySchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   slug: z
     .string()
     .min(2)
@@ -13,7 +14,7 @@ export const createFoodCategorySchema = z.object({
 export type CreateFoodCategoryInput = z.infer<typeof createFoodCategorySchema>
 
 export const updateFoodCategorySchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   parentId: z.number().nullable().optional(),
   description: z.string().optional(),
   isActive: z.boolean(),

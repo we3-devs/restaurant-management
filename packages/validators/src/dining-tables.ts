@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const DINING_TABLE_STATUSES = [
   "available",
@@ -11,7 +12,7 @@ export const DINING_TABLE_STATUSES = [
 export const createDiningTableSchema = z.object({
   outletId: z.number({ message: "Select an outlet" }).positive(),
   diningAreaId: z.number({ message: "Select a dining area" }).positive(),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   code: z.string().optional(),
   capacity: z.number().min(1),
 })
@@ -19,7 +20,7 @@ export const createDiningTableSchema = z.object({
 export type CreateDiningTableInput = z.infer<typeof createDiningTableSchema>
 
 export const updateDiningTableSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   code: z.string().optional(),
   capacity: z.number().min(1),
   status: z.enum(DINING_TABLE_STATUSES),

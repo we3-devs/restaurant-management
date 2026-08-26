@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const FOOD_TYPES = ["veg", "non_veg", "egg", "vegan"] as const
 export const FOOD_ITEM_TYPES = ["food", "beverage", "combo"] as const
@@ -20,7 +21,7 @@ export const OUTLET_DEPARTMENT_TYPES = [
 
 export const createFoodSchema = z.object({
   foodCategoryId: z.number().optional(),
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   slug: z
     .string()
     .min(2)
@@ -39,7 +40,7 @@ export type CreateFoodInput = z.infer<typeof createFoodSchema>
 
 export const updateFoodSchema = z.object({
   foodCategoryId: z.number().nullable().optional(),
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   sku: z.string().optional(),
   skuSegment: z.string().max(32).optional(),
   shortDescription: z.string().optional(),

@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const createFoodVariantSchema = z.object({
   foodId: z.number({ message: "Select a food" }).positive(),
@@ -6,7 +7,7 @@ export const createFoodVariantSchema = z.object({
   variantId: z.number().positive().nullable().optional(),
   /** Value from the global sub-variant list, e.g. Full. Null if unsized. */
   subVariantId: z.number().positive().nullable().optional(),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   price: z.number().min(0),
   isDefault: z.boolean(),
 })
@@ -14,7 +15,7 @@ export const createFoodVariantSchema = z.object({
 export type CreateFoodVariantInput = z.infer<typeof createFoodVariantSchema>
 
 export const updateFoodVariantSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   variantId: z.number().positive().nullable().optional(),
   subVariantId: z.number().positive().nullable().optional(),
   price: z.number().min(0),

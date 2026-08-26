@@ -1,9 +1,10 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 const unitTypes = ["weight", "volume", "quantity", "custom"] as const
 
 export const createUnitSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   shortName: z.string().min(1, "Short name is required").max(20),
   type: z.enum(unitTypes),
 })
@@ -11,7 +12,7 @@ export const createUnitSchema = z.object({
 export type CreateUnitInput = z.infer<typeof createUnitSchema>
 
 export const updateUnitSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   shortName: z.string().min(1, "Short name is required").max(20),
   type: z.enum(unitTypes),
   isActive: z.boolean(),

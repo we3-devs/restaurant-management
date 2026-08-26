@@ -1,7 +1,8 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const businessSettingsSchema = z.object({
-  restaurantName: z.string().optional(),
+  restaurantName: z.string().transform(toTitleCase).optional(),
   // Logo lives in appearance settings only — see appearanceSettingsSchema.
   address: z.string().optional(),
   phone: z.string().optional(),

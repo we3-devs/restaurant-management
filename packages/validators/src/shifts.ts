@@ -1,9 +1,10 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 const TIME_REGEX = /^\d{2}:\d{2}$/
 
 export const createShiftSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   slug: z
     .string()
     .min(1, "Slug is required")
@@ -19,7 +20,7 @@ export const createShiftSchema = z.object({
 export type CreateShiftInput = z.infer<typeof createShiftSchema>
 
 export const updateShiftSchema = z.object({
-  name: z.string().min(1, "Name is required").optional(),
+  name: z.string().min(1, "Name is required").transform(toTitleCase).optional(),
   slug: z
     .string()
     .min(1, "Slug is required")

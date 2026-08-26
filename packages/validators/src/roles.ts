@@ -1,9 +1,10 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const portalOptions = ["dashboard", "staff", "both"] as const
 
 export const createRoleSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   slug: z
     .string()
     .min(2)
@@ -15,7 +16,7 @@ export const createRoleSchema = z.object({
 export type CreateRoleInput = z.infer<typeof createRoleSchema>
 
 export const updateRoleSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   description: z.string().optional(),
   isAssignable: z.boolean(),
   isActive: z.boolean(),

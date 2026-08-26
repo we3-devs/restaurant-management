@@ -1,9 +1,10 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const SUPPLIER_STATUSES = ["active", "inactive"] as const
 
 export const createSupplierSchema = z.object({
-  companyName: z.string().min(1, "Company name is required"),
+  companyName: z.string().min(1, "Company name is required").transform(toTitleCase),
   outletId: z.number({ message: "Select an outlet" }).positive(),
   contactPerson: z.string().optional(),
   phone: z.string().optional(),
@@ -28,7 +29,7 @@ export const createSupplierSchema = z.object({
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>
 
 export const updateSupplierSchema = z.object({
-  companyName: z.string().min(1, "Company name is required").optional(),
+  companyName: z.string().min(1, "Company name is required").transform(toTitleCase).optional(),
   contactPerson: z.string().optional(),
   phone: z.string().optional(),
   altPhone: z.string().optional(),
@@ -52,7 +53,7 @@ export const updateSupplierSchema = z.object({
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>
 
 export const createSupplierCategorySchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   description: z.string().optional(),
 })
 

@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const requestOtpSchema = z
   .object({
@@ -16,7 +17,7 @@ export const verifyOtpSchema = z
     phone: z.string().optional(),
     email: z.string().email().optional(),
     code: z.string().length(6, "Enter the 6-digit code"),
-    name: z.string().optional(),
+    name: z.string().transform(toTitleCase).optional(),
   })
   .refine((data) => Boolean(data.phone || data.email), {
     message: "Provide a phone number or email",
@@ -25,7 +26,7 @@ export const verifyOtpSchema = z
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2).optional(),
+  name: z.string().min(2).transform(toTitleCase).optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),

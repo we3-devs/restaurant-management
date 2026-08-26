@@ -1,10 +1,11 @@
 import { z } from "zod"
+import { toTitleCase } from "./helpers"
 
 export const EMPLOYMENT_STATUSES = ["active", "inactive", "terminated", "resigned"] as const
 
 /** Fields that actually make up the POST /employees payload — loginMode/password (below) are form-only and get resolved into `userId` before the request goes out. */
 const createEmployeeApiSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   email: z.string().email("Enter a valid email address").optional().or(z.literal("")),
   phone: z.string().optional(),
   userId: z.number().positive().optional(),
@@ -14,7 +15,7 @@ const createEmployeeApiSchema = z.object({
   photoUrl: z.string().optional(),
   joiningDate: z.string().optional(),
   employmentStatus: z.enum(EMPLOYMENT_STATUSES).optional(),
-  emergencyContactName: z.string().optional(),
+  emergencyContactName: z.string().transform(toTitleCase).optional(),
   emergencyContactPhone: z.string().optional(),
   emergencyContactRelation: z.string().optional(),
 })
@@ -50,7 +51,7 @@ export const createEmployeeSchema = createEmployeeApiSchema
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>
 
 export const updateEmployeeSchema = z.object({
-  name: z.string().min(1, "Name is required").optional(),
+  name: z.string().min(1, "Name is required").transform(toTitleCase).optional(),
   email: z.string().email("Enter a valid email address").optional().or(z.literal("")),
   phone: z.string().optional(),
   userId: z.number().positive().optional(),
@@ -60,7 +61,7 @@ export const updateEmployeeSchema = z.object({
   photoUrl: z.string().optional(),
   joiningDate: z.string().optional(),
   employmentStatus: z.enum(EMPLOYMENT_STATUSES).optional(),
-  emergencyContactName: z.string().optional(),
+  emergencyContactName: z.string().transform(toTitleCase).optional(),
   emergencyContactPhone: z.string().optional(),
   emergencyContactRelation: z.string().optional(),
 })
@@ -68,7 +69,7 @@ export const updateEmployeeSchema = z.object({
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>
 
 export const createPositionSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required").transform(toTitleCase),
   slug: z
     .string()
     .min(1, "Slug is required")
@@ -80,7 +81,7 @@ export const createPositionSchema = z.object({
 export type CreatePositionInput = z.infer<typeof createPositionSchema>
 
 export const updatePositionSchema = z.object({
-  name: z.string().min(1, "Name is required").optional(),
+  name: z.string().min(1, "Name is required").transform(toTitleCase).optional(),
   slug: z
     .string()
     .min(1, "Slug is required")
