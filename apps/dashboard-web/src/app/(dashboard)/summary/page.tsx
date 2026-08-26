@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
+import { BarChart3Icon } from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StatGridSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
@@ -16,12 +19,10 @@ import {
   usePeriodInsights,
   usePeriodInsightsBackfillStatus,
   usePeriodInsightsNp,
-  useStartPeriodInsightsBackfill,
   type PeriodInsight,
   type PeriodInsightNp,
   type PeriodInsightType,
 } from "@/hooks/use-period-insights"
-import { toast } from "sonner"
 import { BreakdownView, ChartsView, StatCardsView } from "./period-insight-sections"
 
 type Period = PeriodInsightType
@@ -75,7 +76,6 @@ export default function SummaryPage() {
   const { data: backfillStatus } = usePeriodInsightsBackfillStatus({
     refetchInterval: (query) => (query.state.data?.running ? 3000 : false),
   })
-  const startBackfill = useStartPeriodInsightsBackfill()
   const isBackfillRunning = backfillStatus?.running ?? false
   const queryClient = useQueryClient()
   const wasBackfillRunning = useRef(false)
@@ -97,20 +97,6 @@ export default function SummaryPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={isBackfillRunning || startBackfill.isPending}
-            onClick={() => {
-              startBackfill.mutate(undefined, {
-                onSuccess: () => toast.info("Processing all historical orders into insights — this runs in the background."),
-                onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to start backfill"),
-              })
-            }}
-          >
-            {isBackfillRunning ? "Processing history…" : "Process all old data"}
-          </Button>
           <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-1">
             {PERIODS.map((p) => (
               <Button
@@ -146,9 +132,19 @@ export default function SummaryPage() {
       {showSkeleton ? (
         <StatGridSkeleton count={6} className="grid-cols-2 md:grid-cols-4" />
       ) : !selected ? (
-        <p className="text-sm text-muted-foreground">
-          No {period} rollups yet for this outlet — they&apos;re computed nightly, so check back after the next run.
-        </p>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <BarChart3Icon className="size-8 text-muted-foreground" aria-hidden />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">No {period} rollups yet</p>
+              <p className="text-sm text-muted-foreground">
+                {isBackfillRunning
+                  ? "Processing historical orders into insights — this can take a few minutes."
+                  : "Rollups are computed nightly for this outlet. A superadmin can process past orders now from Organization → Outlets instead of waiting for tonight's run."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <>
           <StatCardsView payload={selected.payload} />

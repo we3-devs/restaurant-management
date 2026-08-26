@@ -121,11 +121,13 @@ export function useStartPeriodInsightsBackfill() {
 
 /** Status of the most recent (or currently running) full-history backfill. Pass `refetchInterval` while running to poll. */
 export function usePeriodInsightsBackfillStatus(options?: {
+  enabled?: boolean
   refetchInterval?: number | false | ((query: { state: { data?: PeriodInsightsBackfillStatus } }) => number | false)
 }) {
   return useQuery({
     queryKey: queryKeys.periodInsights.backfillStatus(),
     queryFn: () => apiClient<PeriodInsightsBackfillStatus>("/period-insights/backfill"),
+    enabled: options?.enabled,
     refetchInterval: options?.refetchInterval,
   })
 }
