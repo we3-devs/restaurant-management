@@ -18,7 +18,6 @@ const PAGE_SIZE = 20
 
 const columns: ColumnDef<Order>[] = [
   { accessorKey: "orderNumber", header: "Order #" },
-  { accessorKey: "orderType", header: "Type" },
   {
     id: "status",
     header: "Status",
@@ -30,11 +29,6 @@ const columns: ColumnDef<Order>[] = [
     cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} />,
   },
   { accessorKey: "grandTotal", header: "Total" },
-  {
-    id: "createdAt",
-    header: "Placed",
-    cell: ({ row }) => new Date(row.original.createdAt).toLocaleString(),
-  },
 ]
 
 /** Read-only order status tracking for admin — no create/edit here, that stays in operational-web/POS. */

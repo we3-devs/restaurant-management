@@ -173,6 +173,7 @@ export class OrdersService {
 
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
+      select: ['id', 'outletId', 'orderNumber', 'status', 'paymentStatus', 'grandTotal'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
