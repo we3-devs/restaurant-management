@@ -128,12 +128,15 @@ export function RouteProgress() {
     const originalReplace = history.replaceState
     history.pushState = function patchedPush(...args) {
       const result = originalPush.apply(this, args)
-      start()
+      // Defer — Next internally calls pushState/replaceState from within a
+      // useInsertionEffect (e.g. scroll restoration), and React forbids
+      // scheduling updates synchronously from inside that effect.
+      queueMicrotask(start)
       return result
     }
     history.replaceState = function patchedReplace(...args) {
       const result = originalReplace.apply(this, args)
-      start()
+      queueMicrotask(start)
       return result
     }
 
