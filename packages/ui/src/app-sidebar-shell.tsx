@@ -49,10 +49,8 @@ export function AppSidebarShell({
               className="size-7 shrink-0 rounded-lg object-contain"
             />
           ) : (
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              {name.charAt(0).toUpperCase()}
-            </span>
-          )}
+            <img src="/icons/logo.jpg" alt={name} className="size-7 shrink-0 rounded-lg object-contain"/>
+          )} 
           {!collapsed && (
             <span className="truncate font-semibold tracking-tight text-sidebar-foreground">
               {name}

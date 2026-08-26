@@ -83,22 +83,7 @@ export function AppSidebarNav({
   )
 }
 
-/**
- * Per-link pending dot for client-side navigation, via useLinkStatus (Next
- * 16). Must be rendered as a descendant of the Link it reports on; it
- * no-ops when the route is already prefetched, which is the desired
- * behaviour — the dot only appears when navigation is genuinely pending.
- */
-function NavLinkPendingIndicator() {
-  const { pending } = useLinkStatus()
-  if (!pending) return null
-  return (
-    <span
-      aria-hidden
-      className="absolute top-1/2 right-1 size-1.5 -translate-y-1/2 rounded-full bg-primary"
-    />
-  )
-}
+
 
 function NavSection({
   group,
@@ -145,7 +130,6 @@ function NavSection({
                 )}
               >
                 {link.label}
-                <NavLinkPendingIndicator />
               </Link>
             )
           })}

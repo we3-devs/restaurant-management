@@ -26,15 +26,15 @@ const geistMono = Geist_Mono({
 // so leaving it in place would have silently pinned the old icon.
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE);
-  const name = branding.restaurantName ?? "RMS";
+  const name = branding.restaurantName ?? "Restro ";
 
   return {
     title: name,
     description: `${name} — Restaurant Management System`,
     manifest: "/manifest.json",
     icons: {
-      icon: branding.faviconUrl ?? "/favicon.ico",
-      apple: branding.faviconUrl ?? "/icons/icon.svg",
+      icon: branding.faviconUrl ?? "/icons/logo.png",
+      apple: branding.faviconUrl ?? "/icons/logo.png",
     },
   };
 }
