@@ -32,12 +32,12 @@ export const verifySession = cache(async (): Promise<CurrentUser> => {
   try {
     const response = await backendFetch("/auth/me")
     if (!response.ok) {
-      redirect("/login")
+      redirect("/api/auth/clear-session")
     }
     return (await response.json()) as CurrentUser
   } catch (error) {
     if (error instanceof BackendUnauthorizedError) {
-      redirect("/login")
+      redirect("/api/auth/clear-session")
     }
     throw error
   }

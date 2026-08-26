@@ -13,6 +13,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type LoyaltySettings } from "@/hooks/use-settings"
 import { loyaltySettingsSchema, type LoyaltySettingsInput } from "@/lib/validators/settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const defaultValues: LoyaltySettingsInput = {
   pointsPerCurrencyUnit: 0,
@@ -51,6 +52,8 @@ export default function LoyaltySettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("Loyalty Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

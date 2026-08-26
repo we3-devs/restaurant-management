@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { CreateOutletDialog } from "../outlets/create-outlet-dialog"
 import {
+import { usePageTitle } from "@rms/ui/use-page-title"
   KitchenStatusSection,
   LiveOrdersSection,
   NeedsAttentionSection,
@@ -54,6 +55,8 @@ export default function DashboardPage() {
   const quickActions = QUICK_ACTIONS.filter((action) => has(action.permission))
 
   const noOutletsYet = !isLoadingOutlets && outlets.length === 0
+
+  usePageTitle("Dashboard")
 
   return (
     <div className="space-y-6">

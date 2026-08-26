@@ -24,6 +24,7 @@ import { useOutlets } from "@/hooks/use-outlets"
 import { useSupplierCategories, useSuppliers, type Supplier } from "@/hooks/use-suppliers"
 import { SUPPLIER_STATUSES } from "@/lib/validators/suppliers"
 import { CreateSupplierDialog } from "./create-supplier-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -111,6 +112,8 @@ export default function SuppliersPage() {
   })
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Suppliers")
 
   return (
     <div className="space-y-4">

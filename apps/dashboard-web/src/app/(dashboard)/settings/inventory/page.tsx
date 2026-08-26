@@ -16,6 +16,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type InventorySettings } from "@/hooks/use-settings"
 import {
+import { usePageTitle } from "@rms/ui/use-page-title"
   INVENTORY_NEGATIVE_STOCK_POLICIES,
   INVENTORY_STOCK_COSTING_METHODS,
   inventorySettingsSchema,
@@ -58,6 +59,8 @@ export default function InventorySettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("Inventory Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

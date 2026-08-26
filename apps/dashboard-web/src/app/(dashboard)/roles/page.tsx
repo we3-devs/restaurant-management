@@ -39,6 +39,7 @@ import { DataTablePagination } from "@/components/data-table-pagination"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDeleteRole, useRoles, type Role } from "@/hooks/use-roles"
 import { CreateRoleDialog } from "./create-role-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -148,6 +149,8 @@ export default function RolesPage() {
   }
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Roles")
 
   return (
     <div className="space-y-4">

@@ -13,6 +13,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type ReservationSettings } from "@/hooks/use-settings"
 import { reservationSettingsSchema, type ReservationSettingsInput } from "@/lib/validators/settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const defaultValues: ReservationSettingsInput = {
   reservationDurationMinutes: 0,
@@ -49,6 +50,8 @@ export default function ReservationSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("Reservation Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

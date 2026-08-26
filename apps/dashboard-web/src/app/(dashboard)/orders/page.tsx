@@ -13,6 +13,7 @@ import { DataTablePagination } from "@/components/data-table-pagination"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useOrders, type Order } from "@/hooks/use-orders"
 import { ORDER_STATUSES } from "@/lib/validators/orders"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 20
 
@@ -50,6 +51,8 @@ export default function OrdersTrackingPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Orders")
 
   return (
     <div className="space-y-4">

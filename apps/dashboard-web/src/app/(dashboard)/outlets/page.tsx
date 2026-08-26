@@ -15,6 +15,7 @@ import {
   useStartPeriodInsightsBackfill,
 } from "@/hooks/use-period-insights"
 import { CreateOutletDialog } from "./create-outlet-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Outlet>[] = [{ accessorKey: "name", header: "Name" }]
 
@@ -35,6 +36,8 @@ export default function OutletsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Outlets")
 
   return (
     <div className="space-y-4">

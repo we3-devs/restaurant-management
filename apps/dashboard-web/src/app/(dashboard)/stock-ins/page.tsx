@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockIns, type StockIn } from "@/hooks/use-stock-ins"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockInDialog } from "./create-stock-in-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<StockIn>[] = [
   { accessorKey: "stockInNo", header: "Number" },
@@ -40,6 +41,8 @@ export default function StockInsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Stock-Ins")
 
   return (
     <div className="space-y-4">

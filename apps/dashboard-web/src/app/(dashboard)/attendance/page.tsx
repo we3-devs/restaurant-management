@@ -39,6 +39,7 @@ import {
   type Attendance,
 } from "@/hooks/use-attendance"
 import { ATTENDANCE_STATUSES, clockInSchema, type ClockInInput } from "@/lib/validators/attendance"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -107,6 +108,8 @@ export default function AttendancePage() {
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Attendance")
 
   return (
     <div className="space-y-4">

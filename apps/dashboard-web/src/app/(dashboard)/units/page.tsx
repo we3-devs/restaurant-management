@@ -9,6 +9,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useUnits, type Unit } from "@/hooks/use-units"
 import { CreateUnitDialog } from "./create-unit-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Unit>[] = [
   { accessorKey: "name", header: "Name" },
@@ -35,6 +36,8 @@ export default function UnitsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Units")
 
   return (
     <div className="space-y-4">

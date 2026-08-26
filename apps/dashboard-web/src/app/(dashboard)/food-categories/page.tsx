@@ -9,6 +9,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFoodCategories, type FoodCategory } from "@/hooks/use-food-categories"
 import { CreateFoodCategoryDialog } from "./create-food-category-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function FoodCategoriesPage() {
   const { data, isLoading } = useFoodCategories({ limit: 100 })
@@ -36,6 +37,8 @@ export default function FoodCategoriesPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Food Categories")
 
   return (
     <div className="space-y-4">

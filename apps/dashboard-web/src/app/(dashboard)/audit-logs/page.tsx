@@ -17,6 +17,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useUsers } from "@/hooks/use-users"
 import { downloadAuditLogsExport, useAuditLogs, type AuditAction, type AuditLog } from "@/hooks/use-audit-logs"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 15
 
@@ -121,6 +122,8 @@ export default function AuditLogsPage() {
       setExporting(false)
     }
   }
+
+  usePageTitle("Audit Logs")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

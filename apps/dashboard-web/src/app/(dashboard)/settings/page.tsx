@@ -7,6 +7,7 @@ import { CardGridSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useAllSettings } from "@/hooks/use-settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const CATEGORIES: { slug: string; label: string; description: string }[] = [
   { slug: "business", label: "Business", description: "Restaurant identity, contact info and hours" },
@@ -24,6 +25,8 @@ export default function SettingsPage() {
   const canView = isSuperadmin || permissions.includes("settings.view")
   const { isLoading } = useAllSettings()
   const showSkeleton = useDelayedLoading(isLoading)
+
+  usePageTitle("Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

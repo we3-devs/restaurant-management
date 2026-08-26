@@ -49,10 +49,22 @@ export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
   })
 }
 
+/**
+ * Best-effort: also called from backendFetch's refresh-failure path, which
+ * runs during Server Component rendering (e.g. the dashboard layout) as well
+ * as from Route Handlers/Server Actions. Next.js only allows cookie mutation
+ * in the latter two, so during a render this throws — swallow that case
+ * rather than letting it crash the page, since the caller redirects to
+ * /login regardless and the stale cookies just expire naturally.
+ */
 export async function clearAuthCookies(): Promise<void> {
-  const cookieStore = await cookies()
-  cookieStore.delete({ name: ACCESS_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
-  cookieStore.delete({ name: REFRESH_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
+  try {
+    const cookieStore = await cookies()
+    cookieStore.delete({ name: ACCESS_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
+    cookieStore.delete({ name: REFRESH_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
+  } catch {
+    // Called during render — cookies are read-only here, nothing to do.
+  }
 }
 
 export async function getAccessToken(): Promise<string | undefined> {

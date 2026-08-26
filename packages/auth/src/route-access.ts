@@ -1,6 +1,8 @@
 export interface RoutePermissionEntry {
   href: string
   permission: string | true
+  /** When set, only superadmins may access the route — the permission field is ignored entirely for this entry. */
+  superadminOnly?: boolean
 }
 
 export interface PermissionCheckable {
@@ -9,15 +11,15 @@ export interface PermissionCheckable {
 }
 
 /**
- * Finds the permission required for a pathname by matching against a table of
- * {href, permission} entries (exact match or href as a path prefix), picking
- * the most specific (longest) href. Returns true/undefined when nothing
- * requires gating the route.
+ * Finds the route-access entry that applies to a pathname by matching against
+ * a table of {href, permission, superadminOnly} entries (exact match or href
+ * as a path prefix), picking the most specific (longest) href. Returns
+ * undefined when nothing requires gating the route.
  */
 export function findRequiredPermission(
   pathname: string,
   entries: RoutePermissionEntry[],
-): string | true | undefined {
+): RoutePermissionEntry | undefined {
   let best: RoutePermissionEntry | undefined
   for (const entry of entries) {
     const matches = pathname === entry.href || pathname.startsWith(`${entry.href}/`)
@@ -25,11 +27,24 @@ export function findRequiredPermission(
       best = entry
     }
   }
-  return best?.permission
+  return best
 }
 
-export function hasRoutePermission(user: PermissionCheckable, permission: string | true | undefined): boolean {
-  return permission === undefined || permission === true || user.isSuperadmin || user.permissions.includes(permission)
+/**
+ * Accepts either a raw permission requirement (`string | true | undefined`,
+ * as used by ad-hoc in-component checks like `hasRoutePermission(user,
+ * "food-variants.view")`) or a full `RoutePermissionEntry` (as returned by
+ * `findRequiredPermission`) so route guards can express `superadminOnly`
+ * without every caller having to unwrap it themselves.
+ */
+export function hasRoutePermission(
+  user: PermissionCheckable,
+  requirement: string | true | RoutePermissionEntry | undefined,
+): boolean {
+  if (requirement !== undefined && typeof requirement === "object") {
+    return requirement.superadminOnly ? user.isSuperadmin : hasRoutePermission(user, requirement.permission)
+  }
+  return requirement === undefined || requirement === true || user.isSuperadmin || user.permissions.includes(requirement)
 }
 
 export interface PortalCheckable {

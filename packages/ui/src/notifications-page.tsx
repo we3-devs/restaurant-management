@@ -24,6 +24,7 @@ import {
   NOTIFICATION_PRIORITIES,
 } from "@rms/validators/notifications"
 import { cn } from "./cn"
+import { usePageTitle } from "./use-page-title"
 
 const PAGE_SIZE = 20
 
@@ -38,6 +39,8 @@ const PRIORITY_VARIANT: Record<string, "secondary" | "outline" | "destructive"> 
 }
 
 export function NotificationsPage() {
+  usePageTitle("Notifications")
+
   const { outletId: effectiveOutletId, outlets } = useActiveOutlet()
 
   const [page, setPage] = useState(1)

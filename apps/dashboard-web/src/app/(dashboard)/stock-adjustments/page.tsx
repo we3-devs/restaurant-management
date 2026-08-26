@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockAdjustments, type StockAdjustment } from "@/hooks/use-stock-adjustments"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockAdjustmentDialog } from "./create-stock-adjustment-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<StockAdjustment>[] = [
   { accessorKey: "adjustmentNo", header: "Number" },
@@ -39,6 +40,8 @@ export default function StockAdjustmentsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Stock Adjustments")
 
   return (
     <div className="space-y-4">

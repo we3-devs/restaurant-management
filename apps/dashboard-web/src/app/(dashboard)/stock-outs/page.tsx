@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockOuts, type StockOut } from "@/hooks/use-stock-outs"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockOutDialog } from "./create-stock-out-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<StockOut>[] = [
   { accessorKey: "stockOutNo", header: "Number" },
@@ -40,6 +41,8 @@ export default function StockOutsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Stock-Outs")
 
   return (
     <div className="space-y-4">

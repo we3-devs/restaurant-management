@@ -14,6 +14,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type BusinessSettings } from "@/hooks/use-settings"
 import { businessSettingsSchema, type BusinessSettingsInput } from "@/lib/validators/settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const defaultValues: BusinessSettingsInput = {
   restaurantName: "",
@@ -61,6 +62,8 @@ export default function BusinessSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("Business Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

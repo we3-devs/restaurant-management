@@ -16,6 +16,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type PosSettings } from "@/hooks/use-settings"
 import { posSettingsSchema, type PosSettingsInput } from "@/lib/validators/settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const BILL_NUMBER_RESET_PERIODS = ["never", "daily", "monthly", "yearly"] as const
 
@@ -100,6 +101,8 @@ export default function PosSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("POS Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

@@ -45,6 +45,7 @@ import {
   type Shift,
 } from "@/hooks/use-shifts"
 import { assignShiftSchema, createShiftSchema, type AssignShiftInput, type CreateShiftInput } from "@/lib/validators/shifts"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function ShiftsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -66,6 +67,8 @@ export default function ShiftsPage() {
   }
 
   const isEmpty = !isLoading && (shifts?.length ?? 0) === 0
+
+  usePageTitle("Shifts")
 
   return (
     <div className="space-y-4">

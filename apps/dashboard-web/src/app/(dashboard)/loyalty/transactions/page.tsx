@@ -16,6 +16,7 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useCustomers } from "@/hooks/use-customers"
 import { useLoyaltyTransactions, type LoyaltyTransaction } from "@/hooks/use-loyalty"
 import { LOYALTY_TRANSACTION_TYPES } from "@/lib/validators/loyalty"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 15
 
@@ -121,6 +122,8 @@ export default function LoyaltyTransactionsPage() {
   })
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Loyalty Transactions")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

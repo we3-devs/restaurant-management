@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useOutlets } from "@/hooks/use-outlets"
 import { useWarehouses, type Warehouse } from "@/hooks/use-warehouses"
 import { CreateWarehouseDialog } from "./create-warehouse-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Warehouse>[] = [
   { accessorKey: "name", header: "Name" },
@@ -42,6 +43,8 @@ export default function WarehousesPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Warehouses")
 
   return (
     <div className="space-y-4">

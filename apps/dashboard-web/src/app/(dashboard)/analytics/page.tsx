@@ -12,6 +12,7 @@ import { useDashboardAnalytics } from "@/hooks/use-analytics"
 import { useDashboardBreakdown, useDashboardInventoryActivity } from "@/hooks/use-dashboard"
 
 import {
+import { usePageTitle } from "@rms/ui/use-page-title"
   buildInsights,
   CustomerAnalyticsCards,
   DiscountRefundCard,
@@ -104,6 +105,8 @@ export default function AnalyticsPage() {
 
   const isLoading = analyticsQuery.isLoading || !dataEnabled
   const isError = analyticsQuery.isError
+
+  usePageTitle("Analytics")
 
   return (
     <div className="space-y-6">

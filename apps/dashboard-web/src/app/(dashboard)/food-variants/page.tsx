@@ -13,6 +13,7 @@ import { useFoodVariants, type FoodVariant } from "@/hooks/use-food-variants"
 import { useFoods } from "@/hooks/use-foods"
 import { useVariantList, type VariantListValue } from "@/hooks/use-variant-lists"
 import { CreateFoodVariantDialog } from "./create-food-variant-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 /**
  * Built as a function so the variant / sub-variant columns can resolve ids
@@ -68,6 +69,8 @@ export default function FoodVariantsPage() {
     columns: buildColumns(lookup(variantList), lookup(subVariantList)),
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Food Items")
 
   return (
     <div className="space-y-4">

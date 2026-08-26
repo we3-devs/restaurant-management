@@ -40,6 +40,7 @@ import { DataTablePagination } from "@/components/data-table-pagination"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDeactivateUser, useUsers, type User } from "@/hooks/use-users"
 import { CreateUserDialog } from "./create-user-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -174,6 +175,8 @@ export default function UsersPage() {
   }
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Users")
 
   return (
     <div className="space-y-4">

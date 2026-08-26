@@ -23,6 +23,7 @@ import { useSuppliers } from "@/hooks/use-suppliers"
 import { usePurchaseOrders, type PurchaseOrder } from "@/hooks/use-purchase-orders"
 import { PURCHASE_ORDER_STATUSES } from "@/lib/validators/purchase-orders"
 import { CreatePurchaseOrderDialog } from "./create-purchase-order-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -85,6 +86,8 @@ export default function PurchaseOrdersPage() {
   })
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Purchase Orders")
 
   return (
     <div className="space-y-4">

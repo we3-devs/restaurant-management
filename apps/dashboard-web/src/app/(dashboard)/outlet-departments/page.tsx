@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useOutletDepartments, type OutletDepartment } from "@/hooks/use-outlet-departments"
 import { useOutlets } from "@/hooks/use-outlets"
 import { CreateOutletDepartmentDialog } from "./create-outlet-department-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<OutletDepartment>[] = [
   { accessorKey: "name", header: "Name" },
@@ -43,6 +44,8 @@ export default function OutletDepartmentsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Outlet Departments")
 
   return (
     <div className="space-y-4">

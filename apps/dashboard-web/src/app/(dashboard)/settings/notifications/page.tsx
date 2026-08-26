@@ -17,6 +17,7 @@ import { useSettingsCategory, useUpdateSettings, type NotificationSettings } fro
 import { useRoles } from "@/hooks/use-roles"
 import { MyDeliveryPreferences } from "@/components/my-delivery-preferences"
 import { notificationSettingsSchema, type NotificationSettingsInput } from "@/lib/validators/settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const defaultValues: NotificationSettingsInput = {
   enableEmail: false,
@@ -58,6 +59,8 @@ export default function NotificationSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings")
     }
   }
+
+  usePageTitle("Notification Settings")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

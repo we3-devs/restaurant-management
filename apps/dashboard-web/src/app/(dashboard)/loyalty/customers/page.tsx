@@ -13,6 +13,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useLoyaltyAccounts, type LoyaltyAccount } from "@/hooks/use-loyalty"
 import { AdjustLoyaltyPointsDialog } from "./adjust-loyalty-points-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -75,6 +76,8 @@ export default function LoyaltyCustomersPage() {
   })
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Loyalty Customers")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

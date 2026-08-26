@@ -38,6 +38,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useDeleteCustomer, useCustomers, type Customer } from "@/hooks/use-customers"
 import { CreateCustomerDialog } from "./create-customer-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -144,6 +145,8 @@ export default function CustomersPage() {
   }
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Customers")
 
   return (
     <div className="space-y-4">

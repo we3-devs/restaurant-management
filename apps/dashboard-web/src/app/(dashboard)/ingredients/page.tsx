@@ -31,6 +31,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
 import { useDeleteIngredient, useIngredients, type Ingredient } from "@/hooks/use-ingredients"
 import { CreateIngredientDialog } from "./create-ingredient-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function IngredientsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
@@ -99,6 +100,8 @@ export default function IngredientsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to delete ingredient")
     }
   }
+
+  usePageTitle("Ingredients")
 
   return (
     <div className="space-y-4">

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { SettingsRow, SettingsRowGroup } from "@/components/ui/settings-row"
 import { DarkModeRow } from "@/components/ui/dark-mode-row"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 function initials(name: string): string {
   return (
@@ -46,6 +47,8 @@ export default function ProfilePage() {
     router.push("/login")
     router.refresh()
   }
+
+  usePageTitle("My Profile")
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col space-y-4">

@@ -23,6 +23,7 @@ import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import { useEmployees, usePositions, type Employee } from "@/hooks/use-employees"
 import { EMPLOYMENT_STATUSES } from "@/lib/validators/employees"
 import { CreateEmployeeDialog } from "./create-employee-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -86,6 +87,8 @@ export default function EmployeesPage() {
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Employees")
 
   return (
     <div className="space-y-4">

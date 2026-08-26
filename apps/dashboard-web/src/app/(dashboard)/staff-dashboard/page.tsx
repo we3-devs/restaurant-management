@@ -10,6 +10,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useEmployees } from "@/hooks/use-employees"
 import { useStaffDashboard } from "@/hooks/use-assignments"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function StaffDashboardPage() {
   const [outletFilter, setOutletFilter] = useState("all")
@@ -19,6 +20,8 @@ export default function StaffDashboardPage() {
   const showSkeleton = useDelayedLoading(isLoading || !data)
 
   const employeeName = (id: number) => employees?.data.find((e) => e.id === id)?.name ?? "Loading…"
+
+  usePageTitle("Staff Dashboard")
 
   return (
     <div className="space-y-4">

@@ -39,6 +39,7 @@ import {
 } from "@/hooks/use-supplier-payments"
 import { PAYMENT_METHODS } from "@/lib/validators/supplier-payments"
 import { CreateSupplierPaymentDialog } from "./create-supplier-payment-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -147,6 +148,8 @@ export default function SupplierPaymentsPage() {
   })
 
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Supplier Payments")
 
   return (
     <div className="space-y-4">

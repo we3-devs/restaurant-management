@@ -8,6 +8,7 @@ import { StatGridSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, type LoyaltySettings } from "@/hooks/use-settings"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function LoyaltyPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -15,6 +16,8 @@ export default function LoyaltyPage() {
 
   const { data, isLoading } = useSettingsCategory<LoyaltySettings>("loyalty")
   const showSkeleton = useDelayedLoading(isLoading)
+
+  usePageTitle("Loyalty Program")
 
   if (!canView) {
     return <p className="text-sm text-muted-foreground">You do not have access to this page.</p>

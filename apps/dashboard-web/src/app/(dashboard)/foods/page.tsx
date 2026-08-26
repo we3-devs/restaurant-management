@@ -14,6 +14,7 @@ import { useFoods, type Food } from "@/hooks/use-foods"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
 import { ImportFoodsDialog } from "./import-foods-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Food>[] = [
   { accessorKey: "name", header: "Name" },
@@ -46,6 +47,8 @@ export default function FoodsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Foods")
 
   return (
     <div className="space-y-4">

@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockTransfers, type StockTransfer } from "@/hooks/use-stock-transfers"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockTransferDialog } from "./create-stock-transfer-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<StockTransfer>[] = [
   { accessorKey: "transferNo", header: "Number" },
@@ -39,6 +40,8 @@ export default function StockTransfersPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Stock Transfers")
 
   return (
     <div className="space-y-4">

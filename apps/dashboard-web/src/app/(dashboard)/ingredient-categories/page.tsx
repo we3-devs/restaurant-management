@@ -33,6 +33,7 @@ import {
   type IngredientCategory,
 } from "@/hooks/use-ingredient-categories"
 import { CreateIngredientCategoryDialog } from "./create-ingredient-category-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function IngredientCategoriesPage() {
   const [deleteTarget, setDeleteTarget] = useState<IngredientCategory | null>(null)
@@ -95,6 +96,8 @@ export default function IngredientCategoriesPage() {
       toast.error(error instanceof Error ? error.message : "Failed to delete category")
     }
   }
+
+  usePageTitle("Ingredient Categories")
 
   return (
     <div className="space-y-4">

@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useIngredientWastages, type IngredientWastage } from "@/hooks/use-ingredient-wastages"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateIngredientWastageDialog } from "./create-ingredient-wastage-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<IngredientWastage>[] = [
   { accessorKey: "wastageNo", header: "Number" },
@@ -40,6 +41,8 @@ export default function IngredientWastagesPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Wastages")
 
   return (
     <div className="space-y-4">

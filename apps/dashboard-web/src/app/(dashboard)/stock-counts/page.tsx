@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useStockCounts, type StockCount } from "@/hooks/use-stock-counts"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { CreateStockCountDialog } from "./create-stock-count-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<StockCount>[] = [
   { accessorKey: "countNo", header: "Number" },
@@ -39,6 +40,8 @@ export default function StockCountsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Stock Counts")
 
   return (
     <div className="space-y-4">

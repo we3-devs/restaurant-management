@@ -36,6 +36,7 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useCreatePosition, useDeletePosition, usePositions } from "@/hooks/use-employees"
 import { useRoles } from "@/hooks/use-roles"
 import { createPositionSchema, type CreatePositionInput } from "@/lib/validators/employees"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export default function PositionsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -54,6 +55,8 @@ export default function PositionsPage() {
   }
 
   const isEmpty = !isLoading && (positions?.length ?? 0) === 0
+
+  usePageTitle("Positions")
 
   return (
     <div className="space-y-4">

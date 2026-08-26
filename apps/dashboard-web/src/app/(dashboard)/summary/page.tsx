@@ -24,6 +24,7 @@ import {
   type PeriodInsightType,
 } from "@/hooks/use-period-insights"
 import { BreakdownView, ChartsView, StatCardsView } from "./period-insight-sections"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 type Period = PeriodInsightType
 
@@ -85,6 +86,8 @@ export default function SummaryPage() {
     }
     wasBackfillRunning.current = isBackfillRunning
   }, [isBackfillRunning, queryClient])
+
+  usePageTitle("Summary")
 
   return (
     <div className="space-y-6">

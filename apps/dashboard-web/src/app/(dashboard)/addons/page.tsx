@@ -12,6 +12,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useAddonGroups } from "@/hooks/use-addon-groups"
 import { useAddons, type Addon } from "@/hooks/use-addons"
 import { CreateAddonDialog } from "./create-addon-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Addon>[] = [
   { accessorKey: "name", header: "Name" },
@@ -37,6 +38,8 @@ export default function AddonsPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Addons")
 
   return (
     <div className="space-y-4">

@@ -9,6 +9,7 @@ import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
 import { TableDetailDialog } from "./table-detail-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const STATUS_STYLES: Record<string, string> = {
   available: "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
@@ -21,6 +22,8 @@ const STATUS_STYLES: Record<string, string> = {
 /** Read-only mirror of operational-web's floor board — monitoring only, no table actions live here. */
 export default function TablesPage() {
   const { outletId } = useActiveOutlet()
+
+  usePageTitle("Tables")
 
   return (
     <div className="space-y-4">

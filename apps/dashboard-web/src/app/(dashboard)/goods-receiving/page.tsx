@@ -45,6 +45,7 @@ import {
   type GoodsReceiving,
 } from "@/hooks/use-goods-receiving"
 import { CreateGoodsReceivingDialog } from "./create-goods-receiving-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -130,6 +131,8 @@ export default function GoodsReceivingPage() {
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Goods Receiving")
 
   return (
     <div className="space-y-4">

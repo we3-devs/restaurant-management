@@ -11,6 +11,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useOrders, type Order } from "@/hooks/use-orders"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 20
 
@@ -58,6 +59,8 @@ export default function InvoicesPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  usePageTitle("Invoices")
 
   return (
     <div className="space-y-4">

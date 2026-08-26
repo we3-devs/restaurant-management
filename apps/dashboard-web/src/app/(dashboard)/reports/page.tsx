@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { downloadReportExport, useReport, type ReportType } from "@/hooks/use-reports"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 /** Same taxonomy as the sidebar (see nav-items.ts) — Sales/Ops, Inventory, Purchasing, Staff, Loyalty, System — so the dropdown groups reports where you'd expect to find each one instead of a flat 27-item dump. */
 const REPORT_TYPE_GROUPS: { group: string; tabs: { value: ReportType; label: string }[] }[] = [
@@ -152,6 +153,8 @@ export default function ReportsPage() {
       setExporting(null)
     }
   }
+
+  usePageTitle("Reports")
 
   return (
     <div className="space-y-4">

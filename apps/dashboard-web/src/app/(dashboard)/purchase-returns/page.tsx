@@ -48,6 +48,7 @@ import {
 } from "@/hooks/use-purchase-returns"
 import { PURCHASE_RETURN_STATUSES } from "@/lib/validators/purchase-returns"
 import { CreatePurchaseReturnDialog } from "./create-purchase-return-dialog"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 10
 
@@ -149,6 +150,8 @@ export default function PurchaseReturnsPage() {
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })
   const isEmpty = !isLoading && (data?.data.length ?? 0) === 0
+
+  usePageTitle("Purchase Returns")
 
   return (
     <div className="space-y-4">
