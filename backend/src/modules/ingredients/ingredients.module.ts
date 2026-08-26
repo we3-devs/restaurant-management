@@ -5,6 +5,7 @@ import { UnitsModule } from '../units/units.module';
 import { Ingredient } from './entities/ingredient.entity';
 import { IngredientsController } from './ingredients.controller';
 import { IngredientsService } from './ingredients.service';
+import { IngredientsImporter } from './import/ingredients-importer';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { IngredientsService } from './ingredients.service';
     IngredientCategoriesModule,
   ],
   controllers: [IngredientsController],
-  providers: [IngredientsService],
-  exports: [TypeOrmModule, IngredientsService],
+  providers: [IngredientsService, IngredientsImporter],
+  exports: [TypeOrmModule, IngredientsService, IngredientsImporter],
 })
 export class IngredientsModule {}

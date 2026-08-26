@@ -22,6 +22,17 @@ export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/vnd.microsoft.icon': '.ico',
 };
 
+/** CSV/Excel uploads for the superadmin data-import portal — same attacker-controlled-originalname caveat as ALLOWED_IMAGE_TYPES applies. */
+export const ALLOWED_IMPORT_TYPES: Record<string, string> = {
+  'text/csv': '.csv',
+  'application/csv': '.csv',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+};
+
+/** Legacy spreadsheet exports (WooCommerce/WordPress dumps, years of orders) run far larger than a logo upload. */
+export const MAX_IMPORT_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 export const UPLOADS_ROUTE = 'api/uploads';
 
 export function resolveUploadDir(config: ConfigService<AppConfig>): string {

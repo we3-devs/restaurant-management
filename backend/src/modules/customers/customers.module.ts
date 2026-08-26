@@ -8,6 +8,7 @@ import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { CustomerOutlet } from './entities/customer-outlet.entity';
 import { Customer } from './entities/customer.entity';
+import { CustomersImporter } from './import/customers-importer';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { Customer } from './entities/customer.entity';
     SettingsModule,
   ],
   controllers: [CustomersController],
-  providers: [CustomersService],
-  exports: [TypeOrmModule, CustomersService],
+  providers: [CustomersService, CustomersImporter],
+  exports: [TypeOrmModule, CustomersService, CustomersImporter],
 })
 export class CustomersModule {}

@@ -6,6 +6,7 @@ import {
   Gauge,
   type LucideIcon,
   Salad,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Truck,
@@ -116,6 +117,11 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/settings", label: "Settings", permission: "settings.view" },
       { href: "/audit-logs", label: "Audit Logs", permission: "audit-logs.view" },
     ],
+  },
+  {
+    label: "Superadmin",
+    icon: ShieldAlert,
+    links: [{ href: "/data-import", label: "Data Import", permission: true, superadminOnly: true }],
   },
 ]
 

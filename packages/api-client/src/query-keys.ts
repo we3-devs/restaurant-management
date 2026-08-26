@@ -335,4 +335,10 @@ export const queryKeys = {
     all: ["guest-orders"] as const,
     mine: (tableCode: string) => [...queryKeys.guestOrders.all, "mine", tableCode] as const,
   },
+  dataImport: {
+    all: ["data-import"] as const,
+    domains: () => [...queryKeys.dataImport.all, "domains"] as const,
+    jobs: (params?: unknown) => [...queryKeys.dataImport.all, "jobs", params] as const,
+    job: (domain: string, id: number) => [...queryKeys.dataImport.all, "job", domain, id] as const,
+  },
 } as const;

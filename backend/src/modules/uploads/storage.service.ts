@@ -13,8 +13,8 @@ import {
 
 const CACHE_CONTROL = 'public, max-age=2592000, immutable';
 
-/** Keeps bucket objects grouped by what they are, so branding and menu photos stay separable. */
-export type UploadPurpose = 'branding' | 'food';
+/** Keeps bucket objects grouped by what they are, so branding, menu photos, and raw import files stay separable. */
+export type UploadPurpose = 'branding' | 'food' | 'import';
 
 /**
  * Saves branding images to an S3-compatible bucket, falling back to local disk
@@ -64,7 +64,31 @@ export class StorageService {
     mimetype: string,
     purpose: UploadPurpose = 'branding',
   ): Promise<string> {
-    const filename = `${randomUUID()}${ALLOWED_IMAGE_TYPES[mimetype]}`;
+    return this.save(buffer, mimetype, ALLOWED_IMAGE_TYPES[mimetype], purpose);
+  }
+
+  /**
+   * Non-image binaries (CSV/Excel uploads for data-import) — same storage
+   * path as saveImage, but the extension is supplied by the caller (from its
+   * own mimetype->extension table, e.g. ALLOWED_IMPORT_TYPES) rather than
+   * being looked up from the image-only table.
+   */
+  async saveFile(
+    buffer: Buffer,
+    mimetype: string,
+    extension: string,
+    purpose: UploadPurpose,
+  ): Promise<string> {
+    return this.save(buffer, mimetype, extension, purpose);
+  }
+
+  private async save(
+    buffer: Buffer,
+    mimetype: string,
+    extension: string,
+    purpose: UploadPurpose,
+  ): Promise<string> {
+    const filename = `${randomUUID()}${extension}`;
 
     if (!this.client) {
       // Disk keeps a flat layout: main.ts serves one directory, and the
