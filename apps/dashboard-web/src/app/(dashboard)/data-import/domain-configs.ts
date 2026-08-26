@@ -22,6 +22,18 @@ export interface DataImportDomainConfig {
 
 export const dataImportDomainConfigs: DataImportDomainConfig[] = [
   {
+    domain: "foods",
+    label: "Foods",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "slug", label: "Slug" },
+      { key: "sku", label: "SKU" },
+      { key: "foodCategory", label: "Category" },
+      { key: "itemType", label: "Type" },
+      { key: "basePrice", label: "Price" },
+    ],
+  },
+  {
     domain: "outlets",
     label: "Outlets",
     columns: [{ key: "name", label: "Name" }],

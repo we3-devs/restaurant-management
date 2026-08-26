@@ -11,6 +11,8 @@ import { CustomersModule } from '../customers/customers.module';
 import { CustomersImporter } from '../customers/import/customers-importer';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { SuppliersImporter } from '../suppliers/import/suppliers-importer';
+import { FoodsModule } from '../foods/foods.module';
+import { FoodsImporter } from '../foods/import/foods-importer';
 import { DataImportController } from './data-import.controller';
 import { DataImportService } from './data-import.service';
 import { ImporterRegistry, IMPORT_DOMAIN_CONFIG } from './importer-registry';
@@ -39,6 +41,7 @@ import type { ImportDomainConfig } from './interfaces/import-domain-config.inter
     EmployeesModule,
     CustomersModule,
     SuppliersModule,
+    FoodsModule,
   ],
   controllers: [DataImportController],
   providers: [
@@ -52,8 +55,9 @@ import type { ImportDomainConfig } from './interfaces/import-domain-config.inter
         employees: EmployeesImporter,
         customers: CustomersImporter,
         suppliers: SuppliersImporter,
-      ): ImportDomainConfig[] => [outlets, ingredients, employees, customers, suppliers],
-      inject: [OutletsImporter, IngredientsImporter, EmployeesImporter, CustomersImporter, SuppliersImporter],
+        foods: FoodsImporter,
+      ): ImportDomainConfig[] => [outlets, ingredients, employees, customers, suppliers, foods],
+      inject: [OutletsImporter, IngredientsImporter, EmployeesImporter, CustomersImporter, SuppliersImporter, FoodsImporter],
     },
   ],
   exports: [ImporterRegistry],

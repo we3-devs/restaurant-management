@@ -13,7 +13,6 @@ import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useFoods, type Food } from "@/hooks/use-foods"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
-import { ImportFoodsDialog } from "./import-foods-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 const columns: ColumnDef<Food>[] = [
@@ -56,7 +55,6 @@ export default function FoodsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Foods</h1>
         <div className="flex gap-2">
-          <ImportFoodsDialog />
           <CreateFoodDialog />
         </div>
       </div>

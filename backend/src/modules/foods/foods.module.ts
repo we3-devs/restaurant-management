@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
-import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { memoryStorage } from 'multer';
 import { AddonGroupsModule } from '../addon-groups/addon-groups.module';
 import { AuthModule } from '../auth/auth.module';
 import { FoodCategoriesModule } from '../food-categories/food-categories.module';
@@ -13,19 +11,13 @@ import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
 import { FoodsController } from './foods.controller';
-import { FoodsImportService } from './foods-import.service';
 import { FoodsService } from './foods.service';
 import { SkuCompositionService } from './sku-composition.service';
+import { FoodsImporter } from './import/foods-importer';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Food, FoodOutlet, FoodAddonGroup, FoodRecipe]),
-    // Menu import files are small (a few hundred rows of text), so 5MB is
-    // generous headroom without opening the door to large uploads.
-    MulterModule.register({
-      storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
     AuthModule,
     FoodCategoriesModule,
     OutletsModule,
@@ -34,9 +26,9 @@ import { SkuCompositionService } from './sku-composition.service';
     UnitsModule,
   ],
   controllers: [FoodsController],
-  providers: [FoodsService, FoodsImportService, SkuCompositionService],
+  providers: [FoodsService, SkuCompositionService, FoodsImporter],
   // SkuCompositionService is exported so FoodVariantsService can recompose the
   // tree too; FoodVariantsModule already imports this module.
-  exports: [TypeOrmModule, FoodsService, SkuCompositionService],
+  exports: [TypeOrmModule, FoodsService, SkuCompositionService, FoodsImporter],
 })
 export class FoodsModule {}
