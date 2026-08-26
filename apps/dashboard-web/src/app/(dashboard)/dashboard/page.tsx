@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
+import { CreateOutletDialog } from "../outlets/create-outlet-dialog"
 import {
   KitchenStatusSection,
   LiveOrdersSection,
@@ -37,7 +38,7 @@ export default function DashboardPage() {
   const user = useCurrentUser()
   // Outlet is a global concept (see the header switcher) — the dashboard just
   // follows whatever's currently active there instead of asking again.
-  const { outletId, isLoadingOutlets } = useActiveOutlet()
+  const { outletId, outlets, isLoadingOutlets } = useActiveOutlet()
   const now = useClock()
   // Wait for the real outlet before firing any widget query — otherwise
   // every section fetches once with outletId undefined (an unscoped
@@ -51,6 +52,8 @@ export default function DashboardPage() {
   const canViewDashboardStats = has("dashboard.view")
   const canViewStaff = has("attendance.view")
   const quickActions = QUICK_ACTIONS.filter((action) => has(action.permission))
+
+  const noOutletsYet = !isLoadingOutlets && outlets.length === 0
 
   return (
     <div className="space-y-6">
@@ -66,7 +69,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} />
+      {noOutletsYet ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+          <h2 className="text-lg font-semibold text-foreground">No outlets yet</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Create your first outlet to start taking orders, managing tables, and tracking inventory.
+          </p>
+          <CreateOutletDialog />
+        </div>
+      ) : (
+        <>
+          <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -99,7 +112,9 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      <QuickActionsSection actions={quickActions} />
+          <QuickActionsSection actions={quickActions} />
+        </>
+      )}
     </div>
   )
 }

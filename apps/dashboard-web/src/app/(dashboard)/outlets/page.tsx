@@ -30,6 +30,14 @@ export default function OutletsPage() {
 
       {showSkeleton ? (
         <TableSkeleton rows={6} columns={columns.length} />
+      ) : data?.data.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+          <h2 className="text-lg font-semibold text-foreground">No outlets yet</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Create your first outlet to start taking orders, managing tables, and tracking inventory.
+          </p>
+          <CreateOutletDialog />
+        </div>
       ) : (
         <Table>
           <TableHeader>

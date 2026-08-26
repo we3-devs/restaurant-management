@@ -393,7 +393,7 @@ async function upsertUser(
   if (!user) {
     const password = await bcrypt.hash(rawPassword, saltRounds);
     user = repo.create({
-      name: 'Super Admin',
+      name: process.env.SEED_ADMIN_NAME ?? 'Super Admin',
       email,
       password,
       isSuperadmin: true,
