@@ -37,9 +37,9 @@ export function AppSidebarShell({
     <>
       <aside
         id="dashboard-sidebar"
-        className={`fixed h-screen inset-y-0 left-0 z-40 shrink-0 -translate-x-full border-r border-sidebar-border bg-sidebar transition-[width,transform] duration-200 max-lg:shadow-xl lg:static lg:translate-x-0 ${collapsed ? "w-16" : "w-64"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex h-screen shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar transition-[width,transform] duration-200 max-lg:shadow-xl lg:static lg:translate-x-0 ${collapsed ? "w-16" : "w-64"}`}
       >
-        <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
           {branding.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- admin-supplied
             // host; next/image would need it declared in remotePatterns up front.
@@ -59,7 +59,7 @@ export function AppSidebarShell({
             </span>
           )}
         </div>
-        <div className="h-[calc(100%-3.5rem-3rem)] ">
+        <div className="min-h-0 flex-1">
           <AppSidebarNav
             groups={groups}
             collapsed={collapsed}
@@ -67,7 +67,7 @@ export function AppSidebarShell({
             forceOpenGroup={forceOpenGroup}
           />
         </div>
-        <div className="flex w-full h-12 items-center justify-center border-t border-sidebar-border">
+        <div className="flex h-12 w-full shrink-0 items-center justify-center border-t border-sidebar-border">
           <Button
             variant="ghost"
             size="icon-sm"
