@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // redirect rather than a local one — see AUTH_COOKIE_DOMAIN in
   // packages/auth/src/session.ts for how the session survives the hop.
   if (pathname === "/dashboard" && getLandingPath(user) === "/staff") {
-    redirect(`${process.env.OPERATIONAL_WEB_URL ?? "http://localhost:3100"}/`)
+    redirect(`${process.env.OPERATIONAL_WEB_URL}/`)
   }
 
   // Route-level RBAC: the sidebar already hides links a user can't reach,

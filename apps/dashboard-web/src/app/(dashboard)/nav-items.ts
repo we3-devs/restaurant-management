@@ -2,7 +2,7 @@ import {
   Boxes,
   Building2,
   Contact,
-  FileText,
+  // FileText,
   Gauge,
   type LucideIcon,
   Salad,

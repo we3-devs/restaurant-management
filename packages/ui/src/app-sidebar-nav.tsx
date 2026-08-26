@@ -111,7 +111,7 @@ function NavSection({
   defaultOpen: boolean
   forceOpen: boolean
 }) {
-  const [open, setOpen] = useState(defaultOpen || group.links.length <= 3)
+  const [open, setOpen] = useState(defaultOpen)
   const Icon = group.icon
 
   useEffect(() => {
