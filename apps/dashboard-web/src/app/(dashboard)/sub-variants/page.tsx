@@ -1,3 +1,5 @@
+"use client"
+
 import { VariantListManager } from "../variants/variant-list-manager"
 import { usePageTitle } from "@rms/ui/use-page-title"
 

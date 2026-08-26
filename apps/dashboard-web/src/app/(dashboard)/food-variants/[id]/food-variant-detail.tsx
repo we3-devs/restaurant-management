@@ -41,6 +41,7 @@ import {
   type VariantListValue,
 } from "@/hooks/use-variant-lists"
 import { updateFoodVariantSchema, type UpdateFoodVariantInput } from "@/lib/validators/food-variants"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const router = useRouter()
@@ -97,6 +98,8 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete food item")
     }
   }
+
+  usePageTitle("Food Variant Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !variant) return <NotFoundCard resource="Food item" />

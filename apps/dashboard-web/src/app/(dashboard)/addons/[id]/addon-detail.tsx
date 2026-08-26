@@ -38,6 +38,7 @@ import {
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useUnits } from "@/hooks/use-units"
 import { updateAddonSchema, type UpdateAddonInput } from "@/lib/validators/addons"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function AddonDetail({ addonId }: { addonId: number }) {
   const router = useRouter()
@@ -88,6 +89,8 @@ export function AddonDetail({ addonId }: { addonId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete addon")
     }
   }
+
+  usePageTitle("Addon Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={4} />
   if (!isLoading && !addon) return <NotFoundCard resource="Addon" />

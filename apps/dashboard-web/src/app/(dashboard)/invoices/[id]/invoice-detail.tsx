@@ -13,6 +13,7 @@ import { useCustomer } from "@/hooks/use-customers"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import { useAddons } from "@/hooks/use-addons"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -44,6 +45,8 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
   const getVariantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data?.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const getAddonName = (addonId: number) => addons?.data?.find((a) => a.id === addonId)?.name ?? "Loading…"
+
+  usePageTitle("Invoice Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !order) return <NotFoundCard resource="Invoice" />

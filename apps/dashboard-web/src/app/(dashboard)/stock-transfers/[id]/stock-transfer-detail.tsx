@@ -22,6 +22,7 @@ import {
   useStockTransferItems,
 } from "@/hooks/use-stock-transfers"
 import { useWarehouses } from "@/hooks/use-warehouses"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function StockTransferDetail({ transferId }: { transferId: number }) {
   const { data: transfer, isLoading } = useStockTransfer(transferId)
@@ -65,6 +66,8 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel")
     }
   }
+
+  usePageTitle("Stock Transfer Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !transfer) return <NotFoundCard resource="Stock transfer" />

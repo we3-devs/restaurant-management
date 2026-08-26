@@ -15,8 +15,8 @@ import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type InventorySettings } from "@/hooks/use-settings"
-import {
 import { usePageTitle } from "@rms/ui/use-page-title"
+import {
   INVENTORY_NEGATIVE_STOCK_POLICIES,
   INVENTORY_STOCK_COSTING_METHODS,
   inventorySettingsSchema,

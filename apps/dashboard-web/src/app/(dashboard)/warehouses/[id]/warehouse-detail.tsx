@@ -27,6 +27,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteWarehouse, useUpdateWarehouse, useWarehouse } from "@/hooks/use-warehouses"
 import { useOutlet } from "@/hooks/use-outlets"
 import { updateWarehouseSchema, type UpdateWarehouseInput } from "@/lib/validators/warehouses"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
   const router = useRouter()
@@ -71,6 +72,8 @@ export function WarehouseDetail({ warehouseId }: { warehouseId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete warehouse")
     }
   }
+
+  usePageTitle("Warehouse Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !warehouse) return <NotFoundCard resource="Warehouse" />

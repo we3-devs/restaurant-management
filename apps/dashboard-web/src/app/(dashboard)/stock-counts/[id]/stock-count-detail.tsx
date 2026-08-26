@@ -13,6 +13,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   useAddStockCountItem,
   useCancelStockCount,
@@ -74,6 +75,8 @@ export function StockCountDetail({ countId }: { countId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel")
     }
   }
+
+  usePageTitle("Stock Count Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !count) return <NotFoundCard resource="Stock count" />

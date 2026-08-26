@@ -32,6 +32,7 @@ import {
   useUpdateFoodCategory,
 } from "@/hooks/use-food-categories"
 import { updateFoodCategorySchema, type UpdateFoodCategoryInput } from "@/lib/validators/food-categories"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function FoodCategoryDetail({ categoryId }: { categoryId: number }) {
   const router = useRouter()
@@ -75,6 +76,8 @@ export function FoodCategoryDetail({ categoryId }: { categoryId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete category")
     }
   }
+
+  usePageTitle("Food Category Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={4} />
   if (!isLoading && !category) return <NotFoundCard resource="Food category" />

@@ -5,8 +5,8 @@ import { useEffect, useState } from "react"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { CreateOutletDialog } from "../outlets/create-outlet-dialog"
-import {
 import { usePageTitle } from "@rms/ui/use-page-title"
+import {
   KitchenStatusSection,
   LiveOrdersSection,
   NeedsAttentionSection,

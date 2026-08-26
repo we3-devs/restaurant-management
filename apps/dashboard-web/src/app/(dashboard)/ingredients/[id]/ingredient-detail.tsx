@@ -31,6 +31,7 @@ import { useDeleteIngredient, useIngredient, useUpdateIngredient } from "@/hooks
 import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { updateIngredientSchema, type UpdateIngredientInput } from "@/lib/validators/ingredients"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
   const router = useRouter()
@@ -76,6 +77,8 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete ingredient")
     }
   }
+
+  usePageTitle("Ingredient Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !ingredient) return <NotFoundCard resource="Ingredient" />

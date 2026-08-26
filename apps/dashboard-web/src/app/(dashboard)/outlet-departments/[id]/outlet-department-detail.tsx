@@ -27,6 +27,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutletDepartment, useOutletDepartment, useUpdateOutletDepartment } from "@/hooks/use-outlet-departments"
 import { useOutlet } from "@/hooks/use-outlets"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   OUTLET_DEPARTMENT_TYPES,
   updateOutletDepartmentSchema,
@@ -84,6 +85,8 @@ export function OutletDepartmentDetail({ departmentId }: { departmentId: number 
       toast.error(error instanceof Error ? error.message : "Failed to delete department")
     }
   }
+
+  usePageTitle("Outlet Department Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !department) return <NotFoundCard resource="Outlet department" />

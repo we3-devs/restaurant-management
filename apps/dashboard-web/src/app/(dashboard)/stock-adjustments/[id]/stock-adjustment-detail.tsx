@@ -13,6 +13,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   useAddStockAdjustmentItem,
   useApproveStockAdjustment,
@@ -63,6 +64,8 @@ export function StockAdjustmentDetail({ adjustmentId }: { adjustmentId: number }
       toast.error(error instanceof Error ? error.message : "Failed to cancel")
     }
   }
+
+  usePageTitle("Stock Adjustment Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !adjustment) return <NotFoundCard resource="Stock adjustment" />

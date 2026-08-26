@@ -24,6 +24,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutlet, useOutlet, useUpdateOutlet } from "@/hooks/use-outlets"
 import { updateOutletSchema, type UpdateOutletInput } from "@/lib/validators/outlets"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function OutletDetail({ outletId }: { outletId: number }) {
   const router = useRouter()
@@ -62,6 +63,8 @@ export function OutletDetail({ outletId }: { outletId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete outlet")
     }
   }
+
+  usePageTitle("Outlet Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !outlet) return <NotFoundCard resource="Outlet" />

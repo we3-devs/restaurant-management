@@ -28,6 +28,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSupplierCategories, useDeleteSupplier, useSupplier, useUpdateSupplier } from "@/hooks/use-suppliers"
 import { SUPPLIER_STATUSES, updateSupplierSchema, type UpdateSupplierInput } from "@/lib/validators/suppliers"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function SupplierDetail({ supplierId }: { supplierId: number }) {
   const router = useRouter()
@@ -91,6 +92,8 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete supplier")
     }
   }
+
+  usePageTitle("Supplier Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !supplier) return <NotFoundCard resource="Supplier" />

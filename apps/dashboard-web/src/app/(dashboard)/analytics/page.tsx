@@ -10,9 +10,9 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { useDashboardAnalytics } from "@/hooks/use-analytics"
 import { useDashboardBreakdown, useDashboardInventoryActivity } from "@/hooks/use-dashboard"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 import {
-import { usePageTitle } from "@rms/ui/use-page-title"
   buildInsights,
   CustomerAnalyticsCards,
   DiscountRefundCard,

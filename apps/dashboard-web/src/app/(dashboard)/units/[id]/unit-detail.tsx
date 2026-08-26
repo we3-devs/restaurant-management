@@ -29,6 +29,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAddUnitConversion, useDeleteUnit, useUnit, useUnitConversions, useUnits, useUpdateUnit } from "@/hooks/use-units"
 import { updateUnitSchema, type UpdateUnitInput } from "@/lib/validators/units"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 const unitTypes = ["weight", "volume", "quantity", "custom"] as const
 
@@ -86,6 +87,8 @@ export function UnitDetail({ unitId }: { unitId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to add conversion")
     }
   }
+
+  usePageTitle("Unit Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !unit) return <NotFoundCard resource="Unit" />

@@ -31,6 +31,7 @@ import {
 import { useOutlets } from "@/hooks/use-outlets"
 import { updateCustomerSchema, type UpdateCustomerInput } from "@/lib/validators/customers"
 import { settleCustomerDebtSchema, type SettleCustomerDebtInput } from "@/lib/validators/customer-credit"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function CustomerDetail({ customerId }: { customerId: number }) {
   const { data: customer, isLoading } = useCustomer(customerId)
@@ -61,6 +62,8 @@ export function CustomerDetail({ customerId }: { customerId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to update customer")
     }
   }
+
+  usePageTitle("Customer Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={4} />
   if (!isLoading && !customer) return <NotFoundCard resource="Customer" />

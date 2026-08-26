@@ -27,6 +27,7 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { usePermissions, type Permission } from "@/hooks/use-permissions"
 import { useAssignPermission, useDeleteRole, useRole, useUnassignPermission, useUpdateRole } from "@/hooks/use-roles"
 import { updateRoleSchema, type UpdateRoleInput } from "@/lib/validators/roles"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function RoleDetail({ roleId }: { roleId: number }) {
   const router = useRouter()
@@ -127,6 +128,8 @@ export function RoleDetail({ roleId }: { roleId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete role")
     }
   }
+
+  usePageTitle("Role Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !role) return <NotFoundCard resource="Role" />

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { usePageTitle } from "@rms/ui/use-page-title"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +64,8 @@ export function StockOutDetail({ stockOutId }: { stockOutId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel")
     }
   }
+
+  usePageTitle("Stock Out Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !stockOut) return <NotFoundCard resource="Stock-out" />

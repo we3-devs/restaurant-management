@@ -16,6 +16,7 @@ import { useOrderStatusHistory } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import { formatTime } from "@/features/kitchen/ticket-stage"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   return (
@@ -38,6 +39,8 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const showSkeleton = useDelayedLoading(isLoading)
   const issueInvoice = useIssueInvoice(orderId)
+
+  usePageTitle("Order Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !order) return <NotFoundCard resource="Order" />

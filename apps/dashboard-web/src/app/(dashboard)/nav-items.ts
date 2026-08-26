@@ -15,6 +15,8 @@ export interface NavLinkDef {
   href: string
   label: string
   permission: string | true
+  /** When set, only superadmins may see/access this link — permission is ignored entirely. */
+  superadminOnly?: boolean
 }
 
 export interface NavGroupDef {
@@ -131,7 +133,7 @@ export function visibleNavGroups(permissions: string[], isSuperadmin: boolean, r
     .filter((group) => !restrictToAdminGroups || ADMIN_ROLE_VISIBLE_GROUPS.has(group.label))
     .map((group) => ({
       ...group,
-      links: group.links.filter((link) => has(link.permission)),
+      links: group.links.filter((link) => (link.superadminOnly ? isSuperadmin : has(link.permission))),
     }))
     .filter((group) => group.links.length > 0)
 }

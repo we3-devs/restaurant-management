@@ -46,6 +46,7 @@ import {
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useUnits } from "@/hooks/use-units"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   FOOD_ITEM_TYPES,
   FOOD_TYPES,
@@ -124,6 +125,8 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete food")
     }
   }
+
+  usePageTitle("Food Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={8} />
   if (!isLoading && !food) return <NotFoundCard resource="Food" />

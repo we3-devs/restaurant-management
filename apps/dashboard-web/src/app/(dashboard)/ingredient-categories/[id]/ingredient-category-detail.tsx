@@ -31,6 +31,7 @@ import {
   useIngredientCategory,
   useUpdateIngredientCategory,
 } from "@/hooks/use-ingredient-categories"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   ingredientTypes,
   updateIngredientCategorySchema,
@@ -80,6 +81,8 @@ export function IngredientCategoryDetail({ categoryId }: { categoryId: number })
       toast.error(error instanceof Error ? error.message : "Failed to delete category")
     }
   }
+
+  usePageTitle("Ingredient Category Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={4} />
   if (!isLoading && !category) return <NotFoundCard resource="Ingredient category" />

@@ -40,6 +40,7 @@ import {
   useSubmitPurchaseOrder,
 } from "@/hooks/use-purchase-orders"
 import { addPurchaseOrderItemSchema, type AddPurchaseOrderItemInput } from "@/lib/validators/purchase-orders"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: number }) {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -65,6 +66,8 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
       toast.error(error instanceof Error ? error.message : failureMessage)
     }
   }
+
+  usePageTitle("Purchase Order Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !po) return <NotFoundCard resource="Purchase order" />

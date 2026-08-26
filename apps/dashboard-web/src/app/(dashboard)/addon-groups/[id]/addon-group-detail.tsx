@@ -26,6 +26,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useAddonGroup, useDeleteAddonGroup, useUpdateAddonGroup } from "@/hooks/use-addon-groups"
 import { updateAddonGroupSchema, type UpdateAddonGroupInput } from "@/lib/validators/addon-groups"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function AddonGroupDetail({ addonGroupId }: { addonGroupId: number }) {
   const router = useRouter()
@@ -69,6 +70,8 @@ export function AddonGroupDetail({ addonGroupId }: { addonGroupId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete addon group")
     }
   }
+
+  usePageTitle("Addon Group Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={4} />
   if (!isLoading && !addonGroup) return <NotFoundCard resource="Addon group" />

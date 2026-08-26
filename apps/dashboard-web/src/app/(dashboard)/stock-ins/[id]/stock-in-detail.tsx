@@ -13,6 +13,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useUnitConversions, useUnits } from "@/hooks/use-units"
+import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   useAddStockInItem,
   useApproveStockIn,
@@ -89,6 +90,8 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel")
     }
   }
+
+  usePageTitle("Stock In Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !stockIn) return <NotFoundCard resource="Stock-in" />

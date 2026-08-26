@@ -34,6 +34,7 @@ import {
   useUserRoleAssignments,
 } from "@/hooks/use-users"
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators/users"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function UserDetail({ userId }: { userId: number }) {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -97,6 +98,8 @@ export function UserDetail({ userId }: { userId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to revoke role")
     }
   }
+
+  usePageTitle("User Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={5} />
   if (!isLoading && !user) return <NotFoundCard resource="User" />

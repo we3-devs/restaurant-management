@@ -37,6 +37,7 @@ import {
   useUpdateEmployee,
 } from "@/hooks/use-employees"
 import { EMPLOYMENT_STATUSES, updateEmployeeSchema, type UpdateEmployeeInput } from "@/lib/validators/employees"
+import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function EmployeeDetail({ employeeId }: { employeeId: number }) {
   const router = useRouter()
@@ -117,6 +118,8 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
       toast.error(error instanceof Error ? error.message : "Failed to delete employee")
     }
   }
+
+  usePageTitle("Employee Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
   if (!isLoading && !employee) return <NotFoundCard resource="Employee" />
