@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useDiningTables, type DiningTable } from "@/hooks/use-dining-tables"
+import { CreateDiningTableDialog } from "./create-dining-table-dialog"
 import { TableDetailDialog } from "./table-detail-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
@@ -22,6 +24,7 @@ const STATUS_STYLES: Record<string, string> = {
 /** Read-only mirror of operational-web's floor board — monitoring only, no table actions live here. */
 export default function TablesPage() {
   const { outletId } = useActiveOutlet()
+  const { isSuperadmin } = useCurrentUser()
 
   usePageTitle("Tables")
 
@@ -29,10 +32,11 @@ export default function TablesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Tables</h1>
+        {isSuperadmin && <CreateDiningTableDialog />}
       </div>
 
       {outletId ? (
-        <FloorOverview outletId={outletId} />
+        <FloorOverview outletId={outletId} isSuperadmin={isSuperadmin} />
       ) : (
         <p className="text-sm text-muted-foreground">Select an outlet.</p>
       )}
@@ -40,7 +44,7 @@ export default function TablesPage() {
   )
 }
 
-function FloorOverview({ outletId }: { outletId: number }) {
+function FloorOverview({ outletId, isSuperadmin }: { outletId: number; isSuperadmin: boolean }) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
   const showSkeleton = useDelayedLoading(isLoading)
 
@@ -60,13 +64,29 @@ function FloorOverview({ outletId }: { outletId: number }) {
   return (
     <div className="space-y-6">
       {areas?.data.map((area) => (
-        <AreaSection key={area.id} outletId={outletId} areaId={area.id} areaName={area.name} />
+        <AreaSection
+          key={area.id}
+          outletId={outletId}
+          areaId={area.id}
+          areaName={area.name}
+          isSuperadmin={isSuperadmin}
+        />
       ))}
     </div>
   )
 }
 
-function AreaSection({ outletId, areaId, areaName }: { outletId: number; areaId: number; areaName: string }) {
+function AreaSection({
+  outletId,
+  areaId,
+  areaName,
+  isSuperadmin,
+}: {
+  outletId: number
+  areaId: number
+  areaName: string
+  isSuperadmin: boolean
+}) {
   const { data: tables } = useDiningTables({ outletId, diningAreaId: areaId, limit: 100 })
 
   return (
@@ -74,14 +94,14 @@ function AreaSection({ outletId, areaId, areaName }: { outletId: number; areaId:
       <h2 className="text-sm font-semibold">{areaName}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         {tables?.data.map((table) => (
-          <TableStatusCard key={table.id} table={table} />
+          <TableStatusCard key={table.id} table={table} isSuperadmin={isSuperadmin} />
         ))}
       </div>
     </div>
   )
 }
 
-function TableStatusCard({ table }: { table: DiningTable }) {
+function TableStatusCard({ table, isSuperadmin }: { table: DiningTable; isSuperadmin: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -98,7 +118,9 @@ function TableStatusCard({ table }: { table: DiningTable }) {
         <span className="text-xs capitalize">{table.status}</span>
         <span className="text-xs opacity-75">seats {table.capacity}</span>
       </button>
-      {open && <TableDetailDialog table={table} onClose={() => setOpen(false)} />}
+      {open && (
+        <TableDetailDialog table={table} isSuperadmin={isSuperadmin} onClose={() => setOpen(false)} />
+      )}
     </>
   )
 }
