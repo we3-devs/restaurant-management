@@ -7,6 +7,7 @@ import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { CreateOutletDialog } from "../outlets/create-outlet-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
+  DiningAreasSection,
   KitchenStatusSection,
   LiveOrdersSection,
   NeedsAttentionSection,
@@ -103,6 +104,12 @@ export default function DashboardPage() {
         {canViewTables ? <TableStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
         {canViewKitchen ? <KitchenStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
       </div>
+
+      {canViewTables ? (
+        <div className="grid grid-cols-1 gap-4">
+          <DiningAreasSection outletId={outletId} enabled={dataEnabled} />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {canViewDashboardStats ? <RevenueSnapshotSection outletId={outletId} enabled={dataEnabled} /> : null}

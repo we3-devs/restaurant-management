@@ -27,6 +27,7 @@ import { useDashboardStats } from "@/hooks/use-dashboard"
 import { useOrders, type Order } from "@/hooks/use-orders"
 import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useDiningTables } from "@/hooks/use-dining-tables"
+import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useAttendanceToday } from "@/hooks/use-attendance"
 import { money, pctChange } from "./chart-utils"
@@ -415,6 +416,75 @@ export function TableStatusSection({ outletId, enabled }: OperationalSectionProp
             <Button variant="outline" size="sm" className="w-full" render={<Link href="/tables" />}>
               View floor plan
             </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Dining areas                                                       */
+/* ------------------------------------------------------------------ */
+
+export function DiningAreasSection({ outletId, enabled }: OperationalSectionProps) {
+  const areasQuery = useDiningAreas({ outletId: outletId ?? undefined, limit: 100 })
+  const tablesQuery = useDiningTables({ outletId: outletId ?? undefined, limit: 100 }, { enabled })
+  const showSkeleton = useDelayedLoading(areasQuery.isLoading || tablesQuery.isLoading)
+
+  const rows = useMemo(() => {
+    const areas = areasQuery.data?.data ?? []
+    const tables = tablesQuery.data?.data ?? []
+    return areas.map((area) => {
+      const areaTables = tables.filter((t) => t.diningAreaId === area.id)
+      return {
+        id: area.id,
+        name: area.name,
+        total: areaTables.length,
+        occupied: areaTables.filter((t) => t.status === "occupied").length,
+        reserved: areaTables.filter((t) => t.status === "reserved").length,
+        available: areaTables.filter((t) => t.status === "available").length,
+      }
+    })
+  }, [areasQuery.data, tablesQuery.data])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Dining areas</CardTitle>
+        <CardDescription>Occupancy by area</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {showSkeleton ? (
+          <Skeleton className="h-24 w-full rounded-lg" />
+        ) : areasQuery.isError || tablesQuery.isError ? (
+          <SectionError onRetry={() => { areasQuery.refetch(); tablesQuery.refetch() }} />
+        ) : rows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No dining areas configured</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{row.name}</span>
+                <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.occupied)} />
+                    {row.occupied}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.reserved)} />
+                    {row.reserved}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.available)} />
+                    {row.available}
+                  </span>
+                  <span className="tabular-nums font-medium text-foreground">
+                    {row.occupied}/{row.total}
+                  </span>
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
