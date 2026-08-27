@@ -5,6 +5,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { BootstrapService } from './bootstrap.service';
+import { InventoryBootstrapQueryDto } from './dto/inventory-bootstrap-query.dto';
 import { PosBootstrapQueryDto } from './dto/pos-bootstrap-query.dto';
 import { ReservationsBootstrapQueryDto } from './dto/reservations-bootstrap-query.dto';
 import { WaiterPosBootstrapResponseDto } from './dto/waiter-pos-bootstrap-response.dto';
@@ -48,7 +49,17 @@ export class BootstrapController {
     summary:
       'One-call reservations screen bootstrap: reservations, customers, outlets',
   })
-  getReservationsBootstrap(@Query() query: ReservationsBootstrapQueryDto) {
+  async getReservationsBootstrap(
+    @Query() query: ReservationsBootstrapQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    if (query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
     return this.bootstrapService.getReservationsBootstrap(query);
   }
 
@@ -56,9 +67,26 @@ export class BootstrapController {
   @RequirePermissions('ingredients.view')
   @ApiOperation({
     summary:
-      'One-call inventory screen bootstrap: ingredients, units, categories, warehouses',
+      'One-call inventory screen bootstrap: ingredients, units, categories, warehouses — ingredients/warehouses scoped to the caller\'s accessible outlets',
   })
-  getInventoryBootstrap() {
-    return this.bootstrapService.getInventoryBootstrap();
+  async getInventoryBootstrap(
+    @Query() query: InventoryBootstrapQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.bootstrapService.getInventoryBootstrap(
+      accessible,
+      query.outletId,
+    );
   }
 }

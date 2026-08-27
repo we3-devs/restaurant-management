@@ -31,6 +31,8 @@ interface ActiveOutletContextValue {
   isLoadingOutlets: boolean
   /** Superadmins always get the full picker; regular users only when they have more than one assigned outlet. */
   showOutletPicker: boolean
+  /** Only superadmins may pick "All Outlets" — every other role must always have one specific outlet active. */
+  isSuperadmin: boolean
 
   departmentId: number | null
   setDepartmentId: (id: number | null) => void
@@ -63,7 +65,10 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     [isSuperadmin, allOutletsQuery.data, assignedOutletsQuery.data],
   )
   const isLoadingOutlets = isSuperadmin ? allOutletsQuery.isLoading : assignedOutletsQuery.isLoading
-  const showOutletPicker = isSuperadmin || outlets.length > 1
+  // Non-superadmins never get an interactive picker, even with multiple
+  // assigned outlets — they're always locked onto their first assignment
+  // (see the auto-select effect below). Switching is a superadmin-only concept.
+  const showOutletPicker = isSuperadmin
 
   const [outletId, setOutletIdState] = useState<number | null>(() => readStoredId(ACTIVE_OUTLET_STORAGE_KEY))
   // Tracks an explicit "All Outlets" pick separately from outletId, since
@@ -73,6 +78,16 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   const [isAllOutlets, setIsAllOutlets] = useState<boolean>(() => readStoredOutletWasAll())
 
   function setOutletId(id: number | null) {
+    // "All Outlets" is a superadmin-only concept. A non-superadmin can still
+    // switch between their own assigned outlets (from their profile page),
+    // just never to "all" — an out-of-assignment id is coerced onto their
+    // first assigned outlet instead.
+    if (!isSuperadmin) {
+      const requested = id !== null && outlets.some((o) => o.id === id) ? id : (outlets[0]?.id ?? null)
+      setIsAllOutlets(false)
+      setOutletIdState(requested)
+      return
+    }
     setIsAllOutlets(id === null)
     setOutletIdState(id)
   }
@@ -80,12 +95,20 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   // Validate the stored/current outlet against what's actually available and
   // auto-select the (only, or first) permitted outlet otherwise — covers
   // first login, a stale outlet from a previous session, and a revoked or
-  // deleted outlet. Skipped once the user has explicitly chosen "All".
+  // deleted outlet. Skipped once the user has explicitly chosen "All" — only
+  // superadmins can be in that state at all; every other role always has one
+  // concrete outlet active, chosen either by auto-select here or explicitly
+  // via setOutletId from their profile page.
   useEffect(() => {
-    if (isLoadingOutlets || outlets.length === 0 || isAllOutlets) return
+    if (isLoadingOutlets || outlets.length === 0) return
+    if (isAllOutlets && !isSuperadmin) {
+      setIsAllOutlets(false)
+      return
+    }
+    if (isAllOutlets) return
     const stillValid = outletId !== null && outlets.some((o) => o.id === outletId)
     if (!stillValid) setOutletIdState(outlets[0].id)
-  }, [outlets, isLoadingOutlets, outletId, isAllOutlets])
+  }, [outlets, isLoadingOutlets, outletId, isAllOutlets, isSuperadmin])
 
   useEffect(() => {
     if (isAllOutlets) {
@@ -136,6 +159,7 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
         outlets,
         isLoadingOutlets,
         showOutletPicker,
+        isSuperadmin,
         departmentId,
         setDepartmentId,
         departments,

@@ -233,6 +233,14 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     singlePermissions: [
       'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view',
       'outlets.view', 'warehouses.view', 'outlet-departments.view', 'kitchen-tickets.manage',
+      // Finer-grained than orders.manage/order-payments.manage (which every
+      // waiter/cashier/bartender also holds) — these gate the genuinely
+      // discretionary/destructive money decisions (discounting, refunding,
+      // cancelling an order, hard-deleting a line item) behind manager
+      // approval. See OrdersController#update, OrdersController#updateStatus,
+      // OrderItemsController#remove, and
+      // OrderPaymentsController#assertRefundAllowed.
+      'orders.discount', 'order-payments.refund', 'orders.delete',
     ],
     position: { name: 'Manager', slug: 'manager', description: 'Runs day-to-day outlet operations.' },
   },

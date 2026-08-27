@@ -105,6 +105,18 @@ export class PermissionsService {
   }
 
   /**
+   * One-off check for a permission finer-grained than a route-level
+   * @RequirePermissions() slug — e.g. gating one field of an otherwise
+   * broadly-permitted payload (discount on order update, refund on payment
+   * create). Callers must still pass isSuperadmin themselves; this never
+   * short-circuits it.
+   */
+  async hasPermission(userId: number, slug: string): Promise<boolean> {
+    const slugs = await this.getPermissionSlugs(userId);
+    return slugs.has(slug);
+  }
+
+  /**
    * Which frontend app the user should land in after login, aggregated across
    * every active, in-window role assignment. A role explicitly marked
    * 'dashboard' or 'both' wins over 'staff' — someone holding a back-office
@@ -138,12 +150,19 @@ export class PermissionsService {
   /**
    * Distinct outlet IDs the user has an active, in-window role assignment
    * scoped to. Read-only lookup for the frontend's outlet picker — does not
-   * change how PermissionsGuard evaluates access (see class doc above); an
-   * empty result means the user holds only global (unscoped) assignments and
-   * should be treated as having access to every outlet.
+   * change how PermissionsGuard evaluates access (see class doc above).
+   *
+   * Returns `null` (not `[]`) when the user has zero active role assignments,
+   * so callers can tell "no roles at all → no outlet access" apart from "has
+   * assignment(s), all global/unscoped → access to every outlet" (`[]`).
+   * Collapsing those two cases used to both read as "empty array" and let
+   * OutletAccessService treat a role-less user as having ALL_OUTLETS access.
    */
-  async getAccessibleOutletIds(userId: number): Promise<number[]> {
+  async getAccessibleOutletIds(userId: number): Promise<number[] | null> {
     const rows = await this.getActiveAssignmentRows(userId);
+    if (rows.length === 0) {
+      return null;
+    }
     return [
       ...new Set(
         rows

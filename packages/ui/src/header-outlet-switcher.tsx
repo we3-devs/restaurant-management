@@ -9,7 +9,7 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
 /** Global outlet switcher in the header — same ActiveOutletProvider every page already reads from, so switching here updates POS/Floor/Kitchen/dashboard consistently. Hidden when the user only has one outlet (same rule as every other outlet picker in the app). */
 export function HeaderOutletSwitcher() {
-  const { outletId, setOutletId, outlets, showOutletPicker, isLoadingOutlets } = useActiveOutlet()
+  const { outletId, setOutletId, outlets, showOutletPicker, isLoadingOutlets, isSuperadmin } = useActiveOutlet()
   const [mounted, setMounted] = useState(false)
 
   // outletId is seeded from localStorage (see ActiveOutletProvider), which
@@ -34,7 +34,7 @@ export function HeaderOutletSwitcher() {
         <SelectValue placeholder="Select outlet" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All Outlets</SelectItem>
+        {isSuperadmin && <SelectItem value="all">All Outlets</SelectItem>}
         {outlets.map((outlet) => (
           <SelectItem key={outlet.id} value={String(outlet.id)}>
             {outlet.name}

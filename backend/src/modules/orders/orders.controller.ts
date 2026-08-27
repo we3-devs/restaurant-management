@@ -21,6 +21,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
+import { PermissionsService } from '../auth/permissions.service';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
 import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
@@ -53,6 +54,7 @@ export class OrdersController {
     private readonly diningTablesService: DiningTablesService,
     private readonly tableSessionsService: TableSessionsService,
     private readonly outletAccess: OutletAccessService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   /**
@@ -233,7 +235,25 @@ export class OrdersController {
     @Body() dto: UpdateOrderDto,
     @CurrentUser() user: User,
   ) {
-    await this.assertOrderAccess(id, user);
+    const order = await this.assertOrderAccess(id, user);
+    // Discounting is a discretionary money decision, not routine order
+    // editing — orders.manage alone (held by every waiter/cashier/bartender)
+    // is not enough to change it. Only gate the request when it actually
+    // tries to change the discount, so plain note edits stay unaffected.
+    const changesDiscount =
+      (dto.discountType !== undefined && dto.discountType !== order.discountType) ||
+      (dto.discountValue !== undefined && dto.discountValue !== order.discountValue);
+    if (changesDiscount && !user.isSuperadmin) {
+      const allowed = await this.permissionsService.hasPermission(
+        user.id,
+        'orders.discount',
+      );
+      if (!allowed) {
+        throw new ForbiddenException(
+          'Applying or changing a discount requires the orders.discount permission',
+        );
+      }
+    }
     return this.ordersService.update(id, dto);
   }
 
@@ -249,6 +269,22 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     await this.assertOrderAccess(id, user);
+    // Cancelling an order writes off everything rung up on it — as
+    // discretionary and hard-to-reverse as a discount/refund, so it needs
+    // the same manager-tier gate rather than riding on orders.manage alone
+    // (held by every waiter/cashier/bartender). See OrdersController#update
+    // for the identical pattern on discounts.
+    if (dto.status === 'cancelled' && !user.isSuperadmin) {
+      const allowed = await this.permissionsService.hasPermission(
+        user.id,
+        'orders.delete',
+      );
+      if (!allowed) {
+        throw new ForbiddenException(
+          'Cancelling an order requires the orders.delete permission',
+        );
+      }
+    }
     return this.ordersService.updateStatus(id, dto, user.id);
   }
 

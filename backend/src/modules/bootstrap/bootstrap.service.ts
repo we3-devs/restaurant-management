@@ -153,6 +153,11 @@ export class BootstrapService {
     };
   }
 
+  /**
+   * outletId (when provided) has already been validated against the
+   * caller's outlet assignments (or superadmin) by BootstrapController —
+   * see OutletAccessService.assertOutletAccess.
+   */
   async getReservationsBootstrap(
     query: ReservationsBootstrapQueryDto,
   ): Promise<ReservationsBootstrapResponse> {
@@ -167,12 +172,26 @@ export class BootstrapService {
     return { reservations, customers, outlets };
   }
 
-  async getInventoryBootstrap(): Promise<InventoryBootstrapResponse> {
+  /**
+   * `accessibleOutletIds` is BootstrapController's resolved
+   * OutletAccessService grant for the caller — ingredients and warehouses
+   * are outlet-scoped, so this must never return rows outside it. If the
+   * caller passed a specific outletId, the controller has already asserted
+   * they can access it before this runs.
+   */
+  async getInventoryBootstrap(
+    accessibleOutletIds: number[] | 'ALL',
+    outletId?: number,
+  ): Promise<InventoryBootstrapResponse> {
+    const scope = outletId !== undefined ? [outletId] : accessibleOutletIds;
     const [ingredients, units, categories, warehouses] = await Promise.all([
-      this.ingredientsService.findAll({ page: 1, limit: 100 }),
+      this.ingredientsService.findAll(
+        { page: 1, limit: 100, outletId },
+        scope,
+      ),
       this.unitsService.findAll({ page: 1, limit: 100 }),
       this.ingredientCategoriesService.findAll({ page: 1, limit: 100 }),
-      this.warehousesService.findAll({ page: 1, limit: 100 }),
+      this.warehousesService.findAll({ page: 1, limit: 100, outletId }, scope),
     ]);
 
     return { ingredients, units, categories, warehouses };

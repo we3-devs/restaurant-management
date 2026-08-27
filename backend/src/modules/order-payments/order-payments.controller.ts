@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -11,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
+import { PermissionsService } from '../auth/permissions.service';
 import { OrdersService } from '../orders/orders.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
@@ -28,7 +30,27 @@ export class OrderPaymentsController {
     private readonly ordersService: OrdersService,
     private readonly tableSessionsService: TableSessionsService,
     private readonly outletAccess: OutletAccessService,
+    private readonly permissionsService: PermissionsService,
   ) {}
+
+  /**
+   * Refunds are a discretionary money-out decision — order-payments.manage
+   * alone (held by every waiter/cashier/bartender, who need it just to take
+   * routine payments) is not enough to authorize one. Ordinary payments are
+   * unaffected.
+   */
+  private async assertRefundAllowed(dtoType: string | undefined, user: User) {
+    if (dtoType !== 'refund' || user.isSuperadmin) return;
+    const allowed = await this.permissionsService.hasPermission(
+      user.id,
+      'order-payments.refund',
+    );
+    if (!allowed) {
+      throw new ForbiddenException(
+        'Issuing a refund requires the order-payments.refund permission',
+      );
+    }
+  }
 
   @Get('order-payments')
   @RequirePermissions('order-payments.view')
@@ -70,6 +92,7 @@ export class OrderPaymentsController {
       user.isSuperadmin,
       order.outletId,
     );
+    await this.assertRefundAllowed(dto.type, user);
     return this.orderPaymentsService.create(id, dto, user.id);
   }
 

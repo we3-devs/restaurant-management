@@ -8,6 +8,12 @@ import type { IngredientType } from '../../ingredient-categories/ingredient-cate
 export class ListIngredientsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  outletId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   search?: string;
 

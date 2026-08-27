@@ -7,6 +7,7 @@ import type { CreateIngredientInput, UpdateIngredientInput } from "@rms/validato
 
 export interface Ingredient {
   id: number
+  outletId: number
   ingredientCategoryId: number
   category: {
     id: number
@@ -23,6 +24,7 @@ export interface Ingredient {
 export interface ListIngredientsParams {
   page?: number
   limit?: number
+  outletId?: number
   search?: string
   ingredientCategoryId?: number
   /** Filters by the ingredient's category's type. */

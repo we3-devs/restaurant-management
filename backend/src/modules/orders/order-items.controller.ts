@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -15,6 +16,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
+import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import { CreateOrderItemAddonDto } from './dto/create-order-item-addon.dto';
 import { ListOrderItemsQueryDto } from './dto/list-order-items-query.dto';
@@ -31,6 +33,7 @@ export class OrderItemsController {
   constructor(
     private readonly ordersService: OrdersService,
     private readonly outletAccess: OutletAccessService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   /** Resolves the item's parent order and asserts outlet access on it — same choke-point pattern as OrdersController#assertOrderAccess. */
@@ -107,6 +110,20 @@ export class OrderItemsController {
   })
   async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     await this.assertItemAccess(id, user);
+    // Hard-deleting a line item is destructive and unaudited compared to
+    // void (which keeps the record and requires a reason) — same
+    // manager-tier gate as cancelling an order. See OrdersController#updateStatus.
+    if (!user.isSuperadmin) {
+      const allowed = await this.permissionsService.hasPermission(
+        user.id,
+        'orders.delete',
+      );
+      if (!allowed) {
+        throw new ForbiddenException(
+          'Deleting an order item requires the orders.delete permission',
+        );
+      }
+    }
     return this.ordersService.removeItem(id);
   }
 

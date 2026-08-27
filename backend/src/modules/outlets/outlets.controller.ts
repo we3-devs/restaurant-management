@@ -51,11 +51,17 @@ export class OutletsController {
       "Lists only the current user's assigned outlets (falls back to every outlet for superadmins / globally-scoped users)",
   })
   async findAssigned(@CurrentUser() user: User) {
-    const outletIds = user.isSuperadmin
-      ? []
-      : await this.permissionsService.getAccessibleOutletIds(user.id);
-
-    if (user.isSuperadmin || outletIds.length === 0) {
+    if (user.isSuperadmin) {
+      return this.outletsService.findAllUnpaginated();
+    }
+    const outletIds = await this.permissionsService.getAccessibleOutletIds(
+      user.id,
+    );
+    // null: no active role assignment at all -> no outlets, not every outlet.
+    if (outletIds === null) {
+      return [];
+    }
+    if (outletIds.length === 0) {
       return this.outletsService.findAllUnpaginated();
     }
     return this.outletsService.findByIds(outletIds);

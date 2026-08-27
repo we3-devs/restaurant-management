@@ -12,7 +12,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { ListIngredientsQueryDto } from './dto/list-ingredients-query.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
@@ -22,39 +25,77 @@ import { IngredientsService } from './ingredients.service';
 @ApiBearerAuth()
 @Controller('ingredients')
 export class IngredientsController {
-  constructor(private readonly ingredientsService: IngredientsService) {}
+  constructor(
+    private readonly ingredientsService: IngredientsService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   @Get()
   @RequirePermissions('ingredients.view')
   @ApiOperation({
     summary:
-      'Lists ingredients (paginated, optional search + ingredientCategoryId/type filters)',
+      'Lists ingredients (paginated, optional search + outletId/ingredientCategoryId/type filters)',
   })
-  findAll(@Query() query: ListIngredientsQueryDto) {
-    return this.ingredientsService.findAll(query);
+  async findAll(
+    @Query() query: ListIngredientsQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible !== 'ALL' && query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.ingredientsService.findAll(query, accessible);
   }
 
   @Get(':id')
   @RequirePermissions('ingredients.view')
   @ApiOperation({ summary: 'Gets an ingredient' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.ingredientsService.findOne(id);
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    const ingredient = await this.ingredientsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      ingredient.outletId,
+    );
+    return ingredient;
   }
 
   @Post()
   @RequirePermissions('ingredients.manage')
   @ApiOperation({ summary: 'Creates an ingredient' })
-  create(@Body() dto: CreateIngredientDto) {
+  async create(@Body() dto: CreateIngredientDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.ingredientsService.create(dto);
   }
 
   @Patch(':id')
   @RequirePermissions('ingredients.manage')
-  @ApiOperation({ summary: 'Updates an ingredient (baseUnitId is immutable)' })
-  update(
+  @ApiOperation({ summary: 'Updates an ingredient (baseUnitId/outletId are immutable)' })
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateIngredientDto,
+    @CurrentUser() user: User,
   ) {
+    const ingredient = await this.ingredientsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      ingredient.outletId,
+    );
     return this.ingredientsService.update(id, dto);
   }
 
@@ -62,7 +103,16 @@ export class IngredientsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('ingredients.manage')
   @ApiOperation({ summary: 'Soft-deletes an ingredient' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    const ingredient = await this.ingredientsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      ingredient.outletId,
+    );
     return this.ingredientsService.remove(id);
   }
 }

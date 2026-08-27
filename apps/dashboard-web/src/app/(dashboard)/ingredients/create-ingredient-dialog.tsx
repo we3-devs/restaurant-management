@@ -12,24 +12,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateIngredient } from "@/hooks/use-ingredients"
 import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
 import { useUnits } from "@/hooks/use-units"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { createIngredientSchema, type CreateIngredientInput } from "@/lib/validators/ingredients"
 
 export function CreateIngredientDialog() {
   const [open, setOpen] = useState(false)
+  const { outletId: activeOutletId } = useActiveOutlet()
   const { data: categories, isLoading: categoriesLoading } = useIngredientCategories({ limit: 100 })
   const { data: units, isLoading: unitsLoading } = useUnits({ limit: 100 })
   const createIngredient = useCreateIngredient()
 
+  const defaultValues = { outletId: activeOutletId ?? 0, ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 }
+
   const form = useForm<CreateIngredientInput>({
     resolver: zodResolver(createIngredientSchema),
-    defaultValues: { ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 },
+    defaultValues,
   })
 
   async function onSubmit(values: CreateIngredientInput) {
     try {
-      await createIngredient.mutateAsync(values)
+      await createIngredient.mutateAsync({ ...values, outletId: activeOutletId ?? values.outletId })
       toast.success(`Ingredient "${values.name}" created`)
-      form.reset({ ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 })
+      form.reset(defaultValues)
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create ingredient")
@@ -128,8 +132,13 @@ export function CreateIngredientDialog() {
                 </FormItem>
               )}
             />
+            {activeOutletId === null && (
+              <p className="text-sm text-muted-foreground">
+                Select a specific outlet from the outlet picker to create an ingredient.
+              </p>
+            )}
             <DialogFooter>
-              <Button type="submit" disabled={createIngredient.isPending}>
+              <Button type="submit" disabled={createIngredient.isPending || activeOutletId === null}>
                 {createIngredient.isPending ? "Creating..." : "Create ingredient"}
               </Button>
             </DialogFooter>

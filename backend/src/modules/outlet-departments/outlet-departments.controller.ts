@@ -62,6 +62,10 @@ export class OutletDepartmentsController {
       const outletIds = await this.permissionsService.getAccessibleOutletIds(
         user.id,
       );
+      // null: no active role assignment at all -> no outlet access.
+      if (outletIds === null) {
+        throw new ForbiddenException('Not assigned to this outlet');
+      }
       if (outletIds.length > 0 && !outletIds.includes(outletId)) {
         throw new ForbiddenException('Not assigned to this outlet');
       }

@@ -11,6 +11,7 @@ import type { Response } from 'express';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PermissionsService } from '../auth/permissions.service';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../users/entities/user.entity';
@@ -46,7 +47,31 @@ export class ReportsController {
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
     private readonly permissionsService: PermissionsService,
+    private readonly outletAccess: OutletAccessService,
   ) {}
+
+  /**
+   * Reports must never leak another outlet's data: resolve the caller's
+   * accessible outlets, and if they asked for a specific outletId, assert
+   * they can actually see it (mirrors OrdersController.assertOrderAccess).
+   */
+  private async resolveReportOutletAccess(
+    query: ListReportQueryDto,
+    user: User,
+  ): Promise<number[] | 'ALL'> {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return accessible;
+  }
 
   /** Staff report types (employees, attendance, shifts, staff-performance, payroll-export) need `staff-reports` on top of the baseline `reports.view`. */
   private async assertStaffReportAccess(
@@ -77,7 +102,12 @@ export class ReportsController {
   ) {
     assertReportType(type);
     await this.assertStaffReportAccess(type, user);
-    const report = await this.reportsService.getReport(type, query);
+    const accessible = await this.resolveReportOutletAccess(query, user);
+    const report = await this.reportsService.getReport(
+      type,
+      query,
+      accessible,
+    );
     return { ...report, columns: REPORT_COLUMNS[type] };
   }
 
@@ -93,6 +123,7 @@ export class ReportsController {
   ): Promise<void> {
     assertReportType(type);
     await this.assertStaffReportAccess(type, user);
+    const accessible = await this.resolveReportOutletAccess(query, user);
     const exportFormat = (format ?? 'csv') as ExportFormat;
     if (!(EXPORT_FORMATS as readonly string[]).includes(exportFormat)) {
       throw new BadRequestException(
@@ -103,7 +134,11 @@ export class ReportsController {
       throw new BadRequestException('Payroll export is only available as CSV');
     }
 
-    const rows = await this.reportsService.getReportRowsForExport(type, query);
+    const rows = await this.reportsService.getReportRowsForExport(
+      type,
+      query,
+      accessible,
+    );
     const columns = REPORT_COLUMNS[type];
     const filename = `${type}-report-${new Date().toISOString().slice(0, 10)}`;
 

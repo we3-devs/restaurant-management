@@ -1,7 +1,9 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WarehousesModule } from '../warehouses/warehouses.module';
 import { IngredientInventoryTransaction } from './entities/ingredient-inventory-transaction.entity';
 import { WarehouseIngredientStock } from './entities/warehouse-ingredient-stock.entity';
 import { InventoryAlertsProcessor } from './inventory-alerts.processor';
@@ -18,6 +20,8 @@ import { WarehouseIngredientStocksService } from './warehouse-ingredient-stocks.
       IngredientInventoryTransaction,
     ]),
     NotificationsModule,
+    AuthModule,
+    WarehousesModule,
     // Circular: KitchenTicketsModule imports OrdersModule, which imports
     // InventoryStockModule — without forwardRef this chain can resolve to
     // `undefined` mid-cycle at module-load time.

@@ -10,7 +10,13 @@ const DEFAULT_RANGE_DAYS = 30;
 const EXPORT_ROW_CAP = 5000;
 
 interface ResolvedQuery {
-  outletId?: number;
+  /**
+   * Effective outlet restriction after intersecting the requested outletId
+   * (if any) with the caller's accessible outlets. undefined means
+   * unrestricted (superadmin with no explicit outletId filter); an empty
+   * array means the caller has no accessible outlets and must get zero rows.
+   */
+  outletIds?: number[];
   from: Date;
   to: Date;
   search?: string;
@@ -26,13 +32,23 @@ export class ReportsService {
     private readonly ordersRepository: Repository<Order>,
   ) {}
 
-  private resolve(query: ListReportQueryDto, forExport = false): ResolvedQuery {
+  private resolve(
+    query: ListReportQueryDto,
+    accessibleOutletIds: number[] | 'ALL',
+    forExport = false,
+  ): ResolvedQuery {
     const to = query.dateTo ? new Date(query.dateTo) : new Date();
     const from = query.dateFrom
       ? new Date(query.dateFrom)
       : new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000);
+    let outletIds: number[] | undefined;
+    if (query.outletId !== undefined) {
+      outletIds = [query.outletId];
+    } else if (accessibleOutletIds !== 'ALL') {
+      outletIds = accessibleOutletIds;
+    }
     return {
-      outletId: query.outletId,
+      outletIds,
       from,
       to,
       search: query.search,
@@ -42,14 +58,21 @@ export class ReportsService {
     };
   }
 
+  /**
+   * accessibleOutletIds must come from OutletAccessService, computed from
+   * the authenticated caller — the controller has already asserted access
+   * to query.outletId when it's explicitly provided. This is what keeps
+   * outlet-scoped staff from reading other outlets' report data.
+   */
   async getReport(
     type: ReportType,
     query: ListReportQueryDto,
+    accessibleOutletIds: number[] | 'ALL',
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     if (!REPORT_TYPES.includes(type)) {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
-    const resolved = this.resolve(query);
+    const resolved = this.resolve(query, accessibleOutletIds);
     return this.run(type, resolved);
   }
 
@@ -57,11 +80,12 @@ export class ReportsService {
   async getReportRowsForExport(
     type: ReportType,
     query: ListReportQueryDto,
+    accessibleOutletIds: number[] | 'ALL',
   ): Promise<Record<string, unknown>[]> {
     if (!REPORT_TYPES.includes(type)) {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
-    const resolved = this.resolve(query, true);
+    const resolved = this.resolve(query, accessibleOutletIds, true);
     const result = await this.run(type, resolved);
     return result.data;
   }
@@ -70,6 +94,9 @@ export class ReportsService {
     type: ReportType,
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    if (resolved.outletIds !== undefined && resolved.outletIds.length === 0) {
+      return { data: [], meta: this.meta(resolved.page, resolved.limit, 0) };
+    }
     switch (type) {
       case 'sales':
         return this.salesReport(resolved);
@@ -164,9 +191,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('order.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('order.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('order.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -198,9 +225,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('order.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('order.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('order.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -232,9 +259,9 @@ export class ReportsService {
       .innerJoin('warehouses', 'warehouse', 'warehouse.id = stock.warehouse_id')
       .where('ingredient.is_active = true')
       .orderBy('ingredient.name', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('warehouse.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('warehouse.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -277,9 +304,9 @@ export class ReportsService {
 
     const params: unknown[] = [resolved.from, resolved.to];
     let where = 'doc.date BETWEEN $1 AND $2';
-    if (resolved.outletId !== undefined) {
-      params.push(resolved.outletId);
-      where += ` AND warehouse.outlet_id = $${params.length}`;
+    if (resolved.outletIds !== undefined) {
+      params.push(resolved.outletIds);
+      where += ` AND warehouse.outlet_id = ANY($${params.length})`;
     }
     if (resolved.search) {
       params.push(`%${resolved.search}%`);
@@ -340,9 +367,9 @@ export class ReportsService {
       })
       .groupBy('ingredient.name')
       .orderBy('"totalConsumed"', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('"order".outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('"order".outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -387,9 +414,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('wastage.wastage_date', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('warehouse.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('warehouse.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -428,9 +455,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('ticket.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('ticket.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('ticket.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -463,9 +490,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('reservation.reserved_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('reservation.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('reservation.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -481,8 +508,8 @@ export class ReportsService {
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const outletFilter =
-      resolved.outletId !== undefined
-        ? 'AND "order".outlet_id = :outletId'
+      resolved.outletIds !== undefined
+        ? 'AND "order".outlet_id IN (:...outletIds)'
         : '';
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
@@ -496,7 +523,11 @@ export class ReportsService {
         'orders',
         'order',
         `"order".customer_id = customer.id AND "order".created_at BETWEEN :from AND :to AND "order".status != 'cancelled' ${outletFilter}`,
-        { from: resolved.from, to: resolved.to, outletId: resolved.outletId },
+        {
+          from: resolved.from,
+          to: resolved.to,
+          outletIds: resolved.outletIds ?? [],
+        },
       )
       .groupBy('customer.id')
       .addGroupBy('customer.name')
@@ -530,9 +561,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('payment.paid_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('payment.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('payment.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -562,9 +593,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('supplier.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('supplier.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('supplier.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -596,8 +627,10 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('po.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('po.outlet_id = :outletId', { outletId: resolved.outletId });
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('po.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
+      });
     }
     if (resolved.search) {
       qb.andWhere('po.po_no ILIKE :search', { search: `%${resolved.search}%` });
@@ -626,8 +659,10 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('grn.received_date', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('grn.outlet_id = :outletId', { outletId: resolved.outletId });
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('grn.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
+      });
     }
     if (resolved.search) {
       qb.andWhere('grn.grn_no ILIKE :search', {
@@ -659,8 +694,10 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('pr.return_date', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('pr.outlet_id = :outletId', { outletId: resolved.outletId });
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('pr.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
+      });
     }
     if (resolved.search) {
       qb.andWhere('pr.return_no ILIKE :search', {
@@ -689,9 +726,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('payment.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('payment.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('payment.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -722,9 +759,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('employee.created_at', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('employee.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('employee.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -760,9 +797,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('attendance.clock_in', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('attendance.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('attendance.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -795,9 +832,9 @@ export class ReportsService {
         to: resolved.to,
       })
       .orderBy('shift.start_time', resolved.sortDir);
-    if (resolved.outletId !== undefined) {
-      qb.andWhere('shift.outlet_id = :outletId', {
-        outletId: resolved.outletId,
+    if (resolved.outletIds !== undefined) {
+      qb.andWhere('shift.outlet_id IN (:...outletIds)', {
+        outletIds: resolved.outletIds,
       });
     }
     if (resolved.search) {
@@ -813,8 +850,8 @@ export class ReportsService {
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const outletFilter =
-      resolved.outletId !== undefined
-        ? 'AND employee.outlet_id = :outletId'
+      resolved.outletIds !== undefined
+        ? 'AND employee.outlet_id IN (:...outletIds)'
         : '';
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
@@ -851,7 +888,7 @@ export class ReportsService {
       .where(`employee.created_at <= :to ${outletFilter}`, {
         from: resolved.from,
         to: resolved.to,
-        outletId: resolved.outletId,
+        outletIds: resolved.outletIds ?? [],
       })
       .orderBy('"salesGenerated"', resolved.sortDir);
     if (resolved.search) {
@@ -871,8 +908,8 @@ export class ReportsService {
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const outletFilter =
-      resolved.outletId !== undefined
-        ? 'AND employee.outlet_id = :outletId'
+      resolved.outletIds !== undefined
+        ? 'AND employee.outlet_id IN (:...outletIds)'
         : '';
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
@@ -897,7 +934,7 @@ export class ReportsService {
       .where(`employee.created_at <= :to ${outletFilter}`, {
         from: resolved.from,
         to: resolved.to,
-        outletId: resolved.outletId,
+        outletIds: resolved.outletIds ?? [],
       })
       .orderBy('employee.name', resolved.sortDir);
     if (resolved.search) {

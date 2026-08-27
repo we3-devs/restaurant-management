@@ -2,6 +2,7 @@ import { z } from "zod"
 import { toTitleCase } from "./helpers"
 
 export const createIngredientSchema = z.object({
+  outletId: z.number({ message: "Select an outlet" }).positive(),
   ingredientCategoryId: z.number().positive("Category is required"),
   name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   slug: z.string().min(1, "Slug is required"),

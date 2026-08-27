@@ -21,6 +21,10 @@ const COSTING_METHODS = [
 ] as const;
 
 export class CreateIngredientDto {
+  @ApiProperty()
+  @IsInt()
+  outletId: number;
+
   @ApiProperty({ description: 'Determines the ingredient\'s type/trackability' })
   @IsInt()
   ingredientCategoryId: number;

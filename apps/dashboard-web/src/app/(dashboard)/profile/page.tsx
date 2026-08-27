@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card } from "@/components/ui/card"
 import { SettingsRow, SettingsRowGroup } from "@/components/ui/settings-row"
 import { DarkModeRow } from "@/components/ui/dark-mode-row"
+import { OutletRow } from "@/components/ui/outlet-row"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
@@ -72,6 +73,7 @@ export default function ProfilePage() {
       </Card>
 
       <SettingsRowGroup>
+        <OutletRow />
         <DarkModeRow />
       </SettingsRowGroup>
 

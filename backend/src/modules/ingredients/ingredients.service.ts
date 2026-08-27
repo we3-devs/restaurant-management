@@ -14,6 +14,7 @@ import {
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { IngredientCategoriesService } from '../ingredient-categories/ingredient-categories.service';
+import { OutletsService } from '../outlets/outlets.service';
 import { UnitsService } from '../units/units.service';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { ListIngredientsQueryDto } from './dto/list-ingredients-query.dto';
@@ -31,14 +32,21 @@ export class IngredientsService {
     private readonly ingredientsRepository: Repository<Ingredient>,
     private readonly unitsService: UnitsService,
     private readonly ingredientCategoriesService: IngredientCategoriesService,
+    private readonly outletsService: OutletsService,
   ) {}
 
   async findAll(
     query: ListIngredientsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Ingredient>> {
-    const { page, limit, search, ingredientCategoryId, type, trackableOnly } =
+    const { page, limit, search, outletId, ingredientCategoryId, type, trackableOnly } =
       query;
     const where: FindOptionsWhere<Ingredient> = {};
+    if (outletId !== undefined) {
+      where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
+    }
     if (ingredientCategoryId !== undefined) {
       where.ingredientCategoryId = ingredientCategoryId;
     }
@@ -87,6 +95,7 @@ export class IngredientsService {
   }
 
   async create(dto: CreateIngredientDto): Promise<Ingredient> {
+    await this.outletsService.findOne(dto.outletId);
     await this.unitsService.findOne(dto.baseUnitId);
     if (dto.defaultPurchaseUnitId !== undefined) {
       await this.unitsService.findOne(dto.defaultPurchaseUnitId);
@@ -97,6 +106,7 @@ export class IngredientsService {
     await this.ingredientCategoriesService.findOne(dto.ingredientCategoryId);
 
     const ingredient = this.ingredientsRepository.create({
+      outletId: dto.outletId,
       ingredientCategoryId: dto.ingredientCategoryId,
       name: dto.name,
       slug: dto.slug,

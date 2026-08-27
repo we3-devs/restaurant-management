@@ -252,9 +252,16 @@ export class TableSessionsService {
   }
 
   /** The table's most recent session regardless of status — used to scope a guest's "my orders" view to their own visit, not just their phone number's whole history at this table. */
+  /**
+   * Only ever returns an open (active/billing) session — a guest resolving
+   * their table via QR code must never attach to a session that's already
+   * completed/cancelled, which would leak or let them cancel a previous
+   * visit's finalized orders once the table's been freed and not yet
+   * reseated.
+   */
   async findLatestForTable(diningTableId: number): Promise<TableSession | null> {
     return this.tableSessionsRepository.findOne({
-      where: { diningTableId },
+      where: { diningTableId, status: In(OPEN_SESSION_STATUSES) },
       order: { createdAt: 'DESC' },
     });
   }

@@ -7,6 +7,7 @@ import type { ImportCommitResult } from '../../data-import/interfaces/import-res
 import type { ImportValidatedRow } from '../../data-import/interfaces/import-row.interface';
 import { Ingredient } from '../entities/ingredient.entity';
 import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
+import { Outlet } from '../../outlets/entities/outlet.entity';
 import { Unit } from '../../units/entities/unit.entity';
 
 function slugify(name: string): string {
@@ -21,6 +22,8 @@ interface IngredientImportRow extends ImportValidatedRow {
   code: string;
   name: string;
   /** Raw lookup text as typed/uploaded — echoed back (not just the resolved id) so the frontend has something editable to redisplay and resend at revalidate/commit time. */
+  outlet: string;
+  outletId: number | null;
   category: string;
   categoryId: number | null;
   unit: string;
@@ -29,18 +32,22 @@ interface IngredientImportRow extends ImportValidatedRow {
 }
 
 /**
- * Ingredients — identity: code (upsert). Mutable on re-import: name,
- * category, unit. Category and base unit are resolved by exact name match
- * only — never fuzzy-matched or auto-created, since a typo silently creating
- * a duplicate reference row is worse for inventory data than a rejected row.
+ * Ingredients — identity: outlet + code (upsert). Mutable on re-import: name,
+ * category, unit. Outlet, category, and base unit are resolved by exact name
+ * match only — never fuzzy-matched or auto-created, since a typo silently
+ * creating a duplicate reference row is worse for inventory data than a
+ * rejected row. Ingredients are outlet-scoped, so the same code may exist
+ * under different outlets — identity/upsert matching is always (outlet,
+ * code), never code alone.
  */
 @Injectable()
 export class IngredientsImporter implements ImportDomainConfig<Record<string, string>, IngredientImportRow> {
   domain = 'ingredients';
   label = 'Ingredients';
   mode = 'upsert' as const;
-  identityDescription = 'code';
+  identityDescription = 'outlet + code';
   headerAliases: Record<string, string> = {
+    outlet: 'outlet',
     name: 'name',
     code: 'code',
     category: 'category',
@@ -59,35 +66,51 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     private readonly categoriesRepository: Repository<IngredientCategory>,
     @InjectRepository(Unit)
     private readonly unitsRepository: Repository<Unit>,
+    @InjectRepository(Outlet)
+    private readonly outletsRepository: Repository<Outlet>,
   ) {}
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<IngredientImportRow[]> {
-    const [existingIngredients, categories, units] = await Promise.all([
-      this.ingredientsRepository.find({ select: { id: true, code: true } }),
+    const [existingIngredients, categories, units, outlets] = await Promise.all([
+      this.ingredientsRepository.find({ select: { id: true, code: true, outletId: true } }),
       this.categoriesRepository.find({ select: { id: true, name: true } }),
       this.unitsRepository.find({ select: { id: true, name: true } }),
+      this.outletsRepository.find({ select: { id: true, name: true } }),
     ]);
-    const existingByCode = new Map(existingIngredients.map((i) => [i.code.trim().toLowerCase(), i.id]));
+    const existingByOutletAndCode = new Map(
+      existingIngredients.map((i) => [`${i.outletId}::${i.code.trim().toLowerCase()}`, i.id]),
+    );
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const unitByName = new Map(units.map((u) => [u.name.trim().toLowerCase(), u.id]));
-    const seenCodesInBatch = new Set<string>();
+    const outletByName = new Map(outlets.map((o) => [o.name.trim().toLowerCase(), o.id]));
+    const seenKeysInBatch = new Set<string>();
 
     return rows.map(({ rowNumber, raw }) => {
       const name = (raw.name ?? '').trim();
       const code = (raw.code ?? '').trim();
+      const outletName = (raw.outlet ?? '').trim();
       const categoryName = (raw.category ?? '').trim();
       const unitName = (raw.unit ?? '').trim();
       const errors: string[] = [];
 
       if (!name) errors.push('name is required');
+
+      let outletId: number | null = null;
+      if (!outletName) {
+        errors.push('outlet is required');
+      } else {
+        outletId = outletByName.get(outletName.toLowerCase()) ?? null;
+        if (outletId === null) errors.push(`Outlet "${outletName}" not found — expected an existing outlet`);
+      }
+
       if (!code) {
         errors.push('code is required');
-      } else {
-        const codeKey = code.toLowerCase();
-        if (seenCodesInBatch.has(codeKey)) {
-          errors.push(`Duplicate ingredient code "${code}" in this file`);
+      } else if (outletId !== null) {
+        const batchKey = `${outletId}::${code.toLowerCase()}`;
+        if (seenKeysInBatch.has(batchKey)) {
+          errors.push(`Duplicate ingredient code "${code}" for outlet "${outletName}" in this file`);
         }
-        seenCodesInBatch.add(codeKey);
+        seenKeysInBatch.add(batchKey);
       }
 
       let categoryId: number | null = null;
@@ -106,9 +129,24 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
         if (unitId === null) errors.push(`Unit "${unitName}" not found — expected an existing unit`);
       }
 
-      const existingId = code ? (existingByCode.get(code.toLowerCase()) ?? null) : null;
+      const existingId =
+        code && outletId !== null
+          ? (existingByOutletAndCode.get(`${outletId}::${code.toLowerCase()}`) ?? null)
+          : null;
 
-      return { rowNumber, code, name, category: categoryName, categoryId, unit: unitName, unitId, existingId, errors };
+      return {
+        rowNumber,
+        code,
+        name,
+        outlet: outletName,
+        outletId,
+        category: categoryName,
+        categoryId,
+        unit: unitName,
+        unitId,
+        existingId,
+        errors,
+      };
     });
   }
 
@@ -132,6 +170,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
               name: row.name,
               code: row.code,
               slug: slugify(row.name),
+              outletId: row.outletId!,
               ingredientCategoryId: row.categoryId!,
               baseUnitId: row.unitId!,
             }),
@@ -149,8 +188,8 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
   async buildTemplate(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Ingredients');
-    sheet.addRow(['name', 'code', 'category', 'unit']);
-    sheet.addRow(['Tomato', 'ING-001', 'Vegetables', 'Kilogram']);
+    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit']);
+    sheet.addRow(['Main Outlet', 'Tomato', 'ING-001', 'Vegetables', 'Kilogram']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
 }

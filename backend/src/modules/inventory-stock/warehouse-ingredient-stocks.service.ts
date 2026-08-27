@@ -4,6 +4,7 @@ import {
   DataSource,
   EntityManager,
   FindOptionsWhere,
+  In,
   Repository,
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -46,13 +47,29 @@ export class WarehouseIngredientStocksService {
     private readonly dataSource: DataSource,
   ) {}
 
+  /**
+   * accessibleWarehouseIds narrows the result to warehouses the caller can
+   * see — 'ALL' for a superadmin/no-restriction case, otherwise the exact
+   * warehouse ids to allow (an empty array yields zero rows).
+   */
   async findAll(
     query: ListWarehouseIngredientStocksQueryDto,
+    accessibleWarehouseIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<WarehouseIngredientStock>> {
+    if (
+      accessibleWarehouseIds !== 'ALL' &&
+      accessibleWarehouseIds.length === 0
+    ) {
+      const { page, limit } = query;
+      return { data: [], meta: { page, limit, total: 0, totalPages: 1 } };
+    }
+
     const { page, limit, warehouseId, ingredientId } = query;
     const where: FindOptionsWhere<WarehouseIngredientStock> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
+    } else if (accessibleWarehouseIds !== 'ALL') {
+      where.warehouseId = In(accessibleWarehouseIds);
     }
     if (ingredientId !== undefined) {
       where.ingredientId = ingredientId;
@@ -73,11 +90,22 @@ export class WarehouseIngredientStocksService {
 
   async listTransactions(
     query: ListInventoryTransactionsQueryDto,
+    accessibleWarehouseIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<IngredientInventoryTransaction>> {
+    if (
+      accessibleWarehouseIds !== 'ALL' &&
+      accessibleWarehouseIds.length === 0
+    ) {
+      const { page, limit } = query;
+      return { data: [], meta: { page, limit, total: 0, totalPages: 1 } };
+    }
+
     const { page, limit, warehouseId, ingredientId, transactionType } = query;
     const where: FindOptionsWhere<IngredientInventoryTransaction> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
+    } else if (accessibleWarehouseIds !== 'ALL') {
+      where.warehouseId = In(accessibleWarehouseIds);
     }
     if (ingredientId !== undefined) {
       where.ingredientId = ingredientId;

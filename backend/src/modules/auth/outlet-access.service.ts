@@ -6,11 +6,12 @@ export type AccessibleOutlets = number[] | typeof ALL_OUTLETS;
 
 /**
  * Single source of truth for "which outlets can this user touch". Wraps
- * PermissionsService.getAccessibleOutletIds (whose empty-array result means
- * "only global/unscoped assignments" per its own doc) plus the superadmin
- * bypass every other guard in this app already grants, so callers get one
- * unambiguous ALL_OUTLETS sentinel instead of re-deriving that meaning
- * themselves at each call site.
+ * PermissionsService.getAccessibleOutletIds — which returns `null` for a
+ * user with zero active role assignments and `[]` for a user whose
+ * assignment(s) are all global/unscoped — plus the superadmin bypass every
+ * other guard in this app already grants, so callers get one unambiguous
+ * ALL_OUTLETS sentinel (or a genuinely empty list, meaning "no outlets")
+ * instead of re-deriving that meaning themselves at each call site.
  */
 @Injectable()
 export class OutletAccessService {
@@ -26,6 +27,10 @@ export class OutletAccessService {
     const outletIds = await this.permissionsService.getAccessibleOutletIds(
       userId,
     );
+    if (outletIds === null) {
+      // Zero active role assignments — not "global", just no access.
+      return [];
+    }
     return outletIds.length === 0 ? ALL_OUTLETS : outletIds;
   }
 

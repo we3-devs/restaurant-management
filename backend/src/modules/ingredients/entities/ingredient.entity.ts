@@ -11,6 +11,7 @@ import {
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
+import { Outlet } from '../../outlets/entities/outlet.entity';
 
 export type CostingMethod =
   | 'fifo'
@@ -29,6 +30,17 @@ export class Ingredient {
   id: number;
 
   @Column({
+    name: 'outlet_id',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+  })
+  outletId: number;
+
+  @ManyToOne(() => Outlet)
+  @JoinColumn({ name: 'outlet_id' })
+  outlet: Outlet;
+
+  @Column({
     name: 'ingredient_category_id',
     type: 'bigint',
     transformer: new BigIntTransformer(),
@@ -42,13 +54,13 @@ export class Ingredient {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   slug: string;
 
-  @Column({ type: 'varchar', length: 80, unique: true })
+  @Column({ type: 'varchar', length: 80 })
   code: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   barcode: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

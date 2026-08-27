@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { IngredientCategoriesModule } from '../ingredient-categories/ingredient-categories.module';
+import { OutletsModule } from '../outlets/outlets.module';
 import { UnitsModule } from '../units/units.module';
 import { Ingredient } from './entities/ingredient.entity';
 import { IngredientsController } from './ingredients.controller';
@@ -10,6 +12,8 @@ import { IngredientsImporter } from './import/ingredients-importer';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ingredient]),
+    AuthModule,
+    OutletsModule,
     UnitsModule,
     IngredientCategoriesModule,
   ],
