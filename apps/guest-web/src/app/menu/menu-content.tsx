@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
@@ -91,11 +91,8 @@ export default function MenuContent() {
   // send an order just because the cart happens to be full.
   const [authIntent, setAuthIntent] = useState<"checkout" | "login" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const sectionRefs = useRef<Record<number, HTMLElement | null>>({});
-  const headerRef = useRef<HTMLElement | null>(null);
-  const bottomBarRef = useRef<HTMLDivElement | null>(null);
-  const [activeSection, setActiveSection] = useState<number | null>(null);
-  const [tailSpace, setTailSpace] = useState(112);
+  // Two-level menu: a category list, then that category's foods.
+  const [openSection, setOpenSection] = useState<number | null>(null);
 
   const { data: foods = [], isLoading: foodsLoading } = useQuery<Food[]>({
     queryKey: ["foods"],
@@ -261,48 +258,14 @@ export default function MenuContent() {
   const showCartBar = itemCount > 0 && !cartOpen && !variantFor;
   const showBottomBar = showTracker || showCartBar;
 
-  // The last section can only reach the top of the viewport if there is a
-  // viewport's worth of scrollable room beneath its heading. Real menus rarely
-  // have that (the final category is often one item), so the shortfall is
-  // measured and added as trailing space. It doubles as clearance for the
-  // fixed cart bar, hence the 112px floor.
-  useEffect(() => {
-    const last = sections[sections.length - 1];
-    const el = last ? sectionRefs.current[last.id] : null;
-    if (!el) return;
+  const activeSectionData =
+    openSection === null
+      ? null
+      : (sections.find((s) => s.id === openSection) ?? null);
 
-    const recalc = () => {
-      const headerH = headerRef.current?.offsetHeight ?? 0;
-      // The bottom bar is fixed, so it adds no scrollable height — but it does
-      // cover the last rows, hence the floor.
-      const bottomH = bottomBarRef.current?.offsetHeight ?? 0;
-      const shortfall = window.innerHeight - headerH - el.offsetHeight - 8;
-      setTailSpace(Math.max(bottomH + 16, Math.ceil(shortfall)));
-    };
-
-    recalc();
-    // Both keep changing after first paint — variant prices arrive on their own
-    // requests, and the bar grows a row when an order starts tracking — so
-    // observe them rather than measuring only once.
-    const observer = new ResizeObserver(recalc);
-    observer.observe(el);
-    if (bottomBarRef.current) observer.observe(bottomBarRef.current);
-    window.addEventListener("resize", recalc);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", recalc);
-    };
-  }, [sections, showBottomBar]);
-
-  const scrollTo = (id: number) => {
-    const el = sectionRefs.current[id];
-    if (!el) return;
-    setActiveSection(id);
-    // Offset by the live sticky-header height rather than a fixed scroll-margin,
-    // since the header grows a second row once the category nav is present.
-    const headerH = headerRef.current?.offsetHeight ?? 0;
-    const top = window.scrollY + el.getBoundingClientRect().top - headerH - 8;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  const openCategory = (id: number) => {
+    setOpenSection(id);
+    window.scrollTo({ top: 0 });
   };
 
   const placeOrder = async () => {
@@ -364,7 +327,6 @@ export default function MenuContent() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header
-        ref={headerRef}
         className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm"
       >
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3.5">
@@ -417,114 +379,128 @@ export default function MenuContent() {
           </button>
         </div>
 
-        {sections.length > 1 && (
-          <nav className="mx-auto flex max-w-3xl gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {sections.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => scrollTo(s.id)}
-                aria-current={activeSection === s.id}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition active:scale-95 ${
-                  activeSection === s.id
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                }`}
-              >
-                {s.name}
-              </button>
-            ))}
-          </nav>
+        {activeSectionData && (
+          <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 pb-3">
+            <button
+              onClick={() => setOpenSection(null)}
+              className="-ml-1 flex items-center gap-1 rounded-full px-2 py-1 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+            >
+              <ArrowLeft size={16} />
+              All categories
+            </button>
+            <ChevronRight size={14} className="text-slate-300" />
+            <span className="truncate text-sm font-semibold text-slate-900">
+              {activeSectionData.name}
+            </span>
+          </div>
         )}
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-5">
+      <main className="mx-auto max-w-3xl px-4 py-5 pb-40">
         {foodsLoading ? (
           <CardGridSkeleton count={4} className="grid-cols-1 sm:grid-cols-2" />
         ) : sections.length === 0 ? (
           <p className="py-20 text-center text-sm text-slate-500">
             Nothing on the menu right now.
           </p>
+        ) : !activeSectionData ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {sections.map((section) => {
+              const thumb = section.foods.find((f) => f.imageUrl)?.imageUrl;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => openCategory(section.id)}
+                  className="flex items-center gap-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-brand-600 hover:shadow-sm active:scale-[0.99]"
+                >
+                  {thumb ? (
+                    <img
+                      src={thumb}
+                      alt=""
+                      loading="lazy"
+                      className="size-16 shrink-0 rounded-lg bg-slate-100 object-cover"
+                    />
+                  ) : (
+                    <div className="size-16 shrink-0 rounded-lg bg-slate-100" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-medium leading-snug text-slate-900">
+                      {section.name}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {section.foods.length}{" "}
+                      {section.foods.length === 1 ? "item" : "items"}
+                    </p>
+                  </div>
+                  <ChevronRight size={18} className="shrink-0 text-slate-300" />
+                </button>
+              );
+            })}
+          </div>
         ) : (
-          <div className="space-y-8">
-            {sections.map((section) => (
-              <section
-                key={section.id}
-                ref={(el) => {
-                  sectionRefs.current[section.id] = el;
-                }}
-              >
-                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
-                  {section.name}
-                </h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {section.foods.map((food) => {
-                    // Count orderable leaves, not tree rows — three sizes under
-                    // one group is "3 options", not 4.
-                    const leaves = leavesOf(food.id);
-                    const showsRange = food.hasVariants && leaves.length > 1;
-                    return (
-                      <article
-                        key={food.id}
-                        className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
-                      >
-                        {food.imageUrl && (
-                          <img
-                            src={food.imageUrl}
-                            alt=""
-                            loading="lazy"
-                            className="h-36 w-full bg-slate-100 object-cover"
-                          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {activeSectionData.foods.map((food) => {
+              // Count orderable leaves, not tree rows — three sizes under
+              // one group is "3 options", not 4.
+              const leaves = leavesOf(food.id);
+              const showsRange = food.hasVariants && leaves.length > 1;
+              return (
+                <article
+                  key={food.id}
+                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
+                >
+                  {food.imageUrl && (
+                    <img
+                      src={food.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-36 w-full bg-slate-100 object-cover"
+                    />
+                  )}
+                  <div className="flex flex-1 flex-col justify-between p-4">
+                    <div>
+                      <h3 className="font-medium leading-snug text-slate-900">
+                        {food.name}
+                      </h3>
+                      {food.shortDescription && (
+                        <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                          {food.shortDescription}
+                        </p>
+                      )}
+                      {showsRange && (
+                        <p className="mt-1.5 text-xs text-slate-400">
+                          {leaves.length} options
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <p className="text-base font-semibold text-slate-900">
+                        {showsRange && (
+                          <span className="mr-1 text-xs font-normal text-slate-400">
+                            from
+                          </span>
                         )}
-                        <div className="flex flex-1 flex-col justify-between p-4">
-                        <div>
-                          <h3 className="font-medium leading-snug text-slate-900">
-                            {food.name}
-                          </h3>
-                          {food.shortDescription && (
-                            <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                              {food.shortDescription}
-                            </p>
-                          )}
-                          {showsRange && (
-                            <p className="mt-1.5 text-xs text-slate-400">
-                              {leaves.length} options
-                            </p>
-                          )}
-                        </div>
-                        <div className="mt-4 flex items-end justify-between gap-3">
-                          <p className="text-base font-semibold text-slate-900">
-                            {showsRange && (
-                              <span className="mr-1 text-xs font-normal text-slate-400">
-                                from
-                              </span>
-                            )}
-                            {money(priceOf(food))}
-                          </p>
-                          <button
-                            onClick={() => handleAdd(food)}
-                            className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95"
-                          >
-                            {showsRange ? "Choose" : "Add"}
-                          </button>
-                        </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+                        {money(priceOf(food))}
+                      </p>
+                      <button
+                        onClick={() => handleAdd(food)}
+                        className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95"
+                      >
+                        {showsRange ? "Choose" : "Add"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
-
-        <div aria-hidden style={{ height: tailSpace }} />
       </main>
 
       {/* Live tracker sits above the cart CTA — a diner mid-second-round needs
           both at once, so they stack rather than compete for the same slot. */}
       {showBottomBar && (
         <div
-          ref={bottomBarRef}
           className="fixed inset-x-0 bottom-0 z-20 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
         >
           {showTracker && tableCode && <OrderTrackerBar tableCode={tableCode} />}
