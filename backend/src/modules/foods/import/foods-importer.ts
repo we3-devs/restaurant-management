@@ -251,4 +251,27 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
     sheet.addRow(['Margherita Pizza', 'margherita-pizza', 'PIZZA-001', 'Pizza', 'food', '450']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const [foods, categories] = await Promise.all([
+      this.foodsRepository.find({ order: { id: 'ASC' } }),
+      this.foodCategoriesRepository.find({ select: { id: true, name: true } }),
+    ]);
+    const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Foods');
+    sheet.addRow(['name', 'slug', 'sku', 'category', 'itemType', 'basePrice']);
+    for (const food of foods) {
+      sheet.addRow([
+        food.name,
+        food.slug,
+        food.sku ?? '',
+        food.foodCategoryId ? (categoryById.get(food.foodCategoryId) ?? '') : '',
+        food.itemType,
+        food.basePrice,
+      ]);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }

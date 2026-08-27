@@ -144,4 +144,27 @@ export class SuppliersImporter implements ImportDomainConfig<Record<string, stri
     sheet.addRow(['Acme Foods Pvt Ltd', 'SUP-001', 'Ram Sharma', 'Downtown', '9800000000', 'sales@acme.example']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const [suppliers, outlets] = await Promise.all([
+      this.suppliersRepository.find({ order: { id: 'ASC' } }),
+      this.outletsRepository.find({ select: { id: true, name: true } }),
+    ]);
+    const outletById = new Map(outlets.map((o) => [o.id, o.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Suppliers');
+    sheet.addRow(['companyName', 'supplierNo', 'contactPerson', 'outlet', 'phone', 'email']);
+    for (const supplier of suppliers) {
+      sheet.addRow([
+        supplier.companyName,
+        supplier.supplierNo,
+        supplier.contactPerson ?? '',
+        outletById.get(supplier.outletId) ?? '',
+        supplier.phone ?? '',
+        supplier.email ?? '',
+      ]);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }

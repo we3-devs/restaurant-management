@@ -103,4 +103,15 @@ export class CustomersImporter implements ImportDomainConfig<Record<string, stri
     sheet.addRow(['Jane Smith', '9800000000', 'jane@example.com', '123 Main St']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const customers = await this.customersRepository.find({ order: { id: 'ASC' } });
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Customers');
+    sheet.addRow(['name', 'phone', 'email', 'address']);
+    for (const customer of customers) {
+      sheet.addRow([customer.name, customer.phone ?? '', customer.email ?? '', customer.address ?? '']);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }

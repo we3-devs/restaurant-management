@@ -66,6 +66,16 @@ export class DataImportController {
     res.send(buffer);
   }
 
+  @Get(':domain/export')
+  @Header('Content-Type', 'application/octet-stream')
+  @ApiOperation({ summary: 'Downloads every existing record for the domain as a spreadsheet' })
+  async export(@Param('domain') domain: string, @Res() res: Response) {
+    const config = this.registry.get(domain);
+    const buffer = await config.buildExport();
+    res.setHeader('Content-Disposition', `attachment; filename="${domain}-export.xlsx"`);
+    res.send(buffer);
+  }
+
   @Post(':domain/preview')
   @UseInterceptors(
     FileInterceptor('file', {

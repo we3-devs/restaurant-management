@@ -33,6 +33,7 @@ function buildFakeImporter(overrides?: Partial<ImportDomainConfig<Record<string,
       failures: [],
     }),
     buildTemplate: async () => Buffer.from(''),
+    buildExport: async () => Buffer.from(''),
     ...overrides,
   };
 }

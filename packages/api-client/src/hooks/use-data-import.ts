@@ -138,3 +138,8 @@ export function useCommitImport(domain: string) {
 export function importTemplateUrl(domain: string): string {
   return `/api/backend/data-import/${domain}/template`
 }
+
+/** Same-origin proxy URL for downloading every existing record for a domain — see importTemplateUrl. */
+export function exportDataUrl(domain: string): string {
+  return `/api/backend/data-import/${domain}/export`
+}

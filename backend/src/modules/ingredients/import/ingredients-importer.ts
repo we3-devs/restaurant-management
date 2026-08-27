@@ -192,4 +192,30 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     sheet.addRow(['Main Outlet', 'Tomato', 'ING-001', 'Vegetables', 'Kilogram']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const [ingredients, categories, units, outlets] = await Promise.all([
+      this.ingredientsRepository.find({ order: { id: 'ASC' } }),
+      this.categoriesRepository.find({ select: { id: true, name: true } }),
+      this.unitsRepository.find({ select: { id: true, name: true } }),
+      this.outletsRepository.find({ select: { id: true, name: true } }),
+    ]);
+    const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+    const unitById = new Map(units.map((u) => [u.id, u.name]));
+    const outletById = new Map(outlets.map((o) => [o.id, o.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Ingredients');
+    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit']);
+    for (const ingredient of ingredients) {
+      sheet.addRow([
+        outletById.get(ingredient.outletId) ?? '',
+        ingredient.name,
+        ingredient.code,
+        categoryById.get(ingredient.ingredientCategoryId) ?? '',
+        unitById.get(ingredient.baseUnitId) ?? '',
+      ]);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }

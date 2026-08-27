@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 
+import { buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { exportDataUrl } from "@/hooks/use-data-import"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { dataImportDomainConfigs } from "./domain-configs"
 import { ImportWizardDialog } from "./import-wizard-dialog"
@@ -34,7 +36,12 @@ export default function DataImportPage() {
           <TabsContent key={config.domain} value={config.domain} className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Import {config.label.toLowerCase()} from a spreadsheet.</p>
-              <ImportWizardDialog config={config} />
+              <div className="flex items-center gap-2">
+                <a href={exportDataUrl(config.domain)} download className={buttonVariants({ variant: "outline" })}>
+                  Export {config.label.toLowerCase()}
+                </a>
+                <ImportWizardDialog config={config} />
+              </div>
             </div>
             <JobHistoryTable domain={config.domain} />
           </TabsContent>

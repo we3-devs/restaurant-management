@@ -87,4 +87,15 @@ export class OutletsImporter implements ImportDomainConfig<Record<string, string
     sheet.addRow(['Example Outlet']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const outlets = await this.outletsRepository.find({ order: { id: 'ASC' } });
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Outlets');
+    sheet.addRow(['name']);
+    for (const outlet of outlets) {
+      sheet.addRow([outlet.name]);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }

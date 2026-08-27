@@ -56,4 +56,6 @@ export interface ImportDomainConfig<Row = Record<string, string>, ValidatedRow e
   commitRows(rows: ValidatedRow[], manager: EntityManager): Promise<ImportCommitResult>;
   /** Builds a downloadable blank (or header+example-row) template for this domain. */
   buildTemplate(): Promise<Buffer>;
+  /** Builds a spreadsheet of every existing record for this domain, using the same columns as buildTemplate. */
+  buildExport(): Promise<Buffer>;
 }

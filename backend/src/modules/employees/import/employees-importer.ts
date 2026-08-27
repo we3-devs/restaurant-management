@@ -140,4 +140,29 @@ export class EmployeesImporter implements ImportDomainConfig<Record<string, stri
     sheet.addRow(['Jane Doe', 'EMP-001', 'Downtown', 'Waiter', 'jane@example.com', '9800000000']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
+
+  async buildExport(): Promise<Buffer> {
+    const [employees, positions, outlets] = await Promise.all([
+      this.employeesRepository.find({ order: { id: 'ASC' } }),
+      this.positionsRepository.find({ select: { id: true, name: true } }),
+      this.outletsRepository.find({ select: { id: true, name: true } }),
+    ]);
+    const positionById = new Map(positions.map((p) => [p.id, p.name]));
+    const outletById = new Map(outlets.map((o) => [o.id, o.name]));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Employees');
+    sheet.addRow(['name', 'employeeCode', 'outlet', 'position', 'email', 'phone']);
+    for (const employee of employees) {
+      sheet.addRow([
+        employee.name,
+        employee.employeeCode,
+        outletById.get(employee.outletId) ?? '',
+        employee.positionId ? (positionById.get(employee.positionId) ?? '') : '',
+        employee.email ?? '',
+        employee.phone ?? '',
+      ]);
+    }
+    return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  }
 }
