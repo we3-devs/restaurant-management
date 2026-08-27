@@ -10,6 +10,7 @@ import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSession } from './entities/table-session.entity';
 import { TableSessionCustomer } from './entities/table-session-customer.entity';
+import { GuestTableSessionsController } from './guest-table-sessions.controller';
 import { TableSessionsController } from './table-sessions.controller';
 import { TableSessionsService } from './table-sessions.service';
 
@@ -27,7 +28,7 @@ import { TableSessionsService } from './table-sessions.service';
     // `undefined` mid-cycle at module-load time.
     forwardRef(() => KitchenTicketsModule),
   ],
-  controllers: [TableSessionsController],
+  controllers: [TableSessionsController, GuestTableSessionsController],
   providers: [TableSessionsService],
   exports: [TypeOrmModule, TableSessionsService],
 })

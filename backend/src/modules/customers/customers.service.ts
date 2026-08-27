@@ -122,6 +122,16 @@ export class CustomersService {
     return this.toResponse(saved);
   }
 
+  async findOrCreateByPhone(phone: string, name: string): Promise<Customer> {
+    const normalized = normalizeNepalPhone(phone);
+    const existing = await this.customersRepository.findOne({
+      where: { phone: normalized },
+    });
+    if (existing) return existing;
+    await this.create({ phone: normalized, name });
+    return this.customersRepository.findOneOrFail({ where: { phone: normalized } });
+  }
+
   async update(id: number, dto: UpdateCustomerDto): Promise<CustomerResponseDto> {
     const customer = await this.findOne(id);
     const phone = dto.phone !== undefined ? normalizeNepalPhone(dto.phone) : undefined;

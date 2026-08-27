@@ -12,7 +12,7 @@ export default function QRRedirectContent() {
 
   useEffect(() => {
     if (tableId) {
-      router.replace(`/menu?table=${tableId}`);
+      router.replace(`/table?table=${tableId}`);
     }
   }, [tableId, router]);
 
