@@ -49,7 +49,7 @@ const CATEGORY_DTO_MAP: Record<SettingsCategory, new () => unknown> = {
 
 const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
   business: {
-    restaurantName: 'Restro',
+    restaurantName: 'Restra',
     address: null,
     phone: null,
     email: null,

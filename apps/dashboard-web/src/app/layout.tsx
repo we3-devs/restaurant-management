@@ -26,7 +26,7 @@ const geistMono = Geist_Mono({
 // so leaving it in place would have silently pinned the old icon.
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE);
-  const name = branding.restaurantName ?? "Restro ";
+  const name = branding.restaurantName ?? "Restra ";
 
   return {
     title: name,
