@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "./button"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
-const OPERATIONAL_WEB_URL = process.env.OPERATIONAL_WEB_URL 
-const DASHBOARD_WEB_URL = process.env.DASHBOARD_WEB_URL 
+const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL
+const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL
 
 function targetPortalUrl(current: "dashboard" | "staff") {
   return current === "dashboard" ? `${OPERATIONAL_WEB_URL}/` : `${DASHBOARD_WEB_URL}/dashboard`

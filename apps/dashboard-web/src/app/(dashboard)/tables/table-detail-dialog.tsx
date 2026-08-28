@@ -23,7 +23,7 @@ import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useDeleteDiningTable, type DiningTable } from "@/hooks/use-dining-tables"
 import { DownloadableQrCode } from "./downloadable-qr-code"
 
-const OPERATIONAL_WEB_URL = process.env.OPERATIONAL_WEB_URL 
+const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL 
 const GUEST_WEB_URL = process.env.NEXT_PUBLIC_GUEST_WEB_URL 
 
 function formatSeatedFor(startedAt: string | null): string | null {
