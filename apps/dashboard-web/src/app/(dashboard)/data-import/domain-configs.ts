@@ -31,6 +31,10 @@ export const dataImportDomainConfigs: DataImportDomainConfig[] = [
       { key: "foodCategory", label: "Category" },
       { key: "itemType", label: "Type" },
       { key: "basePrice", label: "Price" },
+      { key: "shortDescription", label: "Description" },
+      { key: "imageUrl", label: "Image URL" },
+      { key: "departmentType", label: "Department" },
+      { key: "foodType", label: "Food Type" },
     ],
   },
   {
