@@ -20,7 +20,7 @@ Laravel app. The backend maps onto it as-is (`synchronize: false`); the only tab
 ```sh
 cd backend
 npm install
-npm run migration:run   # creates the refresh_tokens table only
+npm run migration:run   # applies pending TypeORM-owned migrations
 npm run seed             # idempotent: seeds a super-admin role/user
 npm run start:dev
 ```
