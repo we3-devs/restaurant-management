@@ -299,10 +299,12 @@ export class TableSessionsService {
     await this.attachCustomerToOrders(id, customerId);
     if (!session.customerId) {
       session.customerId = customerId;
-      await this.tableSessionsRepository.save(session);
     }
+    const members = await this.listCustomers(id);
+    session.guestCount = Math.max(members.length, 1);
+    await this.tableSessionsRepository.save(session);
     await this.customersService.upsertVisit(customerId, session.outletId);
-    return this.listCustomers(id);
+    return members;
   }
 
   async removeCustomer(id: number, customerId: number): Promise<TableSessionCustomerSummary[]> {
@@ -311,7 +313,10 @@ export class TableSessionsService {
       throw new BadRequestException('The primary customer cannot be removed from a table session');
     }
     await this.sessionCustomersRepository.delete({ tableSessionId: id, customerId });
-    return this.listCustomers(id);
+    const members = await this.listCustomers(id);
+    session.guestCount = Math.max(members.length, 1);
+    await this.tableSessionsRepository.save(session);
+    return members;
   }
 
   private async attachCustomerToOrders(tableSessionId: number, customerId: number): Promise<void> {
@@ -339,8 +344,10 @@ export class TableSessionsService {
     let saved = session;
     if (session.customerId === null) {
       session.customerId = customerId;
-      saved = await this.tableSessionsRepository.save(session);
     }
+    const members = await this.listCustomers(id);
+    session.guestCount = Math.max(members.length, 1);
+    saved = await this.tableSessionsRepository.save(session);
     // First time this session gets a customer of record — counts as one
     // dine-in visit. The no-op guard above means this only ever fires once
     // per session, even if more guests place orders on it afterwards.
