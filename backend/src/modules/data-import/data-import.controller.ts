@@ -81,7 +81,7 @@ export class DataImportController {
     FileInterceptor('file', {
       limits: { fileSize: MAX_IMPORT_UPLOAD_BYTES },
       fileFilter: (_req, file, callback) => {
-        callback(null, file.mimetype in ALLOWED_IMPORT_TYPES);
+        callback(null, Object.prototype.hasOwnProperty.call(ALLOWED_IMPORT_TYPES, file.mimetype));
       },
     }),
   )
