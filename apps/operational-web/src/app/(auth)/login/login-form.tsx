@@ -19,7 +19,7 @@ import {
 import { getLandingPath } from "@rms/auth/route-access"
 import { loginSchema, type LoginInput } from "@rms/validators/auth"
 
-const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL ?? "http://localhost:3000"
+const DASHBOARD_WEB_URL = process.env.DASHBOARD_WEB_URL ?? "http://localhost:3000"
 
 export function LoginForm() {
   const router = useRouter()

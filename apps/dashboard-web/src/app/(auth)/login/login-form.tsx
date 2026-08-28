@@ -19,7 +19,7 @@ import {
 import { getLandingPath } from "@rms/auth/route-access"
 import { loginSchema, type LoginInput } from "@/lib/validators/auth"
 
-const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL ?? "http://localhost:3100"
+const OPERATIONAL_WEB_URL = process.env.OPERATIONAL_WEB_URL ?? "http://localhost:3100"
 
 export function LoginForm() {
   const router = useRouter()
