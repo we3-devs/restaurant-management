@@ -21,11 +21,15 @@ export interface TableSession {
 }
 
 export function useTableSession(tableCode: string | null) {
-  const { isAuthenticated } = useGuestAuth();
+  const { token } = useGuestAuth();
   const qc = useQueryClient();
-  const key = ["table-session", tableCode];
-  const [joined, setJoined] = useState(false);
+  // Joining is tied to the authenticated customer, not just the table. This
+  // matters when somebody signs out and another customer signs in on the same
+  // browser while staying on the table page.
+  const key = ["table-session", tableCode, token];
+  const [joinedToken, setJoinedToken] = useState<string | null>(null);
   const joiningRef = useRef(false);
+  const joined = !!token && joinedToken === token;
 
   // One write on entry: attach this verified guest to the table's session
   // (opening one if needed). Everything after is read-only polling.
@@ -40,16 +44,16 @@ export function useTableSession(tableCode: string | null) {
     },
     onSuccess: (data) => {
       qc.setQueryData(key, data);
-      setJoined(true);
+      setJoinedToken(token);
     },
   });
 
   useEffect(() => {
-    if (!tableCode || !isAuthenticated || joined || joiningRef.current) return;
+    if (!tableCode || !token || joined || joiningRef.current) return;
     joiningRef.current = true;
     join.mutate(undefined, { onSettled: () => (joiningRef.current = false) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableCode, isAuthenticated, joined]);
+  }, [tableCode, token, joined]);
 
   const query = useQuery<TableSession | null>({
     queryKey: key,
@@ -60,7 +64,7 @@ export function useTableSession(tableCode: string | null) {
       if (!res.ok) throw new Error(await readError(res, "Failed to load table"));
       return res.json();
     },
-    enabled: !!tableCode && isAuthenticated && joined,
+    enabled: !!tableCode && !!token && joined,
     refetchInterval: 15000,
   });
 
