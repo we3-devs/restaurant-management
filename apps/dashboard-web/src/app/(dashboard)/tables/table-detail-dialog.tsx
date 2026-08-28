@@ -23,8 +23,8 @@ import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useDeleteDiningTable, type DiningTable } from "@/hooks/use-dining-tables"
 import { DownloadableQrCode } from "./downloadable-qr-code"
 
-const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL ?? "http://localhost:3100"
-const GUEST_WEB_URL = process.env.NEXT_PUBLIC_GUEST_WEB_URL ?? "http://localhost:3200"
+const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL 
+const GUEST_WEB_URL = process.env.NEXT_PUBLIC_GUEST_WEB_URL 
 
 function formatSeatedFor(startedAt: string | null): string | null {
   if (!startedAt) return null
@@ -36,7 +36,7 @@ function formatSeatedFor(startedAt: string | null): string | null {
   return `seated ${hours}h${remainder ? ` ${remainder}m` : ""} ago`
 }
 
-/** Read-only guest/session detail + downloadable guest-ordering QR for a table — no session or order actions here, those stay in operational-web. */
+
 export function TableDetailDialog({
   table,
   isSuperadmin = false,
@@ -87,19 +87,6 @@ export function TableDetailDialog({
                   <p className="text-sm text-muted-foreground">{formatSeatedFor(activeSession.startedAt)}</p>
                 )}
               </div>
-
-              {activeSession.customer && (activeSession.customer.phone || activeSession.customer.loyaltyTier) && (
-                <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2 text-sm">
-                  {activeSession.customer.phone ? (
-                    <p className="text-muted-foreground">{activeSession.customer.phone}</p>
-                  ) : (
-                    <span />
-                  )}
-                  {activeSession.customer.loyaltyTier && (
-                    <Badge variant="secondary">{activeSession.customer.loyaltyTier}</Badge>
-                  )}
-                </div>
-              )}
 
               {partyMembers.length > 0 && (
                 <div className="space-y-2">
