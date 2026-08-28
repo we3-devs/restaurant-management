@@ -42,6 +42,7 @@ export const dataImportDomainConfigs: DataImportDomainConfig[] = [
     domain: "ingredients",
     label: "Ingredients",
     columns: [
+      { key: "outlet", label: "Outlet" },
       { key: "code", label: "Code" },
       { key: "name", label: "Name" },
       { key: "category", label: "Category" },
