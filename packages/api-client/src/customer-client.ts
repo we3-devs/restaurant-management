@@ -1,4 +1,8 @@
-import { getStoredCustomerToken } from "@rms/auth/client/customer-token-storage"
+import {
+  getStoredCustomerRefreshToken,
+  getStoredCustomerToken,
+  setStoredCustomerToken,
+} from "@rms/auth/client/customer-token-storage"
 
 /**
  * Browser-side fetch wrapper for the customer portal / guest-ordering proxy
@@ -7,10 +11,14 @@ import { getStoredCustomerToken } from "@rms/auth/client/customer-token-storage"
  * along the localStorage backstop token (if one was saved at sign-in) as an
  * explicit Authorization header — see customer-token-storage.ts and the
  * proxy route, which prefers this header over the cookie when both exist.
+ *
+ * On a 401 it rotates the stored refresh token once (via /api/customer-auth/
+ * refresh) and retries — the client-side half of the "access token expires,
+ * app silently refreshes it, user notices nothing" flow.
  */
-export async function customerApiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function rawRequest(path: string, init: RequestInit): Promise<Response> {
   const token = getStoredCustomerToken()
-  const response = await fetch(`/api/customer-backend${path}`, {
+  return fetch(`/api/customer-backend${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -18,6 +26,46 @@ export async function customerApiClient<T>(path: string, init: RequestInit = {})
       ...init.headers,
     },
   })
+}
+
+let inFlightRefresh: Promise<boolean> | null = null
+
+async function refreshOnce(): Promise<boolean> {
+  const refreshToken = getStoredCustomerRefreshToken()
+  if (!refreshToken) return false
+
+  // Collapse concurrent 401s onto a single refresh round trip.
+  if (!inFlightRefresh) {
+    inFlightRefresh = (async () => {
+      try {
+        const response = await fetch("/api/customer-auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        })
+        if (!response.ok) return false
+        const data = (await response.json()) as { accessToken: string; refreshToken: string }
+        setStoredCustomerToken(data.accessToken, data.refreshToken)
+        return true
+      } catch {
+        return false
+      }
+    })()
+    void inFlightRefresh.finally(() => {
+      inFlightRefresh = null
+    })
+  }
+
+  return inFlightRefresh
+}
+
+export async function customerApiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response = await rawRequest(path, init)
+
+  if (response.status === 401 && (await refreshOnce())) {
+    response = await rawRequest(path, init)
+  }
+
   if (!response.ok) {
     const body = await response.json().catch(() => null)
     throw new Error(body?.message ?? `Request to ${path} failed with ${response.status}`)

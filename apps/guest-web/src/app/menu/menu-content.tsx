@@ -349,7 +349,7 @@ export default function MenuContent() {
             </div>
           </div>
           <a
-            href={`/table?table=${tableCode}`}
+            href={`/table?table=${encodeURIComponent(tableCode)}`}
             aria-label="Table party"
             className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
           >

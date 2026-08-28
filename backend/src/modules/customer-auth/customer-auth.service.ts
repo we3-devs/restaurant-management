@@ -8,14 +8,22 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { randomBytes, createHash } from 'crypto';
+import { IsNull, Repository } from 'typeorm';
 import { AppConfig } from '../../config/configuration';
 import { normalizeNepalPhone } from '../../common/phone';
+import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { Customer } from '../customers/entities/customer.entity';
 import { SmsService } from '../notifications/channels/sms.service';
+import { CustomerRefreshToken } from './entities/customer-refresh-token.entity';
 import { CustomerJwtPayload } from './types/customer-jwt-payload';
+
+export interface CustomerTokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
 
 const OTP_TTL_SECONDS = 5 * 60;
 const OTP_RESEND_LOCK_SECONDS = 60;
@@ -36,6 +44,8 @@ export class CustomerAuthService {
   constructor(
     @InjectRepository(Customer)
     private readonly customersRepository: Repository<Customer>,
+    @InjectRepository(CustomerRefreshToken)
+    private readonly refreshTokensRepository: Repository<CustomerRefreshToken>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AppConfig>,
     private readonly auditLogsService: AuditLogsService,
@@ -51,6 +61,22 @@ export class CustomerAuthService {
       );
     } catch (err) {
       this.logger.warn(`customer_otps cleanup failed: ${(err as Error).message}`);
+    }
+  }
+
+  @Interval(OTP_CLEANUP_INTERVAL_MS)
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    try {
+      // Keep revoked rows around for a day so a replayed-token theft check
+      // (see refresh()) can still distinguish "already used" from "unknown".
+      await this.customersRepository.manager.query(
+        `DELETE FROM customer_refresh_tokens
+         WHERE expires_at < now() OR revoked_at < now() - interval '1 day'`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `customer_refresh_tokens cleanup failed: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -125,7 +151,7 @@ export class CustomerAuthService {
     email: string | undefined,
     code: string,
     name?: string,
-  ): Promise<{ accessToken: string; customer: Customer } > {
+  ): Promise<CustomerTokenPair & { customer: Customer }> {
     if (phone) phone = normalizeNepalPhone(phone);
     const identifier = this.resolveIdentifier(phone, email);
 
@@ -178,23 +204,99 @@ export class CustomerAuthService {
       phone: customer.phone ?? undefined,
       email: customer.email ?? undefined,
     };
-    // No expiresIn — a guest should stay signed in for the lifetime of the
-    // session, ended only by an explicit logout (see customer-session.ts's
-    // matching cookie maxAge), not by a token TTL silently kicking them out
-    // mid-visit or on a return trip.
-    const accessToken = await this.jwtService.signAsync(payload);
+    const tokens = await this.issueTokenPair(payload);
 
-    return { accessToken, customer };
+    return { ...tokens, customer };
   }
 
-  async guestSession(tableId?: number): Promise<{ accessToken: string }> {
+  async guestSession(tableId?: number): Promise<CustomerTokenPair> {
     if (tableId !== undefined) {
       await this.diningTablesService.findOne(tableId);
     }
     const payload: CustomerJwtPayload = { sub: null, type: 'guest', tableId };
-    // No expiresIn — see the comment on the customer token above.
-    const accessToken = await this.jwtService.signAsync(payload);
-    return { accessToken };
+    return this.issueTokenPair(payload);
+  }
+
+  /**
+   * Rotates a refresh token for a fresh access + refresh pair. Mirrors
+   * AuthService.refresh: an atomic conditional UPDATE is the rotation gate
+   * (only the request that flips revoked_at from NULL wins), a replay of an
+   * already-rotated token is treated as possible theft and revokes the whole
+   * chain for that customer.
+   */
+  async refresh(rawRefreshToken: string): Promise<CustomerTokenPair> {
+    const tokenHash = this.hashToken(rawRefreshToken);
+
+    const claim = await this.refreshTokensRepository.update(
+      { tokenHash, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+
+    if (claim.affected !== 1) {
+      const existing = await this.refreshTokensRepository.findOne({
+        where: { tokenHash },
+      });
+      if (!existing) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      // Reuse of a token that was already rotated out — revoke every live
+      // token for this session's customer (guests have no customerId, so
+      // only this one token can be revoked).
+      if (existing.customerId !== null) {
+        await this.refreshTokensRepository.update(
+          { customerId: existing.customerId, revokedAt: IsNull() },
+          { revokedAt: new Date() },
+        );
+      }
+      throw new UnauthorizedException('Refresh token has already been used');
+    }
+
+    const existing = await this.refreshTokensRepository.findOne({
+      where: { tokenHash },
+    });
+    if (!existing) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (existing.expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('Refresh token has expired');
+    }
+
+    const tokens = await this.issueTokenPair(existing.payload);
+    await this.refreshTokensRepository.update(
+      { tokenHash },
+      { replacedByTokenHash: this.hashToken(tokens.refreshToken) },
+    );
+    return tokens;
+  }
+
+  async logout(rawRefreshToken: string): Promise<void> {
+    await this.refreshTokensRepository.update(
+      { tokenHash: this.hashToken(rawRefreshToken), revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+  }
+
+  private async issueTokenPair(
+    payload: CustomerJwtPayload,
+  ): Promise<CustomerTokenPair> {
+    const jwtConfig = this.configService.get('jwt', { infer: true })!;
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: jwtConfig.accessExpiresIn,
+    });
+
+    const rawRefreshToken = randomBytes(48).toString('hex');
+    await this.refreshTokensRepository.insert({
+      customerId: payload.sub,
+      tokenHash: this.hashToken(rawRefreshToken),
+      payload,
+      expiresAt: new Date(Date.now() + parseDurationToMs(jwtConfig.refreshExpiresIn)),
+    });
+
+    return { accessToken, refreshToken: rawRefreshToken };
+  }
+
+  private hashToken(rawToken: string): string {
+    return createHash('sha256').update(rawToken).digest('hex');
   }
 
   private async findOrCreateCustomer(

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -21,7 +22,26 @@ import { requireVerifiedCustomerId } from '../customer-auth/require-verified-cus
 import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { AddCompanionDto, JoinTableSessionDto } from './dto/guest-table-session.dto';
+import type { TableSessionDetail } from './table-sessions.service';
 import { TableSessionsService } from './table-sessions.service';
+
+/** co-diners see that a seat is taken, not the person's full number. */
+const maskPhone = (phone: string | null) =>
+  phone && phone.length >= 4 ? `••••••${phone.slice(-3)}` : null;
+
+/** Strips a staff-shaped session detail down to what a fellow guest may see. */
+const toGuestView = (session: TableSessionDetail) => ({
+  id: session.id,
+  outletName: session.outletName,
+  diningTableName: session.diningTableName,
+  guestCount: session.guestCount,
+  customers: session.customers.map((c) => ({
+    id: c.id,
+    name: c.name,
+    phone: maskPhone(c.phone),
+    loyaltyTier: c.loyaltyTier,
+  })),
+});
 
 @ApiTags('table-sessions')
 @Public()
@@ -34,6 +54,13 @@ export class GuestTableSessionsController {
     private readonly diningTables: DiningTablesService,
     private readonly customers: CustomersService,
   ) {}
+
+  private requireTableCode(tableCode: string | undefined): string {
+    if (!tableCode || typeof tableCode !== 'string') {
+      throw new BadRequestException('tableCode is required');
+    }
+    return tableCode;
+  }
 
   private async assertMember(sessionId: number, customerId: number) {
     const members = await this.tableSessions.listCustomers(sessionId);
@@ -58,7 +85,7 @@ export class GuestTableSessionsController {
       table.outletId,
       customerId,
     );
-    return this.tableSessions.findOneDetailed(session.id);
+    return toGuestView(await this.tableSessions.findOneDetailed(session.id));
   }
 
   @Get('current')
@@ -68,9 +95,13 @@ export class GuestTableSessionsController {
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
     requireVerifiedCustomerId(customer, 'to view the table');
-    const table = await this.diningTables.findByCode(tableCode);
+    const table = await this.diningTables.findByCode(
+      this.requireTableCode(tableCode),
+    );
     const session = await this.tableSessions.findActiveForTable(table.id);
-    return session ? this.tableSessions.findOneDetailed(session.id) : null;
+    return session
+      ? toGuestView(await this.tableSessions.findOneDetailed(session.id))
+      : null;
   }
 
   @Post('companions')
@@ -90,7 +121,8 @@ export class GuestTableSessionsController {
     }
     await this.assertMember(session.id, customerId);
     const companion = await this.customers.findOrCreateByPhone(dto.phone, dto.name);
-    return this.tableSessions.addCustomer(session.id, companion.id);
+    await this.tableSessions.addCustomer(session.id, companion.id);
+    return toGuestView(await this.tableSessions.findOneDetailed(session.id));
   }
 
   @Delete('companions/:companionId')
@@ -101,12 +133,15 @@ export class GuestTableSessionsController {
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
     const customerId = requireVerifiedCustomerId(customer, 'to manage the party');
-    const table = await this.diningTables.findByCode(tableCode);
+    const table = await this.diningTables.findByCode(
+      this.requireTableCode(tableCode),
+    );
     const session = await this.tableSessions.findActiveForTable(table.id);
     if (!session) {
       throw new NotFoundException(`No active session for table ${tableCode}`);
     }
     await this.assertMember(session.id, customerId);
-    return this.tableSessions.removeCustomer(session.id, companionId);
+    await this.tableSessions.removeCustomer(session.id, companionId);
+    return toGuestView(await this.tableSessions.findOneDetailed(session.id));
   }
 }

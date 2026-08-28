@@ -122,14 +122,34 @@ export class CustomersService {
     return this.toResponse(saved);
   }
 
+  /**
+   * Resolve a phone number to a Customer, creating a bare row if it's new.
+   * Unlike create(), this grants no welcome loyalty bonus — it exists for
+   * guest-side flows (a diner adding companions to a table) where the person
+   * being added hasn't verified the number themselves, so it must not be a
+   * lever for minting loyalty value against arbitrary numbers.
+   */
   async findOrCreateByPhone(phone: string, name: string): Promise<Customer> {
     const normalized = normalizeNepalPhone(phone);
     const existing = await this.customersRepository.findOne({
       where: { phone: normalized },
     });
     if (existing) return existing;
-    await this.create({ phone: normalized, name });
-    return this.customersRepository.findOneOrFail({ where: { phone: normalized } });
+    try {
+      return await this.customersRepository.save(
+        this.customersRepository.create({
+          name: name.trim().slice(0, 80),
+          phone: normalized,
+        }),
+      );
+    } catch (error) {
+      // Lost a race to another concurrent add for the same number.
+      const raced = await this.customersRepository.findOne({
+        where: { phone: normalized },
+      });
+      if (raced) return raced;
+      throw this.mapUniqueViolation(error);
+    }
   }
 
   async update(id: number, dto: UpdateCustomerDto): Promise<CustomerResponseDto> {

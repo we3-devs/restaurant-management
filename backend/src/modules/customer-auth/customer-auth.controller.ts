@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { RefreshTokenDto } from '../auth/dto/refresh-token.dto';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
 import { CustomerAuthService } from './customer-auth.service';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
@@ -60,6 +61,26 @@ export class CustomerAuthController {
       dto.code,
       dto.name,
     );
+  }
+
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Rotates a customer/guest refresh token for a fresh token pair',
+  })
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.customerAuthService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revokes a customer/guest refresh token' })
+  logout(@Body() dto: RefreshTokenDto): Promise<void> {
+    return this.customerAuthService.logout(dto.refreshToken);
   }
 
   @Public()

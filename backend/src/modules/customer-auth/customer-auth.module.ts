@@ -8,13 +8,14 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { Customer } from '../customers/entities/customer.entity';
 import { SmsService } from '../notifications/channels/sms.service';
+import { CustomerRefreshToken } from './entities/customer-refresh-token.entity';
 import { CustomerAuthController } from './customer-auth.controller';
 import { CustomerAuthService } from './customer-auth.service';
 import { JwtCustomerStrategy } from './strategies/jwt-customer.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Customer]),
+    TypeOrmModule.forFeature([Customer, CustomerRefreshToken]),
     PassportModule,
     DiningTablesModule,
     AuditLogsModule,

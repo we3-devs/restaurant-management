@@ -1,17 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
-
-const NEPAL_PHONE_PATTERN = /^(\+?977)?[- ]?9\d{9}$/;
+import { NEPAL_PHONE_PATTERN } from '../../../common/phone';
 
 export class JoinTableSessionDto {
   @ApiProperty()
   @IsString()
+  @MaxLength(64)
   tableCode: string;
 }
 
 export class AddCompanionDto {
   @ApiProperty()
   @IsString()
+  @MaxLength(64)
   tableCode: string;
 
   @ApiProperty()

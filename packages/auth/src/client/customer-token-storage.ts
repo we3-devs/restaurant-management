@@ -10,32 +10,52 @@
  * never by a TTL, matching the no-expiresIn JWT this token actually holds.
  */
 const STORAGE_KEY = "rms_customer_token"
+const REFRESH_STORAGE_KEY = "rms_customer_refresh_token"
 
-export function getStoredCustomerToken(): string | null {
+function read(key: string): string | null {
   if (typeof window === "undefined") return null
   try {
-    return window.localStorage.getItem(STORAGE_KEY)
+    return window.localStorage.getItem(key)
   } catch {
     // Storage disabled/unavailable (private mode in some browsers) — the
-    // httpOnly cookie is still the fallback, so this just means no backstop.
+    // httpOnly cookies are still the fallback, so this just means no backstop.
     return null
   }
 }
 
-export function setStoredCustomerToken(token: string): void {
+function write(key: string, value: string): void {
   if (typeof window === "undefined") return
   try {
-    window.localStorage.setItem(STORAGE_KEY, token)
+    window.localStorage.setItem(key, value)
   } catch {
-    // Ignore — see getStoredCustomerToken.
+    // Ignore — see read().
   }
 }
 
-export function clearStoredCustomerToken(): void {
+function remove(key: string): void {
   if (typeof window === "undefined") return
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.localStorage.removeItem(key)
   } catch {
-    // Ignore — see getStoredCustomerToken.
+    // Ignore — see read().
   }
+}
+
+export function getStoredCustomerToken(): string | null {
+  return read(STORAGE_KEY)
+}
+
+export function getStoredCustomerRefreshToken(): string | null {
+  return read(REFRESH_STORAGE_KEY)
+}
+
+/** Stores the access token, and the refresh token too when the caller has it (sign-in / client-side rotation). */
+export function setStoredCustomerToken(accessToken: string, refreshToken?: string): void {
+  write(STORAGE_KEY, accessToken)
+  if (refreshToken !== undefined) write(REFRESH_STORAGE_KEY, refreshToken)
+}
+
+export function clearStoredCustomerToken(): void {
+  remove(STORAGE_KEY)
+  remove(REFRESH_STORAGE_KEY)
 }

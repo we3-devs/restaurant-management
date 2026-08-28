@@ -48,6 +48,7 @@ export function TableDetailDialog({
 }) {
   const { data: sessions } = useTableSessions({ diningTableId: table.id, status: "active", limit: 1 })
   const activeSession = sessions?.data[0]
+  const partyMembers = activeSession?.customers ?? (activeSession?.customer ? [activeSession.customer] : [])
   const { data: orders } = useOrders({ tableSessionId: activeSession?.id, limit: 1 }, { enabled: !!activeSession })
   const activeOrder = orders?.data[0]
   const deleteTable = useDeleteDiningTable()
@@ -97,6 +98,28 @@ export function TableDetailDialog({
                   {activeSession.customer.loyaltyTier && (
                     <Badge variant="secondary">{activeSession.customer.loyaltyTier}</Badge>
                   )}
+                </div>
+              )}
+
+              {partyMembers.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Party members</p>
+                  <div className="divide-y rounded-lg border">
+                    {partyMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {member.name}
+                            {member.id === activeSession.customerId && (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">Primary</span>
+                            )}
+                          </p>
+                          {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
+                        </div>
+                        {member.loyaltyTier && <Badge variant="secondary">{member.loyaltyTier}</Badge>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

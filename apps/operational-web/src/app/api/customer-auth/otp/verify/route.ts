@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { setCustomerToken } from "@rms/auth/customer-session"
+import { setCustomerSession } from "@rms/auth/customer-session"
 import { verifyOtpSchema } from "@rms/validators/customer-portal"
 
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
@@ -23,12 +23,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: error?.message ?? "Invalid or expired code" }, { status: backendResponse.status })
   }
 
-  const data = (await backendResponse.json()) as { accessToken: string; customer: { id: number; name: string } }
-  await setCustomerToken(data.accessToken)
+  const data = (await backendResponse.json()) as {
+    accessToken: string
+    refreshToken: string
+    customer: { id: number; name: string }
+  }
+  await setCustomerSession(data)
 
-  // Also handed back to the client so it can save it to localStorage as a
-  // backstop (see customer-token-storage.ts) — the httpOnly cookie set above
-  // is invisible to JS by design, so that's the only way the client ever
-  // gets a copy of its own token.
-  return NextResponse.json({ customer: data.customer, accessToken: data.accessToken })
+  // Also handed back to the client so it can save them to localStorage as a
+  // backstop (see customer-token-storage.ts) — the httpOnly cookies set above
+  // are invisible to JS by design, so that's the only way the client ever
+  // gets a copy of its own tokens (and can rotate them itself).
+  return NextResponse.json({
+    customer: data.customer,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+  })
 }
