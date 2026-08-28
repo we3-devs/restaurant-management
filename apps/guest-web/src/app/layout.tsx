@@ -17,7 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: name,
     description: `Order from ${name}`,
-    ...(branding.faviconUrl ? { icons: { icon: branding.faviconUrl } } : {}),
+    icons: {
+      icon: branding.faviconUrl ?? "/favicon.ico",
+      apple: branding.faviconUrl ?? "/favicon.ico",
+    },
   };
 }
 

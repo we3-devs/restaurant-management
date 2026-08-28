@@ -31,8 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description: `${name} — Operations`,
     manifest: "/manifest.json",
     icons: {
-      icon: branding.faviconUrl ?? "/favicon.ico",
-      apple: branding.faviconUrl ?? "/icons/icon.svg",
+      icon: branding.faviconUrl ?? "/icons/favicon.ico",
+      apple: branding.faviconUrl ?? "/icons/favicon.ico",
     },
   };
 }

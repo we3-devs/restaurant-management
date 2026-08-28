@@ -33,8 +33,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description: `${name} — Restaurant Management System`,
     manifest: "/manifest.json",
     icons: {
-      icon: branding.faviconUrl ?? "/icons/logo.png",
-      apple: branding.faviconUrl ?? "/icons/logo.png",
+      icon: branding.faviconUrl ?? "/icons/favicon.ico",
+      apple: branding.faviconUrl ?? "/icons/favicon.ico",
     },
   };
 }
