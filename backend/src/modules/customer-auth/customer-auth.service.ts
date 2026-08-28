@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes, createHash } from 'crypto';
@@ -281,7 +281,10 @@ export class CustomerAuthService {
   ): Promise<CustomerTokenPair> {
     const jwtConfig = this.configService.get('jwt', { infer: true })!;
     const accessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: jwtConfig.accessExpiresIn,
+      // Config values are validated as strings at runtime, while newer
+      // jsonwebtoken typings require the branded StringValue type here.
+      expiresIn:
+        jwtConfig.accessExpiresIn as unknown as JwtSignOptions['expiresIn'],
     });
 
     const rawRefreshToken = randomBytes(48).toString('hex');

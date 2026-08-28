@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { Customer } from '../../customers/entities/customer.entity';
-import { CustomerJwtPayload } from '../types/customer-jwt-payload';
+import type { CustomerJwtPayload } from '../types/customer-jwt-payload';
 
 /**
  * Customer/guest equivalent of {@link RefreshToken}. Stores only a SHA-256
