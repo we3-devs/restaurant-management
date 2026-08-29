@@ -63,12 +63,15 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
   },
   pos: {
     receiptPrefix: 'BILL',
+    invoicePrefix: 'INV',
     receiptFooter: 'Thank you for dining with us!',
     receiptHeader: null,
     autoPrint: true,
     defaultPaymentMethod: 'cash',
     billNumberDigits: 4,
     billNumberResetPeriod: 'daily',
+    invoiceNumberDigits: 4,
+    invoiceNumberResetPeriod: 'daily',
   },
   kitchen: {
     ticketTimeoutMinutes: 20,
