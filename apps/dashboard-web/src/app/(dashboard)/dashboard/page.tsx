@@ -8,6 +8,7 @@ import { CreateOutletDialog } from "../outlets/create-outlet-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   DiningAreasSection,
+  DashboardStatsProvider,
   KitchenStatusSection,
   LiveOrdersSection,
   NeedsAttentionSection,
@@ -82,8 +83,8 @@ export default function DashboardPage() {
           <CreateOutletDialog />
         </div>
       ) : (
-        <>
-          <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} />
+        <DashboardStatsProvider outletId={outletId} enabled={dataEnabled && canViewDashboardStats}>
+          {canViewDashboardStats ? <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -123,7 +124,7 @@ export default function DashboardPage() {
       ) : null}
 
           <QuickActionsSection actions={quickActions} />
-        </>
+        </DashboardStatsProvider>
       )}
     </div>
   )

@@ -87,13 +87,13 @@ export default function SummaryPage() {
     wasBackfillRunning.current = isBackfillRunning
   }, [isBackfillRunning, queryClient])
 
-  usePageTitle("Summary")
+  usePageTitle("Period Summary")
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Summary</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Period Summary</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{selected?.periodLabel ?? "No data yet"}</span>
             <Badge variant="outline">{calendarSystem}</Badge>

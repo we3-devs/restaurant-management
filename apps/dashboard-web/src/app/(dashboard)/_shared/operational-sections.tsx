@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { createContext, useContext, useMemo } from "react"
 import Link from "next/link"
 import {
   AlertTriangleIcon,
@@ -23,7 +23,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
-import { useDashboardStats } from "@/hooks/use-dashboard"
+import { useDashboardStats, type DashboardStats } from "@/hooks/use-dashboard"
 import { useOrders, type Order } from "@/hooks/use-orders"
 import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useDiningTables } from "@/hooks/use-dining-tables"
@@ -64,6 +64,27 @@ export interface OperationalSectionProps {
   enabled: boolean
 }
 
+interface DashboardStatsContextValue {
+  today?: DashboardStats
+  yesterday?: DashboardStats
+  todayQuery: ReturnType<typeof useDashboardStats>
+  yesterdayQuery: ReturnType<typeof useDashboardStats>
+}
+
+const DashboardStatsContext = createContext<DashboardStatsContextValue | null>(null)
+
+export function DashboardStatsProvider({ outletId, enabled, children }: OperationalSectionProps & { children: React.ReactNode }) {
+  const todayQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
+  const yesterdayQuery = useDashboardStats({ outletId, ...yesterdayRange() }, { enabled })
+  return <DashboardStatsContext.Provider value={{ today: todayQuery.data, yesterday: yesterdayQuery.data, todayQuery, yesterdayQuery }}>{children}</DashboardStatsContext.Provider>
+}
+
+function useDashboardStatsContext() {
+  const value = useContext(DashboardStatsContext)
+  if (!value) throw new Error("Dashboard sections must be rendered inside DashboardStatsProvider")
+  return value
+}
+
 function SectionError({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
@@ -80,16 +101,14 @@ function SectionError({ onRetry }: { onRetry: () => void }) {
 /* ------------------------------------------------------------------ */
 
 export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionProps) {
-  const todayQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
-  const yesterdayQuery = useDashboardStats({ outletId, ...yesterdayRange() }, { enabled })
+  const { today, yesterday, todayQuery } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(todayQuery.isLoading || !todayQuery.data)
 
   if (showSkeleton) return <StatGridSkeleton count={4} className="grid-cols-2 md:grid-cols-4" />
   if (todayQuery.isError) return <SectionError onRetry={() => todayQuery.refetch()} />
   if (!todayQuery.data) return null
 
-  const data = todayQuery.data
-  const yesterday = yesterdayQuery.data
+  const data = todayQuery.data!
   const pendingOrders = data.ordersOverview.find((o) => o.status === "pending")?.count ?? 0
 
   return (
@@ -258,7 +277,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
     { enabled: enabled && canViewOrders },
   )
   const kdsQuery = useKdsBootstrap(enabled && canViewKitchen ? outletId : null)
-  const statsQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled: enabled && canViewDashboardStats })
+  const { today: stats, todayQuery: statsQuery } = useDashboardStatsContext()
 
   const isLoading =
     (canViewOrders && ordersQuery.isLoading) || (canViewKitchen && kdsQuery.isLoading) || (canViewDashboardStats && statsQuery.isLoading)
@@ -299,7 +318,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
       })
     }
 
-    const outOfStock = statsQuery.data?.inventoryOverview.outOfStockCount ?? 0
+    const outOfStock = stats?.inventoryOverview.outOfStockCount ?? 0
     if (outOfStock > 0) {
       result.push({
         id: "out-of-stock",
@@ -309,7 +328,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
       })
     }
 
-    const lowStock = statsQuery.data?.inventoryOverview.lowStockCount ?? 0
+    const lowStock = stats?.inventoryOverview.lowStockCount ?? 0
     if (lowStock > 0) {
       result.push({
         id: "low-stock",
@@ -498,7 +517,7 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
 
 export function KitchenStatusSection({ outletId, enabled }: OperationalSectionProps) {
   const kdsQuery = useKdsBootstrap(enabled ? outletId : null)
-  const statsQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
+  const { today: stats } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(kdsQuery.isLoading)
 
   const tickets = kdsQuery.data?.tickets ?? []
@@ -554,10 +573,10 @@ export function KitchenStatusSection({ outletId, enabled }: OperationalSectionPr
                 <span className="text-muted-foreground">—</span>
               )}
             </div>
-            {statsQuery.data?.kitchenOverview.avgPrepMinutes != null && (
+              {stats?.kitchenOverview.avgPrepMinutes != null && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Avg prep time</span>
-                <span className="font-medium">{statsQuery.data.kitchenOverview.avgPrepMinutes.toFixed(1)} min</span>
+                <span className="font-medium">{stats.kitchenOverview.avgPrepMinutes.toFixed(1)} min</span>
               </div>
             )}
           </div>
@@ -572,12 +591,11 @@ export function KitchenStatusSection({ outletId, enabled }: OperationalSectionPr
 /* ------------------------------------------------------------------ */
 
 export function RevenueSnapshotSection({ outletId, enabled }: OperationalSectionProps) {
-  const todayQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
-  const yesterdayQuery = useDashboardStats({ outletId, ...yesterdayRange() }, { enabled })
+  const { today, yesterday, todayQuery } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(todayQuery.isLoading)
 
-  const change = todayQuery.data && yesterdayQuery.data
-    ? pctChange(todayQuery.data.salesOverview.grandTotal, yesterdayQuery.data.salesOverview.grandTotal)
+  const change = today && yesterday
+    ? pctChange(today.salesOverview.grandTotal, yesterday.salesOverview.grandTotal)
     : undefined
 
   return (
@@ -593,7 +611,7 @@ export function RevenueSnapshotSection({ outletId, enabled }: OperationalSection
           <SectionError onRetry={() => todayQuery.refetch()} />
         ) : (
           <div className="flex items-baseline gap-3">
-            <p className="text-3xl font-semibold tracking-tight">{money(todayQuery.data?.salesOverview.grandTotal ?? 0)}</p>
+            <p className="text-3xl font-semibold tracking-tight">{money(today?.salesOverview.grandTotal ?? 0)}</p>
             {change !== undefined && (
               <span className={cn("text-sm font-medium", change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                 {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs yesterday
@@ -607,7 +625,7 @@ export function RevenueSnapshotSection({ outletId, enabled }: OperationalSection
 }
 
 export function PaymentStatusSection({ outletId, enabled }: OperationalSectionProps) {
-  const statsQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
+  const { today: stats, todayQuery: statsQuery } = useDashboardStatsContext()
   const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 30 }, { enabled })
   const showSkeleton = useDelayedLoading(statsQuery.isLoading)
 
@@ -626,11 +644,11 @@ export function PaymentStatusSection({ outletId, enabled }: OperationalSectionPr
           <SectionError onRetry={() => statsQuery.refetch()} />
         ) : (
           <>
-            {(statsQuery.data?.paymentBreakdown.length ?? 0) === 0 ? (
+            {(stats?.paymentBreakdown.length ?? 0) === 0 ? (
               <p className="text-sm text-muted-foreground">No payments collected yet today</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {statsQuery.data?.paymentBreakdown.map((row) => (
+                {stats?.paymentBreakdown.map((row) => (
                   <Badge key={row.method} variant="secondary" className="capitalize">
                     {row.method}: {money(row.amount)}
                   </Badge>

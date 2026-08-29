@@ -32,7 +32,7 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: Gauge,
     links: [
       { href: "/dashboard", label: "Dashboard", permission: true },
-      { href: "/summary", label: "Summary", permission: "dashboard.view" },
+      { href: "/summary", label: "Period Summary", permission: "dashboard.view" },
       { href: "/analytics", label: "Analytics", permission: "dashboard.view" },
       { href: "/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
       { href: "/tables", label: "Tables", permission: "dining-tables.view" },

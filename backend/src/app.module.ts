@@ -1,5 +1,5 @@
+import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -117,32 +117,32 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
           username: dbConfig.username,
           password: dbConfig.password,
           // Schema is owned by the existing Laravel migrations (except
-          // refresh_tokens, added via our own migration) — never auto-sync.
+          // refresh_tokens, added via our own migration) Ã¢â‚¬â€ never auto-sync.
           synchronize: false,
           autoLoadEntities: true,
           // Laravel already owns a "migrations" tracking table with an
-          // incompatible schema — keep TypeORM's tracker separate.
+          // incompatible schema Ã¢â‚¬â€ keep TypeORM's tracker separate.
           migrationsTableName: 'typeorm_migrations',
           // TypeORM 0.3.x no longer sets create/update-date columns
-          // client-side unless the DB column has its own DEFAULT — the
+          // client-side unless the DB column has its own DEFAULT Ã¢â‚¬â€ the
           // Laravel schema has none, so this subscriber does it instead.
           subscribers: [
             TimestampSubscriber,
             RealtimeChangeSubscriber,
             DashboardCacheSubscriber,
           ],
-          // The DB is a remote pooler (Seoul) — profiling showed ~150-200ms
+          // The DB is a remote pooler (Seoul) Ã¢â‚¬â€ profiling showed ~150-200ms
           // per query even warm, but ~1.1-1.4s to establish a *new* pooled
           // connection (TCP+TLS+auth). `min` does NOT proactively open
           // connections in pg-pool (it only stops the pool from closing
-          // idle ones below that count once they exist) — actual proactive
+          // idle ones below that count once they exist) Ã¢â‚¬â€ actual proactive
           // warm-up is AppModule.onApplicationBootstrap's repeating ping,
           // which keeps 4 connections open (matching the dashboard's 4
           // concurrent endpoint calls). `min` here just keeps those from
           // being closed the moment they go idle.
           //
           // `max` MUST stay comfortably under Supabase's PgBouncer
-          // session-mode ceiling (pool_size: 15 on this project) — a higher
+          // session-mode ceiling (pool_size: 15 on this project) Ã¢â‚¬â€ a higher
           // `max` doesn't buy more real capacity, it just means the app asks
           // PgBouncer for sessions it will refuse once traffic pushes past
           // 15 concurrent, which surfaces as EMAXCONNSESSION errors (500s)
@@ -162,14 +162,14 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
             idleTimeoutMillis: 60_000,
             // node-postgres uses this both to bound establishing a new
             // physical connection AND how long a caller queues waiting for
-            // a client to free up — set comfortably above the ~1.1-1.4s
+            // a client to free up Ã¢â‚¬â€ set comfortably above the ~1.1-1.4s
             // cold-connect cost documented above so legitimate cold-starts
             // still succeed, but a starved pool (e.g. a burst of order
             // creations) fails fast with a clear error instead of hanging
             // every request, including /health, until a manual restart.
             connectionTimeoutMillis: 5_000,
             // Session-level query timeout (SET statement_timeout on each
-            // checked-out connection) — a backstop against a pathological
+            // checked-out connection) Ã¢â‚¬â€ a backstop against a pathological
             // query holding a connection indefinitely, well above the
             // documented ~150-200ms warm-query baseline.
             statement_timeout: 15_000,
@@ -179,7 +179,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     }),
     CacheModule.register({ isGlobal: true }),
     ScheduleModule.forRoot(),
-    // Not registered as a global APP_GUARD — applied via @UseGuards(ThrottlerGuard)
+    // Not registered as a global APP_GUARD Ã¢â‚¬â€ applied via @UseGuards(ThrottlerGuard)
     // only on the handful of public, unauthenticated guest-facing routes (see
     // customer-auth/dining-tables/orders/service-requests controllers), so
     // authenticated staff APIs are completely untouched by this.
@@ -244,12 +244,13 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     CustomerPortalModule,
   ],
 })
-export class AppModule implements OnApplicationBootstrap {
+export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
+  private warmupTimer?: NodeJS.Timeout;
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   /**
-   * Fires 10 trivial queries in parallel — at boot, and then on a repeating
-   * interval — so the connection pool keeps 10 warm connections established
+   * Fires 10 trivial queries in parallel Ã¢â‚¬â€ at boot, and then on a repeating
+   * interval Ã¢â‚¬â€ so the connection pool keeps 10 warm connections established
    * at all times. Without this, whichever request can't reuse an
    * already-open connection pays the ~1.1-1.4s TCP+TLS+auth cost of opening
    * a fresh one to the remote DB pooler.
@@ -261,11 +262,11 @@ export class AppModule implements OnApplicationBootstrap {
    * full ~1.4s TLS+auth overhead. 10 covers the bootstrap burst.
    *
    * Repeating, not one-shot: `pg.Pool`'s `min` option does NOT proactively
-   * keep connections open — it only stops the pool from closing idle ones
+   * keep connections open Ã¢â‚¬â€ it only stops the pool from closing idle ones
    * below that count once they exist (pg-pool reads `min` solely in
    * `_isAboveMin()`, which gates removal, never creation). So a one-time
    * boot warm-up decays the moment `idleTimeoutMillis` (60s) passes with no
-   * DB traffic — normal between page loads — and the next burst
+   * DB traffic Ã¢â‚¬â€ normal between page loads Ã¢â‚¬â€ and the next burst
    * of concurrent requests is back to paying the connect tax. Pinging every
    * 45s (under the 60s idle timeout) keeps the 10 connections from ever
    * aging out.
@@ -279,8 +280,16 @@ export class AppModule implements OnApplicationBootstrap {
         ),
       );
     await pingAll();
-    setInterval(() => {
+    this.warmupTimer = setInterval(() => {
       pingAll().catch(() => undefined);
-    }, 45_000).unref();
+    }, 45_000);
+    this.warmupTimer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.warmupTimer) {
+      clearInterval(this.warmupTimer);
+      this.warmupTimer = undefined;
+    }
   }
 }

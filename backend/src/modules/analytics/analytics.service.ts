@@ -5,20 +5,23 @@ import { OutletAccessService, ALL_OUTLETS, AccessibleOutlets } from '../auth/out
 import { User } from '../users/entities/user.entity';
 import { Order } from '../orders/entities/order.entity';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
+import { SettingsService } from '../settings/settings.service';
+import { businessDateRange } from '../../common/reporting/reporting-date.util';
 
 type Scope = { from: Date; to: Date; outlets: AccessibleOutlets | number; query: AnalyticsQueryDto };
 const n = (value: unknown) => Number(value ?? 0);
 
 @Injectable()
 export class AnalyticsService {
-  constructor(@InjectRepository(Order) private readonly orders: Repository<Order>, private readonly access: OutletAccessService) {}
+  constructor(@InjectRepository(Order) private readonly orders: Repository<Order>, private readonly access: OutletAccessService, private readonly settings: SettingsService) {}
 
   private async scope(user: User, query: AnalyticsQueryDto): Promise<Scope> {
     const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
     if (query.outletId !== undefined && outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
     if (outlets.length === 0) throw new ForbiddenException('You do not have access to any outlet');
-    const to = query.to ? new Date(`${query.to}T23:59:59.999`) : new Date();
-    const from = query.from ? new Date(`${query.from}T00:00:00.000`) : new Date(to.getTime() - 29 * 86400000);
+    const business = await this.settings.getBusinessSettings();
+    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
+    const { from, to } = businessDateRange(query.from, query.to, timezone);
     return { from, to, outlets: query.outletId === undefined ? outlets : query.outletId, query };
   }
 
@@ -46,27 +49,25 @@ export class AnalyticsService {
     return { range: { from: scope.from, to: scope.to }, kpis: { grossSales:n(row?.grossSales), netSales:n(row?.netSales), orders, averageOrderValue: orders ? n(row?.grossSales)/orders : 0, customers:n(row?.customers), itemsSold:n(itemRow?.itemsSold), discounts:n(row?.discounts), tax:n(row?.tax), serviceCharge:n(row?.serviceCharge), refunds:n(row?.refunds), outstanding:n(row?.outstanding), loyaltyDiscount:n(row?.loyaltyDiscount) }, trend: trend.map(x=>({date:x.date,orders:n(x.orders),revenue:n(x.revenue)})), orderMix: { sources: sources.map(x=>({name:x.name,orders:n(x.orders),revenue:n(x.revenue)})), types: types.map(x=>({name:x.name,orders:n(x.orders)})) }, paymentMix: payments.map(x=>({name:x.name,amount:n(x.amount)})) };
   }
 
-  async sales(user: User, query: AnalyticsQueryDto) { const data = await this.overview(user, query); return { ...data, revenue: { grossRevenue:data.kpis.grossSales, discounts:data.kpis.discounts, tax:data.kpis.tax, serviceCharge:data.kpis.serviceCharge, loyaltyDiscount:data.kpis.loyaltyDiscount, refunds:data.kpis.refunds, netRevenue:data.kpis.netSales }, compare: null }; }
-
   async products(user: User, query: AnalyticsQueryDto) {
     const scope = await this.scope(user, query);
     const qb = this.apply(this.orders.manager.createQueryBuilder().from('order_items','i').innerJoin('orders','o','o.id=i.order_id').innerJoin('foods','f','f.id=i.food_id').leftJoin('food_categories','c','c.id=f.food_category_id'),'o',scope).andWhere("o.status != 'cancelled'");
     const rows = await qb.select('f.id','foodId').addSelect('f.name','food').addSelect('SUM(i.quantity)','quantity').addSelect('SUM(i.total_amount)','revenue').addSelect('COUNT(DISTINCT o.id)','orders').groupBy('f.id').addGroupBy('f.name').orderBy('revenue','DESC').limit(50).getRawMany();
     const total = rows.reduce((s,r)=>s+n(r.revenue),0);
-    const categories = await qb.clone().select('COALESCE(c.id,0)','categoryId').addSelect("COALESCE(c.name,'Uncategorized')",'category').addSelect('SUM(i.quantity)','quantity').addSelect('SUM(i.total_amount)','revenue').groupBy('c.id').addGroupBy('c.name').orderBy('revenue','DESC').getRawMany();
-    return { foods: rows.map(r=>({foodId:n(r.foodId),food:r.food,quantity:n(r.quantity),revenue:n(r.revenue),orders:n(r.orders),averagePrice:n(r.quantity)?n(r.revenue)/n(r.quantity):0,share:total?n(r.revenue)/total*100:0})), categories: categories.map(r=>({categoryId:n(r.categoryId),category:r.category,quantity:n(r.quantity),revenue:n(r.revenue)})) };
+    const categories = await qb.clone().select('COALESCE(c.id,0)','categoryId').addSelect("COALESCE(c.name,'Uncategorized')",'category').addSelect('SUM(i.quantity)','quantity').addSelect('SUM(i.total_amount)','revenue').addSelect('COUNT(DISTINCT o.id)','orders').groupBy('c.id').addGroupBy('c.name').orderBy('revenue','DESC').getRawMany();
+    return { foods: rows.map(r=>({foodId:n(r.foodId),food:r.food,quantity:n(r.quantity),revenue:n(r.revenue),orders:n(r.orders),averagePrice:n(r.quantity)?n(r.revenue)/n(r.quantity):0,share:total?n(r.revenue)/total*100:0})), categories: categories.map(r=>({categoryId:n(r.categoryId),category:r.category,quantity:n(r.quantity),revenue:n(r.revenue),orders:n(r.orders)})) };
   }
 
   async inventory(user: User, query: AnalyticsQueryDto) {
     const scope = await this.scope(user, query);
     const db = this.orders.manager;
-    const stocks = db.createQueryBuilder().select('i.id','ingredientId').addSelect('i.name','ingredient').addSelect('SUM(s.quantity)','quantity').addSelect('SUM(s.stock_value)','value').addSelect('SUM(s.reserved_quantity)','reserved').from('warehouse_ingredient_stocks','s').innerJoin('ingredients','i','i.id=s.ingredient_id').innerJoin('warehouses','w','w.id=s.warehouse_id').where('i.is_active=true');
+    const stocks = db.createQueryBuilder().select('i.id','ingredientId').addSelect('i.name','ingredient').addSelect('MAX(i.reorder_level)','reorderLevel').addSelect('MAX(i.minimum_stock)','minimumStock').addSelect('SUM(s.quantity)','quantity').addSelect('SUM(s.stock_value)','value').addSelect('SUM(s.reserved_quantity)','reserved').from('warehouse_ingredient_stocks','s').innerJoin('ingredients','i','i.id=s.ingredient_id').innerJoin('warehouses','w','w.id=s.warehouse_id').where('i.is_active=true');
     if (scope.outlets !== ALL_OUTLETS) stocks.andWhere('w.outlet_id IN (:...outletIds)',{outletIds:Array.isArray(scope.outlets)?scope.outlets:[scope.outlets]});
-    const stockRows = await stocks.groupBy('i.id').addGroupBy('i.name').orderBy('quantity','ASC').limit(100).getRawMany();
+    const stockRows = await stocks.groupBy('i.id').addGroupBy('i.name').orderBy('quantity','ASC').getRawMany();
     const tx = db.createQueryBuilder().select('t.transaction_type','type').addSelect('COALESCE(SUM(t.quantity_out),0)','quantity').from('ingredient_inventory_transactions','t').innerJoin('warehouses','w','w.id=t.warehouse_id').where('t.created_at BETWEEN :from AND :to',{from:scope.from,to:scope.to});
     if (scope.outlets !== ALL_OUTLETS) tx.andWhere('w.outlet_id IN (:...outletIds)',{outletIds:Array.isArray(scope.outlets)?scope.outlets:[scope.outlets]});
     const movement = await tx.groupBy('t.transaction_type').getRawMany();
-    return { kpis:{ inventoryValue:stockRows.reduce((s,r)=>s+n(r.value),0), lowStock:stockRows.filter(r=>n(r.quantity)<=0).length, outOfStock:stockRows.filter(r=>n(r.quantity)===0).length, reservedStock:stockRows.reduce((s,r)=>s+n(r.reserved),0) }, stock:stockRows.map(r=>({ingredientId:n(r.ingredientId),ingredient:r.ingredient,quantity:n(r.quantity),value:n(r.value)})), movement:movement.map(r=>({type:r.type,quantity:n(r.quantity)})) };
+    return { kpis:{ inventoryValue:stockRows.reduce((s,r)=>s+n(r.value),0), lowStock:stockRows.filter(r=>n(r.quantity)>0 && n(r.quantity)<=Math.max(n(r.reorderLevel),n(r.minimumStock))).length, outOfStock:stockRows.filter(r=>n(r.quantity)<=0).length, reservedStock:stockRows.reduce((s,r)=>s+n(r.reserved),0) }, stock:stockRows.slice(0,100).map(r=>({ingredientId:n(r.ingredientId),ingredient:r.ingredient,quantity:n(r.quantity),value:n(r.value)})), movement:movement.map(r=>({type:r.type,quantity:n(r.quantity)})) };
   }
 
   async customers(user: User, query: AnalyticsQueryDto) {
@@ -74,6 +75,10 @@ export class AnalyticsService {
     const priorOutlet = scope.outlets === ALL_OUTLETS ? '' : 'AND prior.outlet_id IN (:...outletIds)';
     const prior = `EXISTS (SELECT 1 FROM orders prior WHERE prior.customer_id = o.customer_id AND prior.status != 'cancelled' AND prior.created_at < :from ${priorOutlet})`;
     const row=await base.clone().select('COUNT(DISTINCT o.customer_id)','customers').addSelect('COUNT(*)','orders').addSelect('SUM(o.grand_total)','spend').addSelect(`COUNT(DISTINCT o.customer_id) FILTER (WHERE NOT ${prior})`,'newCustomers').addSelect(`COUNT(DISTINCT o.customer_id) FILTER (WHERE ${prior})`,'returningCustomers').setParameters({ from: scope.from, ...(scope.outlets === ALL_OUTLETS ? {} : { outletIds: Array.isArray(scope.outlets) ? scope.outlets : [scope.outlets] }) }).getRawOne();
-    const totalCustomers=n(row?.customers), orders=n(row?.orders), returningCustomers=n(row?.returningCustomers); return { kpis:{totalCustomers,orders,newCustomers:n(row?.newCustomers),returningCustomers,repeatRate:totalCustomers?returningCustomers/totalCustomers*100:0,averageSpend:totalCustomers?n(row?.spend)/totalCustomers:0,averageVisits:totalCustomers?orders/totalCustomers:0}, trend:[] };
+    const totalCustomers=n(row?.customers), orders=n(row?.orders), returningCustomers=n(row?.returningCustomers);
+    const outletClause = scope.outlets === ALL_OUTLETS ? '' : 'AND o.outlet_id = ANY($3::bigint[])';
+    const firstOutletClause = scope.outlets === ALL_OUTLETS ? '' : 'AND o2.outlet_id = ANY($3::bigint[])';
+    const trendRows = await this.orders.manager.query(`SELECT day::date AS date, COUNT(DISTINCT daily.customer_id) FILTER (WHERE first_order.first_order_at::date = day::date) AS "newCount", COUNT(DISTINCT daily.customer_id) FILTER (WHERE first_order.first_order_at::date < day::date) AS "returningCount" FROM generate_series($1::date, $2::date, interval '1 day') AS day LEFT JOIN LATERAL (SELECT DISTINCT o.customer_id FROM orders o WHERE o.status != 'cancelled' AND o.created_at::date = day::date ${outletClause}) daily ON true LEFT JOIN LATERAL (SELECT MIN(o2.created_at) AS first_order_at FROM orders o2 WHERE o2.customer_id = daily.customer_id AND o2.status != 'cancelled' ${firstOutletClause}) first_order ON true WHERE daily.customer_id IS NOT NULL GROUP BY day ORDER BY day`, scope.outlets === ALL_OUTLETS ? [scope.from, scope.to] : [scope.from, scope.to, Array.isArray(scope.outlets) ? scope.outlets : [scope.outlets]]);
+    return { kpis:{totalCustomers,orders,newCustomers:n(row?.newCustomers),returningCustomers,repeatRate:totalCustomers?returningCustomers/totalCustomers*100:0,averageSpend:totalCustomers?n(row?.spend)/totalCustomers:0,averageVisits:totalCustomers?orders/totalCustomers:0}, trend:trendRows.map((r:{date:string;newCount:string;returningCount:string})=>({date:String(r.date).slice(0,10),newCount:n(r.newCount),returningCount:n(r.returningCount)})) };
   }
 }

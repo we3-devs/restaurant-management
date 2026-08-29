@@ -6,6 +6,10 @@ import { DashboardComputeService } from '../dashboard-cache/dashboard-compute.se
 import type { NotificationsService } from '../notifications/notifications.service';
 import { DEFAULT_RANGE_DAYS } from './dashboard.constants';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { User } from '../users/entities/user.entity';
+import { SettingsService } from '../settings/settings.service';
+import { businessDateRange } from '../../common/reporting/reporting-date.util';
 
 const CACHE_TTL_MS = 60_000;
 export { DEFAULT_RANGE_DAYS };
@@ -83,59 +87,7 @@ export interface DashboardInventoryActivity {
   recentActivity: DashboardSummary['recentActivity'];
 }
 
-/** Aggregations backing the `/analytics` dashboard page's Sales/Finance/Operations/Inventory/Customers tabs. */
-export interface DashboardAnalytics {
-  peakHours: { hour: number; orderCount: number; revenue: number }[];
-  salesByCategory: {
-    categoryId: number;
-    categoryName: string;
-    revenue: number;
-    orderCount: number;
-  }[];
-  discountRefund: {
-    totalDiscount: number;
-    discountedOrderCount: number;
-    avgDiscount: number;
-    totalRefunded: number;
-    refundCount: number;
-    refundRate: number;
-    trend: { date: string; discountAmount: number }[];
-  };
-  orderStatus: { status: string; count: number; percentage: number }[];
-  prepPerformance: {
-    expectedMinutes: number;
-    avgMinutes: number | null;
-    fastestMinutes: number | null;
-    slowestMinutes: number | null;
-    totalTickets: number;
-    onTimeCount: number;
-    delayedCount: number;
-    trend: { date: string; avgMinutes: number }[];
-  };
-  ingredientConsumption: {
-    mostConsumed: {
-      ingredientId: number;
-      ingredientName: string;
-      totalConsumed: number;
-      unitName: string | null;
-    }[];
-    leastConsumed: {
-      ingredientId: number;
-      ingredientName: string;
-      totalConsumed: number;
-      unitName: string | null;
-    }[];
-  };
-  customerAnalytics: {
-    totalCustomers: number;
-    newCustomers: number;
-    returningCustomers: number;
-    avgSpend: number;
-    avgOrdersPerCustomer: number;
-    trend: { date: string; newCount: number; returningCount: number }[];
-  };
-}
-
+/** Legacy analytics response type retained temporarily for source compatibility. */
 /**
  * Thin router: the default date range (no dateFrom/dateTo, or an explicit
  * range matching it) reads from DashboardCacheService's precomputed cache
@@ -150,6 +102,8 @@ export class DashboardService {
   constructor(
     private readonly cacheService: DashboardCacheService,
     private readonly compute: DashboardComputeService,
+    private readonly outletAccess: OutletAccessService,
+    private readonly settings: SettingsService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -174,8 +128,8 @@ export class DashboardService {
     return `dashboard:${name}:${range.outletId ?? 'all'}:${range.from.toISOString()}:${range.to.toISOString()}`;
   }
 
-  async getStats(query: DashboardQueryDto): Promise<DashboardStats> {
-    const range = this.resolveRange(query);
+  async getStats(user: User, query: DashboardQueryDto): Promise<DashboardStats> {
+    const range = await this.resolveRange(user, query);
     const isDefault = this.isDefaultRange(query, range);
     return this.cache.wrap(
       this.cacheKey('stats', range, isDefault),
@@ -187,8 +141,8 @@ export class DashboardService {
     );
   }
 
-  async getCharts(query: DashboardQueryDto): Promise<DashboardCharts> {
-    const range = this.resolveRange(query);
+  async getCharts(user: User, query: DashboardQueryDto): Promise<DashboardCharts> {
+    const range = await this.resolveRange(user, query);
     const isDefault = this.isDefaultRange(query, range);
     return this.cache.wrap(
       this.cacheKey('charts', range, isDefault),
@@ -200,8 +154,8 @@ export class DashboardService {
     );
   }
 
-  async getBreakdown(query: DashboardQueryDto): Promise<DashboardBreakdown> {
-    const range = this.resolveRange(query);
+  async getBreakdown(user: User, query: DashboardQueryDto): Promise<DashboardBreakdown> {
+    const range = await this.resolveRange(user, query);
     const isDefault = this.isDefaultRange(query, range);
     return this.cache.wrap(
       this.cacheKey('breakdown', range, isDefault),
@@ -214,9 +168,10 @@ export class DashboardService {
   }
 
   async getInventoryActivity(
+    user: User,
     query: DashboardQueryDto,
   ): Promise<DashboardInventoryActivity> {
-    const range = this.resolveRange(query);
+    const range = await this.resolveRange(user, query);
     // Not range-bound (see DashboardComputeService), so it's always safe to
     // serve from cache regardless of the requested date range.
     return this.cache.wrap(
@@ -234,37 +189,12 @@ export class DashboardService {
    * precomputed cache tables — always computed live, wrapped by the same
    * 60s in-memory cache as the custom-range fallback paths above.
    */
-  async getAnalytics(query: DashboardQueryDto): Promise<{
-    current: DashboardAnalytics;
-    previous: DashboardAnalytics;
-  }> {
-    const range = this.resolveRange(query);
-    const durationMs = range.to.getTime() - range.from.getTime();
-    const previousRange: ResolvedRange = {
-      outletId: range.outletId,
-      from: new Date(range.from.getTime() - durationMs),
-      to: new Date(range.from.getTime()),
-    };
-    const isDefault = this.isDefaultRange(query, range);
-    return this.cache.wrap(
-      this.cacheKey('analytics', range, isDefault),
-      async () => {
-        const [current, previous] = await Promise.all([
-          this.compute.computeAnalytics(range),
-          this.compute.computeAnalytics(previousRange),
-        ]);
-        return { current, previous };
-      },
-      CACHE_TTL_MS,
-    );
-  }
-
-  private resolveRange(query: DashboardQueryDto): ResolvedRange {
-    const to = query.dateTo ? new Date(query.dateTo) : new Date();
-    const from = query.dateFrom
-      ? new Date(query.dateFrom)
-      : new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000);
-    return { outletId: query.outletId, from, to };
+  private async resolveRange(user: User, query: DashboardQueryDto): Promise<ResolvedRange> {
+    const business = await this.settings.getBusinessSettings();
+    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
+    const bounds = businessDateRange(query.dateFrom, query.dateTo, timezone);
+    const outletId = await this.outletAccess.resolveReportingOutlet(user, query.outletId);
+    return { outletId, from: bounds.from, to: bounds.to };
   }
 
   /**
@@ -280,7 +210,12 @@ export class DashboardService {
     range: ResolvedRange,
   ): boolean {
     if (!query.dateFrom && !query.dateTo) return true;
-    const expected = this.resolveRange({ outletId: query.outletId });
+    const now = new Date();
+    const expected: ResolvedRange = {
+      outletId: query.outletId,
+      from: new Date(now.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000),
+      to: now,
+    };
     return (
       range.to.toDateString() === expected.to.toDateString() &&
       range.from.toDateString() === expected.from.toDateString()

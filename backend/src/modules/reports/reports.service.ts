@@ -5,6 +5,8 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { Order } from '../orders/entities/order.entity';
 import { ListReportQueryDto } from './dto/list-report-query.dto';
 import { REPORT_TYPES, type ReportType } from './report-columns';
+import { SettingsService } from '../settings/settings.service';
+import { businessDateRange } from '../../common/reporting/reporting-date.util';
 
 const DEFAULT_RANGE_DAYS = 30;
 const EXPORT_ROW_CAP = 5000;
@@ -30,17 +32,17 @@ export class ReportsService {
   constructor(
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
+    private readonly settings: SettingsService,
   ) {}
 
-  private resolve(
+  private async resolve(
     query: ListReportQueryDto,
     accessibleOutletIds: number[] | 'ALL',
     forExport = false,
-  ): ResolvedQuery {
-    const to = query.dateTo ? new Date(query.dateTo) : new Date();
-    const from = query.dateFrom
-      ? new Date(query.dateFrom)
-      : new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000);
+  ): Promise<ResolvedQuery> {
+    const business = await this.settings.getBusinessSettings();
+    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
+    const { from, to } = businessDateRange(query.dateFrom, query.dateTo, timezone);
     let outletIds: number[] | undefined;
     if (query.outletId !== undefined) {
       outletIds = [query.outletId];
@@ -72,7 +74,7 @@ export class ReportsService {
     if (!REPORT_TYPES.includes(type)) {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
-    const resolved = this.resolve(query, accessibleOutletIds);
+    const resolved = await this.resolve(query, accessibleOutletIds);
     return this.run(type, resolved);
   }
 
@@ -85,7 +87,7 @@ export class ReportsService {
     if (!REPORT_TYPES.includes(type)) {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
-    const resolved = this.resolve(query, accessibleOutletIds, true);
+    const resolved = await this.resolve(query, accessibleOutletIds, true);
     const result = await this.run(type, resolved);
     return result.data;
   }

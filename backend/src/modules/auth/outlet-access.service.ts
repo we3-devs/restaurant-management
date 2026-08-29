@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { User } from '../users/entities/user.entity';
 import { PermissionsService } from './permissions.service';
 
 export const ALL_OUTLETS = 'ALL' as const;
@@ -52,5 +53,21 @@ export class OutletAccessService {
     if (!allowed) {
       throw new ForbiddenException('You do not have access to this outlet');
     }
+  }
+
+  /** Resolves a reporting request to one safe active outlet. Undefined means all outlets for a superadmin. */
+  async resolveReportingOutlet(user: User, requestedOutletId?: number): Promise<number | undefined> {
+    const accessible = await this.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    if (requestedOutletId !== undefined) {
+      await this.assertOutletAccess(user.id, user.isSuperadmin, requestedOutletId);
+      return requestedOutletId;
+    }
+    if (accessible === ALL_OUTLETS) return undefined;
+    if (accessible.length === 0) throw new ForbiddenException('You do not have access to any outlet');
+    return accessible[0];
+  }
+
+  assertSuperadmin(user: User): void {
+    if (!user.isSuperadmin) throw new ForbiddenException('Only a superadmin may perform this operation');
   }
 }

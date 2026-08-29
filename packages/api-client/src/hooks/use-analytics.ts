@@ -65,42 +65,6 @@ export interface CustomerAnalytics {
   trend: { date: string; newCount: number; returningCount: number }[]
 }
 
-export interface DashboardAnalytics {
-  peakHours: PeakHour[]
-  salesByCategory: SalesByCategory[]
-  discountRefund: DiscountRefund
-  orderStatus: OrderStatusAnalytic[]
-  prepPerformance: PrepPerformance
-  ingredientConsumption: IngredientConsumptionAnalytics
-  customerAnalytics: CustomerAnalytics
-}
-
-export interface DashboardAnalyticsResponse {
-  current: DashboardAnalytics
-  previous: DashboardAnalytics
-}
-
-function analyticsQueryString(params: DashboardParams): string {
-  const { outletId, ...rest } = params
-  return toQueryString({ outletId: outletId ?? undefined, ...rest })
-}
-
-/**
- * Analytics for the `/analytics` page's Sales/Finance/Operations/Inventory/
- * Customers tabs. Returns both the requested range (`current`) and the
- * equivalent immediately-preceding range (`previous`) so the page's
- * insights strip can compute real % changes client-side.
- */
-export function useDashboardAnalytics(params: DashboardParams, options?: DashboardQueryOptions) {
-  return useQuery({
-    queryKey: queryKeys.dashboard.analytics(params),
-    queryFn: () => apiClient<DashboardAnalyticsResponse>(`/dashboard/analytics${analyticsQueryString(params)}`),
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
-    enabled: options?.enabled,
-  })
-}
-
 export interface AnalyticsParams extends DashboardParams {
   departmentId?: number | null
   orderSource?: string
@@ -114,8 +78,7 @@ export interface OverviewAnalytics {
   orderMix: { sources: { name: string; orders: number; revenue: number }[]; types: { name: string; orders: number }[] }
   paymentMix: { name: string; amount: number }[]
 }
-export interface SalesAnalytics extends OverviewAnalytics { revenue: Record<string, number>; compare: unknown }
-export interface ProductsAnalytics { foods: { foodId: number; food: string; quantity: number; revenue: number; orders: number; averagePrice: number; share: number }[]; categories: { categoryId: number; category: string; quantity: number; revenue: number }[] }
+export interface ProductsAnalytics { foods: { foodId: number; food: string; quantity: number; revenue: number; orders: number; averagePrice: number; share: number }[]; categories: { categoryId: number; category: string; quantity: number; revenue: number; orders: number }[] }
 export interface InventoryAnalytics { kpis: Record<string, number>; stock: { ingredientId: number; ingredient: string; quantity: number; value: number }[]; movement: { type: string; quantity: number }[] }
 export interface CustomersAnalytics { kpis: Record<string, number>; trend: { date: string; newCount: number; returningCount: number }[] }
 
@@ -125,9 +88,6 @@ function analyticsParams(params: AnalyticsParams) {
 
 export function useAnalyticsOverview(params: AnalyticsParams, options?: DashboardQueryOptions) {
   return useQuery({ queryKey: ["analytics", "overview", params], queryFn: () => apiClient<OverviewAnalytics>(`/analytics/overview${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
-}
-export function useAnalyticsSales(params: AnalyticsParams, options?: DashboardQueryOptions) {
-  return useQuery({ queryKey: ["analytics", "sales", params], queryFn: () => apiClient<SalesAnalytics>(`/analytics/sales${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
 }
 export function useAnalyticsProducts(params: AnalyticsParams, options?: DashboardQueryOptions) {
   return useQuery({ queryKey: ["analytics", "products", params], queryFn: () => apiClient<ProductsAnalytics>(`/analytics/products${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })

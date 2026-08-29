@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OutletsService } from '../outlets/outlets.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   PeriodInsight,
   type PeriodType,
@@ -26,11 +27,17 @@ const ALL_OUTLETS_SENTINEL = 0;
 export class PeriodInsightsService {
   private readonly logger = new Logger(PeriodInsightsService.name);
 
+  private async getBusinessTimezone(): Promise<string> {
+    const business = await this.settings.getBusinessSettings();
+    return typeof business.timezone === 'string' && business.timezone ? business.timezone : 'Asia/Kathmandu';
+  }
+
   constructor(
     @InjectRepository(PeriodInsight)
     private readonly repo: Repository<PeriodInsight>,
     private readonly compute: PeriodInsightsComputeService,
     private readonly outletsService: OutletsService,
+    private readonly settings: SettingsService,
   ) {}
 
   async list(params: {
@@ -52,6 +59,7 @@ export class PeriodInsightsService {
   private async rollupOne(
     outletId: number | undefined,
     window: PeriodWindow,
+    timeZone: string,
   ): Promise<void> {
     const payload = await this.compute.computePayload({
       outletId,
@@ -62,9 +70,9 @@ export class PeriodInsightsService {
       {
         outletId: outletId ?? ALL_OUTLETS_SENTINEL,
         periodType: window.periodType,
-        periodStart: toDateOnlyString(window.periodStart),
-        periodEnd: toDateOnlyString(window.periodEnd),
-        periodLabel: periodLabel(window),
+        periodStart: toDateOnlyString(window.periodStart, timeZone),
+        periodEnd: toDateOnlyString(window.periodEnd, timeZone),
+        periodLabel: periodLabel(window, timeZone),
         payload,
       },
       ['outletId', 'periodType', 'periodStart'],
@@ -73,16 +81,16 @@ export class PeriodInsightsService {
 
   /**
    * Rolls up one period window for every outlet plus the unfiltered "all
-   * outlets" row. Sequential, not Promise.all — a full-history backfill can
+   * outlets" row. Sequential, not Promise.all â€” a full-history backfill can
    * fan this out across many windows already, and running every outlet's
    * queries concurrently on top of that exhausts the connection pool
    * (Supabase's pooler in particular).
    */
-  private async rollupAllOutlets(window: PeriodWindow): Promise<void> {
+  private async rollupAllOutlets(window: PeriodWindow, timeZone: string): Promise<void> {
     const outlets = await this.outletsService.findAllUnpaginated();
-    await this.rollupOne(undefined, window);
+    await this.rollupOne(undefined, window, timeZone);
     for (const outlet of outlets) {
-      await this.rollupOne(outlet.id, window);
+      await this.rollupOne(outlet.id, window, timeZone);
     }
     this.logger.log(
       `Rolled up ${window.periodType} insight (${toDateOnlyString(window.periodStart)}) for ${outlets.length} outlet(s)`,
@@ -91,20 +99,23 @@ export class PeriodInsightsService {
 
   /** Rolls up yesterday's daily period for every outlet. Safe to call daily. */
   async rollupDaily(now = new Date()): Promise<void> {
-    await this.rollupAllOutlets(lastCompletedDay(now));
+    const timeZone = await this.getBusinessTimezone();
+    await this.rollupAllOutlets(lastCompletedDay(now, timeZone), timeZone);
   }
 
-  /** Rolls up the most recently completed Mon-Sun week for every outlet. Safe to call daily — it's a no-op re-upsert once already computed. */
+  /** Rolls up the most recently completed Mon-Sun week for every outlet. Safe to call daily â€” it's a no-op re-upsert once already computed. */
   async rollupWeekly(now = new Date()): Promise<void> {
-    await this.rollupAllOutlets(lastCompletedWeek(now));
+    const timeZone = await this.getBusinessTimezone();
+    await this.rollupAllOutlets(lastCompletedWeek(now, timeZone), timeZone);
   }
 
-  /** Rolls up the most recently completed calendar month for every outlet. Safe to call daily — it's a no-op re-upsert once already computed. */
+  /** Rolls up the most recently completed calendar month for every outlet. Safe to call daily â€” it's a no-op re-upsert once already computed. */
   async rollupMonthly(now = new Date()): Promise<void> {
-    await this.rollupAllOutlets(lastCompletedMonth(now));
+    const timeZone = await this.getBusinessTimezone();
+    await this.rollupAllOutlets(lastCompletedMonth(now, timeZone), timeZone);
   }
 
-  /** Runs all three rollups — used by the nightly scheduler and available for manual/migration backfill. */
+  /** Runs all three rollups â€” used by the nightly scheduler and available for manual/migration backfill. */
   async rollupAll(now = new Date()): Promise<void> {
     await Promise.all([
       this.rollupDaily(now),
@@ -120,13 +131,14 @@ export class PeriodInsightsService {
    * scheduler keeps things current on its own.
    */
   async backfillHistory(since: Date, now = new Date()): Promise<void> {
+    const timeZone = await this.getBusinessTimezone();
     const windows = [
-      ...dayWindows(since, now),
-      ...weekWindows(since, now),
-      ...monthWindows(since, now),
+      ...dayWindows(since, now, timeZone),
+      ...weekWindows(since, now, timeZone),
+      ...monthWindows(since, now, timeZone),
     ];
     for (const window of windows) {
-      await this.rollupAllOutlets(window);
+      await this.rollupAllOutlets(window, timeZone);
     }
     this.logger.log(
       `Backfilled ${windows.length} AD period insight window(s) since ${toDateOnlyString(since)}`,

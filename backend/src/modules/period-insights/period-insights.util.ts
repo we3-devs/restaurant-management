@@ -1,163 +1,121 @@
 import type { PeriodType } from './entities/period-insight.entity';
+import { DEFAULT_BUSINESS_TIMEZONE, startOfBusinessDate } from '../../common/reporting/reporting-date.util';
 
 export interface PeriodWindow {
   periodType: PeriodType;
-  /** Inclusive start of the period, local calendar date. */
   periodStart: Date;
-  /** Exclusive end of the period (start of the next period). */
   periodEnd: Date;
 }
 
 const DAY_MS = 24 * 60 * 60_000;
 
-function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function parts(date: Date, timeZone: string) {
+  const values = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' }).formatToParts(date);
+  return Object.fromEntries(values.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
 }
 
-/**
- * Formats using local calendar components, not `toISOString()` — the
- * windows themselves (`startOfDay` et al.) are built from local wall-clock
- * dates, and `periodLabel`/`shortDate` below also read local components.
- * Formatting via UTC here shifts the stored date backward for any positive
- * UTC offset (e.g. Nepal, UTC+5:45), producing a period_start that
- * disagrees with the label and can collide with an adjacent day's row.
- */
-function toDateOnly(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function dateOnly(date: Date, timeZone: string): string {
+  const p = parts(date, timeZone);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
-export function toDateOnlyString(date: Date): string {
-  return toDateOnly(date);
+function addDays(value: string, days: number): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-/** Yesterday's full calendar day, relative to `now`. */
-export function lastCompletedDay(now: Date): PeriodWindow {
-  const todayStart = startOfDay(now);
-  const periodStart = new Date(todayStart.getTime() - DAY_MS);
-  return { periodType: 'daily', periodStart, periodEnd: todayStart };
+function monthStart(value: string): string {
+  return `${value.slice(0, 7)}-01`;
 }
 
-/** The most recently completed Mon-Sun week, relative to `now`. */
-export function lastCompletedWeek(now: Date): PeriodWindow {
-  const todayStart = startOfDay(now);
-  // getDay(): 0=Sun..6=Sat. Distance back to this week's Monday.
-  const dayOfWeek = todayStart.getDay();
-  const daysSinceMonday = (dayOfWeek + 6) % 7;
-  const thisWeekMonday = new Date(
-    todayStart.getTime() - daysSinceMonday * DAY_MS,
-  );
-  const periodStart = new Date(thisWeekMonday.getTime() - 7 * DAY_MS);
-  const periodEnd = thisWeekMonday;
-  return { periodType: 'weekly', periodStart, periodEnd };
+function previousMonthStart(value: string): string {
+  return addDays(monthStart(value), -1).slice(0, 7) + '-01';
 }
 
-/** The most recently completed calendar month, relative to `now`. */
-export function lastCompletedMonth(now: Date): PeriodWindow {
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const periodStart = new Date(
-    thisMonthStart.getFullYear(),
-    thisMonthStart.getMonth() - 1,
-    1,
-  );
-  const periodEnd = thisMonthStart;
-  return { periodType: 'monthly', periodStart, periodEnd };
+function dayWindow(date: string, periodType: PeriodType, timeZone: string): PeriodWindow {
+  const periodStart = startOfBusinessDate(date, timeZone);
+  const periodEnd = startOfBusinessDate(addDays(date, 1), timeZone);
+  return { periodType, periodStart, periodEnd };
 }
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-function shortDate(date: Date): string {
-  return `${MONTH_NAMES[date.getMonth()].slice(0, 3)} ${date.getDate()}, ${date.getFullYear()}`;
+export function toDateOnlyString(date: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): string {
+  return dateOnly(date, timeZone);
 }
 
-/** Human-readable label for a period window, e.g. "Aug 21, 2026", "Aug 17 – 23, 2026", "August 2026". */
-export function periodLabel(window: PeriodWindow): string {
+export function lastCompletedDay(now: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow {
+  const today = dateOnly(now, timeZone);
+  return dayWindow(addDays(today, -1), 'daily', timeZone);
+}
+
+export function lastCompletedWeek(now: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow {
+  const today = dateOnly(now, timeZone);
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  const daysSinceMonday = (weekday + 6) % 7;
+  const thisMonday = addDays(today, -daysSinceMonday);
+  const periodStartDate = addDays(thisMonday, -7);
+  return { periodType: 'weekly', periodStart: startOfBusinessDate(periodStartDate, timeZone), periodEnd: startOfBusinessDate(thisMonday, timeZone) };
+}
+
+export function lastCompletedMonth(now: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow {
+  const current = monthStart(dateOnly(now, timeZone));
+  const previous = previousMonthStart(current);
+  return { periodType: 'monthly', periodStart: startOfBusinessDate(previous, timeZone), periodEnd: startOfBusinessDate(current, timeZone) };
+}
+
+export function periodLabel(window: PeriodWindow, timeZone = DEFAULT_BUSINESS_TIMEZONE): string {
   const { periodType, periodStart, periodEnd } = window;
-  if (periodType === 'daily') return shortDate(periodStart);
-
-  if (periodType === 'monthly') {
-    return `${MONTH_NAMES[periodStart.getMonth()]} ${periodStart.getFullYear()}`;
-  }
-
-  // weekly: periodEnd is exclusive (start of next week), so the last day
-  // shown is periodEnd - 1 day.
-  const lastDay = new Date(periodEnd.getTime() - DAY_MS);
-  const sameMonth = periodStart.getMonth() === lastDay.getMonth();
-  const sameYear = periodStart.getFullYear() === lastDay.getFullYear();
-  const startLabel = sameMonth
-    ? `${MONTH_NAMES[periodStart.getMonth()].slice(0, 3)} ${periodStart.getDate()}`
-    : shortDate(periodStart);
-  const endLabel = sameYear
-    ? `${MONTH_NAMES[lastDay.getMonth()].slice(0, 3)} ${lastDay.getDate()}, ${lastDay.getFullYear()}`
-    : shortDate(lastDay);
-  return `${startLabel} – ${endLabel}`;
+  const start = dateOnly(periodStart, timeZone);
+  const end = dateOnly(new Date(periodEnd.getTime() - 1), timeZone);
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  if (periodType === 'monthly') return `${names[startDate.getUTCMonth()]} ${startDate.getUTCFullYear()}`;
+  const short = (d: Date) => `${names[d.getUTCMonth()].slice(0, 3)} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  if (periodType === 'daily') return short(startDate);
+  const startLabel = startDate.getUTCMonth() === endDate.getUTCMonth() ? `${names[startDate.getUTCMonth()].slice(0, 3)} ${startDate.getUTCDate()}` : short(startDate);
+  return `${startLabel} – ${short(endDate)}`;
 }
 
-/** Every completed daily window from `since` (inclusive) up to `until` (exclusive), oldest first. */
-export function dayWindows(since: Date, until: Date): PeriodWindow[] {
+export function dayWindows(since: Date, until: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow[] {
   const windows: PeriodWindow[] = [];
-  const limit = startOfDay(until);
-  let cursor = startOfDay(since);
-  while (cursor.getTime() + DAY_MS <= limit.getTime()) {
-    const periodEnd = new Date(cursor.getTime() + DAY_MS);
-    windows.push({ periodType: 'daily', periodStart: cursor, periodEnd });
-    cursor = periodEnd;
+  const limit = dateOnly(until, timeZone);
+  let cursor = dateOnly(since, timeZone);
+  while (addDays(cursor, 1) <= limit) { windows.push(dayWindow(cursor, 'daily', timeZone)); cursor = addDays(cursor, 1); }
+  return windows;
+}
+
+export function weekWindows(since: Date, until: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow[] {
+  const windows: PeriodWindow[] = [];
+  const limit = startOfBusinessDate(dateOnly(until, timeZone), timeZone).getTime();
+  const initial = dateOnly(since, timeZone);
+  const weekday = new Date(`${initial}T12:00:00Z`).getUTCDay();
+  let cursor = addDays(initial, -((weekday + 6) % 7));
+  while (startOfBusinessDate(addDays(cursor, 7), timeZone).getTime() <= limit) {
+    windows.push({ periodType: 'weekly', periodStart: startOfBusinessDate(cursor, timeZone), periodEnd: startOfBusinessDate(addDays(cursor, 7), timeZone) });
+    cursor = addDays(cursor, 7);
   }
   return windows;
 }
 
-/** Every completed Mon-Sun weekly window from `since` up to `until`, oldest first. */
-export function weekWindows(since: Date, until: Date): PeriodWindow[] {
+export function monthWindows(since: Date, until: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): PeriodWindow[] {
   const windows: PeriodWindow[] = [];
-  const limit = startOfDay(until);
-  const start = startOfDay(since);
-  const daysSinceMonday = (start.getDay() + 6) % 7;
-  let cursor = new Date(start.getTime() - daysSinceMonday * DAY_MS);
-  while (cursor.getTime() + 7 * DAY_MS <= limit.getTime()) {
-    const periodEnd = new Date(cursor.getTime() + 7 * DAY_MS);
-    windows.push({ periodType: 'weekly', periodStart: cursor, periodEnd });
-    cursor = periodEnd;
+  const limit = startOfBusinessDate(dateOnly(until, timeZone), timeZone).getTime();
+  let cursor = monthStart(dateOnly(since, timeZone));
+  while (startOfBusinessDate(addDays(cursor, 31).slice(0, 7) + '-01', timeZone).getTime() <= limit) {
+    const next = addDays(cursor, 32).slice(0, 7) + '-01';
+    const periodEnd = startOfBusinessDate(next, timeZone);
+    if (periodEnd.getTime() > limit) break;
+    windows.push({ periodType: 'monthly', periodStart: startOfBusinessDate(cursor, timeZone), periodEnd });
+    cursor = next;
   }
   return windows;
 }
 
-/** Every completed calendar-month window from `since` up to `until`, oldest first. */
-export function monthWindows(since: Date, until: Date): PeriodWindow[] {
-  const windows: PeriodWindow[] = [];
-  const limit = startOfDay(until);
-  let cursor = new Date(since.getFullYear(), since.getMonth(), 1);
-  while (true) {
-    const periodEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-    if (periodEnd.getTime() > limit.getTime()) break;
-    windows.push({ periodType: 'monthly', periodStart: cursor, periodEnd });
-    cursor = periodEnd;
-  }
-  return windows;
+export function isWeekBoundary(now: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): boolean {
+  const value = dateOnly(now, timeZone);
+  return new Date(`${value}T12:00:00Z`).getUTCDay() === 1;
 }
 
-/** True on the first calendar day of an ISO week (Monday). */
-export function isWeekBoundary(now: Date): boolean {
-  return now.getDay() === 1;
-}
-
-/** True on the first calendar day of a month. */
-export function isMonthBoundary(now: Date): boolean {
-  return now.getDate() === 1;
+export function isMonthBoundary(now: Date, timeZone = DEFAULT_BUSINESS_TIMEZONE): boolean {
+  return dateOnly(now, timeZone).endsWith('-01');
 }
