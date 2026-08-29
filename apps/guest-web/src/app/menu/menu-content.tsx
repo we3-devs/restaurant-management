@@ -82,6 +82,7 @@ const UNCATEGORISED = -1;
 export default function MenuContent() {
   const { tableCode } = useGuestSession();
   const { session } = useTableSession(tableCode);
+  const diningTableName = session?.diningTableName ?? "Table";
   const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -345,8 +346,7 @@ export default function MenuContent() {
                 {branding.restaurantName}
               </h1>
               <p className="truncate text-xs text-slate-500">
-                Table - {tableCode}
-                {session && ` · ${(new Date(session.startedAt)).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
+                {diningTableName}
               </p>
             </div>
           </div>
