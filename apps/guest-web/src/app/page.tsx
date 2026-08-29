@@ -1,24 +1,22 @@
-import { Suspense } from "react";
-import Skeleton from "@/components/skeleton";
-import QRRedirectContent from "./qr-redirect-content";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function QRRedirect() {
+export default async function QRRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ table?: string }>;
+}) {
+  const { table } = await searchParams;
+
+  if (table) {
+    redirect(`/table?table=${encodeURIComponent(table)}`);
+  }
+
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-          <div className="w-full max-w-md space-y-4 text-center">
-            <Skeleton className="mx-auto size-12 rounded-full" />
-            <Skeleton className="mx-auto h-6 w-44" />
-            <Skeleton className="mx-auto h-4 w-64" />
-          </div>
-        </div>
-      }
-    >
-      <QRRedirectContent />
-    </Suspense>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <p className="text-gray-600">Invalid QR code.</p>
+    </div>
   );
 }
