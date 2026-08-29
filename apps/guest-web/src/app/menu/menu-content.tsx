@@ -24,6 +24,7 @@ import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
+import { ORDER_LABEL } from "@/lib/order-status";
 
 // These mirror the Public* projections from /foods/public,
 // /food-categories/public and /food-variants/public — all deliberately
@@ -709,6 +710,46 @@ export default function MenuContent() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          {guestOrders.length > 0 && (
+            <section className="mb-5 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Submitted orders
+                </h3>
+                <a
+                  href={`/order?table=${encodeURIComponent(tableCode)}`}
+                  className="text-xs font-medium text-brand-600 hover:underline"
+                >
+                  View all
+                </a>
+              </div>
+              <div className="space-y-2">
+                {guestOrders.map((order) => (
+                  <a
+                    key={order.id}
+                    href={`/order?table=${encodeURIComponent(tableCode)}`}
+                    onClick={() => setCartOpen(false)}
+                    className="block rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-brand-600 hover:bg-brand-50"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {order.orderNumber}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {ORDER_LABEL[order.status] ?? order.status}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-slate-900">
+                        {money(order.grandTotal)}
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
           {cart.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <ShoppingCart size={32} className="text-slate-300" />
