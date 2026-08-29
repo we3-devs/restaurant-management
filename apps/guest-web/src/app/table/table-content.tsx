@@ -99,8 +99,7 @@ export default function TableContent() {
         <div className="flex items-start gap-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm text-brand-800">
           <Users size={18} className="mt-0.5 shrink-0" />
           <p>
-            Everyone who scans this table&apos;s code joins the same order. Add
-            anyone who isn&apos;t scanning themselves.
+            Add anyone who isn&apos;t scanning the QR themselves.
           </p>
         </div>
 
