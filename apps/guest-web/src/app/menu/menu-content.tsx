@@ -372,6 +372,8 @@ export default function MenuContent() {
               Log in
             </button>
           )}
+          
+          {isAuthenticated && (
           <div className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200 p-1">
             <button
               onClick={() => {
@@ -404,6 +406,7 @@ export default function MenuContent() {
               Ordered{guestOrders.length > 0 && ` (${guestOrders.length})`}
             </button>
           </div>
+          )}
         </div>
 
         {activeSectionData && (
