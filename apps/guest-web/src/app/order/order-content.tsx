@@ -60,7 +60,7 @@ function StageTrack({
 }
 
 export default function OrderContent() {
-  const { tableCode } = useGuestSession();
+  const { tableCode, isReady } = useGuestSession();
   const { isAuthenticated } = useGuestAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -75,6 +75,10 @@ export default function OrderContent() {
       else next.add(id);
       return next;
     });
+
+  if (!isReady) {
+    return <div className="min-h-screen bg-slate-50" />;
+  }
 
   if (!tableCode) {
     return (

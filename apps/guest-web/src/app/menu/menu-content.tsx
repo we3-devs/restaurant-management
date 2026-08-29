@@ -82,7 +82,7 @@ const cartKey = (foodId: number, variantId?: number | null) =>
 const UNCATEGORISED = -1;
 
 export default function MenuContent() {
-  const { tableCode } = useGuestSession();
+  const { tableCode, isReady } = useGuestSession();
   const { session } = useTableSession(tableCode);
   const diningTableName = session?.diningTableName ?? "Table";
   const { isAuthenticated } = useGuestAuth();
@@ -316,6 +316,10 @@ export default function MenuContent() {
     }
     void placeOrder();
   };
+
+  if (!isReady) {
+    return <div className="min-h-screen bg-slate-50" />;
+  }
 
   if (!tableCode) {
     return (

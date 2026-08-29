@@ -11,7 +11,7 @@ export default async function QRRedirect({
   const { table } = await searchParams;
 
   if (table) {
-    redirect(`/table?table=${encodeURIComponent(table)}`);
+    redirect(`/menu?table=${encodeURIComponent(table)}`);
   }
 
   return (

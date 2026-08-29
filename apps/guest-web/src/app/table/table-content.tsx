@@ -13,7 +13,7 @@ import Skeleton from "@/components/skeleton";
 
 export default function TableContent() {
 	const router = useRouter();
-	const { tableCode } = useGuestSession();
+  const { tableCode, isReady } = useGuestSession();
 	const { isAuthenticated } = useGuestAuth();
 	const branding = useBranding();
 	const { session, members, isLoading, addCompanion, removeCompanion } = useTableSession(tableCode);
@@ -44,7 +44,11 @@ export default function TableContent() {
 		router.replace(tableCode ? `/menu?table=${tableCode}` : "/menu");
 	};
 
-	if (!tableCode) {
+  if (!isReady) {
+    return <div className="min-h-screen bg-slate-50" />;
+  }
+
+  if (!tableCode) {
 		return (
 			<div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-center">
 				<div>

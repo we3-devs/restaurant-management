@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 export function useGuestSession() {
   const [tableCode, setTableCode] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     // Extract table from URL on mount
@@ -33,6 +34,8 @@ export function useGuestSession() {
       setTableCode(urlTableCode);
       setIsLocked(true);
     }
+
+    setIsReady(true);
   }, []);
 
   const clear = () => {
@@ -44,6 +47,7 @@ export function useGuestSession() {
   return {
     tableCode,
     isLocked,
+    isReady,
     clear,
   };
 }
