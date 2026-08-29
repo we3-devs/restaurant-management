@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ChevronRight,
 } from "lucide-react";
+import { useTableSession } from "@/hooks/use-table-session";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
@@ -80,7 +81,8 @@ const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode } = useGuestSession();
-  const { isAuthenticated, name: customerName } = useGuestAuth();
+  const { session } = useTableSession(tableCode);
+  const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -340,22 +342,24 @@ export default function MenuContent() {
             )}
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
-                {branding.restaurantName ?? "Menu"}
+                {branding.restaurantName}
               </h1>
               <p className="truncate text-xs text-slate-500">
-                Table {tableCode}
-                {customerName && ` · ${customerName}`}
+                Table - {tableCode}
+                {session && ` · ${(new Date(session.startedAt)).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
               </p>
             </div>
           </div>
-          <a
-            href={`/table?table=${encodeURIComponent(tableCode)}`}
-            aria-label="Table party"
-            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
-          >
-            <Users size={14} />
-            Party
-          </a>
+          {isAuthenticated && (
+            <a
+              href={`/table?table=${encodeURIComponent(tableCode)}`}
+              aria-label="Table party"
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+            >
+              <Users size={14} />
+              Party
+            </a>
+          )}
           {!isAuthenticated && (
             <button
               onClick={() => setAuthIntent("login")}

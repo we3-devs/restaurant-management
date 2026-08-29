@@ -14,7 +14,7 @@ import Skeleton from "@/components/skeleton";
 export default function TableContent() {
   const router = useRouter();
   const { tableCode } = useGuestSession();
-  const { isAuthenticated, name: customerName } = useGuestAuth();
+  const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
   const { session, members, isLoading, addCompanion, removeCompanion } =
     useTableSession(tableCode);
@@ -90,7 +90,7 @@ export default function TableContent() {
           </h1>
           <p className="text-xs text-slate-500">
             {session?.diningTableName}
-            {session && ` · ${(session.startedAt ?? new Date()).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
+            {session && ` · ${(new Date(session.startedAt)).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
       </header>

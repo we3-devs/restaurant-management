@@ -17,7 +17,7 @@ export interface TableSession {
   outletName: string;
   diningTableName: string;
   guestCount: number;
-  startedAt: string | null;
+  startedAt: string ;
   customers: TablePartyMember[];
 }
 
