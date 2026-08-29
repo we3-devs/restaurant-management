@@ -62,7 +62,7 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     calendarSystem: 'AD',
   },
   pos: {
-    receiptPrefix: 'INV',
+    receiptPrefix: 'BILL',
     receiptFooter: 'Thank you for dining with us!',
     receiptHeader: null,
     autoPrint: true,

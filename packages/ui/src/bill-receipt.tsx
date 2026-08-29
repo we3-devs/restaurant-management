@@ -40,7 +40,7 @@ export function BillReceipt({ orderId }: { orderId: number }) {
         <p className="font-semibold">{outlet?.name ?? `Outlet #${order.outletId}`}</p>
         {posSettings?.receiptHeader && <p className="text-xs text-muted-foreground">{posSettings.receiptHeader}</p>}
         {customer && <p className="text-xs text-muted-foreground">Customer: {customer.name}</p>}
-        <p className="text-xs text-muted-foreground">Bill No: {order.billNumber ?? order.orderNumber}</p>
+        <p className="text-xs text-muted-foreground">Bill No: {order.billNumber}</p>
         <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</p>
       </div>
 
