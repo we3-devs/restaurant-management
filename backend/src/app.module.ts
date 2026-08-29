@@ -9,6 +9,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
 import { InstrumentationModule } from './common/instrumentation/instrumentation.module';
 import { TimingInterceptor } from './common/instrumentation/timing.interceptor';
+import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor';
 import { DashboardCacheSubscriber } from './common/subscribers/dashboard-cache.subscriber';
 import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.subscriber';
 import { TimestampSubscriber } from './common/subscribers/timestamp.subscriber';
@@ -78,6 +79,10 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: TimingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ApiResponseInterceptor,
     },
   ],
   imports: [

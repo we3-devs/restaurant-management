@@ -41,6 +41,7 @@ export class User {
     type: 'varchar',
     length: 100,
     nullable: true,
+    select: false,
   })
   rememberToken: string | null;
 
