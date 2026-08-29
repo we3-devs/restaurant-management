@@ -69,7 +69,7 @@ export default function TableContent() {
             />
           )}
           <p className="text-lg font-semibold text-slate-900">
-            {branding.restaurantName ?? "Welcome"}
+            Welcome to <br /> <span className="text-brand-600">{branding.restaurantName}</span>
           </p>
           <p className="text-sm text-slate-500">
             Verify your number to join Table {tableCode} — or use the printed
@@ -84,15 +84,20 @@ export default function TableContent() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-md px-4 py-4">
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-            {session?.outletName ?? branding.restaurantName}
-          </h1>
-          <p className="text-xs text-slate-500">
-            {session?.diningTableName}
-            {session && ` · ${(new Date(session.startedAt)).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
-          </p>
-        </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            {branding.logoUrl && (
+              <img
+                src={branding.logoUrl}
+                alt=""
+                className="size-9 shrink-0 rounded-lg object-contain"
+              />
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
+                {branding.restaurantName}
+              </h1>
+            </div>
+          </div>
       </header>
 
       <main className="mx-auto max-w-md space-y-6 px-4 py-6">
