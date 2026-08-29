@@ -86,11 +86,11 @@ export default function TableContent() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-md px-4 py-4">
           <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-            {session?.outletName ?? branding.restaurantName ?? "Your table"}
+            {session?.outletName ?? branding.restaurantName}
           </h1>
           <p className="text-xs text-slate-500">
             {session?.diningTableName ?? `Table ${tableCode}`}
-            {customerName && ` · ${customerName}`}
+            {session && ` · ${(session.startedAt ?? new Date()).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
       </header>
