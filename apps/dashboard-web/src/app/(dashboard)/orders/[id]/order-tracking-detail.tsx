@@ -134,8 +134,7 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
             <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {item.quantity} &times; {foodName(item.foodId)}
-                  {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
+                  {item.quantity} &times; {variantName(item.foodVariantId) ? `${variantName(item.foodVariantId)}` : `${foodName(item.foodId)}`}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Ordered {formatTime(item.createdAt)}

@@ -20,12 +20,12 @@ export function BillReceipt({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const { data: items } = useOrderItems(orderId)
   const { data: outlet } = useOutlet(order?.outletId ?? 0)
-  const { data: foods } = useFoods({ limit: 100 })
-  const { data: variants } = useFoodVariants({ limit: 100 })
+  const { data: foods } = useFoods({ limit: 500 })
+  const { data: variants } = useFoodVariants({ limit: 500 })
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: posSettings } = useSettingsCategory<PosSettings>("pos")
 
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? `#${foodId}`
+  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "-"
   const variantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
@@ -55,8 +55,7 @@ export function BillReceipt({ orderId }: { orderId: number }) {
             key={item.id}
             item={item}
             name={
-              foodName(item.foodId) +
-              (variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : "")
+              (variantName(item.foodVariantId) ? `${variantName(item.foodVariantId)}` : `${foodName(item.foodId)}`)
             }
           />
         ))}
