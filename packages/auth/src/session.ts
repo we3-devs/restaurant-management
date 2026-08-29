@@ -60,8 +60,17 @@ export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
 export async function clearAuthCookies(): Promise<void> {
   try {
     const cookieStore = await cookies()
-    cookieStore.delete({ name: ACCESS_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
-    cookieStore.delete({ name: REFRESH_TOKEN_COOKIE, path: "/", domain: COOKIE_DOMAIN })
+
+    // Clear the host-only form as well as the configured shared-domain form.
+    // This matters after AUTH_COOKIE_DOMAIN is added or changed: browsers
+    // retain cookies whose Domain attribute differs, which otherwise makes
+    // proxy.ts keep redirecting /login back to the invalid session.
+    for (const name of [ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE]) {
+      cookieStore.delete({ name, path: "/" })
+      if (COOKIE_DOMAIN) {
+        cookieStore.delete({ name, path: "/", domain: COOKIE_DOMAIN })
+      }
+    }
   } catch {
     // Called during render — cookies are read-only here, nothing to do.
   }
