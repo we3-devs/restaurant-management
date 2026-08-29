@@ -1,6 +1,6 @@
 "use client";
 
-import { clearSession, getToken } from "./guest-auth";
+import { clearSession, getRefreshToken, getToken, setSession } from "./guest-auth";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
@@ -13,17 +13,53 @@ export async function getJson(path: string) {
   return json.data ?? json;
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/customer-auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const body = await res.json();
+        const name = localStorage.getItem("guest_name") ?? "Guest";
+        if (!body.accessToken || !body.refreshToken) return null;
+        setSession(body.accessToken, body.refreshToken, name);
+        return body.accessToken as string;
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 export async function authFetch(path: string, init: RequestInit = {}) {
+  const request = (token: string | null) => {
+    const headers = new Headers(init.headers);
+    headers.set("Content-Type", "application/json");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${API_URL}${path}`, { ...init, headers });
+  };
+
   const token = getToken();
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  let res = await request(token);
 
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  if (res.status === 401 && getRefreshToken()) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) res = await request(refreshedToken);
+  }
 
-  // The token never expires on its own, but can still be revoked or become
-  // invalid server-side; drop it so the UI falls back to the sign-in gate
-  // rather than looping on 401s.
+  // A failed refresh or a rejected retry means the session is genuinely no
+  // longer recoverable. Do not clear it on the first expired access-token 401.
   if (res.status === 401) clearSession();
   return res;
 }

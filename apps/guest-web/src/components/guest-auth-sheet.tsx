@@ -103,7 +103,7 @@ export function GuestAuthSheet({
       if (!res.ok)
         throw new Error(await readError(res, "Invalid or expired code"));
       const body = await res.json();
-      setSession(body.accessToken, body.customer?.name ?? name.trim());
+      setSession(body.accessToken, body.refreshToken, body.customer?.name ?? name.trim());
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid or expired code");

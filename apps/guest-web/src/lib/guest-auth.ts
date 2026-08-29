@@ -8,12 +8,13 @@
  * backend directly (no route handlers), so the token is held here and attached
  * as a bearer header instead. localStorage — not sessionStorage — so a diner
  * stays signed in after closing the tab/app and scanning the table's QR code
- * again, same as the backend's non-expiring guest/customer JWTs (see
- * CustomerAuthService): the session only ends via explicit sign-out
- * (clearSession) or the browser clearing site data.
+ * again. The short-lived access token is renewed with the persisted refresh
+ * token; the session only ends via explicit sign-out, refresh-token revocation,
+ * or the browser clearing site data.
  */
 
 const TOKEN_KEY = "guest_token";
+const REFRESH_TOKEN_KEY = "guest_refresh_token";
 const NAME_KEY = "guest_name";
 
 type Listener = () => void;
@@ -40,14 +41,21 @@ export function getCustomerName(): string | null {
   return localStorage.getItem(NAME_KEY);
 }
 
-export function setSession(token: string, name: string) {
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setSession(token: string, refreshToken: string, name: string) {
   localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(NAME_KEY, name);
   notify();
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(NAME_KEY);
   notify();
 }
