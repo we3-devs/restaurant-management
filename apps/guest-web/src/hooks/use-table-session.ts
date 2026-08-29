@@ -17,8 +17,15 @@ export interface TableSession {
   outletName: string;
   diningTableName: string;
   guestCount: number;
-  startedAt: string ;
+  startedAt: string | null;
   customers: TablePartyMember[];
+}
+
+export function formatTableSessionTime(startedAt: string | null): string | null {
+  if (!startedAt) return null;
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function useTableSession(tableCode: string | null) {

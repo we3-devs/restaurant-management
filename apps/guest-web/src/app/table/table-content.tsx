@@ -7,7 +7,7 @@ import { ArrowRight, Plus, Trash2, Users } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useBranding } from "@/hooks/use-branding";
-import { useTableSession } from "@/hooks/use-table-session";
+import { formatTableSessionTime, useTableSession } from "@/hooks/use-table-session";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import Skeleton from "@/components/skeleton";
 
@@ -18,6 +18,7 @@ export default function TableContent() {
   const branding = useBranding();
   const { session, members, isLoading, addCompanion, removeCompanion } =
     useTableSession(tableCode);
+  const sessionTime = session ? formatTableSessionTime(session.startedAt) : null;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -96,6 +97,10 @@ export default function TableContent() {
               <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
                 {branding.restaurantName}
               </h1>
+              <p className="truncate text-xs text-slate-500">
+                {session?.diningTableName ?? "Table"}
+                {sessionTime && ` · ${sessionTime}`}
+              </p>
             </div>
           </div>
       </header>
