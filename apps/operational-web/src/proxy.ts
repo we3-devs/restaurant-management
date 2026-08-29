@@ -30,7 +30,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (hasSession && isAuth) {
+  // Keep /login reachable when a stale or revoked cookie is present. The
+  // presence check above cannot validate the token, and redirecting here can
+  // create an endless /login -> / -> /clear-session -> /login loop.
+  if (hasSession && isAuth && pathname !== "/login") {
     return NextResponse.redirect(new URL("/", request.url))
   }
 

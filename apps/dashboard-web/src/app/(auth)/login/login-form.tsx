@@ -55,6 +55,10 @@ export function LoginForm() {
       // mismatch (see (dashboard)/layout.tsx and staff/layout.tsx) — this is
       // just choosing the right first stop, not replacing that check.
       if (getLandingPath(body.user) === "/staff") {
+        if (!OPERATIONAL_WEB_URL) {
+          toast.error("Operational app URL is not configured")
+          return
+        }
         window.location.href = `${OPERATIONAL_WEB_URL}/staff`
         return
       }

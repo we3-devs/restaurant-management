@@ -33,7 +33,10 @@ export function proxy(request: NextRequest) {
   // permission check and sends admins/superadmins to /dashboard, everyone
   // else to /staff — proxy can't make that call itself, it only knows a
   // cookie is present.
-  if (hasSession && isAuth) {
+  // Do not bounce /login merely because a cookie exists. The cookie may be
+  // expired, revoked, or left over from a different cookie domain; the real
+  // session check happens in the protected layout and must be recoverable.
+  if (hasSession && isAuth && pathname !== "/login") {
     return NextResponse.redirect(new URL("/", request.url))
   }
 

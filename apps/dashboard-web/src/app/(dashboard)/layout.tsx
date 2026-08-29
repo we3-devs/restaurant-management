@@ -8,6 +8,8 @@ import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidat
 import { navRoutePermissions } from "./nav-items"
 import { DashboardChrome } from "./dashboard-chrome"
 
+const OPERATIONAL_WEB_URL = process.env.OPERATIONAL_WEB_URL ?? process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // The real auth check — proxy.ts only did an optimistic cookie check. This
   // is the only /auth/me call in the tree; everything below reads the result
@@ -24,8 +26,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // operational-web is a separate deployment now, so this is a cross-origin
   // redirect rather than a local one — see AUTH_COOKIE_DOMAIN in
   // packages/auth/src/session.ts for how the session survives the hop.
-  if (pathname === "/dashboard" && getLandingPath(user) === "/staff") {
-    redirect(`${process.env.OPERATIONAL_WEB_URL}/`)
+  if (pathname === "/dashboard" && getLandingPath(user) === "/staff" && OPERATIONAL_WEB_URL) {
+    redirect(`${OPERATIONAL_WEB_URL.replace(/\/$/, "")}/`)
   }
 
   // Route-level RBAC: the sidebar already hides links a user can't reach,

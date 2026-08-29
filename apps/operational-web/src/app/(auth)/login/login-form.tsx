@@ -54,6 +54,10 @@ export function LoginForm() {
       // A hasBothPortals user explicitly chose to log in here (operational
       // web), so they stay — only a dashboard-only user gets redirected.
       if (!body.user.hasBothPortals && getLandingPath(body.user) === "/dashboard") {
+        if (!DASHBOARD_WEB_URL) {
+          toast.error("Dashboard app URL is not configured")
+          return
+        }
         window.location.href = `${DASHBOARD_WEB_URL}/dashboard`
         return
       }
