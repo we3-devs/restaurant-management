@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   ShoppingCart,
+  ClipboardList,
   Minus,
   Plus,
   Send,
@@ -88,6 +89,7 @@ export default function MenuContent() {
   const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [sidebarView, setSidebarView] = useState<"cart" | "ordered">("cart");
   const [variantFor, setVariantFor] = useState<Food | null>(null);
   // Step 2 of the picker: which top-level group (Veg / Chicken) is open.
   const [variantGroup, setVariantGroup] = useState<Variant | null>(null);
@@ -370,18 +372,38 @@ export default function MenuContent() {
               Log in
             </button>
           )}
-          <button
-            onClick={() => setCartOpen(true)}
-            aria-label={`Open cart, ${itemCount} items`}
-            className="relative shrink-0 rounded-full p-2.5 text-slate-700 transition hover:bg-slate-100 active:scale-95"
-          >
-            <ShoppingCart size={22} />
-            {itemCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-semibold text-white">
-                {itemCount}
-              </span>
-            )}
-          </button>
+          <div className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200 p-1">
+            <button
+              onClick={() => {
+                setSidebarView("cart");
+                setCartOpen(true);
+              }}
+              aria-label={`Open cart, ${itemCount} items`}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-95 ${
+                cartOpen && sidebarView === "cart"
+                  ? "bg-brand-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <ShoppingCart size={15} />
+              Cart{itemCount > 0 && ` (${itemCount})`}
+            </button>
+            <button
+              onClick={() => {
+                setSidebarView("ordered");
+                setCartOpen(true);
+              }}
+              aria-label={`Open submitted orders, ${guestOrders.length} orders`}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-95 ${
+                cartOpen && sidebarView === "ordered"
+                  ? "bg-brand-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <ClipboardList size={15} />
+              Ordered{guestOrders.length > 0 && ` (${guestOrders.length})`}
+            </button>
+          </div>
         </div>
 
         {activeSectionData && (
@@ -514,7 +536,10 @@ export default function MenuContent() {
             <div className="border-t border-slate-200">
               <div className="mx-auto max-w-3xl px-4 py-3">
                 <button
-                  onClick={() => setCartOpen(true)}
+                  onClick={() => {
+                    setSidebarView("cart");
+                    setCartOpen(true);
+                  }}
                   className="flex w-full items-center justify-between rounded-xl bg-brand-600 px-4 py-3.5 text-white transition hover:bg-brand-700 active:scale-[0.99]"
                 >
                   <span className="text-sm font-medium">
@@ -699,7 +724,9 @@ export default function MenuContent() {
         }`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3.5">
-          <h2 className="font-semibold text-slate-900">Your order</h2>
+          <h2 className="font-semibold text-slate-900">
+            {sidebarView === "cart" ? "Cart" : "Ordered"}
+          </h2>
           <button
             onClick={() => setCartOpen(false)}
             aria-label="Close cart"
@@ -710,7 +737,7 @@ export default function MenuContent() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {guestOrders.length > 0 && (
+          {sidebarView === "ordered" && guestOrders.length > 0 && (
             <section className="mb-5 space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -750,7 +777,7 @@ export default function MenuContent() {
             </section>
           )}
 
-          {cart.length === 0 ? (
+          {sidebarView === "cart" && (cart.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <ShoppingCart size={32} className="text-slate-300" />
               <p className="mt-3 text-sm text-slate-500">No items yet</p>
@@ -796,10 +823,16 @@ export default function MenuContent() {
                 </li>
               ))}
             </ul>
+          ))}
+          {sidebarView === "ordered" && guestOrders.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <ClipboardList size={32} className="text-slate-300" />
+              <p className="mt-3 text-sm text-slate-500">No submitted orders yet</p>
+            </div>
           )}
         </div>
 
-        <div className="border-t border-slate-200 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {sidebarView === "cart" && <div className="border-t border-slate-200 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm text-slate-500">Total</span>
             <span className="text-lg font-semibold text-slate-900">{money(total)}</span>
@@ -812,7 +845,7 @@ export default function MenuContent() {
             <Send size={16} />
             {isSubmitting ? "Placing…" : "Place order"}
           </button>
-        </div>
+        </div>}
       </aside>
 
       {authIntent && (
