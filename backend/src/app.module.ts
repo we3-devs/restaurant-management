@@ -28,6 +28,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { DashboardCacheModule } from './modules/dashboard-cache/dashboard-cache.module';
 import { PeriodInsightsModule } from './modules/period-insights/period-insights.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { GoodsReceivingModule } from './modules/goods-receiving/goods-receiving.module';
 import { DiningAreasModule } from './modules/dining-areas/dining-areas.module';
@@ -229,6 +230,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     HealthModule,
     BootstrapModule,
     DashboardModule,
+    AnalyticsModule,
     DashboardCacheModule,
     PeriodInsightsModule,
     ReportsModule,

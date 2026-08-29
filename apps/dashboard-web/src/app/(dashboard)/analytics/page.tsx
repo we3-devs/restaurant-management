@@ -1,205 +1,36 @@
 "use client"
 
-import { useMemo, useState } from "react"
-
+import { useState } from "react"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Banknote, Boxes, CircleDollarSign, ClipboardList, Group, Package, ShoppingBag, Users } from "lucide-react"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { StatGridSkeleton } from "@/components/ui/skeletons"
-import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { StatCard } from "@/components/stat-card"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
-import { useDashboardAnalytics } from "@/hooks/use-analytics"
-import { useDashboardBreakdown, useDashboardInventoryActivity } from "@/hooks/use-dashboard"
+import { useAnalyticsCustomers, useAnalyticsInventory, useAnalyticsOverview, useAnalyticsProducts, useAnalyticsSales } from "@/hooks/use-analytics"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
-import {
-  buildInsights,
-  CustomerAnalyticsCards,
-  DiscountRefundCard,
-  ErrorState,
-  IngredientConsumptionCard,
-  InsightsStrip,
-  OrderStatusCard,
-  PaymentMethodCard,
-  PeakHoursCard,
-  PrepPerformanceCard,
-  ProfitUnavailableCard,
-  SalesByCategoryCard,
-  SectionLoading,
-} from "./analytics-sections"
-
-type Preset = "today" | "yesterday" | "last7" | "last30" | "thisMonth" | "custom"
-
-const PRESETS: { value: Preset; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "yesterday", label: "Yesterday" },
-  { value: "last7", label: "Last 7 Days" },
-  { value: "last30", label: "Last 30 Days" },
-  { value: "thisMonth", label: "This Month" },
-  { value: "custom", label: "Custom Range" },
-]
-
-function toIsoDate(d: Date): string {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-function rangeForPreset(preset: Preset): DateRange {
-  const now = new Date()
-  const today = toIsoDate(now)
-  switch (preset) {
-    case "today":
-      return { dateFrom: today, dateTo: today }
-    case "yesterday": {
-      const y = new Date(now)
-      y.setDate(y.getDate() - 1)
-      return { dateFrom: toIsoDate(y), dateTo: toIsoDate(y) }
-    }
-    case "last7": {
-      const from = new Date(now)
-      from.setDate(from.getDate() - 6)
-      return { dateFrom: toIsoDate(from), dateTo: today }
-    }
-    case "last30": {
-      const from = new Date(now)
-      from.setDate(from.getDate() - 29)
-      return { dateFrom: toIsoDate(from), dateTo: today }
-    }
-    case "thisMonth": {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1)
-      return { dateFrom: toIsoDate(from), dateTo: today }
-    }
-    default:
-      return { dateFrom: today, dateTo: today }
-  }
-}
+type Preset = "today" | "yesterday" | "7d" | "30d" | "month" | "custom"
+const money = (v: number) => `NPR ${Math.round(v).toLocaleString()}`
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+function presetRange(p: Preset): DateRange { const now = new Date(); const today = iso(now); if (p === "today") return { dateFrom: today, dateTo: today }; if (p === "yesterday") { const d = new Date(now); d.setDate(d.getDate() - 1); return { dateFrom: iso(d), dateTo: iso(d) } }; if (p === "month") return { dateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)), dateTo: today }; const d = new Date(now); d.setDate(d.getDate() - (p === "7d" ? 6 : 29)); return { dateFrom: iso(d), dateTo: today } }
+const modules = ["overview", "sales", "products", "customers", "inventory", "purchasing", "staff", "kitchen", "tables", "reservations", "finance"]
 
 export default function AnalyticsPage() {
-  useCurrentUser()
-  const { outletId, isLoadingOutlets } = useActiveOutlet()
-  const [preset, setPreset] = useState<Preset>("last30")
-  const [customRange, setCustomRange] = useState<DateRange>(() => rangeForPreset("last30"))
-
-  const range = preset === "custom" ? customRange : rangeForPreset(preset)
-  const dataEnabled = !isLoadingOutlets
-
-  const analyticsQuery = useDashboardAnalytics(
-    { outletId, dateFrom: range.dateFrom, dateTo: range.dateTo },
-    { enabled: dataEnabled },
-  )
-  const inventoryQuery = useDashboardInventoryActivity(
-    { outletId, dateFrom: range.dateFrom, dateTo: range.dateTo },
-    { enabled: dataEnabled },
-  )
-  const breakdownQuery = useDashboardBreakdown(
-    { outletId, dateFrom: range.dateFrom, dateTo: range.dateTo },
-    { enabled: dataEnabled },
-  )
-
-  const insights = useMemo(() => {
-    if (!analyticsQuery.data) return []
-    return buildInsights(analyticsQuery.data.current, analyticsQuery.data.previous)
-  }, [analyticsQuery.data])
-
-  const isLoading = analyticsQuery.isLoading || !dataEnabled
-  const isError = analyticsQuery.isError
-
-  usePageTitle("Analytics")
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            {range.dateFrom} — {range.dateTo}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-44 space-y-1.5">
-            <label className="text-sm font-medium">Range</label>
-            <Select value={preset} onValueChange={(v) => v && setPreset(v as Preset)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESETS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {preset === "custom" && <DateRangeFilter value={customRange} onChange={setCustomRange} />}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <StatGridSkeleton count={4} />
-      ) : isError ? (
-        <ErrorState message="Failed to load analytics for this range. Try again shortly." />
-      ) : !analyticsQuery.data ? (
-        <ErrorState message="No analytics data available." />
-      ) : (
-        <>
-          <InsightsStrip insights={insights} />
-
-          <Tabs defaultValue="sales">
-            <TabsList>
-              <TabsTrigger value="sales">Sales</TabsTrigger>
-              <TabsTrigger value="finance">Finance</TabsTrigger>
-              <TabsTrigger value="operations">Operations</TabsTrigger>
-              <TabsTrigger value="inventory">Inventory</TabsTrigger>
-              <TabsTrigger value="customers">Customers</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="sales">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <PeakHoursCard data={analyticsQuery.data.current.peakHours} />
-                <SalesByCategoryCard data={analyticsQuery.data.current.salesByCategory} />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="finance">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <PaymentMethodCard data={breakdownQuery.data?.paymentBreakdown ?? []} />
-                <DiscountRefundCard data={analyticsQuery.data.current.discountRefund} />
-                <ProfitUnavailableCard />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="operations">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <OrderStatusCard data={analyticsQuery.data.current.orderStatus} />
-                <PrepPerformanceCard data={analyticsQuery.data.current.prepPerformance} />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="inventory">
-              {inventoryQuery.isLoading ? (
-                <SectionLoading />
-              ) : (
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <IngredientConsumptionCard
-                    data={analyticsQuery.data.current.ingredientConsumption}
-                    lowStockItems={inventoryQuery.data?.lowStockItems ?? []}
-                  />
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="customers">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <CustomerAnalyticsCards data={analyticsQuery.data.current.customerAnalytics} />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
-  )
+  usePageTitle("Analytics"); const { outletId, departmentId, isLoadingOutlets } = useActiveOutlet(); const [preset, setPreset] = useState<Preset>("30d"); const [custom, setCustom] = useState<DateRange>(() => presetRange("30d")); const range = preset === "custom" ? custom : presetRange(preset); const params = { outletId, departmentId, dateFrom: range.dateFrom, dateTo: range.dateTo }; const enabled = !isLoadingOutlets
+  const overview = useAnalyticsOverview(params, { enabled }); const sales = useAnalyticsSales(params, { enabled }); const products = useAnalyticsProducts(params, { enabled }); const inventory = useAnalyticsInventory(params, { enabled }); const customers = useAnalyticsCustomers(params, { enabled }); const k = overview.data?.kpis ?? {}
+  const cards = [[CircleDollarSign, "Gross sales", money(k.grossSales ?? 0)], [Banknote, "Net sales", money(k.netSales ?? 0)], [ClipboardList, "Orders", (k.orders ?? 0).toLocaleString()], [ShoppingBag, "Average order value", money(k.averageOrderValue ?? 0)], [Users, "Customers", (k.customers ?? 0).toLocaleString()], [Package, "Items sold", (k.itemsSold ?? 0).toLocaleString()], [Boxes, "Discounts", money(k.discounts ?? 0)], [Group, "Outstanding", money(k.outstanding ?? 0)]] as const
+  return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">Analytics</h1><p className="text-sm text-muted-foreground">{range.dateFrom} — {range.dateTo}</p></div><div className="flex flex-wrap items-end gap-2"><div className="w-40"><label className="mb-1 block text-xs font-medium">Date range</label><Select value={preset} onValueChange={v => v && setPreset(v as Preset)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{[["today","Today"],["yesterday","Yesterday"],["7d","7D"],["30d","30D"],["month","This month"],["custom","Custom"]].map(([value,label])=><SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>{preset === "custom" && <DateRangeFilter value={custom} onChange={setCustom} />}</div></div>
+    <Tabs defaultValue="overview" orientation="vertical" className="flex flex-col gap-5 lg:flex-row"><TabsList className="h-auto w-full shrink-0 flex-wrap justify-start lg:w-44 lg:flex-col lg:items-stretch"><div className="w-full px-2 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analytics</div>{modules.map(m => <TabsTrigger key={m} value={m} className="justify-start capitalize">{m}</TabsTrigger>)}</TabsList><div className="min-w-0 flex-1"><TabsContent value="overview" className="mt-0 space-y-5"><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{cards.map(([icon,label,value]) => <StatCard key={label} icon={icon} label={label} value={value} />)}</div><OverviewCharts data={overview.data} /></TabsContent><TabsContent value="sales" className="mt-0"><SalesPanel data={sales.data} /></TabsContent><TabsContent value="products" className="mt-0"><ProductsPanel data={products.data} /></TabsContent><TabsContent value="inventory" className="mt-0"><InventoryPanel data={inventory.data} /></TabsContent><TabsContent value="customers" className="mt-0"><CustomerPanel data={customers.data} /></TabsContent>{modules.slice(5).map(m => <TabsContent key={m} value={m} className="mt-0"><Card><CardContent className="py-12 text-center text-sm text-muted-foreground">{m[0].toUpperCase() + m.slice(1)} analytics is ready for the next module release.</CardContent></Card></TabsContent>)}</div></Tabs>
+  </div>
 }
 
+function OverviewCharts({ data }: { data: any }) { return <div className="grid gap-4 lg:grid-cols-[2fr_1fr]"><Card><CardHeader><CardTitle>Revenue trend</CardTitle><CardDescription>Revenue and orders by day</CardDescription></CardHeader><CardContent><div className="h-72">{data?.trend?.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={data.trend}><CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" /><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="revenue" name="Revenue" fill="var(--chart-3)" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer> : <Empty />}</div></CardContent></Card><MixCard title="Order sources" rows={data?.orderMix?.sources ?? []} value="orders" /></div> }
+function MixCard({ title, rows, value }: { title: string; rows: any[]; value: string }) { return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="space-y-3">{rows.length ? rows.map(r => <div key={r.name} className="flex items-center justify-between border-b pb-2 text-sm last:border-0"><span className="capitalize">{String(r.name).replaceAll("_", " ")}</span><span className="font-medium">{r[value]?.toLocaleString()}</span></div>) : <Empty />}</CardContent></Card> }
+function SalesPanel({ data }: { data: any }) { return <div className="grid gap-4 lg:grid-cols-2"><Card><CardHeader><CardTitle>Revenue waterfall</CardTitle><CardDescription>How gross sales become net revenue</CardDescription></CardHeader><CardContent className="space-y-3">{Object.entries(data?.revenue ?? {}).map(([key,value]) => <div key={key} className="flex justify-between border-b pb-2 text-sm last:border-0"><span className="capitalize">{key.replace(/([A-Z])/g, " $1")}</span><span className="font-semibold">{money(value as number)}</span></div>)}</CardContent></Card><OverviewCharts data={data} /></div> }
+function ProductsPanel({ data }: { data: any }) { return <div className="grid gap-4 lg:grid-cols-2"><Card><CardHeader><CardTitle>Top-selling foods</CardTitle><CardDescription>Quantity, revenue, orders, and contribution</CardDescription></CardHeader><CardContent className="space-y-3">{(data?.foods ?? []).slice(0,10).map((r:any) => <div key={r.foodId} className="flex items-center justify-between border-b pb-2 text-sm"><span>{r.food}<small className="ml-2 text-muted-foreground">{r.quantity.toLocaleString()} sold</small></span><span className="font-medium">{money(r.revenue)} <small className="text-muted-foreground">{r.share.toFixed(1)}%</small></span></div>)}</CardContent></Card><MixCard title="Category performance" rows={data?.categories ?? []} value="revenue" /></div> }
+function InventoryPanel({ data }: { data: any }) { return <div className="grid gap-4 lg:grid-cols-2"><div className="grid grid-cols-2 gap-3"><StatCard icon={CircleDollarSign} label="Inventory value" value={money(data?.kpis?.inventoryValue ?? 0)} /><StatCard icon={Boxes} label="Low-stock ingredients" value={String(data?.kpis?.lowStock ?? 0)} /><StatCard icon={Package} label="Out of stock" value={String(data?.kpis?.outOfStock ?? 0)} /><StatCard icon={ClipboardList} label="Reserved stock" value={String(data?.kpis?.reservedStock ?? 0)} /></div><MixCard title="Stock movement" rows={data?.movement ?? []} value="quantity" /></div> }
+function CustomerPanel({ data }: { data: any }) { const k = data?.kpis ?? {}; return <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><StatCard icon={Users} label="Total customers" value={String(k.totalCustomers ?? 0)} /><StatCard icon={Users} label="New customers" value={String(k.newCustomers ?? 0)} /><StatCard icon={Group} label="Repeat rate" value={`${(k.repeatRate ?? 0).toFixed(1)}%`} /><StatCard icon={CircleDollarSign} label="Average spend" value={money(k.averageSpend ?? 0)} /></div> }
+function Empty() { return <div className="flex h-full min-h-32 items-center justify-center text-sm text-muted-foreground">No data for this range.</div> }

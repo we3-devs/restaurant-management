@@ -100,3 +100,41 @@ export function useDashboardAnalytics(params: DashboardParams, options?: Dashboa
     enabled: options?.enabled,
   })
 }
+
+export interface AnalyticsParams extends DashboardParams {
+  departmentId?: number | null
+  orderSource?: string
+  orderType?: string
+}
+
+export interface OverviewAnalytics {
+  range: { from: string; to: string }
+  kpis: Record<string, number>
+  trend: { date: string; orders: number; revenue: number }[]
+  orderMix: { sources: { name: string; orders: number; revenue: number }[]; types: { name: string; orders: number }[] }
+  paymentMix: { name: string; amount: number }[]
+}
+export interface SalesAnalytics extends OverviewAnalytics { revenue: Record<string, number>; compare: unknown }
+export interface ProductsAnalytics { foods: { foodId: number; food: string; quantity: number; revenue: number; orders: number; averagePrice: number; share: number }[]; categories: { categoryId: number; category: string; quantity: number; revenue: number }[] }
+export interface InventoryAnalytics { kpis: Record<string, number>; stock: { ingredientId: number; ingredient: string; quantity: number; value: number }[]; movement: { type: string; quantity: number }[] }
+export interface CustomersAnalytics { kpis: Record<string, number>; trend: { date: string; newCount: number; returningCount: number }[] }
+
+function analyticsParams(params: AnalyticsParams) {
+  return toQueryString({ outletId: params.outletId ?? undefined, departmentId: params.departmentId ?? undefined, from: params.dateFrom, to: params.dateTo, orderSource: params.orderSource, orderType: params.orderType })
+}
+
+export function useAnalyticsOverview(params: AnalyticsParams, options?: DashboardQueryOptions) {
+  return useQuery({ queryKey: ["analytics", "overview", params], queryFn: () => apiClient<OverviewAnalytics>(`/analytics/overview${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
+}
+export function useAnalyticsSales(params: AnalyticsParams, options?: DashboardQueryOptions) {
+  return useQuery({ queryKey: ["analytics", "sales", params], queryFn: () => apiClient<SalesAnalytics>(`/analytics/sales${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
+}
+export function useAnalyticsProducts(params: AnalyticsParams, options?: DashboardQueryOptions) {
+  return useQuery({ queryKey: ["analytics", "products", params], queryFn: () => apiClient<ProductsAnalytics>(`/analytics/products${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
+}
+export function useAnalyticsInventory(params: AnalyticsParams, options?: DashboardQueryOptions) {
+  return useQuery({ queryKey: ["analytics", "inventory", params], queryFn: () => apiClient<InventoryAnalytics>(`/analytics/inventory${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
+}
+export function useAnalyticsCustomers(params: AnalyticsParams, options?: DashboardQueryOptions) {
+  return useQuery({ queryKey: ["analytics", "customers", params], queryFn: () => apiClient<CustomersAnalytics>(`/analytics/customers${analyticsParams(params)}`), staleTime: 30_000, enabled: options?.enabled })
+}
