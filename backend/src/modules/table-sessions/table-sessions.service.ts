@@ -193,6 +193,11 @@ export class TableSessionsService {
       }
       return {
       ...session,
+      // Older sessions (and sessions created before a guest joins) can still
+      // have the column default of 1 even though the join table already has
+      // several customers. Keep every read endpoint consistent with the
+      // actual party represented by the session.
+      guestCount: Math.max(session.guestCount, summaries.length, 1),
       customer: session.customer
         ? {
             id: session.customer.id,

@@ -48,6 +48,7 @@ export function TableDetailDialog({
 	const { data: sessions } = useTableSessions({ diningTableId: table.id, status: "active", limit: 1 });
 	const activeSession = sessions?.data[0];
 	const partyMembers = activeSession?.customers ?? (activeSession?.customer ? [activeSession.customer] : []);
+	const guestCount = activeSession ? Math.max(activeSession.guestCount, partyMembers.length, 1) : 0;
 	const { data: orders } = useOrders({ tableSessionId: activeSession?.id, limit: 1 }, { enabled: !!activeSession });
 	const activeOrder = orders?.data[0];
 	const deleteTable = useDeleteDiningTable();
@@ -88,7 +89,7 @@ export function TableDetailDialog({
 								)}
 
 								<p className="text-sm text-muted-foreground">
-									{activeSession.guestCount} of {table.capacity} seat{table.capacity === 1 ? "" : "s"}
+									{guestCount} of {table.capacity} seat{table.capacity === 1 ? "" : "s"}
 								</p>
 
 								{activeSession.startedAt && formatSeatedFor(activeSession.startedAt) && (
