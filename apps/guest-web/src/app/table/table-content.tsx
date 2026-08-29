@@ -89,7 +89,7 @@ export default function TableContent() {
             {session?.outletName ?? branding.restaurantName}
           </h1>
           <p className="text-xs text-slate-500">
-            {session?.diningTableName ?? `Table ${tableCode}`}
+            {session?.diningTableName}
             {session && ` · ${(session.startedAt ?? new Date()).toLocaleString([], { hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
