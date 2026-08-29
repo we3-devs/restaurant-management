@@ -185,7 +185,10 @@ export function useUpdateOrder(id: number) {
     onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.orders.detail(id), context.previous)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
+    },
   })
 }
 

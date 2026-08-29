@@ -7,6 +7,11 @@ const ORDER_DISCOUNT_TYPES: OrderDiscountType[] = ['flat', 'percentage'];
 // Editing these fields triggers OrdersService.recalculateTotals(). Items,
 // status, and table assignment are edited through their own sub-resources.
 export class UpdateOrderDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber()
+  customerId?: number | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

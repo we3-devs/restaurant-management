@@ -153,27 +153,39 @@ export class OrdersService {
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Order>> {
     const { page, limit, search, outletId, tableSessionId, status, excludeStatus } = query;
-    const where: FindOptionsWhere<Order> = {};
+    const baseWhere: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
-      where.outletId = outletId;
+      baseWhere.outletId = outletId;
     } else if (accessibleOutletIds !== 'ALL') {
-      where.outletId = In(accessibleOutletIds);
+      baseWhere.outletId = In(accessibleOutletIds);
     }
     if (tableSessionId !== undefined) {
-      where.tableSessionId = tableSessionId;
+      baseWhere.tableSessionId = tableSessionId;
     }
     if (status !== undefined) {
-      where.status = status;
+      baseWhere.status = status;
     } else if (excludeStatus?.length) {
-      where.status = Not(In(excludeStatus));
+      baseWhere.status = Not(In(excludeStatus));
     }
-    if (search) {
-      where.orderNumber = ILike(`%${search}%`);
-    }
+    const where: FindOptionsWhere<Order> | FindOptionsWhere<Order>[] = search
+      ? [
+          { ...baseWhere, orderNumber: ILike(`%${search}%`) },
+          { ...baseWhere, customer: { name: ILike(`%${search}%`) } },
+        ]
+      : baseWhere;
 
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
-      select: ['id', 'outletId', 'orderNumber', 'status', 'paymentStatus', 'grandTotal'],
+      select: [
+        'id',
+        'outletId',
+        'tableSessionId',
+        'customerId',
+        'orderNumber',
+        'status',
+        'paymentStatus',
+        'grandTotal',
+      ],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -655,6 +667,10 @@ export class OrdersService {
     const order = await this.findOne(id);
     OrdersService.assertMutable(order);
 
+    if (dto.customerId !== undefined && dto.customerId !== null) {
+      await this.customersService.findOne(dto.customerId);
+    }
+
     // Bound every incoming money field against the order's own
     // freshly-computed subtotal (never a client-supplied figure) before
     // any of it is persisted — a discount/tax/service-charge that could
@@ -674,6 +690,7 @@ export class OrdersService {
       );
     }
     Object.assign(order, {
+      ...(dto.customerId !== undefined && { customerId: dto.customerId }),
       ...(dto.note !== undefined && { note: dto.note }),
       ...(dto.discountType !== undefined && { discountType: dto.discountType }),
       ...(dto.discountValue !== undefined && {
