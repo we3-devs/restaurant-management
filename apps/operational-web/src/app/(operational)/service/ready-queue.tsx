@@ -30,12 +30,6 @@ export function ReadyQueue({ outletId }: { outletId: number }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">
-          {readyCount} item{readyCount === 1 ? "" : "s"} ready to deliver
-        </p>
-        <Badge variant="outline">{groups.length} table{groups.length === 1 ? "" : "s"}</Badge>
-      </div>
       {groups.map((group) => (
         <ReadyGroupCard key={group.orderId} group={group} now={now} outletId={outletId} />
       ))}
