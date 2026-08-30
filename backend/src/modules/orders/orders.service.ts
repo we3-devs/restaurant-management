@@ -67,6 +67,10 @@ export interface OrderItemWithRelations extends OrderItem {
   reservations: OrderItemIngredientReservation[];
 }
 
+export type OrderListResponse = Omit<Order, 'tableSession'> & {
+  tableName: string | null;
+};
+
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -151,7 +155,7 @@ export class OrdersService {
   async findAll(
     query: ListOrdersQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
-  ): Promise<PaginatedResponse<Order>> {
+  ): Promise<PaginatedResponse<OrderListResponse>> {
     const { page, limit, search, outletId, tableSessionId, status, excludeStatus } = query;
     const baseWhere: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
@@ -176,6 +180,7 @@ export class OrdersService {
 
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
+      relations: { tableSession: { diningTable: true } },
       select: [
         'id',
         'outletId',
@@ -194,7 +199,10 @@ export class OrdersService {
     });
 
     return {
-      data: orders,
+      data: orders.map(({ tableSession, ...order }) => ({
+        ...order,
+        tableName: tableSession?.diningTable?.name ?? null,
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
