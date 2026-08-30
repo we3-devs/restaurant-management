@@ -614,6 +614,11 @@ export class OrdersService {
       await this.addItem(saved.id, item);
     }
 
+    // Guest checkout is an explicit "Place order" action, so send its new
+    // items through the same authoritative kitchen-routing path as staff POS.
+    await this.sendToKitchen(saved.id, null);
+
+    /*
     // Deliberately NOT auto-sent to the kitchen: a guest placing an order
     // should land in 'pending' ("Order sent" on the guest tracker) and stay
     // there until a staff member reviews and accepts it — via the same
@@ -622,6 +627,7 @@ export class OrdersService {
     // advances 'pending' -> 'accepted'. Applies to every round a guest adds,
     // not just the first — new items always wait for staff to send them.
 
+    */
     const notification = await this.notificationsService.create({
       outletId,
       type: 'guest_order_placed',

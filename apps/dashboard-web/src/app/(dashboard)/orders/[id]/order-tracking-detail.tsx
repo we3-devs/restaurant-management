@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useOrder, useOrderItems, useIssueInvoice, useUpdateOrder, type OrderItem } from "@/hooks/use-orders"
+import { useOrder, useOrderItems, useIssueInvoice, useSendOrderToKitchen, useUpdateOrder, type OrderItem } from "@/hooks/use-orders"
 import { useOrderAssignments } from "@/lib/api/hooks/use-assignments"
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
@@ -42,6 +42,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 /** Read-only order tracking for admin — bill, payment totals, and status history, no editing/payment actions (those stay in operational-web/POS). */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
+  const { data: orderItems } = useOrderItems(orderId)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: tableSession } = useTableSession(order?.tableSessionId ?? 0)
   const { data: table } = useDiningTable(tableSession?.diningTableId ?? 0)
@@ -49,7 +50,9 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: assignments } = useOrderAssignments(orderId)
   const showSkeleton = useDelayedLoading(isLoading)
   const issueInvoice = useIssueInvoice(orderId)
+  const sendOrderToKitchen = useSendOrderToKitchen(orderId)
   const updateOrder = useUpdateOrder(orderId)
+  const hasStockReservedItems = orderItems?.data.some((item) => item.status === "stock_reserved") ?? false
   const sessionCustomers = tableSession?.customers ?? []
   const selectableCustomers = customer && !sessionCustomers.some((entry) => entry.id === customer.id) ? [customer, ...sessionCustomers] : sessionCustomers
 
@@ -73,6 +76,21 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         <div className="flex items-center gap-2">
           <StatusBadge status={order.status} />
           <StatusBadge status={order.paymentStatus} />
+          {(order.status === "pending" || order.status === "accepted") && hasStockReservedItems && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={sendOrderToKitchen.isPending}
+              onClick={() => {
+                sendOrderToKitchen.mutate(undefined, {
+                  onSuccess: () => toast.success("Order sent to kitchen"),
+                  onError: (error) => toast.error(`Failed to send order: ${error.message}`),
+                })
+              }}
+            >
+              {sendOrderToKitchen.isPending ? "Sending..." : "Send to Kitchen"}
+            </Button>
+          )}
           {order.invoiceNumber ? (
             <Button variant="outline" size="sm" render={<Link href={`/invoices/${orderId}`} />}>
               View Invoice
