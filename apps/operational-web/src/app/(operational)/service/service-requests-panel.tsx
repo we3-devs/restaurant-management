@@ -39,9 +39,6 @@ export function ServiceRequestsPanel({ outletId }: { outletId: number }) {
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-10 text-center">
         <BellRingIcon className="size-8 text-muted-foreground" />
         <p className="text-sm font-medium">No open requests</p>
-        <p className="text-sm text-muted-foreground">
-          Guest call-waiter requests (and staff-raised ones) land here in realtime.
-        </p>
       </div>
     )
   }
