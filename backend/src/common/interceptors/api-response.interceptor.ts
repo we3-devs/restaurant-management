@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { Reflector } from '@nestjs/core';
+import { EXPOSE_RESPONSE_FIELDS } from './expose-response-fields.decorator';
 
 /** Final safety net for legacy endpoints that still return entities directly. */
 const NEVER_EXPOSE = new Set([
@@ -24,21 +26,28 @@ const NEVER_EXPOSE = new Set([
   'deletedAt',
 ]);
 
-function sanitize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sanitize);
+function sanitize(value: unknown, exposedFields: Set<string>): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitize(item, exposedFields));
   if (!value || typeof value !== 'object') return value;
   if (value instanceof Date) return value;
 
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
-    if (!NEVER_EXPOSE.has(key)) output[key] = sanitize(child);
+    if (!NEVER_EXPOSE.has(key) || exposedFields.has(key)) {
+      output[key] = sanitize(child, exposedFields);
+    }
   }
   return output;
 }
 
 @Injectable()
 export class ApiResponseInterceptor implements NestInterceptor {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    return next.handle().pipe(map((value) => sanitize(value)));
+  constructor(private readonly reflector: Reflector) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const exposedFields =
+      this.reflector.get<Set<string>>(EXPOSE_RESPONSE_FIELDS, context.getHandler()) ??
+      new Set<string>();
+    return next.handle().pipe(map((value) => sanitize(value, exposedFields)));
   }
 }

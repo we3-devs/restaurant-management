@@ -19,6 +19,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ExposeResponseFields } from '../../common/interceptors/expose-response-fields.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
@@ -170,6 +171,7 @@ export class OrdersController {
 
   @Get()
   @RequirePermissions('orders.view')
+  @ExposeResponseFields('createdAt')
   @ApiOperation({
     summary:
       'Lists orders (paginated, optional search on orderNumber + outletId/status filters)',
