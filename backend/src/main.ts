@@ -35,6 +35,16 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
   app.use(helmet());
+  // Branding files are public and consumed by separate app origins, including
+  // browser requests made before authentication. Scope this relaxation to the
+  // upload path; all other API responses retain Helmet's same-origin policy.
+  app.use(
+    '/api/uploads',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+  );
   app.use(compression());
   app.enableCors({
     origin: configService.get('app', { infer: true })!.frontendUrls,

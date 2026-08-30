@@ -71,14 +71,12 @@ function ReadyGroupCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-base font-semibold leading-tight">{group.tableName}</p>
-            <span className="text-xs text-muted-foreground">{group.orderNumber}</span>
           </div>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
             <ClockIcon className="size-3" />
             Ready {elapsedMinutes(group.earliestReadyAt, now)}m ago
           </p>
         </div>
-        <span className="text-xs text-muted-foreground">Deliver items one by one</span>
       </div>
 
       <ul className="space-y-1">
