@@ -50,7 +50,9 @@ function yesterdayRange() {
 }
 
 function minutesSince(iso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000))
+  const timestamp = new Date(iso).getTime()
+  if (!Number.isFinite(timestamp)) return 0
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 60_000))
 }
 
 function elapsedLabel(iso: string): string {
@@ -161,9 +163,9 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
     const tables = diningTablesQuery.data?.data ?? []
     return (order: Order): string | null => {
       if (!order.tableSessionId) return null
-      const session = sessions.find((s) => s.id === order.tableSessionId)
+      const session = sessions.find((s) => Number(s.id) === Number(order.tableSessionId))
       if (!session) return null
-      const table = tables.find((t) => t.id === session.diningTableId)
+      const table = tables.find((t) => Number(t.id) === Number(session.diningTableId))
       return table?.name ?? null
     }
   }, [tableSessionsQuery.data, diningTablesQuery.data])
