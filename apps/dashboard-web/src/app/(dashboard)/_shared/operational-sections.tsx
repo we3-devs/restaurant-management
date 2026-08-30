@@ -225,7 +225,7 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
                       className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
                     >
                       <span className="min-w-0 flex-1 truncate font-medium">#{order.orderNumber}</span>
-                      <span className="shrink-0 text-muted-foreground">{tableLabel ?? order.orderType}</span>
+                      <span className="shrink-0 text-muted-foreground">{tableLabel}</span>
                       <StatusBadge status={order.status} className="shrink-0" />
                       <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">
                         {elapsedLabel(order.createdAt)}
