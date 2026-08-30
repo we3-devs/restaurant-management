@@ -15,6 +15,7 @@ import {
   Users,
   ArrowLeft,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { useTableSession } from "@/hooks/use-table-session";
 import { useGuestSession } from "@/hooks/use-guest-session";
@@ -99,6 +100,7 @@ export default function MenuContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Two-level menu: a category list, then that category's foods.
   const [openSection, setOpenSection] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: foods = [], isLoading: foodsLoading } = useQuery<Food[]>({
     queryKey: ["foods"],
@@ -179,10 +181,7 @@ export default function MenuContent() {
       if (id === UNCATEGORISED) return "Other";
       const cat = categories.find((c) => c.id === id);
       if (!cat) return "Other";
-      const parent = cat.parentId
-        ? categories.find((c) => c.id === cat.parentId)
-        : null;
-      return parent ? `${parent.name} · ${cat.name}` : cat.name;
+      return cat.name;
     },
     [categories]
   );
@@ -211,6 +210,40 @@ export default function MenuContent() {
     if (rest) ordered.push({ id: UNCATEGORISED, name: "Other", foods: rest });
     return ordered;
   }, [foods, categories, categoryName]);
+
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return [];
+
+    return foods.filter((food) => {
+      const category = categories.find((item) => item.id === food.foodCategoryId);
+      const parent = category?.parentId
+        ? categories.find((item) => item.id === category.parentId)
+        : null;
+      const variants = variantsByFood[food.id] ?? [];
+      const prices = [food.basePrice, ...variants.map((variant) => variant.price)];
+      const searchableText = [
+        food.name,
+        category?.name,
+        parent?.name,
+        ...variants.map((variant) => variant.name),
+        ...variants.map((variant) => nameOf(variantNames, variant.variantId)),
+        ...variants.map((variant) => nameOf(subVariantNames, variant.subVariantId)),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return query
+        .split(/\s+/)
+        .filter(Boolean)
+        .every((term) => searchableText.includes(term) || prices.some((price) => String(price).includes(term)));
+    });
+  }, [searchQuery, foods, categories, variantsByFood, variantNames, subVariantNames, nameOf]);
+
+  const searchSection = searchQuery.trim()
+    ? { id: UNCATEGORISED, name: "Search results", foods: searchResults }
+    : null;
 
   const addItem = useCallback(
     (food: Food, variant: Variant | null, variantLabel: string | null) => {
@@ -268,6 +301,7 @@ export default function MenuContent() {
     openSection === null
       ? null
       : (sections.find((s) => s.id === openSection) ?? null);
+  const visibleSection = searchSection ?? activeSectionData;
 
   const openCategory = (id: number) => {
     setOpenSection(id);
@@ -428,6 +462,28 @@ export default function MenuContent() {
             </span>
           </div>
         )}
+        <div className="mx-auto flex max-w-3xl px-4 py-2">
+          <label className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100">
+            <Search size={18} className="shrink-0 text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search food, category, etc."
+              aria-label="Search menu"
+              className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear menu search"
+                className="text-xs font-medium text-slate-400 hover:text-slate-700"
+              >
+                Clear
+              </button>
+            )}
+          </label>
+        </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-5 pb-40">
@@ -437,7 +493,7 @@ export default function MenuContent() {
           <p className="py-20 text-center text-sm text-slate-500">
             Nothing on the menu right now.
           </p>
-        ) : !activeSectionData ? (
+        ) : !visibleSection ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {sections.map((section) => {
               const thumb = section.foods.find((f) => f.imageUrl)?.imageUrl;
@@ -472,8 +528,13 @@ export default function MenuContent() {
             })}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {activeSectionData.foods.map((food) => {
+          visibleSection.foods.length === 0 ? (
+            <p className="py-20 text-center text-sm text-slate-500">
+              No menu items match “{searchQuery}”.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {visibleSection.foods.map((food) => {
               // Count orderable leaves, not tree rows — three sizes under
               // one group is "3 options", not 4.
               const leaves = leavesOf(food.id);
@@ -526,8 +587,9 @@ export default function MenuContent() {
                   </div>
                 </article>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )
         )}
       </main>
 
