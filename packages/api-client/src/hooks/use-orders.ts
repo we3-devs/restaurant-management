@@ -30,6 +30,7 @@ export interface Order {
   /** Timestamp when invoice was generated. Null if no invoice has been issued yet. */
   invoiceGeneratedAt: string | null
   orderType: string
+  tableName?: string | null
   /** Who placed it: walk_in/phone/online/staff/other. */
   source: string
   /** Which surface it came through: pos/qr/waiter/online. */

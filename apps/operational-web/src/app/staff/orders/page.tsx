@@ -9,7 +9,6 @@ import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
 import { StatusBadge } from "@rms/ui/status-badge"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
-import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { tableSessionName, useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { ORDER_STATUSES } from "@rms/validators/orders"
@@ -56,20 +55,18 @@ export default function StaffOrdersPage() {
     { enabled: !!outletId },
   )
   const { data: sessions } = useTableSessions({ outletId: outletId ?? undefined, limit: 200 })
-  const { data: tables } = useDiningTables({ outletId: outletId ?? undefined, limit: 200 })
   const { data: customers } = useCustomers({ limit: 200 })
   const showSkeleton = useDelayedLoading(isLoading)
 
   const rows = useMemo<OrderRow[]>(() => {
     const sessionById = new Map<number, TableSession>((sessions?.data ?? []).map((s) => [s.id, s]))
-    const tableNameById = new Map<number, string>((tables?.data ?? []).map((t) => [t.id, t.name]))
     const customerNameById = new Map<number, string>((customers?.data ?? []).map((c) => [c.id, c.name]))
 
     const withNames = (orders?.data ?? [])
       .filter((order) => isToday(order.createdAt))
       .map((order) => {
         const session = order.tableSessionId ? sessionById.get(order.tableSessionId) : undefined
-        const tableName = session ? (tableNameById.get(session.diningTableId) ?? "—") : order.orderType.replace(/_/g, " ")
+        const tableName = order.tableName ?? order.orderType.replace(/_/g, " ")
         const customerName = order.customerId
           ? (customerNameById.get(order.customerId) ?? "Loading…")
           : (session?.customer?.name ?? "Walk-in")
@@ -80,7 +77,7 @@ export default function StaffOrdersPage() {
     return [...withNames].sort(
       (a, b) => new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime(),
     )
-  }, [orders, sessions, tables, customers])
+  }, [orders, sessions, customers])
 
   return (
     <div className="flex flex-col gap-3">

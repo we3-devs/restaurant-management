@@ -154,21 +154,7 @@ const LIVE_STATUSES = ["pending", "preparing", "ready", "served"] as const
 
 export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps) {
   const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["completed", "cancelled"], limit: 30 }, { enabled })
-  const tableSessionsQuery = useTableSessions({ outletId: outletId ?? undefined, status: "active", limit: 100 }, { enabled })
-  const diningTablesQuery = useDiningTables({ outletId: outletId ?? undefined, limit: 100 }, { enabled })
   const showSkeleton = useDelayedLoading(ordersQuery.isLoading)
-
-  const tableLabelFor = useMemo(() => {
-    const sessions = tableSessionsQuery.data?.data ?? []
-    const tables = diningTablesQuery.data?.data ?? []
-    return (order: Order): string | null => {
-      if (!order.tableSessionId) return null
-      const session = sessions.find((s) => Number(s.id) === Number(order.tableSessionId))
-      if (!session) return null
-      const table = tables.find((t) => Number(t.id) === Number(session.diningTableId))
-      return table?.name ?? null
-    }
-  }, [tableSessionsQuery.data, diningTablesQuery.data])
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data])
   const counts = useMemo(() => {
@@ -219,7 +205,6 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
             ) : (
               <div className="space-y-1">
                 {relevantOrders.map((order) => {
-                  const tableLabel = tableLabelFor(order)
                   return (
                     <Link
                       key={order.id}
@@ -227,7 +212,7 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
                       className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
                     >
                       <span className="min-w-0 flex-1 truncate font-medium">#{order.orderNumber}</span>
-                      <span className="shrink-0 text-muted-foreground">{tableLabel}</span>
+                      <span className="shrink-0 text-muted-foreground">{order.tableName ?? order.orderType}</span>
                       <StatusBadge status={order.status} className="shrink-0" />
                       <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">
                         {elapsedLabel(order.createdAt)}
