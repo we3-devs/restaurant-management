@@ -4,7 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@rms/api-client/query-provider";
 import { ThemeProvider } from "@rms/ui/theme-provider";
 import { Toaster } from "@rms/ui/sonner";
-import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
+// import { RealtimeIndicator } from "@rms/ui/realtime-indicator";
 import { RouteProgress } from "@rms/ui/route-progress";
 import { fetchBranding } from "@rms/api-client/branding";
 import { BrandColor } from "@rms/api-client/brand-color";
@@ -62,7 +62,7 @@ export default function RootLayout({
             <BrandColor />
             {children}
             <Toaster />
-            <RealtimeIndicator />
+            {/* <RealtimeIndicator /> */}
           </QueryProvider>
         </ThemeProvider>
       </body>
