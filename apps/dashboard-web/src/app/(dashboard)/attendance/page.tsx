@@ -40,6 +40,8 @@ import {
 } from "@/hooks/use-attendance"
 import { ATTENDANCE_STATUSES, clockInSchema, type ClockInInput } from "@/lib/validators/attendance"
 import { usePageTitle } from "@rms/ui/use-page-title"
+import { QrCode } from "@/components/qr-code"
+import { apiClient } from "@rms/api-client/client"
 
 const PAGE_SIZE = 10
 
@@ -51,6 +53,8 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateRange, setDateRange] = useState<DateRange>({ dateFrom: "", dateTo: "" })
   const [page, setPage] = useState(1)
+  const [qrSetup, setQrSetup] = useState<{ clockInUrl: string; clockOutUrl: string } | null>(null)
+  const [qrLoading, setQrLoading] = useState(false)
 
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: employees } = useEmployees({ limit: 200 })
@@ -73,6 +77,26 @@ export default function AttendancePage() {
       toast.success("Clocked out")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to clock out")
+    }
+  }
+
+  async function createQrCodes() {
+    if (outletFilter === "all") {
+      toast.error("Select an outlet first")
+      return
+    }
+    setQrLoading(true)
+    try {
+      const result = await apiClient<{ clockInUrl: string; clockOutUrl: string }>("/attendance/qr/setup", {
+        method: "POST",
+        body: JSON.stringify({ outletId: Number(outletFilter) }),
+      })
+      setQrSetup(result)
+      toast.success("Attendance QR codes created — save or print them now")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create QR codes")
+    } finally {
+      setQrLoading(false)
     }
   }
 
@@ -117,6 +141,30 @@ export default function AttendancePage() {
         <h1 className="text-lg font-semibold">Attendance</h1>
         {canManage && <ClockInDialog />}
       </div>
+
+      {canManage && (
+        <div className="rounded-xl border border-border/60 bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">Staff attendance QR codes</p>
+              <p className="text-sm text-muted-foreground">Create one permanent clock-in and one clock-out QR per outlet.</p>
+            </div>
+            <Button onClick={createQrCodes} disabled={qrLoading || outletFilter === "all"}>
+              {qrLoading ? "Creating…" : "Create QR codes"}
+            </Button>
+          </div>
+          {qrSetup && (
+            <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
+              {[['Clock in', qrSetup.clockInUrl], ['Clock out', qrSetup.clockOutUrl]].map(([label, url]) => (
+                <div key={url} className="flex items-center gap-3 rounded-lg border p-3">
+                  <QrCode value={url} size={120} />
+                  <div className="text-sm"><p className="font-medium">{label}</p><p className="text-muted-foreground">Print and place at the staff entrance.</p></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-56 space-y-1.5">

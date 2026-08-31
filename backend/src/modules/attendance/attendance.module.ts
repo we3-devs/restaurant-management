@@ -5,12 +5,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { ShiftsModule } from '../shifts/shifts.module';
 import { Attendance } from './entities/attendance.entity';
+import { AttendanceQrStation } from './entities/attendance-qr-station.entity';
+import { Employee } from '../employees/entities/employee.entity';
 import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attendance]),
+    TypeOrmModule.forFeature([Attendance, AttendanceQrStation, Employee]),
     AuthModule,
     NotificationsModule,
     KitchenTicketsModule,

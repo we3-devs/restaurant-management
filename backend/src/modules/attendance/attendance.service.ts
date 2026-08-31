@@ -15,6 +15,10 @@ import {
   ClockOutDto,
   AdjustAttendanceDto,
 } from './dto/attendance.dto';
+import { createHash, randomBytes } from 'crypto';
+import { Employee } from '../employees/entities/employee.entity';
+import { AttendanceQrStation } from './entities/attendance-qr-station.entity';
+import { ScanAttendanceQrDto } from './dto/attendance-qr.dto';
 import { ListAttendanceQueryDto } from './dto/list-attendance-query.dto';
 
 function minutesSinceMidnight(date: Date): number {
@@ -35,7 +39,61 @@ export class AttendanceService {
     private readonly shiftRepo: Repository<Shift>,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    @InjectRepository(AttendanceQrStation)
+    private readonly qrStationRepo: Repository<AttendanceQrStation>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
   ) {}
+
+  async setupQrCodes(outletId: number, createdBy: number) {
+    const existing = await this.qrStationRepo.count({ where: { outletId } });
+    if (existing > 0) throw new BadRequestException('Attendance QR codes already exist for this outlet');
+
+    const rows = (['clock-in', 'clock-out'] as const).map((action) => {
+      const token = randomBytes(32).toString('base64url');
+      return { action, token, tokenHash: this.hashQrToken(token) };
+    });
+    await this.qrStationRepo.save(rows.map((row) => this.qrStationRepo.create({
+      outletId, action: row.action, tokenHash: row.tokenHash, createdBy,
+    })));
+    const profileUrl = (process.env.OPERATIONAL_WEB_URL ?? process.env.FRONTEND_URL?.split(',')[0] ?? 'http://localhost:3100').replace(/\/$/, '') + '/staff/profile';
+    return {
+      outletId,
+      clockInToken: rows[0].token,
+      clockOutToken: rows[1].token,
+      clockInUrl: `${profileUrl}?attendanceToken=${encodeURIComponent(rows[0].token)}`,
+      clockOutUrl: `${profileUrl}?attendanceToken=${encodeURIComponent(rows[1].token)}`,
+      warning: 'Save or print these QR values now. They are not returned again.',
+    };
+  }
+
+  async scanQr(dto: ScanAttendanceQrDto, userId: number): Promise<Attendance> {
+    const station = await this.qrStationRepo.findOne({ where: { tokenHash: this.hashQrToken(dto.token) } });
+    if (!station) throw new BadRequestException('Invalid attendance QR code');
+    const employee = await this.employeeRepo.findOne({ where: { userId: userId, outletId: station.outletId, isActive: true, employmentStatus: 'active' } });
+    if (!employee) throw new BadRequestException('Your account is not linked to an active employee at this outlet');
+
+    if (station.action === 'clock-in') {
+      return this.clockIn({ employeeId: employee.id, outletId: station.outletId }, userId);
+    }
+    const attendance = await this.attendanceRepo.findOne({ where: { employeeId: employee.id, outletId: station.outletId, clockOut: IsNull() } });
+    if (!attendance) throw new BadRequestException('You are not currently clocked in at this outlet');
+    return this.clockOut({ attendanceId: attendance.id }, userId);
+  }
+
+  async getCurrentForUser(userId: number): Promise<Attendance | null> {
+    return this.attendanceRepo.createQueryBuilder('attendance')
+      .innerJoin('attendance.employee', 'employee')
+      .where('employee.user_id = :userId', { userId })
+      .andWhere('attendance.clock_out IS NULL')
+      .andWhere("attendance.status IN ('present', 'late')")
+      .orderBy('attendance.clock_in', 'DESC')
+      .getOne();
+  }
+
+  private hashQrToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
   async findAll(
     query: ListAttendanceQueryDto,

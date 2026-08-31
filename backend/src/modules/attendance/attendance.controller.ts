@@ -7,6 +7,8 @@ import { User } from '../users/entities/user.entity';
 import { ClockInDto, ClockOutDto, AdjustAttendanceDto } from './dto/attendance.dto';
 import { ListAttendanceQueryDto } from './dto/list-attendance-query.dto';
 import { AttendanceService } from './attendance.service';
+import { ScanAttendanceQrDto, SetupAttendanceQrDto } from './dto/attendance-qr.dto';
+import { AllowWithoutPresence } from '../auth/decorators/allow-without-presence.decorator';
 
 @ApiTags('attendance')
 @ApiBearerAuth()
@@ -16,6 +18,25 @@ export class AttendanceController {
     private readonly attendanceService: AttendanceService,
     private readonly outletAccess: OutletAccessService,
   ) {}
+
+  @Post('qr/setup') @RequirePermissions('attendance.manage') @AllowWithoutPresence()
+  @ApiOperation({ summary: 'Creates the permanent clock-in and clock-out QR codes for an outlet' })
+  async setupQr(@Body() dto: SetupAttendanceQrDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, dto.outletId);
+    return this.attendanceService.setupQrCodes(dto.outletId, user.id);
+  }
+
+  @Post('qr/scan')
+  @ApiOperation({ summary: 'Clocks the logged-in employee in or out using an attendance QR code' })
+  async scanQr(@Body() dto: ScanAttendanceQrDto, @CurrentUser() user: User) {
+    return this.attendanceService.scanQr(dto, user.id);
+  }
+
+  @Get('me') @AllowWithoutPresence()
+  @ApiOperation({ summary: 'Returns the logged-in staff member attendance status' })
+  async myAttendance(@CurrentUser() user: User) {
+    return this.attendanceService.getCurrentForUser(user.id);
+  }
 
   @Get() @RequirePermissions('attendance.view')
   @ApiOperation({ summary: 'Lists attendance (paginated, filterable)' })

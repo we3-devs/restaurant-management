@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { LogOutIcon, MailIcon, ShieldCheckIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@rms/ui/avatar"
@@ -10,6 +10,7 @@ import { SettingsRow, SettingsRowGroup } from "@rms/ui/settings-row"
 import { DarkModeRow } from "@rms/ui/dark-mode-row"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { APP_VERSION } from "@/lib/app-version"
+import { apiClient } from "@rms/api-client/client"
 
 function initials(name: string): string {
   return (
@@ -33,7 +34,23 @@ function titleCase(slug: string): string {
 export default function StaffProfilePage() {
   const user = useCurrentUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [attendanceMessage, setAttendanceMessage] = useState("Checking attendance status…")
+
+  useEffect(() => {
+    const token = searchParams.get("attendanceToken")
+    if (!token) {
+      void apiClient<{ id: number } | null>("/attendance/me")
+        .then((current) => setAttendanceMessage(current ? "Present — clocked in" : "Not present — scan the clock-in QR"))
+        .catch(() => setAttendanceMessage("Unable to check attendance"))
+      return
+    }
+    void apiClient("/attendance/qr/scan", { method: "POST", body: JSON.stringify({ token }) })
+      .then(() => setAttendanceMessage("Attendance updated successfully"))
+      .catch((error: Error) => setAttendanceMessage(error.message || "Attendance scan failed"))
+      .finally(() => router.replace("/staff/profile"))
+  }, [router, searchParams])
 
   const roleLabel = user.isSuperadmin
     ? "Superadmin"
@@ -66,6 +83,10 @@ export default function StaffProfilePage() {
           <SettingsRow icon={MailIcon} label="Mail" trailing={<span className="text-sm text-muted-foreground">{user.email}</span>} />
         </div>
       </Card>
+
+      <SettingsRowGroup>
+        <SettingsRow icon={ShieldCheckIcon} label="Attendance" trailing={<span className="text-sm text-muted-foreground">{attendanceMessage}</span>} />
+      </SettingsRowGroup>
 
       <SettingsRowGroup>
         <DarkModeRow />
