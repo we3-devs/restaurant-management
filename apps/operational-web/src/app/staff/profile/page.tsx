@@ -43,8 +43,8 @@ export default function StaffProfilePage() {
     const token = searchParams.get("attendanceToken")
     if (!token) {
       void apiClient<{ id: number } | null>("/attendance/me")
-        .then((current) => setAttendanceMessage(current ? "Present — clocked in" : "Not present — scan the clock-in QR"))
-        .catch(() => setAttendanceMessage("Unable to check attendance"))
+        .then((current) => setAttendanceMessage(current ? "Present" : "Not present — scan the clock-in QR"))
+        .catch(() => setAttendanceMessage("Not present — scan the clock-in QR"))
       return
     }
     void apiClient("/attendance/qr/scan", { method: "POST", body: JSON.stringify({ token }) })
@@ -86,11 +86,7 @@ export default function StaffProfilePage() {
       </Card>
 
       <SettingsRowGroup>
-        <AttendanceQrScanner onComplete={() => setAttendanceMessage("Present — attendance updated")} />
-      </SettingsRowGroup>
-
-      <SettingsRowGroup>
-        <SettingsRow icon={ShieldCheckIcon} label="Attendance" trailing={<span className="text-sm text-muted-foreground">{attendanceMessage}</span>} />
+        <AttendanceQrScanner status={attendanceMessage} onComplete={() => setAttendanceMessage("Present ")} />
       </SettingsRowGroup>
 
       <SettingsRowGroup>

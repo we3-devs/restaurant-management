@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CameraIcon, SquareIcon } from "lucide-react"
+import { CameraIcon, XIcon } from "lucide-react"
 import { Button } from "@rms/ui/button"
-import { Card } from "@rms/ui/card"
+import { SettingsRow } from "@rms/ui/settings-row"
 import { apiClient } from "@rms/api-client/client"
 
 function tokenFromValue(value: string): string {
@@ -15,7 +15,7 @@ function tokenFromValue(value: string): string {
   }
 }
 
-export function AttendanceQrScanner({ onComplete }: { onComplete: () => void }) {
+export function AttendanceQrScanner({ onComplete, status }: { onComplete: () => void; status: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const frameRef = useRef<number | null>(null)
@@ -84,23 +84,18 @@ export function AttendanceQrScanner({ onComplete }: { onComplete: () => void }) 
   useEffect(() => stop, [])
 
   return (
-    <Card className="gap-3 rounded-2xl border-border/60 p-4 shadow-none">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="font-medium">Attendance</p>
-          <p className="text-sm text-muted-foreground">Scan either the clock-in or clock-out QR code.</p>
-        </div>
-        <Button variant={scanning ? "destructive" : "default"} onClick={scanning ? stop : () => void start()}>
-          {scanning ? <><SquareIcon className="mr-2 size-4" />Stop</> : <><CameraIcon className="mr-2 size-4" />Scan QR</>}
-        </Button>
+    <>
+      <SettingsRow icon={CameraIcon} label="Attendance" trailing={<span className="text-right text-sm text-muted-foreground">{status}</span>} onClick={() => void start()} />
+      <div className={`${scanning ? "fixed flex" : "hidden"} inset-0 z-50 items-center justify-center bg-black/70 p-4`}>
+          <div className="w-full max-w-sm rounded-2xl bg-card p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <div><p className="font-semibold">Scan attendance QR</p><p className="text-sm text-muted-foreground">Use clock-in or clock-out QR</p></div>
+              <Button variant="ghost" size="icon" onClick={stop} aria-label="Close scanner"><XIcon className="size-5" /></Button>
+            </div>
+            <video ref={videoRef} muted playsInline className="aspect-square w-full rounded-xl bg-black object-cover" />
+            {message && <p className="mt-3 text-sm text-muted-foreground">{message}</p>}
+          </div>
       </div>
-      <video
-        ref={videoRef}
-        muted
-        playsInline
-        className={`${scanning ? "block" : "hidden"} aspect-video w-full rounded-xl bg-black object-cover`}
-      />
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
-    </Card>
+    </>
   )
 }
