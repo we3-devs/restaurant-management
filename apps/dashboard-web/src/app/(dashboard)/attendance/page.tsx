@@ -151,7 +151,7 @@ export default function AttendancePage() {
               <p className="font-medium">Staff attendance QR codes</p>
               <p className="text-sm text-muted-foreground">Create one permanent clock-in and one clock-out QR per outlet.</p>
             </div>
-            <Button onClick={createQrCodes} disabled={qrLoading || !activeOutletId}>
+            <Button onClick={createQrCodes} disabled={qrLoading}>
               {qrLoading ? "Creating…" : "Create QR codes"}
             </Button>
           </div>
