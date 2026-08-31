@@ -73,7 +73,7 @@ export function useTableSession(tableCode: string | null) {
       return res.json();
     },
     enabled: !!tableCode && !!token && joined,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   const addCompanion = useMutation({

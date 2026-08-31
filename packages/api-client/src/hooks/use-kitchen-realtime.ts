@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { acquireKdsSocket, releaseKdsSocket } from "../realtime/kds-socket"
 import { queryKeys } from "../query-keys"
 import type { AppNotification } from "./use-notifications"
+import type { KdsBootstrap, KitchenTicket, KitchenTicketItem } from "./use-kitchen-tickets"
 
 /**
  * Keeps the KDS bootstrap query fresh via push updates instead of relying
@@ -26,8 +27,38 @@ export function useKitchenRealtime(outletId: number | null): void {
 
     const socket = acquireKdsSocket()
 
-    const invalidateKitchen = () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.bootstrap(outletId) })
+    const bootstrapKey = queryKeys.kitchenTickets.bootstrap(outletId)
+    const patchTicket = (ticket: KitchenTicket, append: boolean) => {
+      queryClient.setQueryData<KdsBootstrap>(bootstrapKey, (current) => {
+        if (!current) return current
+        const index = current.tickets.findIndex((candidate) => candidate.id === ticket.id)
+        if (index === -1) return append ? { ...current, tickets: [...current.tickets, ticket] } : current
+        if (ticket.status === "completed" || ticket.status === "cancelled") {
+          return { ...current, tickets: current.tickets.filter((candidate) => candidate.id !== ticket.id) }
+        }
+        const tickets = current.tickets.slice()
+        tickets[index] = {
+          ...tickets[index],
+          ...ticket,
+          ...(ticket.items !== undefined ? { items: ticket.items } : {}),
+          ...(ticket.order !== undefined ? { order: ticket.order } : {}),
+          ...(ticket.department !== undefined ? { department: ticket.department } : {}),
+        }
+        return { ...current, tickets }
+      })
+    }
+    const patchItem = (item: KitchenTicketItem) => {
+      queryClient.setQueryData<KdsBootstrap>(bootstrapKey, (current) => {
+        if (!current) return current
+        const tickets = current.tickets.map((ticket) =>
+          ticket.id === item.ticketId
+            ? { ...ticket, items: ticket.items?.map((candidate) => candidate.id === item.id ? { ...candidate, ...item } : candidate) }
+            : ticket,
+        )
+        return { ...current, tickets }
+      })
+    }
+
     // Kitchen item status changes mirror onto OrderItem.status, and finishing
     // an order can auto-end its table session, so any open order/floor screens
     // (POS cart, order detail, floor board) must refetch too.
@@ -42,8 +73,16 @@ export function useKitchenRealtime(outletId: number | null): void {
     }
 
     const subscribe = () => socket.emit("subscribe-outlet", { outletId })
-    const onTicketChange = () => {
-      invalidateKitchen()
+    const onTicketCreated = (ticket: KitchenTicket) => {
+      patchTicket(ticket, true)
+      invalidateOrders()
+    }
+    const onTicketUpdated = (ticket: KitchenTicket) => {
+      patchTicket(ticket, false)
+      invalidateOrders()
+    }
+    const onItemUpdated = (item: KitchenTicketItem) => {
+      patchItem(item)
       invalidateOrders()
     }
     const onNotificationCreated = (notification: AppNotification) => {
@@ -69,18 +108,18 @@ export function useKitchenRealtime(outletId: number | null): void {
     const onServiceRequestCreated = () => invalidateService()
 
     socket.on("connect", subscribe)
-    socket.on("kitchen.ticket.created", onTicketChange)
-    socket.on("kitchen.ticket.updated", onTicketChange)
-    socket.on("kitchen.item.updated", onTicketChange)
+    socket.on("kitchen.ticket.created", onTicketCreated)
+    socket.on("kitchen.ticket.updated", onTicketUpdated)
+    socket.on("kitchen.item.updated", onItemUpdated)
     socket.on("notification.created", onNotificationCreated)
     socket.on("service_request.created", onServiceRequestCreated)
     if (socket.connected) subscribe()
 
     return () => {
       socket.off("connect", subscribe)
-      socket.off("kitchen.ticket.created", onTicketChange)
-      socket.off("kitchen.ticket.updated", onTicketChange)
-      socket.off("kitchen.item.updated", onTicketChange)
+      socket.off("kitchen.ticket.created", onTicketCreated)
+      socket.off("kitchen.ticket.updated", onTicketUpdated)
+      socket.off("kitchen.item.updated", onItemUpdated)
       socket.off("notification.created", onNotificationCreated)
       socket.off("service_request.created", onServiceRequestCreated)
       releaseKdsSocket()

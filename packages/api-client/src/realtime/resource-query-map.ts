@@ -32,8 +32,6 @@ export const RESOURCE_QUERY_MAP: Record<string, QueryKeyPrefix[]> = {
   orders: [queryKeys.orders.all, queryKeys.dashboard.all],
   order_items: [queryKeys.orders.all, queryKeys.orderItems.all],
   order_payments: [queryKeys.orders.all, queryKeys.dashboard.all],
-  kitchen_tickets: [queryKeys.kitchenTickets.all],
-  kitchen_ticket_items: [queryKeys.kitchenTickets.all],
   service_requests: [queryKeys.serviceRequests.all],
   units: [queryKeys.units.all],
   unit_conversions: [queryKeys.units.all],

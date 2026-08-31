@@ -13,6 +13,8 @@ interface ResourceChangedPayload {
   outletId: number | null
 }
 
+type ResourceChangedBatch = ResourceChangedPayload[]
+
 /**
  * Mounted once at the dashboard root. Joins every outlet room the user has
  * access to and invalidates the matching query keys on every
@@ -30,6 +32,7 @@ export function RealtimeInvalidationProvider() {
   const queryClient = useQueryClient()
   const { outlets } = useActiveOutlet()
   const outletIds = outlets.map((o) => o.id).join(",")
+  const subscribedOutletIds = new Set(outlets.map((o) => o.id))
 
   useEffect(() => {
     if (!outletIds) return
@@ -40,21 +43,30 @@ export function RealtimeInvalidationProvider() {
         socket.emit("subscribe-outlet", { outletId: Number(idStr) })
       }
     }
-    const onResourceChanged = (payload: ResourceChangedPayload) => {
+    const invalidate = (payload: ResourceChangedPayload) => {
+      // The server normally scopes outlet events by room. Keep this guard as
+      // a second boundary for global/shared sockets and future transports.
+      if (payload.outletId !== null && !subscribedOutletIds.has(payload.outletId)) return
       const keys = RESOURCE_QUERY_MAP[payload.resource]
       if (!keys) return
       for (const queryKey of keys) {
         queryClient.invalidateQueries({ queryKey })
       }
     }
+    const onResourceChanged = (payload: ResourceChangedPayload) => invalidate(payload)
+    const onResourceChangedBatch = (payload: ResourceChangedBatch) => {
+      for (const change of payload) invalidate(change)
+    }
 
     socket.on("connect", subscribe)
     socket.on("resource.changed", onResourceChanged)
+    socket.on("resource.changed.batch", onResourceChangedBatch)
     if (socket.connected) subscribe()
 
     return () => {
       socket.off("connect", subscribe)
       socket.off("resource.changed", onResourceChanged)
+      socket.off("resource.changed.batch", onResourceChangedBatch)
       releaseKdsSocket()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

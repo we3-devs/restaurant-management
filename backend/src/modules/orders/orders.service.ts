@@ -1012,20 +1012,21 @@ export class OrdersService {
             }),
           );
           const itemIds: number[] = [];
-          for (const item of groupItems) {
-            const ticketItem = await ticketItemRepo.save(
-              ticketItemRepo.create({
+          const ticketItems = groupItems.map((item) =>
+            ticketItemRepo.create({
                 ticketId: ticket.id,
                 orderItemId: item.id,
                 status: 'ready',
                 startedAt: now,
                 readyAt: now,
               }),
-            );
-            itemIds.push(ticketItem.id);
+          );
+          const savedTicketItems = await ticketItemRepo.save(ticketItems);
+          for (const [index, item] of groupItems.entries()) {
+            itemIds.push(savedTicketItems[index].id);
             item.status = 'ready';
-            await itemRepo.save(item);
           }
+          await itemRepo.save(groupItems);
           createdTickets.push(ticket);
           readyMade.push({ ticketId: ticket.id, itemIds });
           continue;
@@ -1038,17 +1039,17 @@ export class OrdersService {
             status: 'open',
           }),
         );
-        for (const item of groupItems) {
-          await ticketItemRepo.save(
-            ticketItemRepo.create({
+        await ticketItemRepo.save(groupItems.map((item) =>
+          ticketItemRepo.create({
               ticketId: ticket.id,
               orderItemId: item.id,
               status: 'sent_to_kitchen',
             }),
-          );
+        ));
+        for (const item of groupItems) {
           item.status = 'sent_to_kitchen';
-          await itemRepo.save(item);
         }
+        await itemRepo.save(groupItems);
         createdTickets.push(ticket);
       }
       return { createdTickets, readyMade };

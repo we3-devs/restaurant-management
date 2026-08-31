@@ -22,6 +22,30 @@ const logger = new Logger('RealtimeBus');
 let ioServer: Server | null = null;
 let outletRoom: ((outletId: number) => string) | null = null;
 
+const pendingChanges = new Map<string, ResourceChangedPayload>();
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushChanges(): void {
+  flushTimer = null;
+  if (!ioServer || pendingChanges.size === 0) return;
+  const changes = [...pendingChanges.values()];
+  pendingChanges.clear();
+  const scoped = new Map<string, ResourceChangedPayload[]>();
+  for (const change of changes) {
+    const key = change.outletId === null ? 'global' : String(change.outletId);
+    const list = scoped.get(key);
+    if (list) list.push(change);
+    else scoped.set(key, [change]);
+  }
+  for (const [scope, batch] of scoped) {
+    if (scope !== 'global' && outletRoom) {
+      ioServer.to(outletRoom(Number(scope))).emit('resource.changed.batch', batch);
+    } else {
+      ioServer.emit('resource.changed.batch', batch);
+    }
+  }
+}
+
 export function registerRealtimeServer(server: Server, roomFn: (outletId: number) => string): void {
   ioServer = server;
   outletRoom = roomFn;
@@ -39,9 +63,9 @@ export function broadcastResourceChanged(resource: string, action: RealtimeActio
     return;
   }
   const payload: ResourceChangedPayload = { resource, action, outletId };
-  if (outletId !== null && outletRoom) {
-    ioServer.to(outletRoom(outletId)).emit('resource.changed', payload);
-  } else {
-    ioServer.emit('resource.changed', payload);
-  }
+  // TypeORM commonly emits several writes for one user action. Coalesce the
+  // same resource/action/scope for one event-loop turn plus 25ms so clients do
+  // one invalidation/refetch instead of a request per row write.
+  pendingChanges.set(`${resource}:${action}:${outletId ?? 'global'}`, payload);
+  if (flushTimer === null) flushTimer = setTimeout(flushChanges, 25);
 }

@@ -63,7 +63,7 @@ export function useKdsBootstrap(outletId: number | null) {
     queryKey: queryKeys.kitchenTickets.bootstrap(outletId),
     queryFn: () => apiClient<KdsBootstrap>(`/kitchen-tickets/bootstrap?outletId=${outletId}`),
     enabled: !!outletId && outletId > 0,
-    refetchInterval: 30_000, // fallback in case a websocket event is missed
+    refetchInterval: 60_000, // fallback in case a websocket event is missed
   })
 }
 

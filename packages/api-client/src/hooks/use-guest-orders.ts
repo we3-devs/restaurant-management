@@ -59,6 +59,6 @@ export function useMyGuestOrders(tableCode: string) {
     // guest-order-tracker.tsx) — this interval is only the fallback for a
     // dropped/reconnecting socket, same role as the 30s poll in
     // use-kitchen-realtime.ts.
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   })
 }
