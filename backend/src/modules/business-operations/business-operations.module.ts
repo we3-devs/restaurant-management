@@ -6,6 +6,7 @@ import { OutletsModule } from '../outlets/outlets.module';
 import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { ShiftsModule } from '../shifts/shifts.module';
 import { SuppliersModule } from '../suppliers/suppliers.module';
+import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
 import { BusinessOperationsProcessor } from './business-operations.processor';
 
 @Module({
@@ -17,6 +18,7 @@ import { BusinessOperationsProcessor } from './business-operations.processor';
     OutletsModule,
     NotificationsModule,
     KitchenTicketsModule,
+    OperatingHoursModule,
   ],
   providers: [BusinessOperationsProcessor],
 })

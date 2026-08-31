@@ -7,6 +7,7 @@ import { findCachedDiningTableId } from "./use-table-sessions"
 import type { Order } from "./use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import type { CreateOrderPaymentInput } from "@rms/validators/orders"
+import { operationalMutationHeaders, type OperationalMutationOptions } from "../operational-mutation"
 
 export interface CreateTableSessionPaymentInput {
   method: (typeof ORDER_PAYMENT_METHODS)[number]
@@ -43,11 +44,11 @@ export function useOrderPayments(orderId: number) {
   })
 }
 
-export function useCreateOrderPayment(orderId: number) {
+export function useCreateOrderPayment(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateOrderPaymentInput) =>
-      apiClient<OrderPayment>(`/orders/${orderId}/payments`, { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OrderPayment>(`/orders/${orderId}/payments`, { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.payments(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
@@ -56,13 +57,14 @@ export function useCreateOrderPayment(orderId: number) {
 }
 
 /** One combined payment across every open order on a table session — see OrderPaymentsService#payForTableSession. */
-export function useCreateTableSessionPayment(tableSessionId: number) {
+export function useCreateTableSessionPayment(tableSessionId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateTableSessionPaymentInput) =>
       apiClient<{ payments: OrderPayment[]; orders: Order[] }>(`/table-sessions/${tableSessionId}/payments`, {
         method: "POST",
         body: JSON.stringify(input),
+        headers: operationalMutationHeaders(options.closedHoursOverride),
       }),
     onSuccess: () => {
       // Covers every nested key (lists/detail/payments) — each individual
@@ -73,11 +75,11 @@ export function useCreateTableSessionPayment(tableSessionId: number) {
 }
 
 /** Completes every open order on a table session at once, once every one of them is fully paid. */
-export function useCompleteAllForTableSession(tableSessionId: number) {
+export function useCompleteAllForTableSession(tableSessionId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () =>
-      apiClient<Order[]>(`/orders/table-sessions/${tableSessionId}/complete-all`, { method: "POST" }),
+      apiClient<Order[]>(`/orders/table-sessions/${tableSessionId}/complete-all`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       // Completing every open order on the session ends it server-side

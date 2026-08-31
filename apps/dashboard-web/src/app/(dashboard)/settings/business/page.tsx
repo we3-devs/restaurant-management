@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -15,6 +15,8 @@ import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type BusinessSettings } from "@/hooks/use-settings"
 import { businessSettingsSchema, type BusinessSettingsInput } from "@/lib/validators/settings"
 import { usePageTitle } from "@rms/ui/use-page-title"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
+import { useOperatingHours, useUpdateOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 
 const defaultValues: BusinessSettingsInput = {
   restaurantName: "",
@@ -38,6 +40,13 @@ export default function BusinessSettingsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canView = isSuperadmin || permissions.includes("settings.view")
   const canManage = isSuperadmin || permissions.includes("settings.manage")
+  const { outletId: activeOutletId } = useActiveOutlet()
+  const { data: hours } = useOperatingHours(activeOutletId)
+  const updateHours = useUpdateOperatingHours(activeOutletId)
+  const [openingTime, setOpeningTime] = useState("")
+  const [closingTime, setClosingTime] = useState("")
+  const [hoursTimezone, setHoursTimezone] = useState("")
+  const [hoursEnabled, setHoursEnabled] = useState(false)
 
   const { data, isLoading } = useSettingsCategory<BusinessSettings>("business")
   const showSkeleton = useDelayedLoading(isLoading)
@@ -53,6 +62,14 @@ export default function BusinessSettingsPage() {
       form.reset({ ...defaultValues, ...data })
     }
   }, [data, form])
+
+  useEffect(() => {
+    if (!hours) return
+    setOpeningTime(hours.openingTime ?? "")
+    setClosingTime(hours.closingTime ?? "")
+    setHoursTimezone(hours.timezone)
+    setHoursEnabled(hours.enabled)
+  }, [hours])
 
   async function onSubmit(values: BusinessSettingsInput) {
     try {
@@ -216,6 +233,22 @@ export default function BusinessSettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>Outlet operating hours</CardTitle></CardHeader>
+        <CardContent>
+          {!activeOutletId ? <p className="text-sm text-muted-foreground">Select one outlet from the top navigation. Operating hours cannot be edited for All outlets.</p> : (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm">Opening time<input type="time" value={openingTime} onChange={(e) => setOpeningTime(e.target.value)} disabled={!canManage} className="mt-1 block w-full rounded-md border bg-background p-2" /></label>
+              <label className="text-sm">Closing time<input type="time" value={closingTime} onChange={(e) => setClosingTime(e.target.value)} disabled={!canManage} className="mt-1 block w-full rounded-md border bg-background p-2" /></label>
+              <label className="col-span-2 text-sm">IANA timezone<input value={hoursTimezone} onChange={(e) => setHoursTimezone(e.target.value)} disabled={!canManage} placeholder="Asia/Kathmandu" className="mt-1 block w-full rounded-md border bg-background p-2" /></label>
+              <label className="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={hoursEnabled} onChange={(e) => setHoursEnabled(e.target.checked)} disabled={!canManage} /> Enforce operating hours</label>
+              {canManage && <Button disabled={updateHours.isPending} onClick={async () => { try { await updateHours.mutateAsync({ openingTime, closingTime, timezone: hoursTimezone, enabled: hoursEnabled }); toast.success("Operating hours updated") } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to update operating hours") } }}>Save operating hours</Button>}
+              {hours && <p className="col-span-2 text-sm text-muted-foreground">Status: {hours.isOpen ? "Open" : "Closed"}</p>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

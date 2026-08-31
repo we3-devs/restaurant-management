@@ -20,6 +20,8 @@ import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
+import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
+import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
 import {
   useAddOrderItemsBatch,
@@ -119,7 +121,9 @@ function EditableCart({
   const { data: order } = useOrder(orderId)
   const { data: payments } = useOrderPayments(orderId)
   const createPayment = useCreateOrderPayment(orderId)
+  const createPaymentOverride = useCreateOrderPayment(orderId, { closedHoursOverride: true })
   const updateStatus = useUpdateOrderStatus(orderId)
+  const updateStatusOverride = useUpdateOrderStatus(orderId, { closedHoursOverride: true })
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
   const user = useCurrentUser()
   // Waiters take orders but don't collect payment — that's the cashier's
@@ -127,8 +131,12 @@ function EditableCart({
   const canRecordPayment = user.isSuperadmin || user.roleSlugs.includes("cashier")
   const localCart = useLocalCartContext()
   const addItemsBatch = useAddOrderItemsBatch(orderId)
+  const addItemsBatchOverride = useAddOrderItemsBatch(orderId, { closedHoursOverride: true })
   const sendToKitchen = useSendOrderToKitchen(orderId)
+  const sendToKitchenOverride = useSendOrderToKitchen(orderId, { closedHoursOverride: true })
   const fireHeld = useFireHeldItems(orderId)
+  const fireHeldOverride = useFireHeldItems(orderId, { closedHoursOverride: true })
+  const { data: operatingHours } = useOperatingHours(order?.outletId ?? null)
   const isOnline = useOnlineStatus()
 
   // Credit payments settle the order (it counts toward dueAmount same as
@@ -222,6 +230,15 @@ function EditableCart({
     }
   }
 
+  async function handlePlaceOrderOverride() {
+    if (localCart.items.length > 0) {
+      await addItemsBatchOverride.mutateAsync({ items: localCart.items.map((item) => ({ foodId: item.foodId, foodVariantId: item.foodVariantId ?? undefined, quantity: item.quantity, note: item.note || undefined, packagingType: item.packagingType })) })
+      localCart.clear()
+    }
+    await sendToKitchenOverride.mutateAsync()
+    toast.success(`Placed ${pendingCount} item(s)`)
+  }
+
   async function handleFireHeld() {
     if (!isOnline) {
       toast.error("You're offline — reconnect to send items to the kitchen")
@@ -233,6 +250,11 @@ function EditableCart({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to fire held items")
     }
+  }
+
+  async function handleFireHeldOverride() {
+    await fireHeldOverride.mutateAsync()
+    toast.success(`Fired ${heldCount} held item(s) to the kitchen`)
   }
 
   async function handleCompleteSale() {
@@ -250,6 +272,12 @@ function EditableCart({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete sale")
     }
+  }
+
+  async function handleCompleteSaleOverride() {
+    if (!order) return
+    await updateStatusOverride.mutateAsync("completed")
+    toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
   }
 
   return (
@@ -275,6 +303,7 @@ function EditableCart({
         ))}
       </div>
       {heldCount > 0 && (
+        <>
         <Button
           variant="outline"
           className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
@@ -284,6 +313,8 @@ function EditableCart({
           <FlameIcon />
           {fireHeld.isPending ? "Firing..." : `Fire held items (${heldCount})`}
         </Button>
+        <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="fire held items" onConfirm={handleFireHeldOverride} />
+        </>
       )}
       <Button
         variant="secondary"
@@ -292,6 +323,7 @@ function EditableCart({
       >
         {isPlacing ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
+      <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="place order" onConfirm={handlePlaceOrderOverride} />
       {order && (
         <>
           <Separator />
@@ -418,6 +450,7 @@ function EditableCart({
                 >
                   {createPayment.isPending ? "Recording..." : "Add payment"}
                 </Button>
+                <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: paymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); toast.success("Payment recorded") }} />
                 <Button
                   className="w-full"
                   onClick={handleCompleteSale}
@@ -431,6 +464,7 @@ function EditableCart({
                         ? `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
                         : "Complete sale"}
                 </Button>
+                <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="complete sale" onConfirm={handleCompleteSaleOverride} />
               </>
             )}
           </div>

@@ -23,6 +23,8 @@ import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { TableSessionCheckout } from "./table-session-checkout"
+import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
+import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 
 const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 
@@ -43,8 +45,11 @@ export function CheckoutPanel({
   const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
+  const updateStatusOverride = useUpdateOrderStatus(orderId, { closedHoursOverride: true })
   const createPayment = useCreateOrderPayment(orderId)
+  const createPaymentOverride = useCreateOrderPayment(orderId, { closedHoursOverride: true })
   const isOnline = useOnlineStatus()
+  const { data: operatingHours } = useOperatingHours(order?.outletId ?? null)
 
   // A table session can carry more than one open order now — if this one
   // isn't alone, hand off to the combined "pay/complete the whole table"
@@ -123,6 +128,12 @@ export function CheckoutPanel({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete sale")
     }
+  }
+
+  async function handleCompleteSaleOverride() {
+    if (!order) return
+    await updateStatusOverride.mutateAsync("completed")
+    toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
   }
 
   return (
@@ -222,6 +233,19 @@ export function CheckoutPanel({
           >
             {createPayment.isPending ? "Recording..." : "Add payment"}
           </Button>
+          <ClosedHoursOverrideButton
+            closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
+            label="add payment"
+            onConfirm={async () => {
+              await createPaymentOverride.mutateAsync({
+                type: "payment",
+                method: paymentMethod,
+                amount: paymentAmount,
+                customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+              })
+              toast.success("Payment recorded")
+            }}
+          />
 
           <Button
             className="w-full"
@@ -237,6 +261,11 @@ export function CheckoutPanel({
                   ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
                   : "Complete sale"}
           </Button>
+          <ClosedHoursOverrideButton
+            closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
+            label="complete sale"
+            onConfirm={handleCompleteSaleOverride}
+          />
         </>
       )}
     </div>

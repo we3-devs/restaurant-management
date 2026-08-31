@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { SettingsService } from '../settings/settings.service';
+import { OperatingHoursService } from '../operating-hours/operating-hours.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateTableSessionPaymentDto } from './dto/create-table-session-payment.dto';
 import { ListOrderPaymentsQueryDto } from './dto/list-order-payments-query.dto';
@@ -26,6 +27,7 @@ export class OrderPaymentsService {
     private readonly customersService: CustomersService,
     private readonly customerCreditService: CustomerCreditService,
     private readonly settingsService: SettingsService,
+    private readonly operatingHoursService: OperatingHoursService,
   ) {}
 
   async findAll(
@@ -65,6 +67,8 @@ export class OrderPaymentsService {
     dto: CreateOrderPaymentDto,
     receivedBy: number,
   ): Promise<OrderPayment> {
+    const targetOrder = await this.ordersService.findOne(orderId);
+    await this.operatingHoursService.assertOperational(targetOrder.outletId);
     const type = dto.type ?? 'payment';
     const method = dto.method ?? 'cash';
 
@@ -222,6 +226,7 @@ export class OrderPaymentsService {
         `Table session ${tableSessionId} has no outstanding balance`,
       );
     }
+    await this.operatingHoursService.assertOperational(openOrders[0].outletId);
 
     const totalDue = openOrders.reduce((sum, order) => sum + order.dueAmount, 0);
     if (dto.amount > totalDue) {

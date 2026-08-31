@@ -18,7 +18,8 @@ export type AuditAction =
   | 'role_change'
   | 'permission_change'
   | 'order_change'
-  | 'kitchen_status_change';
+  | 'kitchen_status_change'
+  | 'operational_override';
 
 /** Append-only activity trail, written asynchronously via the `audit-log-write` queue (see AuditInterceptor). */
 @Entity({ name: 'audit_logs' })

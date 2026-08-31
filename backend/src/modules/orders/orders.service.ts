@@ -45,6 +45,7 @@ import { ReservationsService } from '../reservations/reservations.service';
 import { SettingsService } from '../settings/settings.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { UnitsService } from '../units/units.service';
+import { OperatingHoursService } from '../operating-hours/operating-hours.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { CreateOrderItemAddonDto } from './dto/create-order-item-addon.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
@@ -141,6 +142,7 @@ export class OrdersService {
     private readonly loyaltyService: LoyaltyService,
     private readonly settingsService: SettingsService,
     private readonly customerCreditService: CustomerCreditService,
+    private readonly operatingHoursService: OperatingHoursService,
   ) {}
 
   // ---------------------------------------------------------------- orders
@@ -355,6 +357,7 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto, createdBy: number): Promise<Order> {
+    await this.operatingHoursService.assertOperational(dto.outletId);
     this.logger.log(`[ORDER_CREATE] Starting order creation: outletId=${dto.outletId}, orderType=${dto.orderType}`);
     try {
       await this.outletsService.findOne(dto.outletId);
@@ -424,6 +427,7 @@ export class OrdersService {
     dto: OpenTableSessionDto,
     startedBy: number,
   ): Promise<{ session: TableSession; order: Order }> {
+    await this.operatingHoursService.assertOperational(dto.outletId);
     const totalStart = process.hrtime.bigint();
     const stageMs: Record<string, number> = {};
     const sqlLog: { sql: string; ms: number }[] = [];
@@ -580,6 +584,7 @@ export class OrdersService {
     diningTableId: number,
     tableName: string,
   ): Promise<Order> {
+    await this.operatingHoursService.assertOperational(outletId);
     const existing = (
       await this.findOpenForTableSession(tableSessionId)
     ).find((order) => order.status !== 'completed');
@@ -681,6 +686,7 @@ export class OrdersService {
 
   async update(id: number, dto: UpdateOrderDto): Promise<Order> {
     const order = await this.findOne(id);
+    await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
 
     if (dto.customerId !== undefined && dto.customerId !== null) {
@@ -724,6 +730,7 @@ export class OrdersService {
     changedBy: number | null,
   ): Promise<Order> {
     const order = await this.findOne(id);
+    await this.operatingHoursService.assertOperational(order.outletId);
     const fromStatus = order.status;
 
     // A "pending" order that never had anything added to it (customer sat
@@ -926,6 +933,7 @@ export class OrdersService {
     changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
     const items = await this.orderItemsRepository.find({
       where: { orderId, status: 'stock_reserved' },
@@ -950,6 +958,7 @@ export class OrdersService {
     changedBy: number | null,
   ): Promise<KitchenTicket[]> {
     const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
     const held = await this.orderItemsRepository.find({
       where: { orderId, status: 'stock_reserved', isHeld: true },
@@ -1342,6 +1351,7 @@ export class OrdersService {
 
   async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
     const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
 
     const preparationDepartmentId = await this.resolvePreparationDepartmentId(
@@ -1422,7 +1432,9 @@ export class OrdersService {
 
   async updateItem(id: number, dto: UpdateOrderItemDto): Promise<OrderItem> {
     const item = await this.findItem(id);
-    OrdersService.assertMutable(await this.findOne(item.orderId));
+    const order = await this.findOne(item.orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     const previousQuantity = item.quantity;
 
     if (dto.quantity !== undefined) {
@@ -1480,7 +1492,9 @@ export class OrdersService {
    */
   async removeItem(id: number): Promise<void> {
     const item = await this.findItem(id);
-    OrdersService.assertMutable(await this.findOne(item.orderId));
+    const order = await this.findOne(item.orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     if (item.status !== 'stock_reserved') {
       throw new ConflictException(
         `Item ${id} has already been sent to the kitchen (status: ${item.status}) and can no longer be deleted — void it instead`,
@@ -1508,7 +1522,9 @@ export class OrdersService {
    */
   async voidItem(id: number, reason: string): Promise<OrderItem> {
     const item = await this.findItem(id);
-    OrdersService.assertMutable(await this.findOne(item.orderId));
+    const order = await this.findOne(item.orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     if (item.status === 'cancelled') {
       throw new ConflictException(`Item ${id} is already voided`);
     }
@@ -1541,7 +1557,9 @@ export class OrdersService {
     dto: CreateOrderItemAddonDto,
   ): Promise<OrderItemAddon> {
     const item = await this.findItem(orderItemId);
-    OrdersService.assertMutable(await this.findOne(item.orderId));
+    const order = await this.findOne(item.orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     const addon = await this.addonsService.findOne(dto.addonId);
 
     const quantity = dto.quantity ?? 1;
@@ -1568,7 +1586,9 @@ export class OrdersService {
 
   async removeItemAddon(orderItemId: number, addonId: number): Promise<void> {
     const item = await this.findItem(orderItemId);
-    OrdersService.assertMutable(await this.findOne(item.orderId));
+    const order = await this.findOne(item.orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     await this.orderItemAddonsRepository.delete({ orderItemId, addonId });
     await this.recalculateTotals(item.orderId);
     await this.recalculateReservations(orderItemId);
@@ -1636,6 +1656,7 @@ export class OrdersService {
     userId: number,
   ): Promise<Order> {
     const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
     if (!order.customerId) {
       throw new BadRequestException('Order has no customer to redeem points for');
@@ -1739,6 +1760,7 @@ export class OrdersService {
   /** Generate invoice for an order on-demand. Returns the order with invoiceNumber set. */
   async issueInvoice(orderId: number): Promise<Order> {
     const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
     if (order.invoiceNumber) {
       throw new ConflictException(
         `Order ${orderId} already has an invoice: ${order.invoiceNumber}`,

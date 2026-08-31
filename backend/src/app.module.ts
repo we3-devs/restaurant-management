@@ -56,6 +56,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { ServiceRequestsModule } from './modules/service-requests/service-requests.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { OperatingHoursModule } from './modules/operating-hours/operating-hours.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { DataImportModule } from './modules/data-import/data-import.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -240,6 +241,7 @@ import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
     PeriodInsightsModule,
     ReportsModule,
     SettingsModule,
+    OperatingHoursModule,
     UploadsModule,
     DataImportModule,
     AuditLogsModule,

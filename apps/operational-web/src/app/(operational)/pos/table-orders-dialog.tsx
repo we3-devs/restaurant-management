@@ -5,6 +5,8 @@ import { toast } from "sonner"
 import { Button } from "@rms/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@rms/ui/dialog"
 import { useCreateOrder, type Order } from "@rms/api-client/hooks/use-orders"
+import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
+import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 
 /**
  * A table session carries a single shared order/cart (see
@@ -35,6 +37,8 @@ export function TableOrdersDialog({
   onSelectOrder: (orderId: number) => void
 }) {
   const createOrder = useCreateOrder()
+  const createOrderOverride = useCreateOrder({ closedHoursOverride: true })
+  const { data: operatingHours } = useOperatingHours(outletId)
 
   async function handleStartOrder() {
     try {
@@ -44,6 +48,12 @@ export function TableOrdersDialog({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start the order")
     }
+  }
+
+  async function handleStartOrderOverride() {
+    const order = await createOrderOverride.mutateAsync({ outletId, tableSessionId, orderType: "table" })
+    onOpenChange(false)
+    onSelectOrder(order.id)
   }
 
   return (
@@ -79,6 +89,12 @@ export function TableOrdersDialog({
             <Button onClick={handleStartOrder} disabled={createOrder.isPending}>
               {createOrder.isPending ? "Starting..." : "Start order"}
             </Button>
+            <ClosedHoursOverrideButton
+              closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
+              label="start order"
+              onConfirm={handleStartOrderOverride}
+              disabled={createOrder.isPending}
+            />
           </DialogFooter>
         )}
       </DialogContent>

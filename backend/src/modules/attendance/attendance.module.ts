@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { ShiftsModule } from '../shifts/shifts.module';
+import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
 import { Attendance } from './entities/attendance.entity';
 import { AttendanceQrStation } from './entities/attendance-qr-station.entity';
 import { Employee } from '../employees/entities/employee.entity';
@@ -17,6 +18,7 @@ import { AttendanceService } from './attendance.service';
     NotificationsModule,
     KitchenTicketsModule,
     ShiftsModule,
+    OperatingHoursModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

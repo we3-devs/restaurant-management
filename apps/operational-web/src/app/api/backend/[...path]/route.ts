@@ -13,6 +13,9 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
     const response = await backendFetch(targetPath, {
       method: request.method,
       body: body || undefined,
+      headers: request.headers.get("X-Outlet-Closed-Override")
+        ? { "X-Outlet-Closed-Override": request.headers.get("X-Outlet-Closed-Override")! }
+        : undefined,
     })
 
     // arrayBuffer (not text()) so binary bodies — report exports (xlsx/pdf)

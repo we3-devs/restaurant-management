@@ -7,6 +7,7 @@ import { PurchaseOrdersService } from '../purchase-orders/purchase-orders.servic
 import { ShiftsService } from '../shifts/shifts.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
+import { OperatingHoursService } from '../operating-hours/operating-hours.service';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -46,6 +47,7 @@ export class BusinessOperationsProcessor {
     private readonly outletsService: OutletsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    private readonly operatingHoursService: OperatingHoursService,
   ) {}
 
   private async guarded(name: string, fn: () => Promise<void>): Promise<void> {
@@ -79,6 +81,29 @@ export class BusinessOperationsProcessor {
   @Interval(DAY)
   runDailyPurchaseSummaryJob(): Promise<void> {
     return this.guarded('daily-purchase-summary', () => this.runDailyPurchaseSummary());
+  }
+
+  @Interval(MINUTE)
+  runOperatingHoursClosureJob(): Promise<void> {
+    return this.guarded('operating-hours-closure', () => this.closeAttendanceAtBoundaries());
+  }
+
+  private async closeAttendanceAtBoundaries(): Promise<void> {
+    const now = new Date();
+    for (const config of await this.operatingHoursService.getEnabledConfigs()) {
+      const boundary = this.operatingHoursService.getClosingBoundary(config, now);
+      if (!boundary || boundary > now) continue;
+      // On first startup, only accept a boundary reached in the small polling
+      // window. After a boundary has been persisted, a newer past boundary is
+      // also accepted so a restart/outage can catch up exactly once.
+      const recentlyReached = now.getTime() - boundary.getTime() <= 2 * MINUTE;
+      const missedSinceLastRun = config.lastClosingBoundaryAt !== null && config.lastClosingBoundaryAt < boundary;
+      if (!recentlyReached && !missedSinceLastRun) continue;
+      // The attendance update is itself conditional on clockOut IS NULL. Mark
+      // the boundary only after it succeeds so a transient failure is retried.
+      await this.attendanceService.autoClockOutAtBoundary(config.outletId, boundary);
+      await this.operatingHoursService.markClosingBoundary(config.id, boundary);
+    }
   }
 
   @Interval(6 * HOUR)

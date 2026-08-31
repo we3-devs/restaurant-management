@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { apiClient } from "../client"
+import { operationalMutationHeaders, type OperationalMutationOptions } from "../operational-mutation"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
 import type { CreateTableSessionInput, OpenTableSessionInput, TransferTableSessionInput } from "@rms/validators/table-sessions"
@@ -187,11 +188,11 @@ export function findCachedDiningTableId(queryClient: QueryClient, tableSessionId
  * patchTableSessionLists/patchOrderLists above and patchDiningTableStatus in
  * use-dining-tables.ts.
  */
-export function useOpenTableSession() {
+export function useOpenTableSession(options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: OpenTableSessionInput) =>
-      apiClient<OpenTableSessionResult>("/table-sessions/open", { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OpenTableSessionResult>("/table-sessions/open", { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: (result) => {
       // Defensive: never assume the response has the shape we expect.
       if (!result?.session || !result?.order) return

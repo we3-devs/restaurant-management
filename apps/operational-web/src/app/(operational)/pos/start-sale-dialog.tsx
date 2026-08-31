@@ -19,6 +19,8 @@ import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import type { PosBootstrapTable } from "@rms/api-client/hooks/use-bootstrap"
 import { tableSessionName, useOpenTableSession, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@rms/validators/orders"
+import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
+import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 
 type OrderType = (typeof ORDER_TYPES)[number]
 
@@ -77,6 +79,9 @@ export function StartSaleDialog({
   const { data: customers } = useCustomers({ limit: 100 })
   const openTableSession = useOpenTableSession()
   const createOrder = useCreateOrder()
+  const openTableSessionOverride = useOpenTableSession({ closedHoursOverride: true })
+  const createOrderOverride = useCreateOrder({ closedHoursOverride: true })
+  const { data: operatingHours } = useOperatingHours(outletId)
 
   function reset() {
     setOrderType("table")
@@ -125,6 +130,23 @@ export function StartSaleDialog({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start sale")
     }
+  }
+
+  async function handleStartOverride() {
+    let orderId: number
+    if (orderType === "table" && !tableSessionId) {
+      if (!newTableId) throw new Error("Pick an active table or seat a walk-in table first")
+      const result = await openTableSessionOverride.mutateAsync({ outletId, diningTableId: Number(newTableId), guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount, customerId: customerId ? Number(customerId) : undefined, orderType })
+      if (!result?.order) throw new Error("Table session opened but no order was returned")
+      orderId = result.order.id
+    } else {
+      const order = await createOrderOverride.mutateAsync({ outletId, tableSessionId: tableSessionId ? Number(tableSessionId) : undefined, orderType })
+      orderId = order.id
+    }
+    toast.success("Sale started")
+    reset()
+    onOpenChange(false)
+    onSaleStarted(orderId)
   }
 
   const busy = openTableSession.isPending || createOrder.isPending
@@ -239,6 +261,18 @@ export function StartSaleDialog({
           <Button onClick={handleStart} disabled={busy}>
             {busy ? "Starting..." : "Start sale"}
           </Button>
+          <ClosedHoursOverrideButton
+            closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
+            label="start sale"
+            onConfirm={async () => {
+              try {
+                await handleStartOverride()
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Failed to start sale")
+              }
+            }}
+            disabled={busy}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

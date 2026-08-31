@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
+import { Between, DataSource, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gateway';
@@ -20,6 +21,7 @@ import { Employee } from '../employees/entities/employee.entity';
 import { AttendanceQrStation } from './entities/attendance-qr-station.entity';
 import { ScanAttendanceQrDto } from './dto/attendance-qr.dto';
 import { ListAttendanceQueryDto } from './dto/list-attendance-query.dto';
+import { OperatingHoursService } from '../operating-hours/operating-hours.service';
 
 function minutesSinceMidnight(date: Date): number {
   return date.getHours() * 60 + date.getMinutes();
@@ -43,6 +45,9 @@ export class AttendanceService {
     private readonly qrStationRepo: Repository<AttendanceQrStation>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+    private readonly operatingHoursService: OperatingHoursService,
+    private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async setupQrCodes(outletId: number, createdBy: number) {
@@ -89,6 +94,37 @@ export class AttendanceService {
       .andWhere("attendance.status IN ('present', 'late')")
       .orderBy('attendance.clock_in', 'DESC')
       .getOne();
+  }
+
+  async autoClockOutAtBoundary(outletId: number, boundary: Date): Promise<number> {
+    const count = await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Attendance);
+      const rows = await repo.find({ where: { outletId, clockOut: IsNull() } });
+      let closed = 0;
+      for (const attendance of rows) {
+        if (attendance.clockOut) continue;
+        const hours = Math.max(0, (boundary.getTime() - attendance.clockIn.getTime()) / 3_600_000);
+        attendance.clockOut = boundary;
+        attendance.workingHours = Math.round(hours * 100) / 100;
+        if (attendance.status === 'present' || attendance.status === 'late') {
+          attendance.status = 'early_leave';
+          attendance.isEarlyLeave = true;
+        }
+        await repo.save(attendance);
+        closed += 1;
+      }
+      return closed;
+    });
+    if (count > 0) {
+      void this.auditLogsService.record({
+        userId: null,
+        action: 'update',
+        entityType: 'attendance',
+        entityId: outletId,
+        newValues: { automatic: true, reason: 'outlet_closing_boundary', outletId, boundary: boundary.toISOString(), recordsClosed: count },
+      });
+    }
+    return count;
   }
 
   private hashQrToken(token: string): string {
@@ -144,6 +180,7 @@ export class AttendanceService {
   }
 
   async clockIn(dto: ClockInDto, createdBy: number): Promise<Attendance> {
+    await this.operatingHoursService.assertOperational(dto.outletId);
     const existing = await this.attendanceRepo.findOne({
       where: {
         employeeId: dto.employeeId,

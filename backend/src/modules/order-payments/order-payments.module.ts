@@ -9,6 +9,7 @@ import { OrdersModule } from '../orders/orders.module';
 import { SettingsModule } from '../settings/settings.module';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { OrderPayment } from './entities/order-payment.entity';
+import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
 import { OrderPaymentsController } from './order-payments.controller';
 import { OrderPaymentsService } from './order-payments.service';
 
@@ -23,6 +24,7 @@ import { OrderPaymentsService } from './order-payments.service';
     CustomersModule,
     CustomerCreditModule,
     SettingsModule,
+    OperatingHoursModule,
   ],
   controllers: [OrderPaymentsController],
   providers: [OrderPaymentsService],

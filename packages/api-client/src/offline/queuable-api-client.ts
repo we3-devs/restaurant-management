@@ -22,7 +22,7 @@ function isNetworkFailure(error: unknown) {
  */
 export async function queuableApiClient<T>(
   path: string,
-  init: { method: string; body?: string },
+  init: RequestInit & { method: string },
   label: string,
   options: { convergentOnBadRequest?: boolean } = {},
 ): Promise<T> {
@@ -39,7 +39,7 @@ export async function queuableApiClient<T>(
   await queueMutation({
     path,
     method: init.method,
-    body: init.body !== undefined ? JSON.parse(init.body) : undefined,
+    body: typeof init.body === "string" ? JSON.parse(init.body) : undefined,
     label,
     convergentOnBadRequest: options.convergentOnBadRequest,
   })

@@ -14,6 +14,7 @@ import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { Separator } from "@rms/ui/separator"
 import { visibleNavGroups } from "./nav-items"
+import { OperatingStatusBadge } from "@rms/ui/operating-status-badge"
 
 /**
  * Client component so visibleNavGroups() (whose result embeds Lucide icon
@@ -47,6 +48,7 @@ export function OperationalChrome({
               <div className="flex flex-1 items-center justify-end gap-1.5">
                 <OfflineIndicator />
                 <HeaderOutletSwitcher />
+                <OperatingStatusBadge />
                 <HeaderDepartmentSwitcher />
                 <HeaderPortalSwitcher current="staff" />
                 <Separator orientation="vertical" className="mx-1 h-6" />

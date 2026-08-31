@@ -289,6 +289,10 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.attendance.lists(), params] as const,
     today: (outletId?: number) => [...queryKeys.attendance.all, "today", outletId] as const,
   },
+  operatingHours: {
+    all: ["operating-hours"] as const,
+    status: (outletId?: number | null) => [...queryKeys.operatingHours.all, outletId] as const,
+  },
   assignments: {
     all: ["assignments"] as const,
     tables: (outletId?: number) => [...queryKeys.assignments.all, "tables", outletId] as const,

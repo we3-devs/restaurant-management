@@ -5,6 +5,7 @@ import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
 import { patchDiningTableStatus } from "./use-dining-tables"
 import { findCachedDiningTableId } from "./use-table-sessions"
+import { operationalMutationHeaders, type OperationalMutationOptions } from "../operational-mutation"
 import type {
   CreateOrderInput,
   CreateOrderItemAddonInput,
@@ -144,20 +145,20 @@ export function useOrder(id: number) {
   })
 }
 
-export function useCreateOrder() {
+export function useCreateOrder(options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: CreateOrderInput) => apiClient<Order>("/orders", { method: "POST", body: JSON.stringify(input) }),
+    mutationFn: (input: CreateOrderInput) => apiClient<Order>("/orders", { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() }),
   })
 }
 
 /** Pushes a locally-built POS cart (items + their addons) in one request — see orders.service#addItemsBatch. */
-export function useAddOrderItemsBatch(orderId: number) {
+export function useAddOrderItemsBatch(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateOrderItemsBatchInput) =>
-      apiClient<OrderItem[]>(`/orders/${orderId}/items/batch`, { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OrderItem[]>(`/orders/${orderId}/items/batch`, { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
@@ -170,11 +171,13 @@ export function useAddOrderItemsBatch(orderId: number) {
  * to the same state, so this is safe to auto-queue while offline. See
  * queuable-api-client.ts.
  */
-export function useUpdateOrder(id: number) {
+export function useUpdateOrder(id: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: UpdateOrderInput) =>
-      queuableApiClient<Order>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, "Update order totals"),
+      options.closedHoursOverride
+        ? apiClient<Order>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input), headers: operationalMutationHeaders(true) })
+        : queuableApiClient<Order>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, "Update order totals"),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.detail(id) })
       const previous = queryClient.getQueryData<Order>(queryKeys.orders.detail(id))
@@ -236,11 +239,11 @@ function isLastOpenOrderForSession(
   return confirmed
 }
 
-export function useUpdateOrderStatus(id: number) {
+export function useUpdateOrderStatus(id: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (status: string) =>
-      apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+      apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: (order, status) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
@@ -264,10 +267,10 @@ export function useUpdateOrderStatus(id: number) {
   })
 }
 
-export function useSendOrderToKitchen(orderId: number) {
+export function useSendOrderToKitchen(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/send-to-kitchen`, { method: "POST" }),
+    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/send-to-kitchen`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
@@ -275,10 +278,10 @@ export function useSendOrderToKitchen(orderId: number) {
   })
 }
 
-export function useFireHeldItems(orderId: number) {
+export function useFireHeldItems(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/fire-held-items`, { method: "POST" }),
+    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/fire-held-items`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
@@ -327,11 +330,11 @@ export function useOrderItems(orderId: number) {
   })
 }
 
-export function useAddOrderItem(orderId: number) {
+export function useAddOrderItem(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateOrderItemInput) =>
-      apiClient<OrderItem>(`/orders/${orderId}/items`, { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OrderItem>(`/orders/${orderId}/items`, { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
@@ -344,7 +347,7 @@ export function useAddOrderItem(orderId: number) {
  * so replaying a queued update converges to the same state. Safe to
  * auto-queue while offline. See queuable-api-client.ts.
  */
-export function useUpdateOrderItem(orderId: number, itemId: number) {
+export function useUpdateOrderItem(orderId: number, itemId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: {
@@ -354,11 +357,13 @@ export function useUpdateOrderItem(orderId: number, itemId: number) {
       isHeld?: boolean
       packagingType?: "plating" | "takeaway"
     }) =>
-      queuableApiClient<OrderItem>(
-        `/order-items/${itemId}`,
-        { method: "PATCH", body: JSON.stringify(input) },
-        "Update order item",
-      ),
+      options.closedHoursOverride
+        ? apiClient<OrderItem>(`/order-items/${itemId}`, { method: "PATCH", body: JSON.stringify(input), headers: operationalMutationHeaders(true) })
+        : queuableApiClient<OrderItem>(
+            `/order-items/${itemId}`,
+            { method: "PATCH", body: JSON.stringify(input) },
+            "Update order item",
+          ),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
       const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
@@ -392,11 +397,13 @@ export function useUpdateOrderItem(orderId: number, itemId: number) {
 }
 
 /** DELETE by id — a no-op if replayed twice, safe to auto-queue while offline. */
-export function useRemoveOrderItem(orderId: number) {
+export function useRemoveOrderItem(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (itemId: number) =>
-      queuableApiClient<void>(`/order-items/${itemId}`, { method: "DELETE" }, "Remove order item"),
+      options.closedHoursOverride
+        ? apiClient<void>(`/order-items/${itemId}`, { method: "DELETE", headers: operationalMutationHeaders(true) })
+        : queuableApiClient<void>(`/order-items/${itemId}`, { method: "DELETE" }, "Remove order item"),
     onMutate: async (itemId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
       const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
@@ -423,11 +430,11 @@ export function useOrderItemAddons(orderId: number, itemId: number) {
   })
 }
 
-export function useAddOrderItemAddon(orderId: number, itemId: number) {
+export function useAddOrderItemAddon(orderId: number, itemId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateOrderItemAddonInput) =>
-      apiClient<OrderItemAddon>(`/order-items/${itemId}/addons`, { method: "POST", body: JSON.stringify(input) }),
+      apiClient<OrderItemAddon>(`/order-items/${itemId}/addons`, { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
@@ -438,15 +445,17 @@ export function useAddOrderItemAddon(orderId: number, itemId: number) {
 }
 
 /** DELETE by id — a no-op if replayed twice, safe to auto-queue while offline. */
-export function useRemoveOrderItemAddon(orderId: number, itemId: number) {
+export function useRemoveOrderItemAddon(orderId: number, itemId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (addonId: number) =>
-      queuableApiClient<void>(
-        `/order-items/${itemId}/addons/${addonId}`,
-        { method: "DELETE" },
-        "Remove order item addon",
-      ),
+      options.closedHoursOverride
+        ? apiClient<void>(`/order-items/${itemId}/addons/${addonId}`, { method: "DELETE", headers: operationalMutationHeaders(true) })
+        : queuableApiClient<void>(
+            `/order-items/${itemId}/addons/${addonId}`,
+            { method: "DELETE" },
+            "Remove order item addon",
+          ),
     onMutate: async (addonId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
       const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
@@ -486,10 +495,10 @@ export function useOrderItemReservations(itemId: number) {
 }
 
 /** Issue a formal invoice for an order on-demand. Returns the order with invoiceNumber and invoiceGeneratedAt set. */
-export function useIssueInvoice(orderId: number) {
+export function useIssueInvoice(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiClient<Order>(`/orders/${orderId}/invoice`, { method: "POST" }),
+    mutationFn: () => apiClient<Order>(`/orders/${orderId}/invoice`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
     },

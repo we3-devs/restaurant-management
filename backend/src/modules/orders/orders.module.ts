@@ -20,6 +20,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { UnitsModule } from '../units/units.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
+import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
 import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -69,6 +70,7 @@ import { TableSessionOpenController } from './table-session-open.controller';
     // chain can resolve to `undefined` mid-cycle at module-load time.
     forwardRef(() => LoyaltyModule),
     SettingsModule,
+    OperatingHoursModule,
     // Circular: CustomerCreditModule pulls in KitchenTicketsModule, which
     // imports OrdersModule — without forwardRef this chain can resolve to
     // `undefined` mid-cycle at module-load time (mirrors LoyaltyModule above).
