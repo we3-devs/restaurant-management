@@ -172,9 +172,11 @@ export class KitchenTicketsGateway implements OnGatewayConnection, OnGatewayInit
 
   /** Pushes a persisted notification (e.g. "Table 8 — items ready") to every POS/waiter screen on the outlet. */
   notifyNotificationCreated(notification: Notification): void {
-    this.server
-      .to(this.outletRoom(notification.outletId))
-      .emit('notification.created', notification);
+    if (notification.recipientUserIds !== null && notification.recipientUserIds !== undefined) {
+      this.notifyUsersNotificationCreated(notification.recipientUserIds, notification);
+      return;
+    }
+    this.server.to(this.outletRoom(notification.outletId)).emit('notification.created', notification);
   }
 
   /** Pushes a persisted notification to a specific set of users only (e.g. cash-payment notifications, scoped to admin/manager/cashier) rather than the whole outlet room. */

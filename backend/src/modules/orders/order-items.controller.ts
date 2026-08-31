@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ExposeResponseFields } from '../../common/interceptors/expose-response-fields.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
@@ -67,6 +68,7 @@ export class OrderItemsController {
 
   @Get()
   @RequirePermissions('orders.view')
+  @ExposeResponseFields('createdAt', 'updatedAt')
   @ApiOperation({
     summary:
       'Lists an order\'s items (paginated) — minimal, waiter-facing shape with food/variant names embedded so callers never need a follow-up request just to render a row.',

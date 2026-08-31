@@ -196,6 +196,7 @@ export class OrdersController {
 
   @Get(':id')
   @RequirePermissions('orders.view')
+  @ExposeResponseFields('createdAt', 'updatedAt')
   @ApiOperation({ summary: 'Gets an order' })
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.assertOrderAccess(id, user);
@@ -203,6 +204,7 @@ export class OrdersController {
 
   @Get(':id/status-history')
   @RequirePermissions('orders.view')
+  @ExposeResponseFields('createdAt')
   @ApiOperation({ summary: "Every recorded status transition for an order, oldest first" })
   async listStatusHistory(
     @Param('id', ParseIntPipe) id: number,

@@ -40,10 +40,11 @@ export class NotificationsService {
    * payments — see getUserIdsByRole) instead of the default outlet-wide fan-out.
    */
   async create(input: Partial<Notification>, recipientUserIds?: number[]): Promise<Notification> {
+    const recipients = recipientUserIds ?? await this.getActiveStaffUserIds(input.outletId);
     const notification = await this.notificationsRepository.save(
-      this.notificationsRepository.create(input),
+      this.notificationsRepository.create({ ...input, recipientUserIds: recipients }),
     );
-    void this.dispatchExternalChannels(notification, recipientUserIds).catch((error: Error) =>
+    void this.dispatchExternalChannels(notification, recipients).catch((error: Error) =>
       this.logger.error(`External channel dispatch failed for notification ${notification.id}: ${error.message}`),
     );
     return notification;
@@ -64,6 +65,7 @@ export class NotificationsService {
             .innerJoin('assignment.role', 'role')
             .where('assignment.outlet_id = :outletId', { outletId })
             .andWhere('assignment.is_active = true')
+            .andWhere('role.is_active = true')
             .andWhere('role.slug IN (:...roleSlugs)', { roleSlugs })
             .select('assignment.user_id', 'userId')
             .getRawMany<{ userId: string }>(),
@@ -74,6 +76,37 @@ export class NotificationsService {
         ...assignments.map((a) => Number(a.userId)),
       ]),
     ];
+  }
+
+  /** Active staff means an active assignment on this outlet; superadmins are
+   * included because they are outlet-independent administrators. */
+  async getActiveStaffUserIds(outletId?: number): Promise<number[]> {
+    if (!outletId) return [];
+    const [superadmins, assignments] = await Promise.all([
+      this.usersRepository.find({ where: { isSuperadmin: true } }),
+      this.userRoleAssignmentRepository
+        .createQueryBuilder('assignment')
+        .innerJoin('assignment.role', 'role')
+        .where('assignment.outlet_id = :outletId', { outletId })
+        .andWhere('assignment.is_active = true')
+        .andWhere('role.is_active = true')
+        .select('assignment.user_id', 'userId')
+        .getRawMany<{ userId: string }>(),
+    ]);
+    return [...new Set([
+      ...superadmins.map((user) => user.id),
+      ...assignments.map((assignment) => Number(assignment.userId)),
+    ])];
+  }
+
+  /** Creates a notification for only active holders of the requested roles. */
+  async createForRoles(
+    outletId: number,
+    roleSlugs: string[],
+    input: Partial<Notification>,
+  ): Promise<Notification> {
+    const recipientUserIds = await this.getUserIdsByRole(outletId, roleSlugs);
+    return this.create({ ...input, outletId }, recipientUserIds);
   }
 
   /**
@@ -137,6 +170,7 @@ export class NotificationsService {
   async findAll(
     query: ListNotificationsQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
+    userId?: number,
   ): Promise<NotificationsFeedResponse> {
     const {
       page,
@@ -157,6 +191,12 @@ export class NotificationsService {
       qb.andWhere('notification.outlet_id IN (:...accessibleOutletIds)', {
         accessibleOutletIds,
       });
+    }
+    if (userId !== undefined) {
+      qb.andWhere(
+        'notification.recipient_user_ids @> CAST(:recipientUserId AS jsonb)',
+        { recipientUserId: JSON.stringify([userId]) },
+      );
     }
     if (type !== undefined) {
       qb.andWhere('notification.type = :type', { type });
@@ -193,17 +233,11 @@ export class NotificationsService {
         .take(limit)
         .getMany(),
       qb.clone().getCount(),
-      this.notificationsRepository.count({
-        where: {
-          ...(outletId !== undefined
-            ? { outletId }
-            : accessibleOutletIds !== 'ALL'
-              ? { outletId: In(accessibleOutletIds) }
-              : {}),
-          readAt: IsNull(),
-          archivedAt: IsNull(),
-        },
-      }),
+      qb
+        .clone()
+        .andWhere('notification.read_at IS NULL')
+        .andWhere('notification.archived_at IS NULL')
+        .getCount(),
     ]);
 
     return {
@@ -258,18 +292,22 @@ export class NotificationsService {
   async unreadCount(
     outletId?: number,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
+    userId?: number,
   ): Promise<{ count: number }> {
-    const count = await this.notificationsRepository.count({
-      where: {
-        ...(outletId !== undefined
-          ? { outletId }
-          : accessibleOutletIds !== 'ALL'
-            ? { outletId: In(accessibleOutletIds) }
-            : {}),
-        readAt: IsNull(),
-        archivedAt: IsNull(),
-      },
-    });
+    const qb = this.notificationsRepository.createQueryBuilder('notification')
+      .where('notification.read_at IS NULL')
+      .andWhere('notification.archived_at IS NULL');
+    if (outletId !== undefined) qb.andWhere('notification.outlet_id = :outletId', { outletId });
+    else if (accessibleOutletIds !== 'ALL') {
+      qb.andWhere('notification.outlet_id IN (:...accessibleOutletIds)', { accessibleOutletIds });
+    }
+    if (userId !== undefined) {
+      qb.andWhere(
+        'notification.recipient_user_ids @> CAST(:recipientUserId AS jsonb)',
+        { recipientUserId: JSON.stringify([userId]) },
+      );
+    }
+    const count = await qb.getCount();
     return { count };
   }
 

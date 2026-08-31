@@ -58,7 +58,7 @@ export class NotificationsController {
         query.outletId,
       );
     }
-    return this.notificationsService.findAll(query, accessible);
+    return this.notificationsService.findAll(query, accessible, user.id);
   }
 
   @Get('unread-count')
@@ -80,7 +80,7 @@ export class NotificationsController {
         parsedOutletId,
       );
     }
-    return this.notificationsService.unreadCount(parsedOutletId, accessible);
+    return this.notificationsService.unreadCount(parsedOutletId, accessible, user.id);
   }
 
   @Post(':id/read')

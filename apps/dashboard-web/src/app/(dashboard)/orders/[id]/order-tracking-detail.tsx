@@ -38,7 +38,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
     </div>
   )
 }
-
+/*/////////
 /** Read-only order tracking for admin — bill, payment totals, and status history, no editing/payment actions (those stay in operational-web/POS). */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
@@ -71,6 +71,9 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
           <h1 className="text-lg font-semibold">{customerNames.length > 0 ? customerNames.join(", ") : customer?.name ?? "Walk-in customer"}</h1>
           <p className="text-sm text-muted-foreground capitalize">
             {order.source.replace(/_/g, " ")} &middot; {table?.name ?? "No table"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Placed {new Date(order.createdAt).toLocaleString()}
           </p>
         </div>
         <div className="flex items-center gap-2">

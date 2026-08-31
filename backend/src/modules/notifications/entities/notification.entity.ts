@@ -108,6 +108,10 @@ export class Notification {
   @Column({ type: 'text', nullable: true })
   data: string | null;
 
+  /** User ids allowed to receive this notification. Null is legacy outlet-wide data. */
+  @Column({ name: 'recipient_user_ids', type: 'jsonb', nullable: true })
+  recipientUserIds: number[] | null;
+
   @Column({ name: 'read_at', type: 'timestamp', nullable: true })
   readAt: Date | null;
 
