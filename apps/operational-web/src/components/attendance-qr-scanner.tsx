@@ -55,7 +55,12 @@ export function AttendanceQrScanner({ onComplete }: { onComplete: () => void }) 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
       streamRef.current = stream
-      if (!videoRef.current) return
+      if (!videoRef.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
+        setMessage("Could not open the camera preview")
+        return
+      }
       videoRef.current.srcObject = stream
       await videoRef.current.play()
       setScanning(true)
@@ -89,7 +94,12 @@ export function AttendanceQrScanner({ onComplete }: { onComplete: () => void }) 
           {scanning ? <><SquareIcon className="mr-2 size-4" />Stop</> : <><CameraIcon className="mr-2 size-4" />Scan QR</>}
         </Button>
       </div>
-      {scanning && <video ref={videoRef} muted playsInline className="aspect-video w-full rounded-xl bg-black object-cover" />}
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        className={`${scanning ? "block" : "hidden"} aspect-video w-full rounded-xl bg-black object-cover`}
+      />
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
     </Card>
   )
