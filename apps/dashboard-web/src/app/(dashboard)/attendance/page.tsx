@@ -42,11 +42,13 @@ import { ATTENDANCE_STATUSES, clockInSchema, type ClockInInput } from "@/lib/val
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { QrCode } from "@/components/qr-code"
 import { apiClient } from "@rms/api-client/client"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 const PAGE_SIZE = 10
 
 export default function AttendancePage() {
   const { permissions, isSuperadmin } = useCurrentUser()
+  const { outletId: activeOutletId } = useActiveOutlet()
   const canManage = isSuperadmin || permissions.includes("attendance.manage")
 
   const [outletFilter, setOutletFilter] = useState("all")
@@ -81,15 +83,15 @@ export default function AttendancePage() {
   }
 
   async function createQrCodes() {
-    if (outletFilter === "all") {
-      toast.error("Select an outlet first")
+    if (!activeOutletId) {
+      toast.error("Select an outlet from the navigation bar first")
       return
     }
     setQrLoading(true)
     try {
       const result = await apiClient<{ clockInUrl: string; clockOutUrl: string }>("/attendance/qr/setup", {
         method: "POST",
-        body: JSON.stringify({ outletId: Number(outletFilter) }),
+        body: JSON.stringify({ outletId: activeOutletId }),
       })
       setQrSetup(result)
       toast.success("Attendance QR codes created — save or print them now")
@@ -149,7 +151,7 @@ export default function AttendancePage() {
               <p className="font-medium">Staff attendance QR codes</p>
               <p className="text-sm text-muted-foreground">Create one permanent clock-in and one clock-out QR per outlet.</p>
             </div>
-            <Button onClick={createQrCodes} disabled={qrLoading || outletFilter === "all"}>
+            <Button onClick={createQrCodes} disabled={qrLoading || !activeOutletId}>
               {qrLoading ? "Creating…" : "Create QR codes"}
             </Button>
           </div>
