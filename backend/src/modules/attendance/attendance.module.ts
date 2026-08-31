@@ -5,6 +5,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { ShiftsModule } from '../shifts/shifts.module';
 import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Attendance } from './entities/attendance.entity';
 import { AttendanceQrStation } from './entities/attendance-qr-station.entity';
 import { Employee } from '../employees/entities/employee.entity';
@@ -19,6 +20,7 @@ import { AttendanceService } from './attendance.service';
     KitchenTicketsModule,
     ShiftsModule,
     OperatingHoursModule,
+    AuditLogsModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
