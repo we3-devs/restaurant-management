@@ -11,6 +11,7 @@ import { DarkModeRow } from "@rms/ui/dark-mode-row"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { APP_VERSION } from "@/lib/app-version"
 import { apiClient } from "@rms/api-client/client"
+import { AttendanceQrScanner } from "@/components/attendance-qr-scanner"
 
 function initials(name: string): string {
   return (
@@ -83,6 +84,10 @@ export default function StaffProfilePage() {
           <SettingsRow icon={MailIcon} label="Mail" trailing={<span className="text-sm text-muted-foreground">{user.email}</span>} />
         </div>
       </Card>
+
+      <SettingsRowGroup>
+        <AttendanceQrScanner onComplete={() => setAttendanceMessage("Present — attendance updated")} />
+      </SettingsRowGroup>
 
       <SettingsRowGroup>
         <SettingsRow icon={ShieldCheckIcon} label="Attendance" trailing={<span className="text-sm text-muted-foreground">{attendanceMessage}</span>} />
