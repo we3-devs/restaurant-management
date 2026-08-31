@@ -4,6 +4,7 @@ import { In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
 import { User } from '../users/entities/user.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
 import { EmailService } from './channels/email.service';
 import { PushService } from './channels/push.service';
 import { SmsService } from './channels/sms.service';
@@ -28,6 +29,8 @@ export class NotificationsService {
     private readonly userRoleAssignmentRepository: Repository<UserRoleAssignment>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
     private readonly pushService: PushService,
@@ -56,47 +59,72 @@ export class NotificationsService {
    * (e.g. 'manager', 'cashier') via an active assignment on this outlet.
    */
   async getUserIdsByRole(outletId: number, roleSlugs: string[]): Promise<number[]> {
-    const [superadmins, assignments] = await Promise.all([
-      this.usersRepository.find({ where: { isSuperadmin: true } }),
+    const [presentSuperadmins, assignments] = await Promise.all([
+      this.presentUserIds(outletId, true),
       roleSlugs.length === 0
         ? Promise.resolve([])
         : this.userRoleAssignmentRepository
             .createQueryBuilder('assignment')
             .innerJoin('assignment.role', 'role')
+            .innerJoin(
+              Attendance,
+              'attendance',
+              'attendance.employee_id = assignment.user_id AND attendance.outlet_id = assignment.outlet_id',
+            )
             .where('assignment.outlet_id = :outletId', { outletId })
             .andWhere('assignment.is_active = true')
             .andWhere('role.is_active = true')
             .andWhere('role.slug IN (:...roleSlugs)', { roleSlugs })
+            .andWhere('attendance.clock_out IS NULL')
+            .andWhere("attendance.status IN ('present', 'late')")
             .select('assignment.user_id', 'userId')
             .getRawMany<{ userId: string }>(),
     ]);
     return [
       ...new Set([
-        ...superadmins.map((u) => u.id),
+        ...presentSuperadmins,
         ...assignments.map((a) => Number(a.userId)),
       ]),
     ];
   }
 
-  /** Active staff means an active assignment on this outlet; superadmins are
-   * included because they are outlet-independent administrators. */
+  /** Present staff must have an active assignment and an open attendance record. */
   async getActiveStaffUserIds(outletId?: number): Promise<number[]> {
     if (!outletId) return [];
-    const [superadmins, assignments] = await Promise.all([
-      this.usersRepository.find({ where: { isSuperadmin: true } }),
+    const [presentSuperadmins, assignments] = await Promise.all([
+      this.presentUserIds(outletId, true),
       this.userRoleAssignmentRepository
         .createQueryBuilder('assignment')
         .innerJoin('assignment.role', 'role')
+        .innerJoin(
+          Attendance,
+          'attendance',
+          'attendance.employee_id = assignment.user_id AND attendance.outlet_id = assignment.outlet_id',
+        )
         .where('assignment.outlet_id = :outletId', { outletId })
         .andWhere('assignment.is_active = true')
         .andWhere('role.is_active = true')
+        .andWhere('attendance.clock_out IS NULL')
+        .andWhere("attendance.status IN ('present', 'late')")
         .select('assignment.user_id', 'userId')
         .getRawMany<{ userId: string }>(),
     ]);
     return [...new Set([
-      ...superadmins.map((user) => user.id),
+      ...presentSuperadmins,
       ...assignments.map((assignment) => Number(assignment.userId)),
     ])];
+  }
+
+  private async presentUserIds(outletId: number, superadminsOnly = false): Promise<number[]> {
+    const qb = this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .innerJoin(User, 'user', 'user.id = attendance.employee_id')
+      .where('attendance.outlet_id = :outletId', { outletId })
+      .andWhere('attendance.clock_out IS NULL')
+      .andWhere("attendance.status IN ('present', 'late')");
+    if (superadminsOnly) qb.andWhere('user.is_superadmin = true');
+    const rows = await qb.select('attendance.employee_id', 'userId').getRawMany<{ userId: string }>();
+    return rows.map((row) => Number(row.userId));
   }
 
   /** Creates a notification for only active holders of the requested roles. */
