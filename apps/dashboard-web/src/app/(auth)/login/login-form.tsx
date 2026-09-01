@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -30,6 +30,16 @@ export function LoginForm() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   })
+
+  // Never leave credentials in a copied link, browser history, or referrer if
+  // an older/native form submission put them in the query string.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has("email") && !url.searchParams.has("password")) return
+    url.searchParams.delete("email")
+    url.searchParams.delete("password")
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
+  }, [])
 
   async function onSubmit(values: LoginInput) {
     setIsSubmitting(true)
@@ -72,14 +82,14 @@ export function LoginForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Email</FormLabel>
-              <FormControl type="email" placeholder="admin@rms.local" {...field} />
+              <FormControl type="email" autoComplete="username" placeholder="admin@rms.local" {...field} />
               <FormMessage />
             </FormItem>
           )}
@@ -93,6 +103,7 @@ export function LoginForm() {
               <div className="relative">
                 <FormControl
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   className="pr-9"
                   {...field}

@@ -25,6 +25,15 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isAuth = isAuthRoute(pathname)
 
+  // Credential query parameters are never valid login state. Strip them at
+  // the edge so they cannot persist in the address bar or be rendered into a
+  // page after a native/old login form submission.
+  if (isAuth && (request.nextUrl.searchParams.has("email") || request.nextUrl.searchParams.has("password"))) {
+    const cleanUrl = new URL(request.url)
+    cleanUrl.search = ""
+    return NextResponse.redirect(cleanUrl)
+  }
+
   if (!hasSession && !isAuth) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
