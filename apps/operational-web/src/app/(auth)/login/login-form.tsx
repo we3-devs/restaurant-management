@@ -20,6 +20,10 @@ import { getLandingPath } from "@rms/auth/route-access"
 import { loginSchema, type LoginInput } from "@rms/validators/auth"
 
 const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL
+type LoginResponse = {
+  message?: string
+  user?: Parameters<typeof getLandingPath>[0] & { hasBothPortals?: boolean }
+}
 
 export function LoginForm() {
   const router = useRouter()
@@ -50,10 +54,27 @@ export function LoginForm() {
         body: JSON.stringify(values),
       })
 
-      const body = await response.json().catch(() => null)
+      // Proxies/load balancers can occasionally return an empty or non-JSON
+      // body. Never surface the parser's "Unexpected end of JSON input" to
+      // the user.
+      const responseText = await response.text()
+      let body: LoginResponse | null = null
+      if (responseText.trim()) {
+        try {
+          body = JSON.parse(responseText) as LoginResponse
+        } catch {
+          toast.error(response.ok ? "Sign-in response was invalid. Please try again." : "Unable to sign in. Please try again.")
+          return
+        }
+      }
 
       if (!response.ok) {
         toast.error(body?.message ?? "Invalid email or password")
+        return
+      }
+
+      if (!body?.user) {
+        toast.error("Sign-in completed, but the user session could not be loaded. Please try again.")
         return
       }
 
@@ -74,6 +95,8 @@ export function LoginForm() {
 
       router.push("/staff")
       router.refresh()
+    } catch {
+      toast.error("Unable to sign in right now. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
