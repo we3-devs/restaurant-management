@@ -1,20 +1,8 @@
 import type { ReportColumn } from '../report-columns';
-
-function cellToString(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
+import { reportCellToString } from './cell.util';
 
 function escapeCsvCell(value: unknown): string {
-  const str = cellToString(value);
+  const str = reportCellToString(value);
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

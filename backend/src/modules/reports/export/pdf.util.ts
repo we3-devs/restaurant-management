@@ -1,21 +1,9 @@
 import PDFDocument from 'pdfkit';
 import type { ReportColumn } from '../report-columns';
+import { reportCellToString } from './cell.util';
 
 const ROW_HEIGHT = 18;
 const MARGIN = 36;
-
-function cellToString(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
 
 export function toPdfBuffer(
   title: string,
@@ -68,7 +56,7 @@ export function toPdfBuffer(
       const y = doc.y;
       doc.fontSize(8);
       columns.forEach((col, i) => {
-        doc.text(cellToString(row[col.key]), MARGIN + i * colWidth, y, {
+        doc.text(reportCellToString(row[col.key]), MARGIN + i * colWidth, y, {
           width: colWidth,
           ellipsis: true,
         });

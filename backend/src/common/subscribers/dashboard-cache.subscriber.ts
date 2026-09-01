@@ -10,6 +10,7 @@ import {
   DashboardCacheSection,
   enqueueDashboardInvalidation,
 } from '../../modules/dashboard-cache/dashboard-cache-bridge';
+import { extractOutletId } from '../entity.util';
 
 /**
  * Maps a table write to the dashboard cache sections it can affect. Only
@@ -64,14 +65,6 @@ export class DashboardCacheSubscriber implements EntitySubscriberInterface {
   private emit(tableName: string, entity: ObjectLiteral | undefined): void {
     const sections = TABLE_SECTIONS[tableName];
     if (!sections || !entity) return;
-    const outletId = this.extractOutletId(entity);
-    enqueueDashboardInvalidation(outletId, sections);
-  }
-
-  private extractOutletId(entity: ObjectLiteral): number | null {
-    const raw = entity.outletId;
-    if (raw === undefined || raw === null) return null;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : null;
+    enqueueDashboardInvalidation(extractOutletId(entity), sections);
   }
 }

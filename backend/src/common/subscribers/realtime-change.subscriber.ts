@@ -7,6 +7,7 @@ import {
   UpdateEvent,
 } from 'typeorm';
 import { broadcastResourceChanged } from '../../realtime/realtime-bus';
+import { extractOutletId } from '../entity.util';
 
 /**
  * Tables that change at very high frequency but back no list view (auth
@@ -44,15 +45,6 @@ export class RealtimeChangeSubscriber implements EntitySubscriberInterface {
 
   private emit(tableName: string, entity: ObjectLiteral | undefined, action: 'created' | 'updated' | 'deleted'): void {
     if (EXCLUDED_TABLES.has(tableName) || !entity) return;
-    const outletId = this.extractOutletId(entity);
-    broadcastResourceChanged(tableName, action, outletId);
-  }
-
-  /** Entities carry either an `outletId` column or none (global resources like users/roles/suppliers). */
-  private extractOutletId(entity: ObjectLiteral): number | null {
-    const raw = entity.outletId;
-    if (raw === undefined || raw === null) return null;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : null;
+    broadcastResourceChanged(tableName, action, extractOutletId(entity));
   }
 }
