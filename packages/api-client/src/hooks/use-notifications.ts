@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiClient } from "../client"
-import { acquireKdsSocket, releaseKdsSocket } from "../realtime/kds-socket"
+import { acquireKdsSocket, releaseKdsSocket, useKdsSocketConnected } from "../realtime/kds-socket"
 import { playNotificationChime } from "../realtime/notification-sound"
 import { queryKeys } from "../query-keys"
 import { toQueryString, type PaginatedResponse } from "../types"
@@ -45,6 +45,8 @@ export interface ListNotificationsParams {
 
 export function useNotifications(params: ListNotificationsParams) {
   const { outletId, ...rest } = params
+  const realtimeConnected = useKdsSocketConnected()
+
   return useQuery({
     queryKey: queryKeys.notifications.list(params),
     queryFn: () =>
@@ -57,7 +59,7 @@ export function useNotifications(params: ListNotificationsParams) {
     // useNotificationsRealtime never connects or drops silently — without
     // this, the bell only ever refreshes on mount (refetchOnWindowFocus/
     // refetchOnReconnect are both off globally, see query-provider.tsx).
-    refetchInterval: 60_000,
+    refetchInterval: realtimeConnected ? false : 60_000,
   })
 }
 

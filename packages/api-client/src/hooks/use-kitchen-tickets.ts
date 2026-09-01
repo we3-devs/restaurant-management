@@ -3,6 +3,7 @@ import { apiClient } from "../client"
 import { queuableApiClient } from "../offline/queuable-api-client"
 import { queryKeys } from "../query-keys"
 import { applyBulkTransition, applyItemStatus } from "../kitchen/optimistic-bootstrap"
+import { useKdsSocketConnected } from "../realtime/kds-socket"
 import type { OutletDepartment } from "./use-outlet-departments"
 
 export interface KitchenTicketOrderItem {
@@ -59,11 +60,16 @@ export interface KdsBootstrap {
 }
 
 export function useKdsBootstrap(outletId: number | null) {
+  const realtimeConnected = useKdsSocketConnected()
+
   return useQuery({
     queryKey: queryKeys.kitchenTickets.bootstrap(outletId),
     queryFn: () => apiClient<KdsBootstrap>(`/kitchen-tickets/bootstrap?outletId=${outletId}`),
     enabled: !!outletId && outletId > 0,
-    refetchInterval: 60_000, // fallback in case a websocket event is missed
+    // Realtime is the primary path. Only poll while the authenticated socket
+    // is down/reconnecting, instead of polling continuously while showing a
+    // misleading "Live" browser-online state.
+    refetchInterval: realtimeConnected ? false : 60_000,
   })
 }
 

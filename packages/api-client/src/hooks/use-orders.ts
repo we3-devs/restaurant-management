@@ -3,6 +3,7 @@ import { apiClient } from "../client"
 import { queuableApiClient } from "../offline/queuable-api-client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
+import { useKdsSocketConnected } from "../realtime/kds-socket"
 import { patchDiningTableStatus } from "./use-dining-tables"
 import { findCachedDiningTableId } from "./use-table-sessions"
 import { operationalMutationHeaders, type OperationalMutationOptions } from "../operational-mutation"
@@ -320,13 +321,15 @@ export function useMarkOrderReadyItemServed(orderId: number, outletId: number | 
 }
 
 export function useOrderItems(orderId: number) {
+  const realtimeConnected = useKdsSocketConnected()
+
   return useQuery({
     queryKey: queryKeys.orders.items(orderId),
     queryFn: () => apiClient<PaginatedResponse<OrderItem>>(`/order-items${toQueryString({ orderId, limit: 100 })}`),
     enabled: orderId > 0,
     // The KDS realtime push is the primary path for kitchen status changes;
     // this poll is the fallback if the socket connection drops.
-    refetchInterval: 30_000,
+    refetchInterval: realtimeConnected ? false : 30_000,
   })
 }
 

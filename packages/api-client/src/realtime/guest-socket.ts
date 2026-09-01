@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client"
+import { useSyncExternalStore } from "react"
 import { customerApiClient } from "../customer-client"
 
 const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "https://restaurant-management-g6vb.onrender.com"
@@ -20,6 +21,25 @@ async function fetchGuestWsTicket(): Promise<string> {
 
 let sharedSocket: Socket | null = null
 let refCount = 0
+let connected = false
+const statusListeners = new Set<() => void>()
+
+function setConnected(value: boolean): void {
+  if (connected === value) return
+  connected = value
+  for (const listener of statusListeners) listener()
+}
+
+export function useGuestSocketConnected(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      statusListeners.add(listener)
+      return () => statusListeners.delete(listener)
+    },
+    () => connected,
+    () => false,
+  )
+}
 
 /** One shared connection per tab, ref-counted across every guest-tracker consumer — mirrors acquireKdsSocket(). */
 export function acquireGuestSocket(): Socket {
@@ -33,6 +53,9 @@ export function acquireGuestSocket(): Socket {
           .catch(() => cb({}))
       },
     })
+    sharedSocket.on("connect", () => setConnected(true))
+    sharedSocket.on("disconnect", () => setConnected(false))
+    sharedSocket.on("connect_error", () => setConnected(false))
   }
   refCount += 1
   if (!sharedSocket.connected && !sharedSocket.active) {
@@ -46,6 +69,7 @@ export function releaseGuestSocket(): void {
   refCount = Math.max(0, refCount - 1)
   if (refCount === 0 && sharedSocket) {
     sharedSocket.disconnect()
+    setConnected(false)
     sharedSocket = null
   }
 }

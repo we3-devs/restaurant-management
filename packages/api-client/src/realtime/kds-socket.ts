@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client"
+import { useSyncExternalStore } from "react"
 import { apiClient } from "../client"
 
 const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "https://restaurant-management-g6vb.onrender.com"
@@ -17,6 +18,31 @@ async function fetchWsTicket(): Promise<string> {
 
 let sharedSocket: Socket | null = null
 let refCount = 0
+let connected = false
+const statusListeners = new Set<() => void>()
+
+function setConnected(value: boolean): void {
+  if (connected === value) return
+  connected = value
+  for (const listener of statusListeners) listener()
+}
+
+/** True only when the authenticated /kds Socket.IO connection is established. */
+export function isKdsSocketConnected(): boolean {
+  return connected
+}
+
+/** React hook used by query fallbacks; unlike navigator.onLine this reflects the actual realtime transport. */
+export function useKdsSocketConnected(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      statusListeners.add(listener)
+      return () => statusListeners.delete(listener)
+    },
+    () => connected,
+    () => false,
+  )
+}
 
 /**
  * One shared /kds connection per tab, ref-counted across every consumer
@@ -43,6 +69,9 @@ export function acquireKdsSocket(): Socket {
           .catch(() => cb({}))
       },
     })
+    sharedSocket.on("connect", () => setConnected(true))
+    sharedSocket.on("disconnect", () => setConnected(false))
+    sharedSocket.on("connect_error", () => setConnected(false))
   }
   refCount += 1
   if (!sharedSocket.connected && !sharedSocket.active) {
@@ -56,6 +85,7 @@ export function releaseKdsSocket(): void {
   refCount = Math.max(0, refCount - 1)
   if (refCount === 0 && sharedSocket) {
     sharedSocket.disconnect()
+    setConnected(false)
     sharedSocket = null
   }
 }

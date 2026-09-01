@@ -3,6 +3,7 @@ import { customerApiClient } from "../customer-client"
 import { toQueryString } from "../types"
 import { queryKeys } from "../query-keys"
 import type { Order, OrderItem } from "./use-orders"
+import { useGuestSocketConnected } from "../realtime/guest-socket"
 
 export interface GuestOrderItemInput {
   foodId: number
@@ -51,6 +52,8 @@ export function useCancelGuestOrder(tableCode: string) {
 }
 
 export function useMyGuestOrders(tableCode: string) {
+  const realtimeConnected = useGuestSocketConnected()
+
   return useQuery({
     queryKey: queryKeys.guestOrders.mine(tableCode),
     queryFn: () => customerApiClient<GuestOrder[]>(`/orders/guest/mine${toQueryString({ tableCode })}`),
@@ -59,6 +62,6 @@ export function useMyGuestOrders(tableCode: string) {
     // guest-order-tracker.tsx) — this interval is only the fallback for a
     // dropped/reconnecting socket, same role as the 30s poll in
     // use-kitchen-realtime.ts.
-    refetchInterval: 60000,
+    refetchInterval: realtimeConnected ? false : 60000,
   })
 }

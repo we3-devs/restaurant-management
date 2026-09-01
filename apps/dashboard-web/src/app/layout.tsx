@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -9,16 +8,6 @@ import { RouteProgress } from "@rms/ui/route-progress";
 import { fetchBranding } from "@rms/api-client/branding";
 import { BrandColor } from "@rms/api-client/brand-color";
 import { BACKEND_API_BASE } from "@/lib/server/backend-client";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 // generateMetadata rather than a static `metadata` object so the tab title and
 // favicon follow Settings → Appearance. Note the old src/app/favicon.ico was
@@ -55,7 +44,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
