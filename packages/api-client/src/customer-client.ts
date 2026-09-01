@@ -30,6 +30,16 @@ async function rawRequest(path: string, init: RequestInit): Promise<Response> {
 
 let inFlightRefresh: Promise<boolean> | null = null
 
+async function readJson<T>(response: Response): Promise<T | null> {
+  const text = await response.text()
+  if (!text.trim()) return null
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null
+  }
+}
+
 async function refreshOnce(): Promise<boolean> {
   const refreshToken = getStoredCustomerRefreshToken()
   if (!refreshToken) return false
@@ -44,7 +54,8 @@ async function refreshOnce(): Promise<boolean> {
           body: JSON.stringify({ refreshToken }),
         })
         if (!response.ok) return false
-        const data = (await response.json()) as { accessToken: string; refreshToken: string }
+        const data = await readJson<{ accessToken: string; refreshToken: string }>(response)
+        if (!data) return false
         setStoredCustomerToken(data.accessToken, data.refreshToken)
         return true
       } catch {
@@ -67,11 +78,15 @@ export async function customerApiClient<T>(path: string, init: RequestInit = {})
   }
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
+    const body = await readJson<{ message?: string }>(response)
     throw new Error(body?.message ?? `Request to ${path} failed with ${response.status}`)
   }
   if (response.status === 204) {
     return undefined as T
   }
-  return (await response.json()) as T
+  const body = await readJson<T>(response)
+  if (body === null) {
+    throw new Error("The server returned an invalid response. Please try again.")
+  }
+  return body
 }

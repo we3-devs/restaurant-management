@@ -8,6 +8,16 @@ export class ApiError extends Error {
   }
 }
 
+async function readJson<T>(response: Response): Promise<T | null> {
+  const text = await response.text()
+  if (!text.trim()) return null
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null
+  }
+}
+
 /**
  * Browser-side fetch wrapper. Always hits the same-origin proxy at
  * /api/backend/*, never the NestJS origin directly — the proxy attaches the
@@ -20,7 +30,7 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
+    const body = await readJson<{ message?: string }>(response)
     throw new ApiError(body?.message ?? `Request to ${path} failed with ${response.status}`, response.status)
   }
 
@@ -28,5 +38,9 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
     return undefined as T
   }
 
-  return (await response.json()) as T
+  const body = await readJson<T>(response)
+  if (body === null) {
+    throw new ApiError("The server returned an invalid response. Please try again.", response.status)
+  }
+  return body
 }

@@ -30,7 +30,12 @@ export function useUploadImage(purpose: UploadPurpose) {
         throw new Error(body?.message ?? `Upload failed with ${response.status}`)
       }
 
-      return (await response.json()) as { url: string }
+      const text = await response.text()
+      try {
+        return JSON.parse(text) as { url: string }
+      } catch {
+        throw new Error("The upload service returned an invalid response. Please try again.")
+      }
     },
   })
 }
