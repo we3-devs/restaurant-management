@@ -22,12 +22,13 @@ export interface ListDiningAreasParams {
   outletId?: number
 }
 
-export function useDiningAreas(params: ListDiningAreasParams = {}) {
+export function useDiningAreas(params: ListDiningAreasParams = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.diningAreas.list(params),
     queryFn: () => apiClient<PaginatedResponse<DiningArea>>(`/dining-areas${toQueryString(params)}`),
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME.reference,
+    enabled: options.enabled ?? true,
   })
 }
 

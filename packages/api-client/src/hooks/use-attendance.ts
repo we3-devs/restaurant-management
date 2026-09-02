@@ -53,10 +53,11 @@ export function useAttendanceList(params: ListAttendanceParams = {}) {
   })
 }
 
-export function useAttendanceToday(outletId?: number) {
+export function useAttendanceToday(outletId?: number, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.attendance.today(outletId),
     queryFn: () => apiClient<AttendanceToday>(`/attendance/today${toQueryString({ outletId })}`),
+    enabled: options.enabled ?? true,
   })
 }
 

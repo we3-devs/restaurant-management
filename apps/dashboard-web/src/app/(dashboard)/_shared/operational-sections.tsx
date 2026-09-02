@@ -434,7 +434,7 @@ export function TableStatusSection({ outletId, enabled }: OperationalSectionProp
 /* ------------------------------------------------------------------ */
 
 export function DiningAreasSection({ outletId, enabled }: OperationalSectionProps) {
-  const areasQuery = useDiningAreas({ outletId: outletId ?? undefined, limit: 100 })
+  const areasQuery = useDiningAreas({ outletId: outletId ?? undefined, limit: 100 }, { enabled })
   const tablesQuery = useDiningTables({ outletId: outletId ?? undefined, limit: 100 }, { enabled })
   const showSkeleton = useDelayedLoading(areasQuery.isLoading || tablesQuery.isLoading)
 
@@ -664,7 +664,7 @@ export function PaymentStatusSection({ outletId, enabled }: OperationalSectionPr
 /* ------------------------------------------------------------------ */
 
 export function StaffShiftSection({ outletId, enabled }: OperationalSectionProps) {
-  const attendanceQuery = useAttendanceToday(enabled && outletId ? outletId : undefined)
+  const attendanceQuery = useAttendanceToday(enabled && outletId ? outletId : undefined, { enabled })
   const showSkeleton = useDelayedLoading(attendanceQuery.isLoading)
   const data = attendanceQuery.data
 
