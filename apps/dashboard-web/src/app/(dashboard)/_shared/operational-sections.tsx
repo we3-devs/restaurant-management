@@ -260,7 +260,9 @@ export interface NeedsAttentionSectionProps extends OperationalSectionProps {
 
 export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canViewKitchen, canViewDashboardStats }: NeedsAttentionSectionProps) {
   const ordersQuery = useOrders(
-    { outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 30 },
+    // This widget needs a complete unpaid-bill count, not just the first page
+    // of the newest orders. Keep the request within the API's maximum page size.
+    { outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 500 },
     { enabled: enabled && canViewOrders },
   )
   const kdsQuery = useKdsBootstrap(enabled && canViewKitchen ? outletId : null)
@@ -613,7 +615,7 @@ export function RevenueSnapshotSection({ outletId, enabled }: OperationalSection
 
 export function PaymentStatusSection({ outletId, enabled }: OperationalSectionProps) {
   const { today: stats, todayQuery: statsQuery } = useDashboardStatsContext()
-  const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 30 }, { enabled })
+  const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 500 }, { enabled })
   const showSkeleton = useDelayedLoading(statsQuery.isLoading)
 
   const unpaidCount = (ordersQuery.data?.data ?? []).filter((o) => o.paymentStatus !== "paid").length
