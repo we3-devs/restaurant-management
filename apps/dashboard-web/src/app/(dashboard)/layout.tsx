@@ -5,6 +5,8 @@ import { CurrentUserProvider } from "@rms/auth/current-user-context"
 import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@rms/auth/route-access"
 import { ActiveOutletProvider } from "@rms/api-client/outlet/active-outlet-context"
 import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidation-provider"
+import { QueryProvider } from "@/components/providers/query-provider"
+import { BrandColor } from "@rms/api-client/brand-color"
 import { navRoutePermissions } from "./nav-items"
 import { DashboardChrome } from "./dashboard-chrome"
 
@@ -36,18 +38,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const allowed = hasRoutePermission(user, requiredPermission)
 
   return (
-    <CurrentUserProvider user={user}>
-      <ActiveOutletProvider>
-        <RealtimeInvalidationProvider />
-        <DashboardChrome
-          permissions={user.permissions}
-          isSuperadmin={user.isSuperadmin}
-          roleSlugs={user.roleSlugs}
-          allowed={allowed}
-        >
-          {children}
-        </DashboardChrome>
-      </ActiveOutletProvider>
-    </CurrentUserProvider>
+    <QueryProvider>
+      <BrandColor />
+      <CurrentUserProvider user={user}>
+        <ActiveOutletProvider>
+          <RealtimeInvalidationProvider />
+          <DashboardChrome
+            permissions={user.permissions}
+            isSuperadmin={user.isSuperadmin}
+            roleSlugs={user.roleSlugs}
+            allowed={allowed}
+          >
+            {children}
+          </DashboardChrome>
+        </ActiveOutletProvider>
+      </CurrentUserProvider>
+    </QueryProvider>
   )
 }

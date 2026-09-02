@@ -18,3 +18,12 @@ export function BrandColor() {
 
   return null
 }
+
+/** Applies server-provided branding without requiring a QueryClientProvider. */
+export function StaticBrandColor({ primaryColor }: { primaryColor: string | null | undefined }) {
+  useEffect(() => {
+    applyBrandColor(primaryColor)
+  }, [primaryColor])
+
+  return null
+}
