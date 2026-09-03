@@ -4,6 +4,7 @@ import { getCurrentUser } from "@rms/auth/dal"
 import { CurrentUserProvider } from "@rms/auth/current-user-context"
 import { findRequiredPermission, getLandingPath, hasRoutePermission } from "@rms/auth/route-access"
 import { ActiveOutletProvider } from "@rms/api-client/outlet/active-outlet-context"
+import { QueryProvider } from "@rms/api-client/query-provider"
 import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidation-provider"
 import { AccessDenied } from "@rms/ui/access-denied"
 import { StaffHeader } from "./staff-header"
@@ -42,25 +43,27 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const allowed = hasRoutePermission(user, requiredPermission) && !isStaffRouteBlockedForRole(pathname, user)
 
   return (
-    <CurrentUserProvider user={user}>
-      <ActiveOutletProvider>
-        <RealtimeInvalidationProvider />
-        <div
-          className="flex min-h-dvh flex-col bg-background"
-          style={{
-            paddingLeft: "env(safe-area-inset-left)",
-            paddingRight: "env(safe-area-inset-right)",
-          }}
-        >
-          <StaffHeader />
-          <RegisterStaffServiceWorker />
-          <StaffOfflineBanner />
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
-            {allowed ? children : <AccessDenied />}
-          </main>
-          <StaffTabBar />
-        </div>
-      </ActiveOutletProvider>
-    </CurrentUserProvider>
+    <QueryProvider persist>
+      <CurrentUserProvider user={user}>
+        <ActiveOutletProvider>
+          <RealtimeInvalidationProvider />
+          <div
+            className="flex min-h-dvh flex-col bg-background"
+            style={{
+              paddingLeft: "env(safe-area-inset-left)",
+              paddingRight: "env(safe-area-inset-right)",
+            }}
+          >
+            <StaffHeader />
+            <RegisterStaffServiceWorker />
+            <StaffOfflineBanner />
+            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+              {allowed ? children : <AccessDenied />}
+            </main>
+            <StaffTabBar />
+          </div>
+        </ActiveOutletProvider>
+      </CurrentUserProvider>
+    </QueryProvider>
   )
 }
