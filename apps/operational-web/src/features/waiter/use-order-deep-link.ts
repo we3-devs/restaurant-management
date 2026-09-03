@@ -30,11 +30,11 @@ export function useOrderDeepLink({
   // The URL (?orderId=) is the single source of truth for which sale is
   // showing — no local state to desync from it, just derive on every render
   // so the browser's native back/forward buttons work for free.
-  const activeOrderId = deepLinkOrderId ? Number(deepLinkOrderId) : null
+  const urlOrderId = deepLinkOrderId ? Number(deepLinkOrderId) : null
   const [chooserDismissedForTableId, setChooserDismissedForTableId] = useState<number | null>(null)
-  const { data: deepLinkOrder } = useOrder(activeOrderId && deepLinkOrderId ? activeOrderId : 0)
+  const { data: deepLinkOrder } = useOrder(urlOrderId ?? 0)
 
-  const resolvingTable = !activeOrderId && !deepLinkOrderId && !!deepLinkTableId
+  const resolvingTable = !urlOrderId && !deepLinkOrderId && !!deepLinkTableId
   const {
     data: tableSessionsForDeepLink,
     isLoading: isLoadingTableSession,
@@ -83,9 +83,9 @@ export function useOrderDeepLink({
       (!!deepLinkSession && sessionOrdersStillResolving) ||
       !!deepLinkTableOrder)
 
-  useEffect(() => {
-    if (deepLinkTableOrder) router.replace(`${basePath}?orderId=${deepLinkTableOrder.id}`)
-  }, [deepLinkTableOrder, router, basePath])
+  // Keep the table URL while resolving its single open order. This avoids a
+  // tableId -> orderId navigation/remount and the second POS loading screen.
+  const activeOrderId = urlOrderId ?? deepLinkTableOrder?.id ?? null
 
   const { data: deepLinkTableForChooser } = useDiningTable(needsOrderChooser ? Number(deepLinkTableId) : 0)
 

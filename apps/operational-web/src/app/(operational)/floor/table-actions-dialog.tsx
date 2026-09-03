@@ -173,7 +173,9 @@ export function TableActionsDialog({
 
   function handleViewOrder() {
     if (activeOrder) {
-      router.push(`${basePath}?orderId=${activeOrder.id}`)
+      const isStaffWaiterPath = basePath === "/staff/waiter/pos"
+      const isCashier = user.isSuperadmin || user.roleSlugs.includes("cashier")
+      router.push(isStaffWaiterPath && isCashier ? `/staff/orders/${activeOrder.id}` : `${basePath}?orderId=${activeOrder.id}`)
     } else {
       router.push(basePath)
     }
