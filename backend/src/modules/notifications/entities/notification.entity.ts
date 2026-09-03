@@ -83,6 +83,10 @@ export class Notification {
   @Column({ type: 'varchar', length: 255 })
   type: NotificationType;
 
+  /** Stable business key used by retryable background jobs to deduplicate persisted notifications. */
+  @Column({ name: 'dedupe_key', type: 'varchar', length: 255, nullable: true, unique: true })
+  dedupeKey: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   title: string;
 

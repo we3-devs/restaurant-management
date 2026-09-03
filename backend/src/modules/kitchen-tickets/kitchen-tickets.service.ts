@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
@@ -67,6 +67,7 @@ export class KitchenTicketsService {
     private readonly orderItemsRepository: Repository<OrderItem>,
     @InjectRepository(OutletDepartment)
     private readonly departmentsRepository: Repository<OutletDepartment>,
+    private readonly dataSource: DataSource,
     private readonly gateway: KitchenTicketsGateway,
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => OrdersService))
@@ -176,12 +177,13 @@ export class KitchenTicketsService {
     if (status === 'preparing') item.startedAt = now;
     if (status === 'ready') item.readyAt = now;
     if (status === 'served') item.servedAt = now;
-    await this.ticketItemsRepository.save(item);
-
-    await this.orderItemsRepository.update(
-      { id: item.orderItemId },
-      { status },
-    );
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(KitchenTicketItem).save(item);
+      await manager.getRepository(OrderItem).update(
+        { id: item.orderItemId },
+        { status },
+      );
+    });
 
     const updatedTicket = await this.recomputeTicketStatus(ticket.id);
     if (status === 'ready') {
@@ -229,11 +231,13 @@ export class KitchenTicketsService {
       item.status = 'cancelled';
     }
     if (cancellable.length > 0) {
-      await this.ticketItemsRepository.save(cancellable);
-      await this.orderItemsRepository.update(
-        { id: In(cancellable.map((item) => item.orderItemId)) },
-        { status: 'cancelled' },
-      );
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(KitchenTicketItem).save(cancellable);
+        await manager.getRepository(OrderItem).update(
+          { id: In(cancellable.map((item) => item.orderItemId)) },
+          { status: 'cancelled' },
+        );
+      });
     }
 
     ticket.status = 'cancelled';
@@ -307,11 +311,13 @@ export class KitchenTicketsService {
       if (toStatus === 'ready') item.readyAt = now;
       if (toStatus === 'served') item.servedAt = now;
     }
-    await this.ticketItemsRepository.save(eligible);
-    await this.orderItemsRepository.update(
-      { id: In(eligible.map((item) => item.orderItemId)) },
-      { status: toStatus },
-    );
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(KitchenTicketItem).save(eligible);
+      await manager.getRepository(OrderItem).update(
+        { id: In(eligible.map((item) => item.orderItemId)) },
+        { status: toStatus },
+      );
+    });
 
     const updatedTicket = await this.recomputeTicketStatus(ticketId);
     if (toStatus === 'ready') {
@@ -351,16 +357,17 @@ export class KitchenTicketsService {
     item.servedAt = null;
     item.recalledAt = now;
     item.recallCount += 1;
-    await this.ticketItemsRepository.save(item);
-    await this.orderItemsRepository.update(
-      { id: item.orderItemId },
-      { status: 'preparing' },
-    );
-
     const ticket = await this.findOne(ticketId);
     ticket.recalledAt = now;
     ticket.recallCount += 1;
-    await this.ticketsRepository.save(ticket);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(KitchenTicketItem).save(item);
+      await manager.getRepository(OrderItem).update(
+        { id: item.orderItemId },
+        { status: 'preparing' },
+      );
+      await manager.getRepository(KitchenTicket).save(ticket);
+    });
 
     const updatedTicket = await this.recomputeTicketStatus(ticketId);
     this.gateway.notifyTicketUpdated(updatedTicket);
@@ -442,11 +449,13 @@ export class KitchenTicketsService {
       item.status = 'served';
       item.servedAt = now;
     }
-    await this.ticketItemsRepository.save(eligible);
-    await this.orderItemsRepository.update(
-      { id: In(eligible.map((item) => item.orderItemId)) },
-      { status: 'served' },
-    );
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(KitchenTicketItem).save(eligible);
+      await manager.getRepository(OrderItem).update(
+        { id: In(eligible.map((item) => item.orderItemId)) },
+        { status: 'served' },
+      );
+    });
 
     const ticketIds = [...new Set(eligible.map((item) => item.ticketId))];
     const tickets: KitchenTicket[] = [];
@@ -488,11 +497,13 @@ export class KitchenTicketsService {
     const now = new Date();
     item.status = 'served';
     item.servedAt = now;
-    await this.ticketItemsRepository.save(item);
-    await this.orderItemsRepository.update(
-      { id: item.orderItemId },
-      { status: 'served' },
-    );
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(KitchenTicketItem).save(item);
+      await manager.getRepository(OrderItem).update(
+        { id: item.orderItemId },
+        { status: 'served' },
+      );
+    });
 
     const ticket = await this.recomputeTicketStatus(item.ticketId);
     this.gateway.notifyTicketUpdated(ticket);

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
 import { User } from '../users/entities/user.entity';
@@ -44,9 +44,22 @@ export class NotificationsService {
    */
   async create(input: Partial<Notification>, recipientUserIds?: number[]): Promise<Notification> {
     const recipients = recipientUserIds ?? await this.getActiveStaffUserIds(input.outletId);
-    const notification = await this.notificationsRepository.save(
-      this.notificationsRepository.create({ ...input, recipientUserIds: recipients }),
-    );
+    let notification: Notification;
+    try {
+      notification = await this.notificationsRepository.save(
+        this.notificationsRepository.create({ ...input, recipientUserIds: recipients }),
+      );
+    } catch (error) {
+      // Two scheduler instances may race. The unique dedupe key makes the
+      // persisted notification single-instance while allowing the losing
+      // attempt to retry delivery of the already-persisted record.
+      if (!(error instanceof QueryFailedError) || !input.dedupeKey) throw error;
+      const existing = await this.notificationsRepository.findOne({
+        where: { dedupeKey: input.dedupeKey },
+      });
+      if (!existing) throw error;
+      notification = existing;
+    }
     void this.dispatchExternalChannels(notification, recipients).catch((error: Error) =>
       this.logger.error(`External channel dispatch failed for notification ${notification.id}: ${error.message}`),
     );

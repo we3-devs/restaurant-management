@@ -63,6 +63,7 @@ export class ReservationReminderScheduler {
       const notification = await this.notificationsService.create({
         outletId: reservation.outletId,
         type: 'reservation_reminder',
+        dedupeKey: `reservation-reminder:${reservation.id}`,
         priority: 'high',
         title: `Upcoming reservation for ${reservation.guestCount} guest(s)`,
         body: `Reserved for ${new Date(reservation.reservedAt).toLocaleTimeString()}`,
