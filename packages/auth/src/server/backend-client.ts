@@ -26,12 +26,9 @@ async function rawFetch(path: string, init: RequestInit, accessToken?: string): 
   return fetch(`${BACKEND_URL}/api${path}`, { ...init, headers, cache: "no-store" })
 }
 
-async function tryRefresh(): Promise<string | null> {
-  const refreshToken = await getRefreshToken()
-  if (!refreshToken) {
-    return null
-  }
+let refreshInFlight: { refreshToken: string; promise: Promise<string | null> } | null = null
 
+async function rotateRefreshToken(refreshToken: string): Promise<string | null> {
   const response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -46,6 +43,28 @@ async function tryRefresh(): Promise<string | null> {
   const data = (await response.json()) as { accessToken: string; refreshToken: string }
   await setAuthCookies({ accessToken: data.accessToken, refreshToken: data.refreshToken })
   return data.accessToken
+}
+
+async function tryRefresh(): Promise<string | null> {
+  const refreshToken = await getRefreshToken()
+  if (!refreshToken) {
+    return null
+  }
+
+  // Refresh tokens rotate on every use. Without this gate, a burst of
+  // parallel API requests can all submit the same token; the first wins and
+  // the others fail, incorrectly logging the user out.
+  if (refreshInFlight?.refreshToken === refreshToken) {
+    return refreshInFlight.promise
+  }
+
+  const promise = rotateRefreshToken(refreshToken).finally(() => {
+    if (refreshInFlight?.promise === promise) {
+      refreshInFlight = null
+    }
+  })
+  refreshInFlight = { refreshToken, promise }
+  return promise
 }
 
 /**
