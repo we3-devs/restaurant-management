@@ -36,6 +36,7 @@ import {
   type OrderItem,
 } from "@rms/api-client/hooks/use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 import { useLocalCartContext } from "./local-cart-context"
 import type { LocalCartItem } from "./use-local-cart"
 
@@ -45,10 +46,6 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
   ready: "Prepared",
   served: "Served",
   cancelled: "Cancelled",
-}
-
-function round2(value: number) {
-  return Math.round(value * 100) / 100
 }
 
 export function CartPanel({ orderId, basePath = "/pos" }: { orderId: number; basePath?: string }) {
@@ -147,20 +144,15 @@ function EditableCart({
   // short window after a payment is saved, the order detail can still contain
   // the previous paid/due totals; using the loaded ledger prevents showing a
   // payment of 250 alongside Paid 0 / Due 250.
-  const ledgerPaidAmount = payments
-    ? round2(
-        payments.data
-          .filter((p) => p.status === "completed")
-          .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0),
-      )
-    : (order?.paidAmount ?? 0)
-  const creditAmount = round2(
-    (payments?.data ?? [])
-      .filter((p) => p.status === "completed" && p.method === "credit")
-      .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0),
-  )
-  const cashPaidAmount = round2(ledgerPaidAmount - creditAmount)
-  const displayedDueAmount = order ? Math.max(round2(order.grandTotal - ledgerPaidAmount), 0) : 0
+  const ledgerTotals = payments && order ? calculatePaymentTotals(order.grandTotal, payments.data) : null
+  const ledgerPaidAmount = ledgerTotals?.paidAmount ?? order?.paidAmount ?? 0
+  const creditAmount = payments
+    ? payments.data
+        .filter((p) => p.status === "completed" && p.method === "credit")
+        .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0)
+    : 0
+  const cashPaidAmount = Math.round((ledgerPaidAmount - creditAmount) * 100) / 100
+  const displayedDueAmount = ledgerTotals?.dueAmount ?? order?.dueAmount ?? 0
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
@@ -170,7 +162,7 @@ function EditableCart({
   const { data: creditAccount } = useCustomerCreditAccount(creditCustomerId ?? 0)
   const remainingCredit =
     creditAccount && creditAccount.creditLimit > 0
-      ? round2(creditAccount.creditLimit - creditAccount.outstandingBalance)
+      ? Math.round((creditAccount.creditLimit - creditAccount.outstandingBalance) * 100) / 100
       : null
 
   // Re-seed the payment amount whenever the due amount changes (order loads,

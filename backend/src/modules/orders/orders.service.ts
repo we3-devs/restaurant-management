@@ -41,6 +41,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
+import { calculatePaymentTotals } from '@rms/validators/payment-totals';
 import { ReservationsService } from '../reservations/reservations.service';
 import { SettingsService } from '../settings/settings.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
@@ -1623,31 +1624,8 @@ export class OrdersService {
       where: { orderId, status: 'completed' },
     });
 
-    const grossPaid = round2(
-      payments
-        .filter((p) => p.type === 'payment')
-        .reduce((sum, p) => sum + p.amount, 0),
-    );
-    const refundedAmount = round2(
-      payments
-        .filter((p) => p.type === 'refund')
-        .reduce((sum, p) => sum + p.amount, 0),
-    );
-    const paidAmount = round2(grossPaid - refundedAmount);
-
-    order.paidAmount = paidAmount;
-    order.refundedAmount = refundedAmount;
-    order.dueAmount = Math.max(round2(order.grandTotal - paidAmount), 0);
-
-    if (refundedAmount > 0 && refundedAmount >= grossPaid) {
-      order.paymentStatus = 'refunded';
-    } else if (paidAmount <= 0) {
-      order.paymentStatus = 'unpaid';
-    } else if (paidAmount >= order.grandTotal) {
-      order.paymentStatus = 'paid';
-    } else {
-      order.paymentStatus = 'partial';
-    }
+    const totals = calculatePaymentTotals(order.grandTotal, payments);
+    Object.assign(order, totals);
 
     await this.ordersRepository.save(order);
   }
@@ -1766,19 +1744,7 @@ export class OrdersService {
     const payments = await this.orderPaymentsRepository.find({
       where: { orderId, status: 'completed' },
     });
-    const grossPaid = round2(
-      payments
-        .filter((payment) => payment.type === 'payment')
-        .reduce((sum, payment) => sum + payment.amount, 0),
-    );
-    const refundedAmount = round2(
-      payments
-        .filter((payment) => payment.type === 'refund')
-        .reduce((sum, payment) => sum + payment.amount, 0),
-    );
-    order.paidAmount = round2(grossPaid - refundedAmount);
-    order.refundedAmount = refundedAmount;
-    order.dueAmount = Math.max(round2(grandTotal - order.paidAmount), 0);
+    Object.assign(order, calculatePaymentTotals(grandTotal, payments));
 
     return this.ordersRepository.save(order);
   }

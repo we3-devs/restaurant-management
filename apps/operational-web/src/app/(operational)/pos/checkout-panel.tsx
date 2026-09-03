@@ -22,6 +22,7 @@ import {
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 import { TableSessionCheckout } from "./table-session-checkout"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
@@ -72,12 +73,9 @@ export function CheckoutPanel({
 
   // Prefer the payment ledger for the visible totals. The order detail may be
   // briefly stale immediately after recording a payment.
-  const paidAmount = payments
-    ? payments.data
-        .filter((payment) => payment.status === "completed")
-        .reduce((sum, payment) => sum + (payment.type === "refund" ? -payment.amount : payment.amount), 0)
-    : order?.paidAmount ?? 0
-  const displayedDueAmount = order ? Math.max(order.grandTotal - paidAmount, 0) : 0
+  const paymentTotals = payments && order ? calculatePaymentTotals(order.grandTotal, payments.data) : null
+  const paidAmount = paymentTotals?.paidAmount ?? order?.paidAmount ?? 0
+  const displayedDueAmount = paymentTotals?.dueAmount ?? order?.dueAmount ?? 0
 
   // Re-seed the editable totals/payment-amount fields whenever a different
   // order loads, or the due amount changes after a payment — without an

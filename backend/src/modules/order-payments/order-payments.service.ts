@@ -14,10 +14,7 @@ import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateTableSessionPaymentDto } from './dto/create-table-session-payment.dto';
 import { ListOrderPaymentsQueryDto } from './dto/list-order-payments-query.dto';
 import { OrderPayment } from './entities/order-payment.entity';
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
+import { calculatePaymentTotals } from '@rms/validators/payment-totals';
 
 @Injectable()
 export class OrderPaymentsService {
@@ -162,28 +159,7 @@ export class OrderPaymentsService {
         const completedPayments = await manager.find(OrderPayment, {
           where: { orderId, status: 'completed' },
         });
-        const grossPaid = round2(
-          completedPayments
-            .filter((entry) => entry.type === 'payment')
-            .reduce((sum, entry) => sum + entry.amount, 0),
-        );
-        const refundedAmount = round2(
-          completedPayments
-            .filter((entry) => entry.type === 'refund')
-            .reduce((sum, entry) => sum + entry.amount, 0),
-        );
-        const paidAmount = round2(grossPaid - refundedAmount);
-        lockedOrder.paidAmount = paidAmount;
-        lockedOrder.refundedAmount = refundedAmount;
-        lockedOrder.dueAmount = Math.max(round2(lockedOrder.grandTotal - paidAmount), 0);
-        lockedOrder.paymentStatus =
-          refundedAmount > 0 && refundedAmount >= grossPaid
-            ? 'refunded'
-            : paidAmount <= 0
-              ? 'unpaid'
-              : paidAmount >= lockedOrder.grandTotal
-                ? 'paid'
-                : 'partial';
+        Object.assign(lockedOrder, calculatePaymentTotals(lockedOrder.grandTotal, completedPayments));
         await manager.save(lockedOrder);
         return { order: lockedOrder, saved: savedPayment };
       },
