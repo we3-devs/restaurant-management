@@ -10,6 +10,11 @@ export interface PermissionCheckable {
   permissions: string[]
 }
 
+/** Canonical permission predicate for all frontend visibility/action checks. */
+export function hasPermission(user: PermissionCheckable, permission: string | true | null | undefined): boolean {
+  return permission === undefined || permission === null || permission === true || user.isSuperadmin || user.permissions.includes(permission)
+}
+
 /**
  * Finds the route-access entry that applies to a pathname by matching against
  * a table of {href, permission, superadminOnly} entries (exact match or href
@@ -44,7 +49,7 @@ export function hasRoutePermission(
   if (requirement !== undefined && typeof requirement === "object") {
     return requirement.superadminOnly ? user.isSuperadmin : hasRoutePermission(user, requirement.permission)
   }
-  return requirement === undefined || requirement === true || user.isSuperadmin || user.permissions.includes(requirement)
+  return hasPermission(user, requirement)
 }
 
 export interface PortalCheckable {

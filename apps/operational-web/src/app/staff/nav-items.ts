@@ -1,4 +1,5 @@
 import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, SoupIcon, UsersIcon } from "lucide-react"
+import { hasPermission } from "@rms/auth/route-access"
 
 export interface StaffNavItem {
   href: string
@@ -104,10 +105,10 @@ export function canSeeStaffNavItem(
   item: StaffNavItem,
   user: { isSuperadmin: boolean; permissions: string[]; roleSlugs: string[] },
 ): boolean {
-  const hasPermission = !item.requires || user.isSuperadmin || user.permissions.includes(item.requires)
+  const hasRequiredPermission = hasPermission(user, item.requires)
   const isExcluded =
     !user.isSuperadmin && item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug))
-  return hasPermission && !isExcluded
+  return hasRequiredPermission && !isExcluded
 }
 
 /** Mirrors canSeeStaffNavItem's role exclusion for the server-side route guard in layout.tsx, which only has a pathname (not a resolved nav item) to work from. */
