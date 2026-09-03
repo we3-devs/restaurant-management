@@ -1,5 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { WsTicketsService } from '../../common/ws-tickets/ws-tickets.service';
 import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { SkipAudit } from '../audit-logs/decorators/skip-audit.decorator';
@@ -37,6 +51,10 @@ export class AuthController {
   @ApiOperation({
     summary: 'Email/password login, returns an access + refresh token pair',
   })
+  @ApiOkResponse({
+    type: AuthResponseDto,
+    description: 'Authenticated session',
+  })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     const { tokens, user } = await this.authService.login(
       dto.email,
@@ -51,6 +69,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Rotates a refresh token for a new access + refresh token pair',
   })
+  @ApiOkResponse({ type: AuthResponseDto, description: 'Rotated session' })
   async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
     const { tokens, user } = await this.authService.refresh(dto.refreshToken);
     return { ...tokens, user: await this.toAuthUser(user) };
@@ -60,21 +79,23 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revokes a refresh token' })
+  @ApiNoContentResponse({ description: 'Refresh token revoked' })
   async logout(@Body() dto: RefreshTokenDto): Promise<void> {
     const logoutStart = Date.now();
 
     await this.authService.logout(dto.refreshToken);
 
     const logoutDuration = Date.now() - logoutStart;
-    this.logger.log(
-      `[PERF:logout] total=${logoutDuration}ms`
-    );
+    this.logger.log(`[PERF:logout] total=${logoutDuration}ms`);
   }
 
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Returns the current user plus their resolved global permissions',
+  })
+  @ApiOkResponse({
+    description: 'Current user, portal, permissions, and accessible scopes',
   })
   async me(@CurrentUser() user: User) {
     const meStartUs = this.nowMicros();
@@ -87,7 +108,9 @@ export class AuthController {
 
     // Measure permission fetch
     const permStartUs = this.nowMicros();
-    const permissions = await this.permissionsService.getPermissionSlugs(user.id);
+    const permissions = await this.permissionsService.getPermissionSlugs(
+      user.id,
+    );
     phases['permissions'] = Math.round((this.nowMicros() - permStartUs) / 1000);
 
     // Measure portal access
@@ -110,14 +133,14 @@ export class AuthController {
       .map(([k, v]) => `${k}=${v}ms`)
       .join(' ');
     this.logger.log(
-      `[PERF:AUTH_ME] userId=${user.id} total=${meDurationMs}ms (${phaseStr})`
+      `[PERF:AUTH_ME] userId=${user.id} total=${meDurationMs}ms (${phaseStr})`,
     );
 
     return {
       ...(await this.toAuthUser(user, portal, hasBothPortals)),
       permissions: Array.from(permissions),
-      outletIds: [],  // Defer to outlet picker fetch
-      departmentIds: [],  // Defer to department select fetch
+      outletIds: [], // Defer to outlet picker fetch
+      departmentIds: [], // Defer to department select fetch
       roleSlugs,
     };
   }
@@ -128,6 +151,9 @@ export class AuthController {
   @ApiOperation({
     summary:
       'Mints a short-lived, one-time ticket used to authenticate a WebSocket connection (browsers only ever hold an httpOnly auth cookie, never the JWT itself)',
+  })
+  @ApiOkResponse({
+    schema: { type: 'object', properties: { ticket: { type: 'string' } } },
   })
   async issueWsTicket(@CurrentUser() user: User): Promise<{ ticket: string }> {
     const wsStartUs = this.nowMicros();
@@ -140,7 +166,7 @@ export class AuthController {
 
     const wsDurationMs = Math.round((this.nowMicros() - wsStartUs) / 1000);
     this.logger.log(
-      `[PERF:WS_TICKET] userId=${user.id} total=${wsDurationMs}ms`
+      `[PERF:WS_TICKET] userId=${user.id} total=${wsDurationMs}ms`,
     );
 
     return { ticket };
@@ -157,6 +183,12 @@ export class AuthController {
   @ApiOperation({
     summary:
       'Reference endpoint proving PermissionsGuard: requires the users.manage permission',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean', example: true } },
+    },
   })
   adminCheck() {
     return { ok: true };

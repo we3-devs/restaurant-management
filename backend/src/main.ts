@@ -17,9 +17,10 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
-    logger: process.env.NODE_ENV !== 'production'
-      ? ['debug', 'error', 'log', 'warn', 'verbose']
-      : ['error', 'warn'],
+    logger:
+      process.env.NODE_ENV !== 'production'
+        ? ['debug', 'error', 'log', 'warn', 'verbose']
+        : ['error', 'warn'],
   });
 
   // Without this, NestJS never runs its shutdown lifecycle on SIGTERM/SIGINT,
@@ -38,13 +39,10 @@ async function bootstrap() {
   // Branding files are public and consumed by separate app origins, including
   // browser requests made before authentication. Scope this relaxation to the
   // upload path; all other API responses retain Helmet's same-origin policy.
-  app.use(
-    '/api/uploads',
-    (_req, res, next) => {
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      next();
-    },
-  );
+  app.use('/api/uploads', (_req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  });
   app.use(compression());
   app.enableCors({
     origin: configService.get('app', { infer: true })!.frontendUrls,
@@ -76,12 +74,80 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('RMS API')
-    .setDescription('Restaurant Management System REST API')
+    .setDescription(
+      [
+        'Restaurant Management System REST API.',
+        '',
+        'Authentication uses httpOnly cookies in the web applications. The Bearer scheme is also exposed for API clients and local testing.',
+        '',
+        'All monetary amounts are expressed in the outlet currency. Payment totals are derived from the payment ledger; clients must not calculate or submit paidAmount/dueAmount.',
+      ].join('\n'),
+    )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Staff access token. Browser clients use the auth cookie instead.',
+      },
+      'bearer',
+    )
+    .addTag('auth', 'Authentication and session management')
+    .addTag('orders', 'Orders, order items, and order lifecycle')
+    .addTag('order-payments', 'Payment ledger entries and refunds')
+    .addTag('customer-auth', 'Customer OTP authentication')
+    .addTag('customer-portal', 'Authenticated customer portal')
     .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  const document = SwaggerModule.createDocument(app, swaggerConfig, {
+    deepScanRoutes: true,
+  });
+  document.components ??= {};
+  document.components.schemas ??= {};
+  document.components.schemas.ErrorResponse = {
+    type: 'object',
+    required: ['statusCode', 'message', 'error', 'timestamp', 'path'],
+    properties: {
+      statusCode: { type: 'integer', example: 409 },
+      message: {
+        oneOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+        example: 'Conflict',
+      },
+      error: { type: 'string', example: 'ConflictException' },
+      timestamp: { type: 'string', format: 'date-time' },
+      path: { type: 'string', example: '/api/orders/8/status' },
+    },
+  };
+  for (const pathItem of Object.values(document.paths)) {
+    for (const operation of Object.values(pathItem ?? {})) {
+      if (
+        !operation ||
+        typeof operation !== 'object' ||
+        !('responses' in operation)
+      )
+        continue;
+      const responses = (operation as { responses: Record<string, unknown> })
+        .responses;
+      for (const status of ['400', '401', '403', '404', '409', '500']) {
+        responses[status] ??= {
+          description: 'Error response',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        };
+      }
+    }
+  }
+  SwaggerModule.setup('docs', app, document, {
+    jsonDocumentUrl: 'docs-json',
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = configService.get('app', { infer: true })!.port;
   await app.listen(port);
