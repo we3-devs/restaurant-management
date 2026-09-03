@@ -26,7 +26,7 @@ async function hasExistingSubscription(): Promise<boolean> {
  * actually needs the user to act (a permission prompt or a blocked/failed
  * subscription); silent once push is enabled, same as before.
  */
-export function PushNotificationsBanner() {
+export function PushNotificationsBanner({ app = "operational" }: { app?: "operational" | "dashboard" }) {
   const { data: pushKey } = usePushPublicKey()
   const subscribePush = useSubscribePush()
   const updatePreferences = useUpdateNotificationPreferences()
@@ -45,7 +45,7 @@ export function PushNotificationsBanner() {
       if (!subscription.endpoint || !keys?.p256dh || !keys.auth) {
         throw new Error("Browser did not return a usable push subscription")
       }
-      await subscribePush.mutateAsync({ endpoint: subscription.endpoint, p256dh: keys.p256dh, auth: keys.auth })
+      await subscribePush.mutateAsync({ endpoint: subscription.endpoint, p256dh: keys.p256dh, auth: keys.auth, app })
       await updatePreferences.mutateAsync({ pushEnabled: true })
       setStatus("enabled")
     } catch (error) {

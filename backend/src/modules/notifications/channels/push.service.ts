@@ -36,16 +36,17 @@ export class PushService {
     return process.env.VAPID_PUBLIC_KEY ?? null;
   }
 
-  async subscribe(userId: number, endpoint: string, p256dh: string, auth: string): Promise<void> {
+  async subscribe(userId: number, endpoint: string, p256dh: string, auth: string, app: 'operational' | 'dashboard'): Promise<void> {
     const existing = await this.subscriptionRepo.findOne({ where: { endpoint } });
     if (existing) {
       existing.userId = userId;
       existing.p256dh = p256dh;
       existing.auth = auth;
+      existing.app = app;
       await this.subscriptionRepo.save(existing);
       return;
     }
-    await this.subscriptionRepo.save(this.subscriptionRepo.create({ userId, endpoint, p256dh, auth }));
+    await this.subscriptionRepo.save(this.subscriptionRepo.create({ userId, endpoint, p256dh, auth, app }));
   }
 
   async unsubscribe(endpoint: string): Promise<void> {
@@ -57,9 +58,18 @@ export class PushService {
     title: string,
     body: string,
     data?: { type?: string; orderId?: number | null },
+    priority: 'normal' | 'high' | 'urgent' = 'normal',
   ): Promise<void> {
     if (!this.configured) return;
-    const subscriptions = await this.subscriptionRepo.find({ where: { userId } });
+    const subscriptions = await this.subscriptionRepo
+      .createQueryBuilder('subscription')
+      .where('subscription.user_id = :userId', { userId })
+      .andWhere(
+        priority === 'urgent'
+          ? "subscription.app IN ('operational', 'dashboard')"
+          : "subscription.app = 'operational'",
+      )
+      .getMany();
     const payload = JSON.stringify({ title, body, data });
 
     await Promise.all(

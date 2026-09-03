@@ -161,7 +161,7 @@ export function usePushPublicKey() {
 
 export function useSubscribePush() {
   return useMutation({
-    mutationFn: (input: { endpoint: string; p256dh: string; auth: string }) =>
+    mutationFn: (input: { endpoint: string; p256dh: string; auth: string; app: "operational" | "dashboard" }) =>
       apiClient<void>("/notifications/push/subscribe", { method: "POST", body: JSON.stringify(input) }),
   })
 }
@@ -181,7 +181,11 @@ export function useUnsubscribePush() {
  * mutation that caused them already shows its own success/error toast)
  * except for the explicit allowlist (e.g. payment_received).
  */
-export function useNotificationsRealtime(outletId: number | null, currentUserId?: number): void {
+export function useNotificationsRealtime(
+  outletId: number | null,
+  currentUserId?: number,
+  showToast = true,
+): void {
   const invalidate = useInvalidateNotifications()
 
   useEffect(() => {
@@ -192,7 +196,7 @@ export function useNotificationsRealtime(outletId: number | null, currentUserId?
     const onNotificationCreated = (notification: AppNotification) => {
       invalidate()
       const isSelf = currentUserId !== undefined && notification.actorUserId === currentUserId
-      if (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type)) {
+      if (!showToast || (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type))) {
         return
       }
       playNotificationChime()

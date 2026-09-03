@@ -1,6 +1,5 @@
 import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { acquireKdsSocket, releaseKdsSocket } from "../realtime/kds-socket"
 import { queryKeys } from "../query-keys"
 import type { AppNotification } from "./use-notifications"
@@ -14,10 +13,9 @@ import type { KdsBootstrap, KitchenTicket, KitchenTicketItem } from "./use-kitch
  * diningTable, items -> orderItem -> food), and a full refetch is cheap and
  * far less error-prone than keeping a hand-rolled merge in sync with it.
  *
- * Also listens for the outlet's notification/service-request pushes so the
- * POS screen and the Service screen surface "items ready" and "call waiter"
- * events the moment they happen (the header bell watches its own connection
- * for the same notification.created event).
+ * Also invalidates notification/service-request data on their realtime pushes.
+ * Toast presentation is centralized in useNotificationsRealtime so every
+ * notification type gets one toast, regardless of which operational page is open.
  */
 export function useKitchenRealtime(outletId: number | null): void {
   const queryClient = useQueryClient()
@@ -87,22 +85,8 @@ export function useKitchenRealtime(outletId: number | null): void {
     }
     const onNotificationCreated = (notification: AppNotification) => {
       invalidateService()
-      if (notification.type === "kitchen_ready") {
-        toast.success(notification.title, {
-          description: notification.body ?? undefined,
-          duration: 6000,
-        })
-      } else if (notification.type === "service_request") {
-        toast.info(notification.title, {
-          description: notification.body ?? "New service request",
-          duration: 8000,
-        })
-      } else if (notification.type === "guest_order_placed") {
+      if (notification.type === "guest_order_placed" || notification.type === "order_sent") {
         invalidateOrders()
-        toast.info(notification.title, {
-          description: notification.body ?? "A guest placed a new order",
-          duration: 8000,
-        })
       }
     }
     const onServiceRequestCreated = () => invalidateService()

@@ -24,6 +24,10 @@ export class PushSubscription {
   @Column({ type: 'text' })
   auth: string;
 
+  /** Push is currently an operational-app channel; legacy/dashboard rows are intentionally nullable and excluded. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  app: 'operational' | 'dashboard' | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 }

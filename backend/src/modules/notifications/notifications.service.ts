@@ -11,6 +11,7 @@ import { SmsService } from './channels/sms.service';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { NotificationPreference } from './entities/notification-preference.entity';
 import { Notification } from './entities/notification.entity';
+import { NotificationIssue } from './entities/notification-issue.entity';
 
 export interface NotificationsFeedResponse extends PaginatedResponse<Notification> {
   unreadCount: number;
@@ -23,6 +24,8 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationsRepository: Repository<Notification>,
+    @InjectRepository(NotificationIssue)
+    private readonly notificationIssuesRepository: Repository<NotificationIssue>,
     @InjectRepository(NotificationPreference)
     private readonly preferencesRepository: Repository<NotificationPreference>,
     @InjectRepository(UserRoleAssignment)
@@ -147,7 +150,47 @@ export class NotificationsService {
     input: Partial<Notification>,
   ): Promise<Notification> {
     const recipientUserIds = await this.getUserIdsByRole(outletId, roleSlugs);
+    if (recipientUserIds.length === 0) {
+      const issue = await this.notificationIssuesRepository.save(
+        this.notificationIssuesRepository.create({
+          outletId,
+          notificationType: input.type ?? 'system',
+          title: 'Notification has no eligible recipient',
+          reason: `No eligible user matched the configured recipient roles: ${roleSlugs.join(', ') || '(none)'}`,
+          policyVersionId: null,
+          notificationId: null,
+          status: 'unresolved',
+          metadata: { roleSlugs, input },
+        }),
+      );
+      const superadminIds = await this.getAllSuperadminIds();
+      if (superadminIds.length > 0) {
+        const issueNotification = await this.create(
+          {
+            outletId,
+            type: 'system',
+            title: `Notification delivery issue #${issue.id}`,
+            body: `No eligible recipient for ${input.type ?? 'notification'} at outlet ${outletId}. ${issue.reason}`,
+            priority: 'urgent',
+            data: JSON.stringify({ issueId: issue.id, notificationType: input.type ?? 'system' }),
+            dedupeKey: `notification-issue:${issue.id}`,
+          },
+          superadminIds,
+        );
+        await this.notificationIssuesRepository.update(issue.id, {
+          notificationId: issueNotification.id,
+        });
+      }
+    }
     return this.create({ ...input, outletId }, recipientUserIds);
+  }
+
+  private async getAllSuperadminIds(): Promise<number[]> {
+    const users = await this.usersRepository.find({
+      where: { isSuperadmin: true },
+      select: { id: true },
+    });
+    return users.map((user) => user.id);
   }
 
   /**
@@ -161,6 +204,9 @@ export class NotificationsService {
     notification: Notification,
     recipientUserIds?: number[],
   ): Promise<void> {
+    // Web Push is reserved for urgent operational alerts. Normal/high events
+    // remain available through the realtime toast and notification bell.
+    const pushEnabledForEvent = notification.priority === 'urgent';
     if (!this.emailService.isConfigured && !this.smsService.isConfigured && !this.pushService.isConfigured) {
       return;
     }
@@ -197,11 +243,11 @@ export class NotificationsService {
         if (preference.smsEnabled && user.phone) {
           await this.smsService.send(user.phone, `${notification.title}: ${body}`);
         }
-        if (preference.pushEnabled) {
+        if (pushEnabledForEvent && preference.pushEnabled) {
           await this.pushService.sendToUser(user.id, notification.title, body, {
             type: notification.type,
             orderId: notification.orderId,
-          });
+          }, notification.priority);
         }
       }),
     );

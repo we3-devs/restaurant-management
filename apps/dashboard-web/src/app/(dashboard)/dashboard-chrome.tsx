@@ -51,7 +51,7 @@ export function DashboardChrome({
                 <HeaderPortalSwitcher current="dashboard" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <ThemeToggle />
-                <NotificationBell />
+                <NotificationBell pushApp="dashboard" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <UserMenu profileHref="/profile" />
               </div>

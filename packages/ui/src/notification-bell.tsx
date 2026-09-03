@@ -52,17 +52,20 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
   }
 }
 
-export function NotificationBell() {
+export function NotificationBell({ realtimeToast = true, enablePush = true, pushApp = "operational" }: { realtimeToast?: boolean; enablePush?: boolean; pushApp?: "operational" | "dashboard" }) {
   const [isOpen, setIsOpen] = useState(false)
   const currentUser = useCurrentUser()
   const { outletId: effectiveOutletId } = useActiveOutlet()
 
-  // Only set up realtime updates if dropdown has been opened once (implies notifications are being used)
-  useNotificationsRealtime(isOpen ? effectiveOutletId : null, currentUser.id)
+  // Keep the subscription alive even while the dropdown is closed so every
+  // notification can produce its realtime toast immediately.
+  useNotificationsRealtime(effectiveOutletId, currentUser.id, realtimeToast)
 
-  // Only fetch notifications when dropdown is open to defer from critical bootstrap path
+  // Keep the unread badge/feed synchronized even while the dropdown is closed.
+  // Push is only an additional delivery channel; the in-app bell remains the
+  // reliable fallback when push permission is unavailable.
   const { data, isLoading } = useNotifications({
-    outletId: isOpen ? effectiveOutletId : null,
+    outletId: effectiveOutletId,
     limit: 25
   })
   const markRead = useMarkNotificationRead()
@@ -117,7 +120,7 @@ export function NotificationBell() {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <div className="px-2 pb-1">
-          <PushNotificationsBanner />
+          {enablePush && <PushNotificationsBanner app={pushApp} />}
         </div>
         <DropdownMenuSeparator />
 

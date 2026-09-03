@@ -37,7 +37,7 @@ export class NotificationChannelsController {
   @Post('push/subscribe')
   @ApiOperation({ summary: "Registers the current browser for push notifications" })
   subscribe(@CurrentUser() user: User, @Body() dto: SubscribePushDto) {
-    return this.pushService.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth);
+    return this.pushService.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth, dto.app);
   }
 
   @Delete('push/subscribe')
