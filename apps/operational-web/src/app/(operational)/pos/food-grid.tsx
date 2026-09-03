@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { toast } from "sonner"
 import { SearchIcon, UtensilsIcon } from "lucide-react"
@@ -10,12 +9,9 @@ import { Badge } from "@rms/ui/badge"
 import { Card, CardContent } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
 import { CardGridSkeleton } from "@rms/ui/skeletons"
-import { apiClient } from "@rms/api-client/client"
-import { useFoods, type Food } from "@rms/api-client/hooks/use-foods"
-import { queryKeys } from "@rms/api-client/query-keys"
-import { STALE_TIME } from "@rms/api-client/query-config"
-import { toQueryString, type PaginatedResponse } from "@rms/api-client/types"
-import type { FoodVariant } from "@rms/api-client/hooks/use-food-variants"
+import { useMenu } from "@rms/api-client/hooks/use-menu"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
+import type { Food } from "@rms/api-client/hooks/use-foods"
 import { useLocalCartContext } from "./local-cart-context"
 import { VariantPickerDialog } from "./variant-picker-dialog"
 
@@ -40,17 +36,19 @@ function useColumnCount() {
 export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   const [search, setSearch] = useState("")
   const [variantFood, setVariantFood] = useState<Food | null>(null)
-  const { data: foods, isLoading } = useFoods({
-    search: search || undefined,
-    foodCategoryId: categoryId ?? undefined,
-    limit: 60,
-  })
+  const { outletId } = useActiveOutlet()
+  const { data: menu, isLoading } = useMenu(outletId)
   const localCart = useLocalCartContext()
-  const queryClient = useQueryClient()
 
   const columns = useColumnCount()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const items = foods?.data ?? []
+  const items = useMemo(() => {
+    const normalized = search.trim().toLowerCase()
+    return (menu?.foods ?? []).filter((food) =>
+      (categoryId === null || food.foodCategoryId === categoryId) &&
+      (!normalized || food.name.toLowerCase().includes(normalized)),
+    )
+  }, [menu?.foods, search, categoryId])
   const rows = useMemo(() => {
     const chunked: Food[][] = []
     for (let i = 0; i < items.length; i += columns) {
@@ -81,19 +79,6 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       unitPrice: food.basePrice,
     })
     toast.success(`${food.name} added to cart`, { duration: 1200 })
-  }
-
-  // Warms the variant-picker's query cache the moment a press starts (not
-  // on click, which fires after the click completes) so the dialog that
-  // opens a beat later already has its options instead of showing a
-  // fetch-then-populate flash.
-  function prefetchVariants(foodId: number) {
-    const params = { foodId, limit: 100 }
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.foodVariants.list(params),
-      queryFn: () => apiClient<PaginatedResponse<FoodVariant>>(`/food-variants${toQueryString(params)}`),
-      staleTime: STALE_TIME.foodVariants,
-    })
   }
 
   return (
@@ -130,7 +115,6 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                     key={food.id}
                     className="flex h-full cursor-pointer flex-col overflow-hidden p-0 transition-colors hover:bg-muted/50"
                     onClick={() => handleAdd(food)}
-                    onPointerDown={food.hasVariants ? () => prefetchVariants(food.id) : undefined}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
                       <UtensilsIcon className="size-8 text-muted-foreground/50" />
@@ -168,6 +152,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       {variantFood && (
         <VariantPickerDialog
           food={variantFood}
+          variants={menu?.foodVariants.filter((variant) => variant.foodId === variantFood.id) ?? []}
           onPick={(variant) => {
             localCart.addItem({
               foodId: variantFood.id,

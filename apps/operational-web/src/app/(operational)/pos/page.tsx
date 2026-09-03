@@ -8,7 +8,7 @@ import { CardGridSkeleton } from "@rms/ui/skeletons"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
 import { useOrder } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
-import { usePosBootstrap } from "@rms/api-client/hooks/use-bootstrap"
+import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useOrderDeepLink } from "@/features/waiter/use-order-deep-link"
 import { useStartSaleDialogState } from "@/features/waiter/use-start-sale-dialog"
 import { FloorBoard } from "../floor/floor-board"
@@ -59,9 +59,12 @@ export default function PosPage() {
   // (Sent -> Preparing -> Ready) — same KDS socket the /kitchen board uses.
   useKitchenRealtime(effectiveOutletId)
 
-  // One request for tables + food categories + addons instead of three; it
-  // also seeds the caches those hooks below read from.
-  const bootstrap = usePosBootstrap(effectiveOutletId)
+  // Tables are live operational data. They are deliberately fetched separately
+  // from the IndexedDB-backed menu and are not included in that cache.
+  const tables = useDiningTables(
+    { outletId: effectiveOutletId ?? undefined, limit: 100 },
+    { enabled: !!effectiveOutletId && !activeOrderId },
+  )
 
   // Lazy: StartSaleDialog (and its table-sessions/customers requests) isn't
   // mounted until the button below is tapped or preselectedTableId forces it
@@ -141,7 +144,7 @@ export default function PosPage() {
           outletId={effectiveOutletId}
           onSaleStarted={(orderId) => router.push(`/pos?orderId=${orderId}`)}
           preselectedTableId={preselectedTableId}
-          tables={bootstrap.data?.tables ?? []}
+          tables={tables.data?.data ?? []}
         />
       )}
     </div>

@@ -17,8 +17,7 @@ import { Separator } from "@rms/ui/separator"
 import { ListSkeleton } from "@rms/ui/skeletons"
 import { useCustomerCreditAccount } from "@rms/api-client/hooks/use-customer-credit"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
-import { useFoods } from "@rms/api-client/hooks/use-foods"
-import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
+import { useMenu } from "@rms/api-client/hooks/use-menu"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
@@ -113,9 +112,8 @@ function EditableCart({
   receiptPath: string
 }) {
   const { data: items, isLoading } = useOrderItems(orderId)
-  const { data: foods } = useFoods({ limit: 100 })
-  const { data: variants } = useFoodVariants({ limit: 100 })
   const { data: order } = useOrder(orderId)
+  const { data: menu } = useMenu(order?.outletId ?? null)
   const { data: payments } = useOrderPayments(orderId)
   const createPayment = useCreateOrderPayment(orderId)
   const createPaymentOverride = useCreateOrderPayment(orderId, { closedHoursOverride: true })
@@ -197,9 +195,9 @@ function EditableCart({
     }
   }
 
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
+  const foodName = (foodId: number) => menu?.foods.find((f) => f.id === foodId)?.name ?? "Loading…"
   const variantName = (foodVariantId: number | null) =>
-    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
+    foodVariantId ? (menu?.foodVariants.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
   const serverPendingCount = serverPendingItems.filter((item) => !item.isHeld).length
   const heldCount = serverPendingItems.filter((item) => item.isHeld).length

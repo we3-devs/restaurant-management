@@ -7,7 +7,7 @@ import { Button } from "@rms/ui/button"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
 import { useOrder } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
-import { usePosBootstrap } from "@rms/api-client/hooks/use-bootstrap"
+import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useOrderDeepLink } from "@/features/waiter/use-order-deep-link"
 import { useStartSaleDialogState } from "@/features/waiter/use-start-sale-dialog"
 import { FloorBoard } from "@/app/(operational)/floor/floor-board"
@@ -61,7 +61,11 @@ export default function StaffOrderTakingPage() {
   }, [isCompletedOrder, router])
 
   useKitchenRealtime(effectiveOutletId)
-  const bootstrap = usePosBootstrap(effectiveOutletId)
+  // Tables are live operational data; keep them out of the menu cache.
+  const tables = useDiningTables(
+    { outletId: effectiveOutletId ?? undefined, limit: 100 },
+    { enabled: !!effectiveOutletId && !activeOrderId },
+  )
 
   // Lazy: StartSaleDialog (and its table-sessions/customers requests) isn't
   // mounted until the button below is tapped or preselectedTableId forces it
@@ -131,7 +135,7 @@ export default function StaffOrderTakingPage() {
           outletId={effectiveOutletId}
           onSaleStarted={(orderId) => router.push(`${BASE_PATH}?orderId=${orderId}`)}
           preselectedTableId={preselectedTableId}
-          tables={bootstrap.data?.tables ?? []}
+          tables={tables.data?.data ?? []}
         />
       )}
     </div>

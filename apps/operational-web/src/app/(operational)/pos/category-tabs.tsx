@@ -2,7 +2,8 @@
 
 import { cn } from "@rms/ui/cn"
 import { Skeleton } from "@rms/ui/skeleton"
-import { useFoodCategories } from "@rms/api-client/hooks/use-food-categories"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
+import { useMenu } from "@rms/api-client/hooks/use-menu"
 
 export function CategoryTabs({
   categoryId,
@@ -11,7 +12,8 @@ export function CategoryTabs({
   categoryId: number | null
   onSelect: (categoryId: number | null) => void
 }) {
-  const { data: categories, isLoading } = useFoodCategories({ limit: 100 })
+  const { outletId } = useActiveOutlet()
+  const { data: menu, isLoading } = useMenu(outletId)
 
   return (
     <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-input pb-3">
@@ -31,7 +33,7 @@ export function CategoryTabs({
         ? Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-20 shrink-0 rounded-full" />
           ))
-        : categories?.data.map((category) => (
+        : menu?.categories.map((category) => (
             <button
               key={category.id}
               type="button"

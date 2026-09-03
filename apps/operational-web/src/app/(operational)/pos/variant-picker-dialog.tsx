@@ -6,21 +6,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@rms/ui/dialog"
-import { Skeleton } from "@rms/ui/skeleton"
-import { useFoodVariants, type FoodVariant } from "@rms/api-client/hooks/use-food-variants"
+import { type FoodVariant } from "@rms/api-client/hooks/use-food-variants"
 import type { Food } from "@rms/api-client/hooks/use-foods"
 
 export function VariantPickerDialog({
   food,
+  variants,
   onPick,
   onClose,
 }: {
   food: Food
+  variants: FoodVariant[]
   onPick: (variant: FoodVariant) => void
   onClose: () => void
 }) {
-  const { data: variants, isLoading } = useFoodVariants({ foodId: food.id, limit: 100 })
-
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
@@ -28,11 +27,10 @@ export function VariantPickerDialog({
           <DialogTitle>{food.name} — choose a variant</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
-          {isLoading && <Skeleton className="h-24 w-full" />}
-          {!isLoading && (variants?.data.length ?? 0) === 0 && (
+          {variants.length === 0 && (
             <p className="text-sm text-muted-foreground">No variants configured for this food.</p>
           )}
-          {variants?.data.map((variant) => (
+          {variants.map((variant) => (
             <button
               key={variant.id}
               type="button"
