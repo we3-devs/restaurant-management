@@ -1902,7 +1902,7 @@ export class OrdersService {
   }
 
   /**
-   * Merges a recipe-enabled food's food_recipes (variant-override rule,
+   * Merges a kitchen food's food_recipes (variant-override rule,
    * scaled by item quantity) with every recipe-enabled addon's addon_recipes
    * (scaled by that addon's own quantity), converting every row into the
    * ingredient's base unit. Foods/addons without isRecipeEnabled contribute
@@ -1914,7 +1914,7 @@ export class OrdersService {
     const required = new Map<number, number>();
 
     const food = await this.foodsService.findOne(item.foodId);
-    if (food.isRecipeEnabled) {
+    if (food.itemType === 'kitchen') {
       const recipes = await this.foodsService.resolveRecipes(
         item.foodId,
         item.foodVariantId,

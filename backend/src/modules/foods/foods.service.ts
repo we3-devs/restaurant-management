@@ -158,13 +158,12 @@ export class FoodsService {
       skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
       imageUrl: dto.imageUrl ?? null,
       foodType: dto.foodType ?? null,
-      itemType: dto.itemType ?? 'food',
+      itemType: dto.itemType ?? 'ready_made',
       departmentType: dto.departmentType ?? null,
       basePrice: dto.basePrice ?? 0,
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
       isFeatured: dto.isFeatured ?? false,
-      isRecipeEnabled: dto.isRecipeEnabled ?? false,
       preparationTime: dto.preparationTime ?? null,
       sortOrder: dto.sortOrder ?? 0,
     });
@@ -226,9 +225,6 @@ export class FoodsService {
         isDiscountable: dto.isDiscountable,
       }),
       ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
-      ...(dto.isRecipeEnabled !== undefined && {
-        isRecipeEnabled: dto.isRecipeEnabled,
-      }),
       ...(dto.preparationTime !== undefined && {
         preparationTime: dto.preparationTime,
       }),
@@ -503,7 +499,6 @@ export class FoodsService {
       basePrice: food.basePrice,
       hasVariants: food.hasVariants,
       hasAddons: food.hasAddons,
-      isRecipeEnabled: food.isRecipeEnabled,
       isTaxable: food.isTaxable,
       isDiscountable: food.isDiscountable,
       isFeatured: food.isFeatured,

@@ -52,9 +52,6 @@ export class FoodResponseDto {
   hasAddons: boolean;
 
   @ApiProperty()
-  isRecipeEnabled: boolean;
-
-  @ApiProperty()
   isTaxable: boolean;
 
   @ApiProperty()

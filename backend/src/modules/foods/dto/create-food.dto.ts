@@ -18,7 +18,7 @@ import {
 } from '../../outlet-departments/entities/outlet-department.entity';
 
 const FOOD_TYPES: FoodType[] = ['veg', 'non_veg', 'egg', 'vegan'];
-const FOOD_ITEM_TYPES: FoodItemType[] = ['food', 'beverage', 'combo'];
+const FOOD_ITEM_TYPES: FoodItemType[] = ['kitchen', 'ready_made'];
 
 export class CreateFoodDto {
   @ApiPropertyOptional()
@@ -78,10 +78,10 @@ export class CreateFoodDto {
   @IsIn(FOOD_TYPES)
   foodType?: FoodType;
 
-  @ApiPropertyOptional({ enum: FOOD_ITEM_TYPES, default: 'food' })
+  @ApiPropertyOptional({ enum: FOOD_ITEM_TYPES, default: 'ready_made' })
   @IsOptional()
   @IsIn(FOOD_ITEM_TYPES)
-  itemType?: FoodItemType = 'food';
+  itemType?: FoodItemType = 'ready_made';
 
   @ApiPropertyOptional({
     enum: OUTLET_DEPARTMENT_TYPES,
@@ -112,15 +112,6 @@ export class CreateFoodDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean = false;
-
-  @ApiPropertyOptional({
-    default: false,
-    description:
-      'Gates whether Orders resolves food_recipes and reserves ingredient stock for this food.',
-  })
-  @IsOptional()
-  @IsBoolean()
-  isRecipeEnabled?: boolean = false;
 
   @ApiPropertyOptional()
   @IsOptional()

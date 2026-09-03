@@ -2,9 +2,9 @@ import { z } from "zod"
 import { toTitleCase } from "./helpers"
 
 export const FOOD_TYPES = ["veg", "non_veg", "egg", "vegan"] as const
-export const FOOD_ITEM_TYPES = ["food", "beverage", "combo"] as const
+export const FOOD_ITEM_TYPES = ["kitchen", "ready_made"] as const
 
-/** Mirrors backend OUTLET_DEPARTMENT_TYPES (outlet-department.entity.ts). null/omitted = ready-made, no kitchen prep. */
+/** Mirrors backend OUTLET_DEPARTMENT_TYPES. Kitchen items are routed by this department type; ready-made items have none. */
 export const OUTLET_DEPARTMENT_TYPES = [
   "kitchen",
   "bar",
@@ -53,7 +53,6 @@ export const updateFoodSchema = z.object({
   isTaxable: z.boolean(),
   isDiscountable: z.boolean(),
   isFeatured: z.boolean(),
-  isRecipeEnabled: z.boolean(),
   isActive: z.boolean(),
 })
 

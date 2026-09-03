@@ -21,7 +21,6 @@ export interface Food {
   basePrice: number
   hasVariants: boolean
   hasAddons: boolean
-  isRecipeEnabled: boolean
   isTaxable: boolean
   isDiscountable: boolean
   isFeatured: boolean

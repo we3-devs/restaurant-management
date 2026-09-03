@@ -41,7 +41,7 @@ export function CreateFoodDialog() {
       sku: "",
       skuSegment: "",
       imageUrl: "",
-      itemType: "food",
+      itemType: "ready_made",
       departmentType: undefined,
       basePrice: 0,
     },
@@ -57,7 +57,7 @@ export function CreateFoodDialog() {
         slug: "",
         sku: "",
         imageUrl: "",
-        itemType: "food",
+        itemType: "ready_made",
         departmentType: undefined,
         basePrice: 0,
       })
@@ -199,7 +199,7 @@ export function CreateFoodDialog() {
                     <SelectContent>
                       {FOOD_ITEM_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
-                          {type}
+                          {type === "ready_made" ? "Ready-made" : "Kitchen"}
                         </SelectItem>
                       ))}
                     </SelectContent>

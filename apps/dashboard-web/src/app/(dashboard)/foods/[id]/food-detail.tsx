@@ -73,13 +73,12 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       shortDescription: "",
       description: "",
       imageUrl: "",
-      itemType: "food",
+      itemType: "ready_made",
       departmentType: undefined,
       basePrice: 0,
       isTaxable: true,
       isDiscountable: true,
       isFeatured: false,
-      isRecipeEnabled: false,
       isActive: true,
     },
   })
@@ -101,7 +100,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
         isTaxable: food.isTaxable,
         isDiscountable: food.isDiscountable,
         isFeatured: food.isFeatured,
-        isRecipeEnabled: food.isRecipeEnabled,
         isActive: food.isActive,
       })
     }
@@ -275,7 +273,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       <SelectContent>
                         {FOOD_ITEM_TYPES.map((type) => (
                           <SelectItem key={type} value={type}>
-                            {type}
+                            {type === "ready_made" ? "Ready-made" : "Kitchen"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -358,22 +356,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       onCheckedChange={(checked) => field.onChange(checked === true)}
                     />
                     <Label htmlFor="isFeatured">Featured</Label>
-                  </div>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="isRecipeEnabled"
-                render={({ field }) => (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="isRecipeEnabled"
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked === true)}
-                    />
-                    <Label htmlFor="isRecipeEnabled">
-                      Recipe enabled (reserves ingredient stock when ordered)
-                    </Label>
                   </div>
                 )}
               />

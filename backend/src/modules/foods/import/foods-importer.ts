@@ -15,7 +15,7 @@ import { Food } from '../entities/food.entity';
 import { SkuCompositionService } from '../sku-composition.service';
 
 const FOOD_TYPES: FoodType[] = ['veg', 'non_veg', 'egg', 'vegan'];
-const FOOD_ITEM_TYPES: FoodItemType[] = ['food', 'beverage', 'combo'];
+const FOOD_ITEM_TYPES: FoodItemType[] = ['kitchen', 'ready_made'];
 
 /**
  * Header aliases -> the logical column key. Covers both a plain
@@ -158,7 +158,7 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
       const foodCategoryRaw = raw.foodCategory?.split(/[>,|]/)[0]?.trim() || null;
       const foodCategoryId = foodCategoryRaw ? (categoryByName.get(foodCategoryRaw.toLowerCase()) ?? null) : null;
 
-      const itemTypeRaw = (raw.itemType?.trim().toLowerCase() || 'food') as FoodItemType;
+      const itemTypeRaw = (raw.itemType?.trim().toLowerCase() || 'ready_made') as FoodItemType;
       if (!FOOD_ITEM_TYPES.includes(itemTypeRaw)) {
         errors.push(`Item type must be one of: ${FOOD_ITEM_TYPES.join(', ')}`);
       }
@@ -201,7 +201,7 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         imageUrl: raw.imageUrl ? firstImageUrl(raw.imageUrl.trim()) || null : null,
         foodCategory: foodCategoryRaw,
         foodCategoryId,
-        itemType: FOOD_ITEM_TYPES.includes(itemTypeRaw) ? itemTypeRaw : 'food',
+        itemType: FOOD_ITEM_TYPES.includes(itemTypeRaw) ? itemTypeRaw : 'ready_made',
         departmentType,
         foodType,
         basePrice: Number.isNaN(basePrice) ? 0 : basePrice,

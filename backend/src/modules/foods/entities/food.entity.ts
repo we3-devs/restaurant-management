@@ -14,7 +14,7 @@ import { FoodCategory } from '../../food-categories/entities/food-category.entit
 import type { OutletDepartmentType } from '../../outlet-departments/entities/outlet-department.entity';
 
 export type FoodType = 'veg' | 'non_veg' | 'egg' | 'vegan';
-export type FoodItemType = 'food' | 'beverage' | 'combo';
+export type FoodItemType = 'kitchen' | 'ready_made';
 
 @Entity({ name: 'foods' })
 export class Food {
@@ -93,9 +93,6 @@ export class Food {
 
   @Column({ name: 'has_addons', type: 'boolean', default: false })
   hasAddons: boolean;
-
-  @Column({ name: 'is_recipe_enabled', type: 'boolean', default: false })
-  isRecipeEnabled: boolean;
 
   @Column({ name: 'is_taxable', type: 'boolean', default: true })
   isTaxable: boolean;
