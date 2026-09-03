@@ -70,13 +70,22 @@ export function CheckoutPanel({
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
+  // Prefer the payment ledger for the visible totals. The order detail may be
+  // briefly stale immediately after recording a payment.
+  const paidAmount = payments
+    ? payments.data
+        .filter((payment) => payment.status === "completed")
+        .reduce((sum, payment) => sum + (payment.type === "refund" ? -payment.amount : payment.amount), 0)
+    : order?.paidAmount ?? 0
+  const displayedDueAmount = order ? Math.max(order.grandTotal - paidAmount, 0) : 0
+
   // Re-seed the editable totals/payment-amount fields whenever a different
   // order loads, or the due amount changes after a payment — without an
   // effect, per React's "adjusting state when a prop changes" pattern.
   const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && order.dueAmount !== seededDueAmount) {
-    setSeededDueAmount(order.dueAmount)
-    setPaymentAmount(order.dueAmount)
+  if (order && displayedDueAmount !== seededDueAmount) {
+    setSeededDueAmount(displayedDueAmount)
+    setPaymentAmount(displayedDueAmount)
   }
 
   // Items still sitting in the cart (added but never "Send to kitchen"'d,
@@ -145,7 +154,7 @@ export function CheckoutPanel({
         </Button>
       </div>
 
-      <BillSummary order={order} />
+      <BillSummary order={{ ...order, paidAmount, dueAmount: displayedDueAmount }} />
 
       <OrderDiscountForm orderId={orderId} />
 
@@ -251,12 +260,12 @@ export function CheckoutPanel({
             className="w-full"
             size="lg"
             onClick={handleCompleteSale}
-            disabled={order.dueAmount > 0 || unsentItemCount > 0 || updateStatus.isPending || !isOnline}
+            disabled={displayedDueAmount > 0 || unsentItemCount > 0 || updateStatus.isPending || !isOnline}
           >
             {!isOnline
               ? "Offline"
-              : order.dueAmount > 0
-                ? `Due ${order.dueAmount}`
+              : displayedDueAmount > 0
+                ? `Due ${displayedDueAmount}`
                 : unsentItemCount > 0
                   ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
                   : "Complete sale"}

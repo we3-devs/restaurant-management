@@ -143,12 +143,24 @@ function EditableCart({
   // cash) but the money itself sits on the customer's tab, not in the
   // till — split it out of "Paid" so the waiter isn't misled into thinking
   // cash/card was actually collected.
+  // The payment ledger is the source of truth for the screen. During the
+  // short window after a payment is saved, the order detail can still contain
+  // the previous paid/due totals; using the loaded ledger prevents showing a
+  // payment of 250 alongside Paid 0 / Due 250.
+  const ledgerPaidAmount = payments
+    ? round2(
+        payments.data
+          .filter((p) => p.status === "completed")
+          .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0),
+      )
+    : (order?.paidAmount ?? 0)
   const creditAmount = round2(
     (payments?.data ?? [])
-      .filter((p) => p.method === "credit")
+      .filter((p) => p.status === "completed" && p.method === "credit")
       .reduce((sum, p) => sum + (p.type === "refund" ? -p.amount : p.amount), 0),
   )
-  const cashPaidAmount = round2((order?.paidAmount ?? 0) - creditAmount)
+  const cashPaidAmount = round2(ledgerPaidAmount - creditAmount)
+  const displayedDueAmount = order ? Math.max(round2(order.grandTotal - ledgerPaidAmount), 0) : 0
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
@@ -165,9 +177,9 @@ function EditableCart({
   // or a payment lands) — without an effect, per React's "adjusting state
   // when a prop changes" pattern.
   const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && order.dueAmount !== seededDueAmount) {
-    setSeededDueAmount(order.dueAmount)
-    setPaymentAmount(order.dueAmount)
+  if (order && displayedDueAmount !== seededDueAmount) {
+    setSeededDueAmount(displayedDueAmount)
+    setPaymentAmount(displayedDueAmount)
   }
 
   async function handleAddPayment() {
@@ -355,7 +367,7 @@ function EditableCart({
                 </>
               )}
               <span className="font-medium">Due</span>
-              <span className="text-right font-medium">{order.dueAmount}</span>
+              <span className="text-right font-medium">{displayedDueAmount}</span>
             </div>
             {canRecordPayment && <OrderDiscountForm orderId={orderId} />}
             {(payments?.data.length ?? 0) > 0 && (
@@ -454,12 +466,12 @@ function EditableCart({
                 <Button
                   className="w-full"
                   onClick={handleCompleteSale}
-                  disabled={order.dueAmount > 0 || serverPendingItems.length > 0 || updateStatus.isPending || !isOnline}
+                  disabled={displayedDueAmount > 0 || serverPendingItems.length > 0 || updateStatus.isPending || !isOnline}
                 >
                   {!isOnline
                     ? "Offline"
-                    : order.dueAmount > 0
-                      ? `Due ${order.dueAmount}`
+                    : displayedDueAmount > 0
+                      ? `Due ${displayedDueAmount}`
                       : serverPendingItems.length > 0
                         ? `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
                         : "Complete sale"}
