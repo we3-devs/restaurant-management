@@ -2,6 +2,16 @@
  * TanStack Query key factory. Convention for this and all future CRUD
  * domains: `all` -> `lists()` -> `list(params)`, and `all` -> `detail(id)`.
  */
+export const publicQueryKeys = {
+  branding: () => ["public", "branding"] as const,
+  foods: () => ["public", "foods"] as const,
+  categories: () => ["public", "food-categories"] as const,
+  variants: () => ["public", "variants"] as const,
+  subVariants: () => ["public", "sub-variants"] as const,
+  foodVariants: (foodId: number) => ["public", "food-variants", foodId] as const,
+  guestOrders: (tableCode: string) => ["public", "guest-orders", tableCode] as const,
+}
+
 export const queryKeys = {
   users: {
     all: ["users"] as const,

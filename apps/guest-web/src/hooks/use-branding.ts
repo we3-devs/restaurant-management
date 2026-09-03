@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { EMPTY_BRANDING, type Branding } from "@rms/api-client/branding";
 import { getJson } from "@/lib/api";
+import { publicQueryKeys } from "@rms/api-client/query-keys";
 
 /**
  * Client-side branding for the menu header.
@@ -13,7 +14,7 @@ import { getJson } from "@/lib/api";
  */
 export function useBranding(): Branding {
   const { data } = useQuery<Branding>({
-    queryKey: ["branding"],
+    queryKey: publicQueryKeys.branding(),
     queryFn: () => getJson("/settings/branding/public"),
     staleTime: 30 * 1000,
   });

@@ -27,45 +27,12 @@ import { OrderTrackerBar } from "@/components/order-tracker-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
 import { ORDER_LABEL } from "@/lib/order-status";
+import { publicQueryKeys } from "@rms/api-client/query-keys";
+import type { PublicFood as Food, PublicFoodCategory as Category, PublicFoodVariant as Variant, PublicListValue as ListValue } from "@rms/api-client/public-types";
 
 // These mirror the Public* projections from /foods/public,
 // /food-categories/public and /food-variants/public — all deliberately
 // narrower than the authenticated entities.
-interface Food {
-  id: number;
-  foodCategoryId: number | null;
-  name: string;
-  shortDescription?: string | null;
-  imageUrl: string | null;
-  basePrice: number;
-  hasVariants: boolean;
-  hasAddons: boolean;
-}
-
-interface Category {
-  id: number;
-  parentId: number | null;
-  name: string;
-}
-
-/** A sellable food item: this food paired with values from the global lists. */
-interface Variant {
-  id: number;
-  foodId: number;
-  variantId: number | null;
-  subVariantId: number | null;
-  name: string;
-  price: number;
-  isDefault: boolean;
-}
-
-/** One value from the shared variant / sub-variant lists. */
-interface ListValue {
-  id: number;
-  name: string;
-  sortOrder: number;
-}
-
 interface CartItem {
   key: string;
   food: Food;
@@ -103,13 +70,13 @@ export default function MenuContent() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: foods = [], isLoading: foodsLoading } = useQuery<Food[]>({
-    queryKey: ["foods"],
+    queryKey: publicQueryKeys.foods(),
     queryFn: () => getJson("/foods/public?limit=200"),
     enabled: !!tableCode,
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ["food-categories"],
+    queryKey: publicQueryKeys.categories(),
     queryFn: () => getJson("/food-categories/public?limit=200"),
     enabled: !!tableCode,
   });
@@ -117,13 +84,13 @@ export default function MenuContent() {
   // The two shared option lists. Names live here; which combinations actually
   // exist (and what they cost) lives on each food's items.
   const { data: variantNames = [] } = useQuery<ListValue[]>({
-    queryKey: ["variant-list", "variants"],
+    queryKey: publicQueryKeys.variants(),
     queryFn: () => getJson("/variants/public"),
     staleTime: 5 * 60 * 1000,
     enabled: !!tableCode,
   });
   const { data: subVariantNames = [] } = useQuery<ListValue[]>({
-    queryKey: ["variant-list", "sub-variants"],
+    queryKey: publicQueryKeys.subVariants(),
     queryFn: () => getJson("/sub-variants/public"),
     staleTime: 5 * 60 * 1000,
     enabled: !!tableCode,
@@ -146,7 +113,7 @@ export default function MenuContent() {
 
   const variantResults = useQueries({
     queries: variantFoods.map((food) => ({
-      queryKey: ["variants", food.id],
+      queryKey: publicQueryKeys.foodVariants(food.id),
       queryFn: () => getJson(`/food-variants/public?foodId=${food.id}&limit=50`),
       staleTime: 5 * 60 * 1000,
     })),

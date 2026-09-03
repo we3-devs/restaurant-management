@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/api";
 import { useGuestAuth } from "./use-guest-auth";
+import { publicQueryKeys } from "@rms/api-client/query-keys";
 
 export interface GuestOrderItem {
   id: number;
@@ -35,7 +36,7 @@ export function useGuestOrders(tableCode: string | null) {
   const { isAuthenticated } = useGuestAuth();
 
   return useQuery<GuestOrder[]>({
-    queryKey: ["orders", tableCode],
+    queryKey: publicQueryKeys.guestOrders(tableCode!),
     queryFn: async () => {
       const res = await authFetch(
         `/orders/guest/mine?tableCode=${encodeURIComponent(tableCode!)}`
