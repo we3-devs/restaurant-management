@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { ILike, IsNull, QueryFailedError, Repository } from 'typeorm';
+import { ILike, In, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AppConfig } from '../../config/configuration';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
@@ -18,6 +18,7 @@ import { RoleAssignmentResponseDto } from './dto/role-assignment-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './entities/user.entity';
+import { Employee } from '../employees/entities/employee.entity';
 
 @Injectable()
 export class UsersService {
@@ -27,6 +28,7 @@ export class UsersService {
     private readonly assignmentsRepository: Repository<UserRoleAssignment>,
     private readonly rolesService: RolesService,
     private readonly configService: ConfigService<AppConfig>,
+    @InjectRepository(Employee) private readonly employeesRepository: Repository<Employee>,
   ) {}
 
   async findAll(
@@ -45,10 +47,14 @@ export class UsersService {
     const activeUserIds = await this.getActiveUserIds(
       users.map((user) => user.id),
     );
+    const employees = await this.employeesRepository.find({
+      where: { userId: In(users.map((user) => user.id)) },
+    });
+    const employeeByUserId = new Map(employees.map((employee) => [employee.userId, employee]));
 
     return {
       data: users.map((user) =>
-        this.toResponse(user, activeUserIds.has(user.id)),
+        this.toResponse(user, activeUserIds.has(user.id), employeeByUserId.get(user.id)),
       ),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
@@ -57,7 +63,8 @@ export class UsersService {
   async findOne(id: number): Promise<UserResponseDto> {
     const user = await this.getUserOrThrow(id);
     const activeUserIds = await this.getActiveUserIds([id]);
-    return this.toResponse(user, activeUserIds.has(id));
+    const employee = await this.employeesRepository.findOne({ where: { userId: id } });
+    return this.toResponse(user, activeUserIds.has(id), employee ?? undefined);
   }
 
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
@@ -75,6 +82,7 @@ export class UsersService {
 
     try {
       const saved = await this.usersRepository.save(user);
+      await this.syncLinkedEmployees(saved);
       return this.toResponse(saved, false);
     } catch (error) {
       if (
@@ -92,12 +100,15 @@ export class UsersService {
     Object.assign(user, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.email !== undefined && { email: dto.email }),
+      ...(dto.phone !== undefined && { phone: dto.phone || null }),
     });
 
     try {
       const saved = await this.usersRepository.save(user);
+      await this.syncLinkedEmployees(saved);
       const activeUserIds = await this.getActiveUserIds([id]);
-      return this.toResponse(saved, activeUserIds.has(id));
+      const employee = await this.employeesRepository.findOne({ where: { userId: id } });
+      return this.toResponse(saved, activeUserIds.has(id), employee ?? undefined);
     } catch (error) {
       if (
         error instanceof QueryFailedError &&
@@ -114,7 +125,8 @@ export class UsersService {
     user.isSuperadmin = isSuperadmin;
     const saved = await this.usersRepository.save(user);
     const activeUserIds = await this.getActiveUserIds([id]);
-    return this.toResponse(saved, activeUserIds.has(id));
+    const employee = await this.employeesRepository.findOne({ where: { userId: id } });
+    return this.toResponse(saved, activeUserIds.has(id), employee ?? undefined);
   }
 
   /**
@@ -231,14 +243,25 @@ export class UsersService {
     return new Set(rows.map((row) => parseInt(row.userId, 10)));
   }
 
-  private toResponse(user: User, isActive: boolean): UserResponseDto {
+  private toResponse(user: User, isActive: boolean, employee?: Employee): UserResponseDto {
     return {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
+      employeeId: employee?.id ?? null,
+      outletId: employee?.outletId ?? null,
+      departmentId: employee?.departmentId ?? null,
       isSuperadmin: user.isSuperadmin,
       isActive,
       createdAt: user.createdAt,
     };
+  }
+
+  /** Keep legacy employee columns aligned; linked employee reads use User as their source of truth. */
+  private async syncLinkedEmployees(user: User): Promise<void> {
+    await this.employeesRepository.createQueryBuilder().update(Employee)
+      .set({ name: user.name, email: user.email, phone: user.phone })
+      .where('user_id = :userId', { userId: user.id }).execute();
   }
 }

@@ -10,6 +10,10 @@ export interface User {
   email: string
   isSuperadmin: boolean
   isActive: boolean
+  phone?: string | null
+  employeeId: number | null
+  outletId: number | null
+  departmentId: number | null
   createdAt: string
 }
 
@@ -61,6 +65,7 @@ export function useUpdateUser(id: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all })
     },
   })
 }

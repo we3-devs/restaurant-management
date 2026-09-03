@@ -182,6 +182,25 @@ export function UserDetail({ userId }: { userId: number }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>Staff assignment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {user.employeeId ? (
+            <div className="space-y-1 text-sm">
+              <p>Outlet: {user.outletId ?? "—"}</p>
+              <p>Department: {user.departmentId ?? "—"}</p>
+              <p className="text-xs text-muted-foreground">
+                This assignment is managed from the linked employee record.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No employee record is linked to this user.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Role assignments</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

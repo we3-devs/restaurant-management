@@ -10,6 +10,18 @@ export class UserResponseDto {
   @ApiProperty()
   email: string;
 
+  @ApiProperty({ nullable: true })
+  phone: string | null;
+
+  @ApiProperty({ nullable: true, description: 'The linked employee record, if this user is staff.' })
+  employeeId: number | null;
+
+  @ApiProperty({ nullable: true })
+  outletId: number | null;
+
+  @ApiProperty({ nullable: true })
+  departmentId: number | null;
+
   @ApiProperty()
   isSuperadmin: boolean;
 

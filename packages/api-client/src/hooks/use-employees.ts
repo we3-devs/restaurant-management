@@ -74,7 +74,10 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (input: CreateEmployeeApiInput) =>
       apiClient<Employee>("/employees", { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.lists() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+    },
   })
 }
 
@@ -86,6 +89,7 @@ export function useUpdateEmployee(id: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.detail(id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
     },
   })
 }

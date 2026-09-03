@@ -4,6 +4,7 @@ import { FindOptionsWhere, ILike, In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
+import { User } from '../users/entities/user.entity';
 import { Position } from './entities/position.entity';
 import { Employee } from './entities/employee.entity';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
@@ -21,6 +22,7 @@ export class EmployeesService {
     @InjectRepository(Position) private readonly positionRepo: Repository<Position>,
     @InjectRepository(UserRoleAssignment)
     private readonly userRoleAssignmentRepo: Repository<UserRoleAssignment>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
 
   // ---- Positions ----
@@ -101,7 +103,7 @@ export class EmployeesService {
           { ...where, employeeCode: ILike(`%${search}%`) },
           { ...where, email: ILike(`%${search}%`) },
         ],
-        relations: ['position'],
+        relations: ['position', 'user'],
         order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit,
       });
       return {
@@ -111,7 +113,7 @@ export class EmployeesService {
     }
     const [data, total] = await this.employeeRepo.findAndCount({
       where,
-      relations: ['position'],
+      relations: ['position', 'user'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -124,7 +126,7 @@ export class EmployeesService {
 
   /** Internal lookup — returns the raw entity (with position/defaultRole loaded) for outlet-access checks and other services. */
   async findOne(id: number): Promise<Employee> {
-    const e = await this.employeeRepo.findOne({ where: { id }, relations: ['position', 'position.defaultRole'] });
+    const e = await this.employeeRepo.findOne({ where: { id }, relations: ['position', 'position.defaultRole', 'user'] });
     if (!e) throw new NotFoundException(`Employee ${id} not found`); return e;
   }
 
@@ -133,6 +135,7 @@ export class EmployeesService {
   }
 
   async create(dto: CreateEmployeeDto, createdBy: number): Promise<EmployeeResponseDto> {
+    await this.syncIdentityToUser(dto.userId, dto.name, dto.email, dto.phone);
     const employee = await this.employeeRepo.save(this.employeeRepo.create({
       ...dto, employeeCode: generateDocumentNumber('EMP', dto.outletId), createdBy,
     }));
@@ -141,7 +144,9 @@ export class EmployeesService {
   }
 
   async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponseDto> {
-    const e = await this.findOne(id); Object.assign(e, dto);
+    const e = await this.findOne(id);
+    await this.syncIdentityToUser(dto.userId !== undefined ? dto.userId : e.userId, dto.name, dto.email, dto.phone);
+    Object.assign(e, dto);
     const saved = await this.employeeRepo.save(e);
     await this.syncRoleFromPosition(saved);
     return this.toResponse(await this.findOne(saved.id));
@@ -152,6 +157,7 @@ export class EmployeesService {
   }
 
   private toResponse(employee: Employee): EmployeeResponseDto {
+    const identity = employee.user ?? employee;
     return {
       id: employee.id,
       employeeCode: employee.employeeCode,
@@ -160,9 +166,9 @@ export class EmployeesService {
       positionName: employee.position?.name ?? null,
       outletId: employee.outletId,
       departmentId: employee.departmentId,
-      name: employee.name,
-      email: employee.email,
-      phone: employee.phone,
+      name: identity.name,
+      email: identity.email,
+      phone: identity.phone,
       photoUrl: employee.photoUrl,
       joiningDate: employee.joiningDate,
       employmentStatus: employee.employmentStatus,
@@ -173,6 +179,17 @@ export class EmployeesService {
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
     };
+  }
+
+  /** Users are the canonical identity record for linked employees. */
+  private async syncIdentityToUser(userId: number | null | undefined, name?: string, email?: string, phone?: string): Promise<void> {
+    if (!userId) return;
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (name !== undefined) user.name = name;
+    if (email !== undefined && email !== '') user.email = email;
+    if (phone !== undefined) user.phone = phone || null;
+    await this.userRepo.save(user);
   }
 
   private toPositionResponse(position: Position): PositionResponseDto {
