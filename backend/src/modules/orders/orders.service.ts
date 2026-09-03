@@ -765,6 +765,15 @@ export class OrdersService {
       );
     }
 
+    // Repair totals before the completion check. Payment creation and order
+    // item/status updates can finish very close together; in that case the
+    // order row may briefly retain an old paid/due snapshot even though the
+    // payment ledger already contains the payment.
+    if (dto.status === 'completed') {
+      await this.recalculatePayments(id);
+      Object.assign(order, await this.findOne(id));
+    }
+
     if (dto.status === 'completed' && order.dueAmount > 0.01) {
       // Same "checked before anything is persisted" reasoning as above —
       // an order can't be marked complete (closing out the table/session)
@@ -1749,6 +1758,26 @@ export class OrdersService {
     order.subtotal = subtotal;
     order.discountAmount = discountAmount;
     order.grandTotal = grandTotal;
+
+    // Re-read payment totals from the immutable ledger instead of trusting
+    // the denormalized paidAmount snapshot. This prevents an item update that
+    // recalculates the bill from overwriting a payment that was recorded at
+    // nearly the same time.
+    const payments = await this.orderPaymentsRepository.find({
+      where: { orderId, status: 'completed' },
+    });
+    const grossPaid = round2(
+      payments
+        .filter((payment) => payment.type === 'payment')
+        .reduce((sum, payment) => sum + payment.amount, 0),
+    );
+    const refundedAmount = round2(
+      payments
+        .filter((payment) => payment.type === 'refund')
+        .reduce((sum, payment) => sum + payment.amount, 0),
+    );
+    order.paidAmount = round2(grossPaid - refundedAmount);
+    order.refundedAmount = refundedAmount;
     order.dueAmount = Math.max(round2(grandTotal - order.paidAmount), 0);
 
     return this.ordersRepository.save(order);
