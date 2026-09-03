@@ -70,7 +70,10 @@ export class EmployeesService {
       where: {
         userId: employee.userId,
         roleId: position.defaultRoleId,
+        scopeType: isGlobal ? 'global' : 'outlet',
         outletId: outletId ?? IsNull(),
+        outletDepartmentId: isGlobal ? IsNull() : (employee.departmentId ?? IsNull()),
+        warehouseId: IsNull(),
       },
     });
     if (existing) return;
@@ -81,6 +84,7 @@ export class EmployeesService {
         roleId: position.defaultRoleId,
         scopeType: isGlobal ? 'global' : 'outlet',
         outletId,
+        outletDepartmentId: isGlobal ? null : employee.departmentId,
       }),
     );
   }
