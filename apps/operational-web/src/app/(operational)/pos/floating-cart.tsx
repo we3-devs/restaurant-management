@@ -39,6 +39,7 @@ export function FloatingCart({ orderId, basePath = "/pos" }: { orderId: number; 
             </span>
           )
         )}
+        <span className="sr-only">{itemCount} item(s) in cart</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent

@@ -1360,8 +1360,8 @@ export class OrdersService {
     return match?.id ?? null;
   }
 
-  async addItem(orderId: number, dto: CreateOrderItemDto): Promise<OrderItem> {
-    const order = await this.findOne(orderId);
+  async addItem(orderId: number, dto: CreateOrderItemDto, options: { order?: Order; deferTotals?: boolean } = {}): Promise<OrderItem> {
+    const order = options.order ?? await this.findOne(orderId);
     await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
 
@@ -1405,13 +1405,13 @@ export class OrdersService {
     });
     const saved = await this.orderItemsRepository.save(item);
 
-    await this.recalculateTotals(orderId);
+    if (!options.deferTotals) await this.recalculateTotals(orderId);
     try {
       await this.recalculateReservations(saved.id);
     } catch (error) {
       // Roll back the item — its ingredient requirement couldn't be reserved.
       await this.orderItemsRepository.remove(saved);
-      await this.recalculateTotals(orderId);
+      if (!options.deferTotals) await this.recalculateTotals(orderId);
       throw error;
     }
     return saved;
@@ -1430,15 +1430,24 @@ export class OrdersService {
     orderId: number,
     items: (CreateOrderItemDto & { addons?: CreateOrderItemAddonDto[] })[],
   ): Promise<OrderItem[]> {
+    const order = await this.findOne(orderId);
+    await this.operatingHoursService.assertOperational(order.outletId);
+    OrdersService.assertMutable(order);
     const saved: OrderItem[] = [];
-    for (const { addons, ...itemDto } of items) {
-      const item = await this.addItem(orderId, itemDto);
+    try {
+      for (const { addons, ...itemDto } of items) {
+      const item = await this.addItem(orderId, itemDto, { order, deferTotals: true });
       for (const addon of addons ?? []) {
         await this.addItemAddon(item.id, addon);
       }
       saved.push(item);
+      }
+      await this.recalculateTotals(orderId);
+      return saved;
+    } catch (error) {
+      await this.recalculateTotals(orderId);
+      throw error;
     }
-    return saved;
   }
 
   async updateItem(id: number, dto: UpdateOrderItemDto): Promise<OrderItem> {

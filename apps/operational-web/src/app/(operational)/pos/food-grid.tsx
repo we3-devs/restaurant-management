@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { toast } from "sonner"
 import { SearchIcon, UtensilsIcon } from "lucide-react"
 
 import { Badge } from "@rms/ui/badge"
@@ -79,6 +80,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       variantName: null,
       unitPrice: food.basePrice,
     })
+    toast.success(`${food.name} added to cart`, { duration: 1200 })
   }
 
   // Warms the variant-picker's query cache the moment a press starts (not
@@ -174,6 +176,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
               variantName: variant.name,
               unitPrice: variant.price,
             })
+            toast.success(`${variantFood.name} added to cart`, { duration: 1200 })
             setVariantFood(null)
           }}
           onClose={() => setVariantFood(null)}
