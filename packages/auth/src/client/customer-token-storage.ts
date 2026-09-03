@@ -7,7 +7,9 @@
  * cookie it's readable client-side, so a component can tell at a glance
  * whether a guest is "logged in" without a round trip. Cleared only by
  * explicit sign-out (useCustomerLogout) or the user clearing site data —
- * never by a TTL, matching the no-expiresIn JWT this token actually holds.
+ * never by a client-side TTL. The backend remains authoritative: its access
+ * JWT expires according to the configured access-token lifetime, and the
+ * refresh-token flow replaces it when needed.
  */
 const STORAGE_KEY = "rms_customer_token"
 const REFRESH_STORAGE_KEY = "rms_customer_refresh_token"
