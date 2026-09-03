@@ -42,7 +42,13 @@ export function TableCard({
       <div className="relative">
         <button
           type="button"
-          onClick={() => router.push(`${basePath}?tableId=${table.id}`)}
+          onClick={() => {
+            const cashierStaffFlow =
+              basePath === "/staff/waiter/pos" &&
+              (user.isSuperadmin || user.roleSlugs.includes("cashier"))
+            if (cashierStaffFlow) setOpen(true)
+            else router.push(`${basePath}?tableId=${table.id}`)
+          }}
           className={cn(
             "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
             STATUS_STYLES[table.status] ?? STATUS_STYLES.available,

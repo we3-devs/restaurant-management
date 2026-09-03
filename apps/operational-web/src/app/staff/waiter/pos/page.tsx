@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@rms/ui/button"
-import { CardGridSkeleton } from "@rms/ui/skeletons"
 import { useKitchenRealtime } from "@rms/api-client/hooks/use-kitchen-realtime"
 import { useOrder } from "@rms/api-client/hooks/use-orders"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
@@ -91,10 +90,6 @@ export default function StaffOrderTakingPage() {
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
-      ) : isResolvingTableDeepLink ? (
-        <div className="flex flex-1 items-center justify-center">
-          <CardGridSkeleton count={4} columns={2} className="w-full max-w-md" />
-        </div>
       ) : !activeOrderId ? (
         <div className="flex-1 overflow-y-auto">
           <FloorBoard outletId={effectiveOutletId} basePath={BASE_PATH} />

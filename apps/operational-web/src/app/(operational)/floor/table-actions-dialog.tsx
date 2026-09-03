@@ -366,7 +366,10 @@ export function TableActionsDialog({
                   size="sm"
                   onClick={() => {
                     onClose()
-                    router.push(`${basePath}?tableId=${table.id}`)
+                    const cashierStaffFlow =
+                      basePath === "/staff/waiter/pos" &&
+                      (user.isSuperadmin || user.roleSlugs.includes("cashier"))
+                    router.push(`${cashierStaffFlow ? "/pos" : basePath}?tableId=${table.id}`)
                   }}
                 >
                   Start sale

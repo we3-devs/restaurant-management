@@ -94,10 +94,6 @@ export default function PosPage() {
 
       {!effectiveOutletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
-      ) : isResolvingTableDeepLink ? (
-        <div className="flex flex-1 items-center justify-center">
-          <CardGridSkeleton count={4} columns={2} className="w-full max-w-md" />
-        </div>
       ) : !activeOrderId ? (
         // No table/order picked yet — the floor plan doubles as the "start or
         // continue a sale" screen so there's no separate stop at /floor first.
