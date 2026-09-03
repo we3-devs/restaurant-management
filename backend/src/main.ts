@@ -145,6 +145,7 @@ async function bootstrap() {
     }
   }
   SwaggerModule.setup('docs', app, document, {
+    useGlobalPrefix: true,
     jsonDocumentUrl: 'docs-json',
     swaggerOptions: { persistAuthorization: true },
   });
