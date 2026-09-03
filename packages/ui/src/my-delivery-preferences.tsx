@@ -62,7 +62,7 @@ export function MyDeliveryPreferences() {
       if (!subscription.endpoint || !keys?.p256dh || !keys.auth) {
         throw new Error("Browser did not return a usable push subscription")
       }
-      await subscribePush.mutateAsync({ endpoint: subscription.endpoint, p256dh: keys.p256dh, auth: keys.auth })
+      await subscribePush.mutateAsync({ endpoint: subscription.endpoint, p256dh: keys.p256dh, auth: keys.auth, app: "dashboard" })
       await updatePreferences.mutateAsync({ pushEnabled: true })
       toast.success("Push notifications enabled on this device")
     } catch (error) {
