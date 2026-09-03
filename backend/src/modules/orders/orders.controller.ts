@@ -34,6 +34,7 @@ import { User } from '../users/entities/user.entity';
 import { CreateGuestOrderDto } from './dto/create-guest-order.dto';
 import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { CreateOrderItemsBatchDto } from './dto/create-order-item-batch.dto';
+import { SendOrderItemsDto } from './dto/send-order-items.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { RedeemLoyaltyPointsDto } from './dto/redeem-loyalty-points.dto';
@@ -319,10 +320,11 @@ export class OrdersController {
   })
   async sendToKitchen(
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SendOrderItemsDto,
     @CurrentUser() user: User,
   ) {
     await this.assertOrderAccess(id, user);
-    return this.ordersService.sendToKitchen(id, user.id);
+    return this.ordersService.sendToKitchen(id, user.id, dto.itemIds);
   }
 
   @Post(':id/mark-ready-items-served')

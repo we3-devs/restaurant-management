@@ -271,7 +271,7 @@ export function useUpdateOrderStatus(id: number, options: OperationalMutationOpt
 export function useSendOrderToKitchen(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiClient<unknown>(`/orders/${orderId}/send-to-kitchen`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
+    mutationFn: (itemIds: number[]) => apiClient<{ orderId: number; itemIds: number[]; ticketIds: number[] }>(`/orders/${orderId}/send-to-kitchen`, { method: "POST", body: JSON.stringify({ itemIds }), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })

@@ -941,13 +941,19 @@ export class OrdersService {
   async sendToKitchen(
     orderId: number,
     changedBy: number | null,
-  ): Promise<KitchenTicket[]> {
+    itemIds?: number[],
+  ): Promise<{ orderId: number; itemIds: number[]; ticketIds: number[] }> {
     const order = await this.findOne(orderId);
     await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
     const items = await this.orderItemsRepository.find({
-      where: { orderId, status: 'stock_reserved' },
+      where: itemIds?.length
+        ? { id: In(itemIds), orderId, status: 'stock_reserved' }
+        : { orderId, status: 'stock_reserved' },
     });
+    if (itemIds?.length && items.length !== new Set(itemIds).size) {
+      throw new BadRequestException('One or more order item IDs are invalid or already placed');
+    }
     const eligible = items.filter((item) => !item.isHeld);
     if (eligible.length === 0) {
       throw new BadRequestException(
@@ -956,7 +962,12 @@ export class OrdersService {
           : 'No items to send to kitchen',
       );
     }
-    return this.sendItemsToKitchen(order, eligible, changedBy);
+    const tickets = await this.sendItemsToKitchen(order, eligible, changedBy);
+    return {
+      orderId,
+      itemIds: eligible.map((item) => item.id),
+      ticketIds: tickets.map((ticket) => ticket.id),
+    };
   }
 
   /**

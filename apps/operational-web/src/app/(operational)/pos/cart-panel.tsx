@@ -216,7 +216,7 @@ function EditableCart({
       // request, instead of one round-trip per add — see
       // orders.service#addItemsBatch.
       if (localCart.items.length > 0) {
-        await addItemsBatch.mutateAsync({
+        const createdItems = await addItemsBatch.mutateAsync({
           items: localCart.items.map((item) => ({
             foodId: item.foodId,
             foodVariantId: item.foodVariantId ?? undefined,
@@ -226,8 +226,10 @@ function EditableCart({
           })),
         })
         localCart.clear()
+        await sendToKitchen.mutateAsync(createdItems.map((item) => item.id))
+      } else {
+        await sendToKitchen.mutateAsync(serverPendingItems.filter((item) => !item.isHeld).map((item) => item.id))
       }
-      await sendToKitchen.mutateAsync()
       toast.success(`Placed ${pendingCount} item(s) — kitchen items sent to prep, the rest go straight to the waiter`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to place order")
@@ -236,10 +238,12 @@ function EditableCart({
 
   async function handlePlaceOrderOverride() {
     if (localCart.items.length > 0) {
-      await addItemsBatchOverride.mutateAsync({ items: localCart.items.map((item) => ({ foodId: item.foodId, foodVariantId: item.foodVariantId ?? undefined, quantity: item.quantity, note: item.note || undefined, packagingType: item.packagingType })) })
+      const createdItems = await addItemsBatchOverride.mutateAsync({ items: localCart.items.map((item) => ({ foodId: item.foodId, foodVariantId: item.foodVariantId ?? undefined, quantity: item.quantity, note: item.note || undefined, packagingType: item.packagingType })) })
       localCart.clear()
+      await sendToKitchenOverride.mutateAsync(createdItems.map((item) => item.id))
+    } else {
+      await sendToKitchenOverride.mutateAsync(serverPendingItems.filter((item) => !item.isHeld).map((item) => item.id))
     }
-    await sendToKitchenOverride.mutateAsync()
     toast.success(`Placed ${pendingCount} item(s)`)
   }
 
