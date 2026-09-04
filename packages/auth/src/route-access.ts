@@ -44,9 +44,9 @@ export function findRequiredPermission(
  */
 export function hasRoutePermission(
   user: PermissionCheckable,
-  requirement: string | true | RoutePermissionEntry | undefined,
+  requirement: string | true | RoutePermissionEntry | null | undefined,
 ): boolean {
-  if (requirement !== undefined && typeof requirement === "object") {
+  if (requirement !== undefined && requirement !== null && typeof requirement === "object") {
     return requirement.superadminOnly ? user.isSuperadmin : hasRoutePermission(user, requirement.permission)
   }
   return hasPermission(user, requirement)

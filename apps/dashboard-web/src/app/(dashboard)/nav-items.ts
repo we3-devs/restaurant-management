@@ -11,7 +11,7 @@ import {
   Sparkles,
   Truck,
 } from "lucide-react"
-import { hasPermission } from "@rms/auth/route-access"
+import { hasRoutePermission } from "@rms/auth/route-access"
 
 export interface NavLinkDef {
   href: string
@@ -35,6 +35,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard", label: "Dashboard", permission: true },
       { href: "/summary", label: "Period Summary", permission: "dashboard.view" },
       { href: "/analytics", label: "Analytics", permission: "dashboard.view" },
+      { href: "/assistant", label: "Operations Assistant", permission: "dashboard.view" },
       { href: "/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
       { href: "/tables", label: "Tables", permission: "dining-tables.view" },
       { href: "/orders", label: "Orders", permission: "orders.view" },
@@ -134,7 +135,7 @@ export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
 const ADMIN_ROLE_VISIBLE_GROUPS = new Set(['Overview'])
 
 export function visibleNavGroups(permissions: string[], isSuperadmin: boolean, roleSlugs: string[] = []) {
-  const has = (permission: string | true) => hasPermission({ isSuperadmin, permissions }, permission)
+  const has = (permission: string | true) => hasRoutePermission({ isSuperadmin, permissions }, permission)
   const restrictToAdminGroups = !isSuperadmin && roleSlugs.includes('admin')
 
   return navGroupDefs

@@ -173,9 +173,9 @@ export function TableActionsDialog({
 
   function handleViewOrder() {
     if (activeOrder) {
-      const isStaffWaiterPath = basePath === "/staff/waiter/pos"
-      const isCashier = user.isSuperadmin || user.roleSlugs.includes("cashier")
-      router.push(isStaffWaiterPath && isCashier ? `/staff/orders/${activeOrder.id}` : `${basePath}?orderId=${activeOrder.id}`)
+      // Waiters and cashiers share the same staff POS route; permissions still
+      // control which actions are visible inside the page.
+      router.push(`${basePath}?orderId=${activeOrder.id}`)
     } else {
       router.push(basePath)
     }
@@ -366,10 +366,7 @@ export function TableActionsDialog({
                   size="sm"
                   onClick={() => {
                     onClose()
-                    const cashierStaffFlow =
-                      basePath === "/staff/waiter/pos" &&
-                      (user.isSuperadmin || user.roleSlugs.includes("cashier"))
-                    router.push(`${cashierStaffFlow ? "/pos" : basePath}?tableId=${table.id}`)
+                    router.push(`${basePath}?tableId=${table.id}`)
                   }}
                 >
                   Start sale

@@ -43,11 +43,9 @@ export function TableCard({
         <button
           type="button"
           onClick={() => {
-            const cashierStaffFlow =
-              basePath === "/staff/waiter/pos" &&
-              (user.isSuperadmin || user.roleSlugs.includes("cashier"))
-            if (cashierStaffFlow) setOpen(true)
-            else router.push(`${basePath}?tableId=${table.id}`)
+            // Waiters and cashiers use the same staff order-taking page. The
+            // overflow button remains the place for role-specific actions.
+            router.push(`${basePath}?tableId=${table.id}`)
           }}
           className={cn(
             "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",

@@ -85,7 +85,7 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
               size="sm"
               disabled={sendOrderToKitchen.isPending}
               onClick={() => {
-                sendOrderToKitchen.mutate(undefined, {
+                sendOrderToKitchen.mutate([], {
                   onSuccess: () => toast.success("Order sent to kitchen"),
                   onError: (error) => toast.error(`Failed to send order: ${error.message}`),
                 })

@@ -1,5 +1,5 @@
 import { Bell, type LucideIcon, UtensilsCrossed } from "lucide-react"
-import { hasPermission } from "@rms/auth/route-access"
+import { hasRoutePermission } from "@rms/auth/route-access"
 
 export interface NavLinkDef {
   href: string
@@ -40,7 +40,7 @@ export const navGroupDefs: NavGroupDef[] = [
 export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
 
 export function visibleNavGroups(permissions: string[], isSuperadmin: boolean) {
-  const has = (permission: string | true) => hasPermission({ isSuperadmin, permissions }, permission)
+  const has = (permission: string | true) => hasRoutePermission({ isSuperadmin, permissions }, permission)
 
   return navGroupDefs
     .map((group) => ({

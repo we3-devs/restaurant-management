@@ -1,5 +1,5 @@
 import { ChefHatIcon, ClipboardListIcon, LayoutGridIcon, PackageCheckIcon, SoupIcon, UsersIcon } from "lucide-react"
-import { hasPermission } from "@rms/auth/route-access"
+import { hasRoutePermission } from "@rms/auth/route-access"
 
 export interface StaffNavItem {
   href: string
@@ -105,7 +105,7 @@ export function canSeeStaffNavItem(
   item: StaffNavItem,
   user: { isSuperadmin: boolean; permissions: string[]; roleSlugs: string[] },
 ): boolean {
-  const hasRequiredPermission = hasPermission(user, item.requires)
+  const hasRequiredPermission = hasRoutePermission(user, item.requires)
   const isExcluded =
     !user.isSuperadmin && item.excludeRoleSlugs?.some((slug) => user.roleSlugs.includes(slug))
   return hasRequiredPermission && !isExcluded
