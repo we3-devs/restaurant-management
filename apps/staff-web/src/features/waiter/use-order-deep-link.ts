@@ -13,7 +13,7 @@ const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
  * Extracted out of (dashboard)/pos/page.tsx so the staff mobile order-taking
  * page can reuse the exact same resolution logic instead of forking it —
  * `basePath` is the only thing that differs between the two callers
- * ("/pos" vs "/staff/waiter/pos").
+ * ("/pos" vs "/staff/pos").
  */
 export function useOrderDeepLink({
   basePath,

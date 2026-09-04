@@ -9,7 +9,7 @@ import { useState } from "react"
  * deep link requires it open immediately. `mounted` only ever flips false ->
  * true, once, on first need — after that, closing/reopening just toggles
  * `open` on the already-mounted dialog instead of tearing it down and
- * re-fetching. Shared by (dashboard)/pos and staff/waiter/pos, which render
+ * re-fetching. Shared by (dashboard)/pos and staff/pos, which render
  * identical Start Sale flows.
  */
 export function useStartSaleDialogState(preselectedTableId: number | undefined) {

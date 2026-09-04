@@ -13,7 +13,7 @@ export default function StaffTablesPage() {
       {!outletId ? (
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
       ) : (
-        <FloorBoard outletId={outletId} basePath="/operational/staff/waiter/pos" />
+        <FloorBoard outletId={outletId} basePath="/operational/staff/pos" />
       )}
     </div>
   )

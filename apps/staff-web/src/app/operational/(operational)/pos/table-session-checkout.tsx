@@ -45,7 +45,7 @@ export function TableSessionCheckout({
   basePath?: string
 }) {
   const isOnline = useOnlineStatus()
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/waiter/pos"), but
+  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
   // the receipt page is its own top-level staff-shell page (see
   // staff/nav-items.ts) — mirrors CheckoutPanel's derivation.
   const receiptPath = (id: number) => (basePath.startsWith("/operational/staff") ? `/operational/staff/pos/receipt/${id}` : `/operational/pos/receipt/${id}`)

@@ -43,7 +43,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     requires: "dining-tables.view",
   },
   {
-    href: "/operational/staff/waiter/ready",
+    href: "/operational/staff/ready",
     label: "Queue",
     description: "Ready-to-deliver items and call-waiter requests",
     icon: PackageCheckIcon,
@@ -51,7 +51,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     excludeRoleSlugs: ["cashier"],
   },
   {
-    href: "/operational/staff/waiter/prep",
+    href: "/operational/staff/prep",
     label: "Prep",
     description: "Items still being prepared or waiting to be served",
     icon: SoupIcon,
@@ -61,7 +61,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
   {
     href: "/operational/staff/orders",
     label: "Orders",
-    // /staff/waiter/pos (order-taking/cart) is still reachable by tapping a
+    // /staff/pos (order-taking/cart) is still reachable by tapping a
     // table from Tables — this tab is just for finding an order to pay.
     description: "Find an order by table or customer, then pay",
     icon: ClipboardListIcon,
@@ -79,7 +79,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
 
 /**
  * Routes the server-side guard must still gate even though they're no
- * longer their own nav tab — /staff/waiter/pos (order-taking/cart) is now
+ * longer their own nav tab — /staff/pos (order-taking/cart) is now
  * reached only via a table tap from Tables, not a direct tab, but it still
  * needs the same permission check a nav entry would have given it.
  */
@@ -88,7 +88,7 @@ const STAFF_EXTRA_ROUTE_PERMISSIONS: {
   permission: StaffNavItem["requires"]
   excludeRoleSlugs?: string[]
 }[] = [
-  { href: "/operational/staff/waiter/pos", permission: "orders.manage" },
+  { href: "/operational/staff/pos", permission: "orders.manage" },
   // /staff/pos/receipt/[orderId] — the staff-shell counterpart to
   // (operational)/pos/receipt, linked from OrderDetail's "POS Bill"/
   // "Invoice" buttons when rendered with basePath="/operational/staff".

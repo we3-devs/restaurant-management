@@ -37,7 +37,7 @@ export function CheckoutPanel({
   /** Order-taking/receipt route this panel navigates into — desktop POS by default, staff mobile passes its own route. */
   basePath?: string
 }) {
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/waiter/pos"), but
+  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
   // the receipt page doesn't live under it — it's its own top-level
   // staff-shell page (see staff/nav-items.ts) — so derive it separately
   // rather than nesting off basePath.

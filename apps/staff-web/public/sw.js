@@ -128,9 +128,9 @@ const KITCHEN_STAFF_NOTIFICATION_TYPES = new Set(["order_sent", "kitchen_recalle
 function staffDeepLinkFor(data) {
   if (!data || typeof data.type !== "string") return "/staff"
   if (KITCHEN_STAFF_NOTIFICATION_TYPES.has(data.type)) return "/staff/kitchen"
-  if (data.type === "kitchen_ready") return "/staff/waiter/ready"
+  if (data.type === "kitchen_ready") return "/staff/ready"
   // Order's fully delivered — billing is the next waiter action on it.
-  if (data.type === "order_served") return "/staff/waiter/pos"
+  if (data.type === "order_served") return "/staff/pos"
   return "/staff"
 }
 
