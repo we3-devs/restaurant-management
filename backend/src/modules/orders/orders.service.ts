@@ -15,6 +15,7 @@ import {
   FindOptionsWhere,
   ILike,
   In,
+  Between,
   Not,
   Repository,
 } from 'typeorm';
@@ -159,7 +160,7 @@ export class OrdersService {
     query: ListOrdersQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<OrderListResponse>> {
-    const { page, limit, search, outletId, tableSessionId, status, excludeStatus } = query;
+    const { page, limit, search, outletId, tableSessionId, status, excludeStatus, createdFrom, createdTo } = query;
     const baseWhere: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
       baseWhere.outletId = outletId;
@@ -173,6 +174,12 @@ export class OrdersService {
       baseWhere.status = status;
     } else if (excludeStatus?.length) {
       baseWhere.status = Not(In(excludeStatus));
+    }
+    if (createdFrom || createdTo) {
+      baseWhere.createdAt = Between(
+        createdFrom ? new Date(createdFrom) : new Date(0),
+        createdTo ? new Date(createdTo) : new Date('9999-12-31T23:59:59.999Z'),
+      );
     }
     const where: FindOptionsWhere<Order> | FindOptionsWhere<Order>[] = search
       ? [

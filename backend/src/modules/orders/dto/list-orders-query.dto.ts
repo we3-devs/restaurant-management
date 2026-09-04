@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import type { OrderStatus } from '../entities/order.entity';
 
@@ -45,4 +45,14 @@ export class ListOrdersQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value))
   @IsIn(ORDER_STATUSES, { each: true })
   excludeStatus?: OrderStatus[];
+
+  @ApiPropertyOptional({ description: 'Inclusive ISO timestamp lower bound for createdAt' })
+  @IsOptional()
+  @IsDateString()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive ISO timestamp upper bound for createdAt' })
+  @IsOptional()
+  @IsDateString()
+  createdTo?: string;
 }

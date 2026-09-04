@@ -32,9 +32,14 @@ export class HardenOrderPayments1776200000000 implements MigrationInterface {
       BEGIN
         target_order_id := COALESCE(NEW.order_id, OLD.order_id);
         SELECT status INTO order_status FROM orders WHERE id = target_order_id;
-        IF order_status = 'completed' AND NOT (
-          TG_TABLE_NAME = 'order_payments' AND TG_OP = 'INSERT' AND NEW.type = 'refund'
-        ) THEN
+        IF order_status = 'completed' THEN
+          -- NEW is a generic trigger record. Only read NEW.type inside the
+          -- order_payments branch; other child tables do not have that field.
+          IF TG_TABLE_NAME = 'order_payments' THEN
+            IF TG_OP = 'INSERT' AND NEW.type = 'refund' THEN
+              RETURN NEW;
+            END IF;
+          END IF;
           RAISE EXCEPTION 'Order % is completed and can no longer be modified', target_order_id
             USING ERRCODE = '23514';
         END IF;

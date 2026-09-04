@@ -106,6 +106,8 @@ export interface ListOrdersParams {
   status?: string
   /** Statuses to leave out (e.g. ["completed", "cancelled"] for an "open orders" view). Ignored if `status` is set. */
   excludeStatus?: string[]
+  createdFrom?: string
+  createdTo?: string
 }
 
 export function useOrders(params: ListOrdersParams = {}, options?: { enabled?: boolean }) {

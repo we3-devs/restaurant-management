@@ -16,6 +16,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const requestId = request['requestId'] as string | undefined;
 
     const isHttpException = exception instanceof HttpException;
     const statusCode = isHttpException
@@ -47,6 +48,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const isDev = process.env.NODE_ENV !== 'production';
     response.status(statusCode).json({
       statusCode,
+      ...(requestId ? { requestId } : {}),
       message: isDev ? message : (statusCode >= 500 ? 'Internal server error' : message),
       error: isHttpException ? exception.name : 'InternalServerError',
       timestamp: new Date().toISOString(),

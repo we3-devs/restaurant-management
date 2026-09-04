@@ -50,7 +50,6 @@ export const createOrderSchema = z.object({
   tableSessionId: z.number().positive().optional(),
   orderType: z.enum(ORDER_TYPES),
   note: z.string().optional(),
-  idempotencyKey: z.string().max(100).optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>
@@ -101,6 +100,7 @@ export const createOrderPaymentSchema = z.object({
   method: z.enum(ORDER_PAYMENT_METHODS),
   amount: z.number().min(0.01),
   note: z.string().optional(),
+  idempotencyKey: z.string().max(100).optional(),
   /** Required when method="credit" — the customer whose tab is charged. */
   customerId: z.number().int().optional(),
 })
