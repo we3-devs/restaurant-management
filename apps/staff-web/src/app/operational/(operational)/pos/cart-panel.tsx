@@ -52,7 +52,7 @@ export function CartPanel({ orderId, basePath = "/operational/pos" }: { orderId:
   // staff-shell pages (see staff/nav-items.ts), not nested under basePath.
   const isStaffShell = basePath.startsWith("/operational/staff")
   const receiptPath = isStaffShell ? `/operational/staff/pos/receipt/${orderId}` : `/operational/pos/receipt/${orderId}`
-  const tablesPath = isStaffShell ? "/operational/staff/waiter/tables" : "/operational/floor"
+  const tablesPath = isStaffShell ? "/operational/staff/tables" : "/operational/floor"
   const { data: order } = useOrder(orderId)
 
   // Nothing left to do once the sale is closed out — items can no longer be

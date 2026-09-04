@@ -28,6 +28,7 @@ export interface OrderPayment {
   method: string
   provider: string | null
   transactionReference: string | null
+  idempotencyKey: string | null
   amount: number
   status: string
   paidAt: string | null

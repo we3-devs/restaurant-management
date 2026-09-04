@@ -36,7 +36,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
     requires: "kitchen-tickets.manage",
   },
   {
-    href: "/operational/staff/waiter/tables",
+    href: "/operational/staff/tables",
     label: "Tables",
     description: "Floor plan and order-taking",
     icon: LayoutGridIcon,

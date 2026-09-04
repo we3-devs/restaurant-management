@@ -97,6 +97,15 @@ export class OrderPayment {
   })
   transactionReference: string | null;
 
+  /** Client supplied retry key. One key can only create one ledger entry per outlet. */
+  @Column({
+    name: 'idempotency_key',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
+  idempotencyKey: string | null;
+
   @Column({
     type: 'numeric',
     precision: 18,

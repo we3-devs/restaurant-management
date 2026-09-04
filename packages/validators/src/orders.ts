@@ -50,6 +50,7 @@ export const createOrderSchema = z.object({
   tableSessionId: z.number().positive().optional(),
   orderType: z.enum(ORDER_TYPES),
   note: z.string().optional(),
+  idempotencyKey: z.string().max(100).optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>

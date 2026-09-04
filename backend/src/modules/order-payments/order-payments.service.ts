@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { CustomerCreditService } from '../customer-credit/customer-credit.service';
 import { CustomersService } from '../customers/customers.service';
@@ -72,6 +72,22 @@ export class OrderPaymentsService {
     await this.operatingHoursService.assertOperational(targetOrder.outletId);
     const type = dto.type ?? 'payment';
     const method = dto.method ?? 'cash';
+    const amount = Math.round(dto.amount * 100) / 100;
+    if (amount <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero');
+    }
+
+    if (dto.idempotencyKey) {
+      const existing = await this.orderPaymentsRepository.findOne({
+        where: { outletId: targetOrder.outletId, idempotencyKey: dto.idempotencyKey },
+      });
+      if (existing) {
+        if (existing.orderId !== orderId) {
+          throw new ConflictException('idempotencyKey was already used for another order');
+        }
+        return existing;
+      }
+    }
 
     if (method === 'credit') {
       if (type !== 'payment') {
@@ -93,9 +109,9 @@ export class OrderPaymentsService {
       );
       if (account.creditLimit > 0) {
         const available = account.creditLimit - account.outstandingBalance;
-        if (dto.amount > available) {
+        if (amount > available) {
           throw new BadRequestException(
-            `Charge amount (${dto.amount}) exceeds the customer's remaining credit (${Math.max(available, 0)} of ${account.creditLimit} limit)`,
+            `Charge amount (${amount}) exceeds the customer's remaining credit (${Math.max(available, 0)} of ${account.creditLimit} limit)`,
           );
         }
       }
@@ -106,8 +122,11 @@ export class OrderPaymentsService {
     // stale due/paid figure between the bound check below and the write —
     // recalculatePayments() runs after commit, once this new row is
     // actually visible to it.
-    const { order, saved } = await this.dataSource.transaction(
-      async (manager) => {
+    let order: Order;
+    let saved: OrderPayment;
+    try {
+      ({ order, saved } = await this.dataSource.transaction(
+        async (manager) => {
         const lockedOrder = await manager
           .createQueryBuilder(Order, 'order')
           .setLock('pessimistic_write')
@@ -116,11 +135,15 @@ export class OrderPaymentsService {
         if (!lockedOrder) {
           throw new NotFoundException(`Order ${orderId} not found`);
         }
-        OrdersService.assertMutable(lockedOrder);
+        if (lockedOrder.status === 'completed' && type !== 'refund') {
+          throw new ConflictException(
+            `Order ${orderId} is completed; only refunds may be recorded`,
+          );
+        }
 
-        if (type === 'payment' && dto.amount > lockedOrder.dueAmount) {
+        if (type === 'payment' && amount > lockedOrder.dueAmount) {
           throw new BadRequestException(
-            `Payment amount (${dto.amount}) exceeds the order's due amount (${lockedOrder.dueAmount})`,
+            `Payment amount (${amount}) exceeds the order's due amount (${lockedOrder.dueAmount})`,
           );
         }
         if (type === 'refund') {
@@ -132,9 +155,9 @@ export class OrderPaymentsService {
               'Cannot refund an order with no completed payments',
             );
           }
-          if (dto.amount > lockedOrder.paidAmount) {
+          if (amount > lockedOrder.paidAmount) {
             throw new BadRequestException(
-              `Refund amount (${dto.amount}) exceeds the order's net paid amount (${lockedOrder.paidAmount})`,
+              `Refund amount (${amount}) exceeds the order's net paid amount (${lockedOrder.paidAmount})`,
             );
           }
         }
@@ -149,7 +172,8 @@ export class OrderPaymentsService {
           method,
           provider: dto.provider ?? null,
           transactionReference: dto.transactionReference ?? null,
-          amount: dto.amount,
+          idempotencyKey: dto.idempotencyKey ?? null,
+          amount,
           status: 'completed',
           paidAt: new Date(),
           note: dto.note ?? null,
@@ -162,8 +186,23 @@ export class OrderPaymentsService {
         Object.assign(lockedOrder, calculatePaymentTotals(lockedOrder.grandTotal, completedPayments));
         await manager.save(lockedOrder);
         return { order: lockedOrder, saved: savedPayment };
-      },
-    );
+        },
+      ));
+    } catch (error) {
+      // Two requests with the same retry key can race between the initial
+      // lookup and INSERT. The unique index wins; return its original row.
+      if (
+        dto.idempotencyKey &&
+        error instanceof QueryFailedError &&
+        (error as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === '23505'
+      ) {
+        const existing = await this.orderPaymentsRepository.findOne({
+          where: { outletId: targetOrder.outletId, idempotencyKey: dto.idempotencyKey },
+        });
+        if (existing && existing.orderId === orderId) return existing;
+      }
+      throw error;
+    }
 
     if (saved.method === 'credit' && saved.customerId) {
       await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {

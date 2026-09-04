@@ -3,7 +3,7 @@
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { FloorBoard } from "@/app/operational/(operational)/floor/floor-board"
 
-/** Same FloorBoard the desktop /floor and /pos pages use — only the tap target differs (staff order-taking route instead of /pos). */
+/** Staff floor plan and order-taking entry point. */
 export default function StaffTablesPage() {
   const { outletId } = useActiveOutlet()
 

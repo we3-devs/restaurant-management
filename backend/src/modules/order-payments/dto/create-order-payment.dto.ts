@@ -41,6 +41,11 @@ export class CreateOrderPaymentDto {
   @IsString()
   transactionReference?: string;
 
+  @ApiPropertyOptional({ description: 'Stable retry key for safe payment retries' })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
