@@ -19,6 +19,7 @@ import { PresenceGuard } from './guards/presence.guard';
 import { OutletAccessService } from './outlet-access.service';
 import { PermissionsService } from './permissions.service';
 import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
+import { TenantGuard } from './guards/tenant.guard';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
     OutletAccessService,
     JwtAccessStrategy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: PresenceGuard },
   ],

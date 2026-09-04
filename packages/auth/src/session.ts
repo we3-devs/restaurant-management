@@ -33,7 +33,7 @@ export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
   cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     domain: COOKIE_DOMAIN,
     maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
@@ -42,7 +42,7 @@ export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
   cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     domain: COOKIE_DOMAIN,
     maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,

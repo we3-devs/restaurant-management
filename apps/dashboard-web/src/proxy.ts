@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/session"
+import { tenantHeaders } from "@rms/auth/tenant"
 
 // Routes that must be reachable without a (staff) session. /guest (QR
 // ordering, its own customer-JWT auth) moved to operational-web along with
@@ -23,6 +24,11 @@ export function proxy(request: NextRequest) {
     request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? request.cookies.get(REFRESH_TOKEN_COOKIE)?.value,
   )
   const { pathname } = request.nextUrl
+  // API proxy routes still need tenant context, but authentication is handled
+  // by the backend/session wrapper instead of an edge redirect.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next({ request: { headers: tenantHeaders(request) } })
+  }
   const isAuth = isAuthRoute(pathname)
 
   // Credential query parameters are never valid login state. Strip them at
@@ -51,11 +57,11 @@ export function proxy(request: NextRequest) {
 
   // Forward the pathname to server components (layout.tsx route guards read
   // it via headers()) since there's no other reliable way to get it there.
-  const requestHeaders = new Headers(request.headers)
+  const requestHeaders = tenantHeaders(request)
   requestHeaders.set("x-pathname", pathname)
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }

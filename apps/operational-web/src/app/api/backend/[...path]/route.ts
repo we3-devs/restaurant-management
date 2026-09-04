@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { BackendUnauthorizedError, backendFetch } from "@rms/auth/server/backend-client"
+import { tenantFromRequest } from "@rms/auth/tenant"
 
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>): Promise<NextResponse> {
   const { path } = await params
@@ -10,12 +11,16 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   const body = hasBody ? await request.text() : undefined
 
   try {
+    const tenant = tenantFromRequest(request)
     const response = await backendFetch(targetPath, {
       method: request.method,
       body: body || undefined,
-      headers: request.headers.get("X-Outlet-Closed-Override")
-        ? { "X-Outlet-Closed-Override": request.headers.get("X-Outlet-Closed-Override")! }
-        : undefined,
+      headers: {
+        ...(request.headers.get("X-Outlet-Closed-Override")
+          ? { "X-Outlet-Closed-Override": request.headers.get("X-Outlet-Closed-Override")! }
+          : {}),
+        ...(tenant ? { "X-Tenant-Slug": tenant.slug } : {}),
+      },
     })
 
     // arrayBuffer (not text()) so binary bodies — report exports (xlsx/pdf)

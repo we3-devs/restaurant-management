@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@rms/auth/session"
+import { tenantHeaders } from "@rms/auth/tenant"
 
 // Routes that must be reachable without a (staff) session: the login page
 // and the whole /guest subtree — the QR ordering/tracking flow guests use
@@ -36,6 +37,9 @@ export function proxy(request: NextRequest) {
   }
 
   if (!hasSession && !isAuth) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.next({ request: { headers: tenantHeaders(request) } })
+    }
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
@@ -46,11 +50,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
-  const requestHeaders = new Headers(request.headers)
+  const requestHeaders = tenantHeaders(request)
   requestHeaders.set("x-pathname", pathname)
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }

@@ -24,6 +24,9 @@ export class Outlet {
   @Column({ type: 'varchar', length: 255, unique: true })
   name: string;
 
+  @Column({ type: 'varchar', length: 80, unique: true })
+  slug: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 
