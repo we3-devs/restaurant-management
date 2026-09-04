@@ -23,6 +23,7 @@ import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { formatTime } from "@rms/api-client/kitchen/ticket-stage"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 
 function Breadcrumb({ orderNumber, basePath }: { orderNumber: string; basePath: string }) {
   return (
@@ -294,12 +295,15 @@ function PaymentSummaryCard({
   const [formMode, setFormMode] = useState<"none" | "payment" | "refund">("none")
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
+  const paymentTotals = payments ? calculatePaymentTotals(order.grandTotal, payments.data) : null
+  const paidAmount = paymentTotals?.paidAmount ?? order.paidAmount
+  const dueAmount = paymentTotals?.dueAmount ?? order.dueAmount
   // Re-seeds the amount field to the current due whenever it changes (e.g.
   // after a payment lands), without needing an effect.
   const [seededDue, setSeededDue] = useState<number | null>(null)
-  if (order.dueAmount !== seededDue) {
-    setSeededDue(order.dueAmount)
-    setAmount(order.dueAmount)
+  if (dueAmount !== seededDue) {
+    setSeededDue(dueAmount)
+    setAmount(dueAmount)
   }
 
   const isLocked = order.status === "completed"
@@ -337,7 +341,7 @@ function PaymentSummaryCard({
               className="bg-red-600 border-red-600 text-white hover:bg-red-700"
               onClick={() => {
                 setFormMode("refund")
-                setAmount(order.paidAmount)
+                setAmount(paidAmount)
                 if (method === "credit") setMethod("cash")
               }}
             >
@@ -347,7 +351,7 @@ function PaymentSummaryCard({
               size="sm"
               onClick={() => {
                 setFormMode("payment")
-                setAmount(order.dueAmount)
+                setAmount(dueAmount)
               }}
             >
               Add Payment
@@ -444,9 +448,9 @@ function PaymentSummaryCard({
           <span className="font-medium">Grand Total :</span>
           <span className="text-right font-medium sm:text-left">{order.grandTotal}</span>
           <span className="text-muted-foreground">Paid :</span>
-          <span className="text-right text-emerald-500 sm:text-left">{order.paidAmount}</span>
+          <span className="text-right text-emerald-500 sm:text-left">{paidAmount}</span>
           <span className="font-medium">Due :</span>
-          <span className="text-right font-medium text-destructive sm:text-left">{order.dueAmount}</span>
+          <span className="text-right font-medium text-destructive sm:text-left">{dueAmount}</span>
           <span className="text-muted-foreground">Refunded :</span>
           <span className="text-right sm:text-left">{order.refundedAmount}</span>
         </div>
