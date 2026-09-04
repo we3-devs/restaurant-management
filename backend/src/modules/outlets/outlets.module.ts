@@ -5,9 +5,10 @@ import { Outlet } from './entities/outlet.entity';
 import { OutletsController } from './outlets.controller';
 import { OutletsService } from './outlets.service';
 import { OutletsImporter } from './import/outlets-importer';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Outlet]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Outlet, Tenant]), AuthModule],
   controllers: [OutletsController],
   providers: [OutletsService, OutletsImporter],
   exports: [TypeOrmModule, OutletsService, OutletsImporter],

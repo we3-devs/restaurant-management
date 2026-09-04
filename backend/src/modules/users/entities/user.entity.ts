@@ -2,12 +2,15 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { UserRoleAssignment } from '../../roles/entities/user-role-assignment.entity';
+import { Tenant } from '../../tenants/entities/tenant.entity';
 
 @Entity({ name: 'users' })
 export class User {
@@ -21,7 +24,7 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({ name: 'email_verified_at', type: 'timestamp', nullable: true })
@@ -32,6 +35,13 @@ export class User {
 
   @Column({ name: 'is_superadmin', type: 'boolean', default: false })
   isSuperadmin: boolean;
+
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
+  @ManyToOne(() => Tenant, (tenant) => tenant.users, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant | null;
 
   @Column({ type: 'text', nullable: true })
   phone: string | null;

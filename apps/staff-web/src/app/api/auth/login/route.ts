@@ -14,7 +14,12 @@ export async function POST(request: NextRequest) {
 
   const backendResponse = await fetch(`${BACKEND_URL}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(request.headers.get("x-tenant-slug")
+        ? { "X-Tenant-Slug": request.headers.get("x-tenant-slug") as string }
+        : {}),
+    },
     body: JSON.stringify(parsed.data),
     cache: "no-store",
   })

@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
   Post,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -26,6 +27,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { PermissionsService } from './permissions.service';
 import { User } from '../users/entities/user.entity';
+import type { Request } from 'express';
 
 const WS_TICKET_TTL_SECONDS = 30;
 
@@ -55,10 +57,13 @@ export class AuthController {
     type: AuthResponseDto,
     description: 'Authenticated session',
   })
-  async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
+  async login(@Body() dto: LoginDto, @Req() request: Request): Promise<AuthResponseDto> {
     const { tokens, user } = await this.authService.login(
       dto.email,
       dto.password,
+      typeof request.headers['x-tenant-slug'] === 'string'
+        ? request.headers['x-tenant-slug']
+        : undefined,
     );
     return { ...tokens, user: await this.toAuthUser(user) };
   }
@@ -218,6 +223,7 @@ export class AuthController {
       id: user.id,
       name: user.name,
       email: user.email,
+      tenantId: user.tenantId,
       isSuperadmin: user.isSuperadmin,
       portal: resolvedPortal,
       hasBothPortals: resolvedHasBothPortals,

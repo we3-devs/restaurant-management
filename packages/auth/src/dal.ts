@@ -8,6 +8,8 @@ export interface CurrentUser {
   id: number
   name: string
   email: string
+  /** Hotel/company this user belongs to; null means superadmin/global. */
+  tenantId: number | null
   isSuperadmin: boolean
   permissions: string[]
   /** Slugs of every role held via an active assignment — used to tailor UI (e.g. narrowing the sidebar for "admin") beyond what the flat permission set expresses. */

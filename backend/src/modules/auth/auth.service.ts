@@ -48,17 +48,30 @@ export class AuthService {
   async login(
     email: string,
     password: string,
+    tenantSlug?: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
     const loginStartUs = this.nowMicros();
     const phases: Record<string, number> = {};
 
     // Phase 1: User lookup
     const userLookupStartUs = this.nowMicros();
-    const user = await this.usersRepository
+    const userQuery = this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
-      .where('user.email = :email', { email })
-      .getOne();
+      .where('LOWER(user.email) = LOWER(:email)', { email });
+
+    if (tenantSlug) {
+      userQuery
+        .leftJoin(
+          'outlets',
+          'login_outlet',
+          'login_outlet.tenant_id = user.tenant_id AND LOWER(login_outlet.slug) = LOWER(:tenantSlug)',
+          { tenantSlug },
+        )
+        .andWhere('(user.is_superadmin = true OR login_outlet.id IS NOT NULL)');
+    }
+
+    const user = await userQuery.getOne();
     phases['userLookup'] = Math.round((this.nowMicros() - userLookupStartUs) / 1000);
 
     if (!user) {
