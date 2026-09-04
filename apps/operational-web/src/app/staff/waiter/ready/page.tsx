@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { BellRingIcon, PackageCheckIcon } from "lucide-react"
 
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
@@ -16,6 +17,7 @@ import { ServiceRequestsPanel } from "@/app/(operational)/service/service-reques
  */
 export default function StaffQueuePage() {
   const { outletId } = useActiveOutlet()
+  const [tab, setTab] = useState<"ready" | "requests">("ready")
   useKitchenRealtime(outletId)
 
   return (
@@ -25,30 +27,19 @@ export default function StaffQueuePage() {
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <section className="flex min-h-0 flex-1 basis-1/2 flex-col gap-2">
-            <SectionHeader icon={<PackageCheckIcon className="size-4" />} title="Ready to deliver" />
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <ReadyQueue outletId={outletId} />
-            </div>
-          </section>
-
-          <section className="flex min-h-0 flex-1 basis-1/2 flex-col gap-2 border-t border-border pt-3">
-            <SectionHeader icon={<BellRingIcon className="size-4" />} title="Service requests" />
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <ServiceRequestsPanel outletId={outletId} />
-            </div>
-          </section>
+          <div className="grid grid-cols-2 gap-1.5 rounded-xl border bg-muted/40 p-1.5">
+            <TabButton active={tab === "ready"} onClick={() => setTab("ready")}><PackageCheckIcon className="size-4" />Ready to deliver</TabButton>
+            <TabButton active={tab === "requests"} onClick={() => setTab("requests")}><BellRingIcon className="size-4" />Service requests</TabButton>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {tab === "ready" ? <ReadyQueue outletId={outletId} /> : <ServiceRequestsPanel outletId={outletId} />}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <h2 className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-      {icon}
-      {title}
-    </h2>
-  )
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={active} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-all ${active ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/70"}`}>{children}</button>
 }
