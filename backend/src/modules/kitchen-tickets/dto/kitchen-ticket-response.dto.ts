@@ -106,6 +106,9 @@ export class KitchenTicketOrderRefDto {
   @ApiProperty()
   orderNumber: string;
 
+  @ApiProperty()
+  createdAt: Date;
+
   @ApiProperty({ type: KitchenTicketTableSessionRefDto, required: false, nullable: true })
   tableSession?: KitchenTicketTableSessionRefDto | null;
 }

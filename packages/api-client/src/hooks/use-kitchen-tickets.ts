@@ -48,8 +48,9 @@ export interface KitchenTicket {
   department?: OutletDepartment | null
   items?: KitchenTicketItem[]
   order?: {
-    id: number
-    orderNumber: string
+  id: number
+  orderNumber: string
+  createdAt: string
     tableSession?: { id: number; diningTable?: { id: number; name: string } } | null
   }
 }

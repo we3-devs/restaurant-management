@@ -130,7 +130,7 @@ function staffDeepLinkFor(data) {
   if (KITCHEN_STAFF_NOTIFICATION_TYPES.has(data.type)) return "/staff/kitchen"
   if (data.type === "kitchen_ready") return "/staff/ready"
   // Order's fully delivered — billing is the next waiter action on it.
-  if (data.type === "order_served") return "/staff/pos"
+  if (data.type === "order_served") return "/staff/tables"
   return "/staff"
 }
 

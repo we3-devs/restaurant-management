@@ -652,8 +652,9 @@ export class KitchenTicketsService {
       items: ticket.items?.map((item) => this.toItemResponse(item)),
       order: ticket.order
         ? {
-            id: ticket.order.id,
-            orderNumber: ticket.order.orderNumber,
+          id: ticket.order.id,
+          orderNumber: ticket.order.orderNumber,
+          createdAt: ticket.order.createdAt,
             tableSession: ticket.order.tableSession
               ? {
                   id: ticket.order.tableSession.id,

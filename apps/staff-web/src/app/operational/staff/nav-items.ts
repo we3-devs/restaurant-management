@@ -61,7 +61,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
   {
     href: "/operational/staff/orders",
     label: "Orders",
-    // /staff/pos (order-taking/cart) is still reachable by tapping a
+    // /staff/tables (order-taking/cart) is still reachable by tapping a
     // table from Tables — this tab is just for finding an order to pay.
     description: "Find an order by table or customer, then pay",
     icon: ClipboardListIcon,
@@ -79,7 +79,7 @@ export const STAFF_NAV_ITEMS: StaffNavItem[] = [
 
 /**
  * Routes the server-side guard must still gate even though they're no
- * longer their own nav tab — /staff/pos (order-taking/cart) is now
+ * longer their own nav tab — /staff/tables (order-taking/cart) is now
  * reached only via a table tap from Tables, not a direct tab, but it still
  * needs the same permission check a nav entry would have given it.
  */
@@ -88,11 +88,9 @@ const STAFF_EXTRA_ROUTE_PERMISSIONS: {
   permission: StaffNavItem["requires"]
   excludeRoleSlugs?: string[]
 }[] = [
-  { href: "/operational/staff/pos", permission: "orders.manage" },
   // /staff/pos/receipt/[orderId] — the staff-shell counterpart to
   // (operational)/pos/receipt, linked from OrderDetail's "POS Bill"/
   // "Invoice" buttons when rendered with basePath="/operational/staff".
-  { href: "/operational/staff/pos", permission: "orders.manage", excludeRoleSlugs: ["waiter"] },
 ]
 
 /** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */

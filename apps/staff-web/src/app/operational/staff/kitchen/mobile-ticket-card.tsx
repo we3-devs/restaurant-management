@@ -68,6 +68,7 @@ export function MobileTicketCard({
   const stage = ticketStage(ticket)
   const tableName = ticket.order?.tableSession?.diningTable?.name
   const orderLabel = ticket.order?.orderNumber ?? "Loading…"
+  const orderCreatedAt = ticket.order?.createdAt ?? ticket.createdAt
   const foodName = (item: KitchenTicketItem) =>
     item.orderItem?.food?.name ?? "Loading…"
   const variantName = (item: KitchenTicketItem) => item.orderItem?.foodVariant?.name
@@ -87,6 +88,8 @@ export function MobileTicketCard({
             <span className="text-xs text-muted-foreground">{orderLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
+            Order placed {new Date(orderCreatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            <span className="font-medium text-foreground/70"> Â· </span>
             Sent {formatTime(ticket.createdAt)}
             <span className="font-medium text-foreground/70"> · {elapsedMinutes(ticket.createdAt, now)}m</span>
             {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
