@@ -10,7 +10,7 @@ import { BACKEND_API_BASE } from "@/lib/server/backend-client";
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE);
-  const name = branding.restaurantName?.trim() || "Atithi";
+  const name = branding.restaurantName?.trim() || "Restra";
   const staffName = `${name} Staff`;
   const appIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
 

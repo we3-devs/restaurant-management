@@ -11,7 +11,7 @@ The backend must treat the forwarded tenant as request context and scope every r
 
 ## DNS and Vercel limitation
 
-`*.restra.com` covers one-label hosts such as `atithi.restra.com`; it does **not** cover `staff.atithi.restra.com`. Vercel documents wildcard domains, but wildcard certificates/domains use the nameservers method and Vercel does not support a universal multi-level wildcard.
+`*.restra.com` covers one-label hosts such as `demo.restra.com`; it does **not** cover `staff.demo.restra.com`. Vercel documents wildcard domains, but wildcard certificates/domains use the nameservers method and Vercel does not support a universal multi-level wildcard.
 
 The exact two-hostname design therefore requires one of these arrangements:
 
@@ -21,7 +21,7 @@ The exact two-hostname design therefore requires one of these arrangements:
 
 Do not assume that adding only `*.restra.com` makes the nested staff host reachable.
 
-For local development, set `NEXT_PUBLIC_TENANT_ROOT_DOMAIN=restra.localhost` and use `atithi.restra.localhost` and `staff.atithi.restra.localhost`. Set `ALLOW_NON_TENANT_HOSTS=true` only for preview/smoke deployments that intentionally use a non-tenant Vercel hostname.
+For local development, set `NEXT_PUBLIC_TENANT_ROOT_DOMAIN=restra.localhost` and use `demo.restra.localhost` and `staff.demo.restra.localhost`. Set `ALLOW_NON_TENANT_HOSTS=true` only for preview/smoke deployments that intentionally use a non-tenant Vercel hostname.
 
 ## Cookies
 

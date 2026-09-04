@@ -7,7 +7,7 @@ export const revalidate = 30;
 
 export async function GET() {
   const branding = await fetchBranding(BACKEND_API_BASE);
-  const restaurantName = branding.restaurantName?.trim() || "Atithi";
+  const restaurantName = branding.restaurantName?.trim() || "Restra";
   const appName = `${restaurantName} Staff`;
   const icon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
 
