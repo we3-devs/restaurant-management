@@ -6,11 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "./button"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
-const OPERATIONAL_WEB_URL = process.env.NEXT_PUBLIC_OPERATIONAL_WEB_URL
-const DASHBOARD_WEB_URL = process.env.NEXT_PUBLIC_DASHBOARD_WEB_URL
-
 function targetPortalUrl(current: "dashboard" | "staff") {
-  return current === "dashboard" ? `${OPERATIONAL_WEB_URL}/` : `${DASHBOARD_WEB_URL}/dashboard`
+  return current === "dashboard" ? "/operational" : "/dashboard"
 }
 
 /**
@@ -56,7 +53,7 @@ export function HeaderPortalSwitcher({ current }: { current: "dashboard" | "staf
       value={current}
       onValueChange={(v) => {
         if (v === current) return
-        window.location.href = v === "dashboard" ? `${DASHBOARD_WEB_URL}/dashboard` : `${OPERATIONAL_WEB_URL}/`
+        window.location.href = v === "dashboard" ? "/dashboard" : "/operational"
       }}
     >
       <SelectTrigger className="h-8 w-36 border-none bg-transparent text-sm shadow-none hover:bg-muted">

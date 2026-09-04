@@ -61,7 +61,7 @@ export class AttendanceService {
     await this.qrStationRepo.save(rows.map((row) => this.qrStationRepo.create({
       outletId, action: row.action, tokenHash: row.tokenHash, createdBy,
     })));
-    const profileUrl = (process.env.OPERATIONAL_WEB_URL ?? process.env.FRONTEND_URL?.split(',')[0] ?? 'http://localhost:3100').replace(/\/$/, '') + '/staff/profile';
+    const profileUrl = (process.env.OPERATIONAL_WEB_URL ?? process.env.FRONTEND_URL?.split(',')[0] ?? 'http://localhost:3100').replace(/\/$/, '') + '/operational/staff/profile';
     return {
       outletId,
       clockInToken: rows[0].token,

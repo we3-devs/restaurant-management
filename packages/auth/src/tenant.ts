@@ -20,6 +20,10 @@ function cleanHost(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().split(":", 1)[0].replace(/\.$/, "")
 }
 
+function isLocalHost(host: string): boolean {
+  return host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")
+}
+
 /** Resolves only the production tenant host shapes; localhost remains host-only. */
 export function resolveTenantHost(rawHost: string | null | undefined): TenantContext | null {
   const host = cleanHost(rawHost)
@@ -37,6 +41,25 @@ export function resolveTenantHost(rawHost: string | null | undefined): TenantCon
     return { slug: labels[1], surface: "staff", host }
   }
   return null
+}
+
+/**
+ * Whether this app may serve the request. In production an unknown host must
+ * fail closed; otherwise a request sent to a Vercel preview/default domain can
+ * bypass tenant resolution and reach unscoped application code.
+ *
+ * ALLOW_NON_TENANT_HOSTS is intentionally an explicit escape hatch for
+ * preview deployments and local smoke tests. It must not be enabled on the
+ * two production custom-domain projects.
+ */
+export function isAllowedTenantHost(
+  rawHost: string | null | undefined,
+  expectedSurface: TenantSurface,
+): boolean {
+  const host = cleanHost(rawHost)
+  if (process.env.ALLOW_NON_TENANT_HOSTS === "true") return true
+  if (process.env.NODE_ENV !== "production" && isLocalHost(host)) return true
+  return resolveTenantHost(host)?.surface === expectedSurface
 }
 
 export function tenantHeaders(request: NextRequest): Headers {

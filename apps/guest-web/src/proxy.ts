@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { tenantHeaders } from "@rms/auth/tenant"
+import { isAllowedTenantHost, tenantHeaders } from "@rms/auth/tenant"
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -15,6 +15,9 @@ const CONTENT_SECURITY_POLICY = [
 ].join("; ")
 
 export function proxy(request: NextRequest) {
+  if (!isAllowedTenantHost(request.headers.get("host"), "guest")) {
+    return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
+  }
   const headers = tenantHeaders(request)
   const response = NextResponse.next({ request: { headers } })
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY)
