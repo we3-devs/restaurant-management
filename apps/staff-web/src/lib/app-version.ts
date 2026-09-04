@@ -6,4 +6,4 @@
  * page so a stale device is visible at a glance instead of discovered the
  * hard way.
  */
-export const APP_VERSION = "3"
+export const APP_VERSION = "5"

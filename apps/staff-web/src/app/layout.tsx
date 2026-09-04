@@ -14,15 +14,17 @@ import { BACKEND_API_BASE } from "@/lib/server/backend-client";
 // so leaving it in place would have silently pinned the old icon.
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE);
-  const name = branding.restaurantName ?? "Restra ";
+  const name = branding.restaurantName?.trim() || "Atithi";
+  const staffName = `${name} Staff`;
+  const appIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
 
   return {
-    title: name,
+    title: staffName,
     description: `${name} — Restaurant Management System`,
     manifest: "/manifest.json",
     icons: {
-      icon: branding.faviconUrl ?? "/icons/favicon.ico",
-      apple: branding.faviconUrl ?? "/icons/favicon.ico",
+      icon: appIcon,
+      apple: appIcon,
     },
   };
 }

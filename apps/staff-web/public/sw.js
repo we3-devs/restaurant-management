@@ -4,7 +4,7 @@
 // file). Versioned so a deploy can invalidate stale shell/image caches — bump
 // this AND src/lib/app-version.ts's APP_VERSION together on any deploy that
 // changes staff-PWA code, otherwise installed clients keep the old cached JS.
-const CACHE_VERSION = "v3"
+const CACHE_VERSION = "v5"
 const SHELL_CACHE = `rms-shell-${CACHE_VERSION}`
 const IMAGE_CACHE = `rms-images-${CACHE_VERSION}`
 const API_CACHE = `rms-api-${CACHE_VERSION}`
