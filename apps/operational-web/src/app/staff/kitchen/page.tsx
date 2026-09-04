@@ -63,6 +63,7 @@ export default function StaffKitchenPage() {
 
   const visibleTickets = grouped[stage]
   const stageFilters = isKitchenStaff ? STAGE_FILTERS.filter((filter) => filter.stage !== "ready") : STAGE_FILTERS
+  const visibleActiveCount = stageFilters.reduce((count, filter) => count + grouped[filter.stage].length, 0)
 
   return (
     <div className="flex flex-1 flex-col gap-3">
@@ -71,9 +72,9 @@ export default function StaffKitchenPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kitchen</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">Your prep queue</h1>
         </div>
-        {tickets.length > 0 && (
+        {visibleActiveCount > 0 && (
           <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs">
-            {tickets.length} active
+            {visibleActiveCount} active
           </Badge>
         )}
       </div>
@@ -82,12 +83,6 @@ export default function StaffKitchenPage() {
         <p className="text-sm text-muted-foreground">Select an outlet to start.</p>
       ) : showSkeleton ? (
         <ListSkeleton count={6} />
-      ) : tickets.length === 0 && stations.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
-          <ChefHatIcon className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">No active kitchen tickets</p>
-          <p className="text-sm text-muted-foreground">Orders sent to the kitchen will show up here.</p>
-        </div>
       ) : (
         <>
           {stations.length > 1 && (
@@ -137,7 +132,11 @@ export default function StaffKitchenPage() {
 
           <div className="flex-1 space-y-3">
             {visibleTickets.length === 0 ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">Nothing here</p>
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <ChefHatIcon className="size-8 text-muted-foreground" />
+                <p className="text-sm font-medium">Nothing left to prepare</p>
+                <p className="text-sm text-muted-foreground">Items sent to the kitchen will show up here until served.</p>
+              </div>
             ) : (
               visibleTickets.map((ticket) => (
                 <MobileTicketCard
