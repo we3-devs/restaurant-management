@@ -14,11 +14,10 @@ import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
 import { ORDER_STATUSES } from "@rms/validators/orders"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
-function todayRange() {
+function isToday(isoDate: string): boolean {
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-  return { createdFrom: start.toISOString(), createdTo: end.toISOString() }
+  const date = new Date(isoDate)
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
 }
 
 interface OrderRow {
@@ -41,13 +40,10 @@ export default function StaffOrdersPage() {
   const { isSuperadmin, roleSlugs } = useCurrentUser()
   const isWaiter = !isSuperadmin && roleSlugs.includes("waiter")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const range = useMemo(todayRange, [])
   const { data: orders, isLoading } = useOrders(
     {
       outletId: outletId ?? undefined,
       limit: 500,
-      createdFrom: range.createdFrom,
-      createdTo: range.createdTo,
       status: statusFilter === "open" || statusFilter === "all" ? undefined : statusFilter,
       excludeStatus: statusFilter === "open" ? ["completed", "cancelled"] : undefined,
     },
@@ -62,6 +58,7 @@ export default function StaffOrdersPage() {
     const customerNameById = new Map<number, string>((customers?.data ?? []).map((c) => [c.id, c.name]))
 
     const withNames = (orders?.data ?? [])
+      .filter((order) => isToday(order.createdAt))
       .map((order) => {
         const session = order.tableSessionId ? sessionById.get(order.tableSessionId) : undefined
         const tableName = order.tableName ?? order.orderType.replace(/_/g, " ")
