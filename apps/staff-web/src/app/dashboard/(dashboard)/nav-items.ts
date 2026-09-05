@@ -124,7 +124,10 @@ export const navGroupDefs: NavGroupDef[] = [
   {
     label: "Superadmin",
     icon: ShieldAlert,
-    links: [{ href: "/dashboard/data-import", label: "Data Import", permission: true, superadminOnly: true }],
+    links: [
+      { href: "/superadmin", label: "Tenant Management", permission: true, superadminOnly: true },
+      { href: "/dashboard/data-import", label: "Data Import", permission: true, superadminOnly: true },
+    ],
   },
 ]
 
