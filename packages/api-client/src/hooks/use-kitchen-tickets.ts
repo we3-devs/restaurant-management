@@ -67,6 +67,10 @@ export function useKdsBootstrap(outletId: number | null) {
     queryKey: queryKeys.kitchenTickets.bootstrap(outletId),
     queryFn: () => apiClient<KdsBootstrap>(`/kitchen-tickets/bootstrap?outletId=${outletId}`),
     enabled: !!outletId && outletId > 0,
+    // The KDS must always perform an initial REST load after the page mounts;
+    // the socket only delivers changes and cannot replace bootstrap data.
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
     // Realtime is the primary path. Only poll while the authenticated socket
     // is down/reconnecting, instead of polling continuously while showing a
     // misleading "Live" browser-online state.

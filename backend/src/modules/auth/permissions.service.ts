@@ -235,15 +235,29 @@ export class PermissionsService {
 
   async getEmployeeDepartmentIds(userId: number, outletId: number): Promise<number[]> {
     const rows = await this.assignmentsRepository.manager.query(
-      `SELECT DISTINCT eda.department_id AS "departmentId"
-       FROM employee_department_assignments eda
-       INNER JOIN employees e ON e.id = eda.employee_id
-       INNER JOIN outlet_departments d ON d.id = eda.department_id
-       WHERE e.user_id = $1
-         AND e.outlet_id = $2
-         AND e.is_active = true
-         AND d.outlet_id = e.outlet_id
-         AND d.is_active = true`,
+      `SELECT DISTINCT department_id AS "departmentId"
+       FROM (
+         SELECT eda.department_id
+         FROM employee_department_assignments eda
+         INNER JOIN employees e ON e.id = eda.employee_id
+         INNER JOIN outlet_departments d ON d.id = eda.department_id
+         WHERE e.user_id = $1
+           AND e.outlet_id = $2
+           AND e.is_active = true
+           AND d.outlet_id = e.outlet_id
+           AND d.is_active = true
+
+         UNION
+
+         SELECT ura.outlet_department_id AS department_id
+         FROM user_role_assignments ura
+         INNER JOIN outlet_departments d ON d.id = ura.outlet_department_id
+         WHERE ura.user_id = $1
+           AND ura.is_active = true
+           AND ura.outlet_department_id IS NOT NULL
+           AND d.outlet_id = $2
+           AND d.is_active = true
+       ) assigned_departments`,
       [userId, outletId],
     );
     return rows.map((row: { departmentId: string | number }) => Number(row.departmentId));
