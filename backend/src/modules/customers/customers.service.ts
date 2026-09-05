@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, QueryFailedError, Repository } from 'typeorm';
+import { Brackets, FindOptionsWhere, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { normalizeNepalPhone } from '../../common/phone';
 import { LoyaltyService } from '../loyalty/loyalty.service';
@@ -38,23 +38,43 @@ export class CustomersService {
 
   async findAll(
     query: ListCustomersQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<CustomerResponseDto>> {
-    const { page, limit, search } = query;
-    const where: FindOptionsWhere<Customer>[] | FindOptionsWhere<Customer> =
-      search
-        ? [
-            { name: ILike(`%${search}%`) },
-            { phone: ILike(`%${search}%`) },
-            { email: ILike(`%${search}%`) },
-          ]
-        : {};
-
-    const [customers, total] = await this.customersRepository.findAndCount({
-      where,
-      order: { name: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const { page, limit, search, outletId } = query;
+    if (outletId === undefined && accessibleOutletIds !== 'ALL' && accessibleOutletIds.length === 0) {
+      return {
+        data: [],
+        meta: { page, limit, total: 0, totalPages: 1 },
+      };
+    }
+    const qb = this.customersRepository.createQueryBuilder('customer');
+    qb.where('customer.deleted_at IS NULL');
+    if (outletId !== undefined) {
+      qb.andWhere(
+        'EXISTS (SELECT 1 FROM customer_outlets requested_co WHERE requested_co.customer_id = customer.id AND requested_co.outlet_id = :outletId)',
+        { outletId },
+      );
+    } else if (accessibleOutletIds !== 'ALL') {
+      qb.andWhere(
+        'EXISTS (SELECT 1 FROM customer_outlets accessible_co WHERE accessible_co.customer_id = customer.id AND accessible_co.outlet_id IN (:...accessibleOutletIds))',
+        { accessibleOutletIds },
+      );
+    }
+    if (search) {
+      qb.andWhere(
+        new Brackets((searchQb) =>
+          searchQb
+            .where('customer.name ILIKE :search', { search: `%${search}%` })
+            .orWhere('customer.phone ILIKE :search', { search: `%${search}%` })
+            .orWhere('customer.email ILIKE :search', { search: `%${search}%` }),
+        ),
+      );
+    }
+    const [customers, total] = await qb
+      .orderBy('customer.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       data: customers.map((customer) => this.toResponse(customer)),

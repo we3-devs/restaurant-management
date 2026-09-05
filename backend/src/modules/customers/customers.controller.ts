@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -31,19 +32,46 @@ export class CustomersController {
     private readonly outletAccess: OutletAccessService,
   ) {}
 
+  private async assertCustomerAccess(id: number, user: User): Promise<void> {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (accessible === 'ALL') return;
+    const visits = await this.customersService.listOutlets(id, accessible);
+    if (visits.length === 0) {
+      throw new ForbiddenException('You do not have access to this customer');
+    }
+  }
+
   @Get()
   @RequirePermissions('customers.view')
   @ApiOperation({
     summary: 'Lists customers (paginated, optional search by name/phone/email)',
   })
-  findAll(@Query() query: ListCustomersQueryDto) {
-    return this.customersService.findAll(query);
+  async findAll(
+    @Query() query: ListCustomersQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    return this.customersService.findAll(query, accessible);
   }
 
   @Get(':id')
   @RequirePermissions('customers.view')
   @ApiOperation({ summary: 'Gets a customer' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertCustomerAccess(id, user);
     return this.customersService.findOneResponse(id);
   }
 
@@ -60,15 +88,19 @@ export class CustomersController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCustomerDto,
+    @CurrentUser() user: User,
   ) {
-    return this.customersService.update(id, dto);
+    return this.assertCustomerAccess(id, user).then(() =>
+      this.customersService.update(id, dto),
+    );
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('customers.manage')
   @ApiOperation({ summary: 'Soft-deletes a customer' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertCustomerAccess(id, user);
     return this.customersService.remove(id);
   }
 
@@ -77,6 +109,7 @@ export class CustomersController {
   @ApiOperation({ summary: "Lists a customer's per-outlet visit stats" })
   async listOutlets(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     const accessible = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    await this.customersService.findOne(id);
     return this.customersService.listOutlets(id, accessible);
   }
 

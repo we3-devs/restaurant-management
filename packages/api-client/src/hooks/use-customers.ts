@@ -30,6 +30,7 @@ export interface ListCustomersParams {
   page?: number
   limit?: number
   search?: string
+  outletId?: number
 }
 
 export function useCustomers(params: ListCustomersParams = {}) {

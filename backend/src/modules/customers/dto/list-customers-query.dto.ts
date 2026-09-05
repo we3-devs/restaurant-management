@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListCustomersQueryDto extends PaginationQueryDto {
@@ -7,4 +8,10 @@ export class ListCustomersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ description: 'Limit results to one outlet' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  outletId?: number;
 }
