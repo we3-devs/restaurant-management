@@ -48,7 +48,7 @@ export function useWarehouseIngredientStocks(params: ListWarehouseIngredientStoc
     queryKey: queryKeys.warehouseIngredientStocks.list(params),
     queryFn: () =>
       apiClient<PaginatedResponse<WarehouseIngredientStock>>(`/warehouse-ingredient-stocks${toQueryString(params)}`),
-    enabled: params.ingredientId !== undefined || params.warehouseId !== undefined,
+    enabled: true,
     placeholderData: keepPreviousData,
   })
 }
