@@ -13,10 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateStockTransfer } from "@/hooks/use-stock-transfers"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { createStockTransferSchema, type CreateStockTransferInput } from "@/lib/validators/stock-transfers"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 
 export function CreateStockTransferDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
+  const { outlets } = useActiveOutlet()
   const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createTransfer = useCreateStockTransfer()
 
@@ -58,7 +60,7 @@ export function CreateStockTransferDialog() {
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (
                         <SelectItem key={warehouse.id} value={String(warehouse.id)}>
-                          {warehouse.name}
+                          {warehouse.name} — {outlets.find((outlet) => outlet.id === warehouse.outletId)?.name ?? `Outlet #${warehouse.outletId}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -80,7 +82,7 @@ export function CreateStockTransferDialog() {
                     <SelectContent>
                       {warehouses?.data.map((warehouse) => (
                         <SelectItem key={warehouse.id} value={String(warehouse.id)}>
-                          {warehouse.name}
+                          {warehouse.name} — {outlets.find((outlet) => outlet.id === warehouse.outletId)?.name ?? `Outlet #${warehouse.outletId}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
