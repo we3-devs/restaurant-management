@@ -76,6 +76,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
 
 @Module({
   providers: [
@@ -253,6 +254,7 @@ import { AssistantModule } from './modules/assistant/assistant.module';
     CustomerAuthModule,
     CustomerPortalModule,
     AssistantModule,
+    TenantsModule,
   ],
 })
 export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
