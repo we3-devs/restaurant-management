@@ -2,16 +2,14 @@
 
 import Link from "next/link"
 import { ChevronRightIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { StatusBadge } from "@/components/status-badge"
 import { BillReceipt } from "@/components/bill-receipt"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useOrder, useOrderItems, useIssueInvoice, useSendOrderToKitchen, useUpdateOrder, type OrderItem } from "@/hooks/use-orders"
+import { useOrder, useOrderItems, type OrderItem } from "@/hooks/use-orders"
 import { useOrderAssignments } from "@/lib/api/hooks/use-assignments"
 import { useOrderPayments } from "@/hooks/use-order-payments"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
@@ -42,19 +40,12 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
 /** Read-only order tracking for admin — bill, payment totals, and status history, no editing/payment actions (those stay in operational-web/POS). */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
-  const { data: orderItems } = useOrderItems(orderId)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: tableSession } = useTableSession(order?.tableSessionId ?? 0)
   const { data: table } = useDiningTable(tableSession?.diningTableId ?? 0)
   const customerNames = tableSession?.customers?.map((entry) => entry.name).filter(Boolean) ?? []
   const { data: assignments } = useOrderAssignments(orderId)
   const showSkeleton = useDelayedLoading(isLoading)
-  const issueInvoice = useIssueInvoice(orderId)
-  const sendOrderToKitchen = useSendOrderToKitchen(orderId)
-  const updateOrder = useUpdateOrder(orderId)
-  const hasStockReservedItems = orderItems?.data.some((item) => item.status === "stock_reserved") ?? false
-  const sessionCustomers = tableSession?.customers ?? []
-  const selectableCustomers = customer && !sessionCustomers.some((entry) => entry.id === customer.id) ? [customer, ...sessionCustomers] : sessionCustomers
 
   usePageTitle("Order Details")
 
@@ -79,57 +70,11 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         <div className="flex items-center gap-2">
           <StatusBadge status={order.status} />
           <StatusBadge status={order.paymentStatus} />
-          {(order.status === "pending" || order.status === "accepted") && hasStockReservedItems && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={sendOrderToKitchen.isPending}
-              onClick={() => {
-                sendOrderToKitchen.mutate([], {
-                  onSuccess: () => toast.success("Order sent to kitchen"),
-                  onError: (error) => toast.error(`Failed to send order: ${error.message}`),
-                })
-              }}
-            >
-              {sendOrderToKitchen.isPending ? "Sending..." : "Send to Kitchen"}
-            </Button>
-          )}
-          {order.invoiceNumber ? (
+          {order.invoiceNumber && (
             <Button variant="outline" size="sm" render={<Link href={`/dashboard/invoices/${orderId}`} />}>
               View Invoice
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={issueInvoice.isPending}
-              onClick={() => {
-                issueInvoice.mutate(undefined, {
-                  onSuccess: () => toast.success("Invoice generated successfully"),
-                  onError: (error) => toast.error(`Failed to generate invoice: ${error.message}`),
-                })
-              }}
-            >
-              {issueInvoice.isPending ? "Generating..." : "Issue Invoice"}
-            </Button>
           )}
-          <Select
-            value={order.customerId ? String(order.customerId) : "none"}
-            onValueChange={(value) => updateOrder.mutate({ customerId: value === "none" ? null : Number(value) }, { onError: (error) => toast.error(`Failed to change customer: ${error.message}`) })}
-            disabled={updateOrder.isPending}
-          >
-            <SelectTrigger className=" w-full max-w-xs">
-              <SelectValue placeholder="Select bill customer" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Walk-in customer</SelectItem>
-              {selectableCustomers.map((entry) => (
-                <SelectItem key={entry.id} value={String(entry.id)}>
-                  {entry.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </div>
 

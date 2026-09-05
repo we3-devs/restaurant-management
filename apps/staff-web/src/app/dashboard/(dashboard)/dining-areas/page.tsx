@@ -35,6 +35,7 @@ const STATUS_DOT: Record<string, string> = {
 /** Read-only mirror of operational-web's dining areas — monitoring only, with superadmin-only provisioning. */
 export default function DiningAreasPage() {
   const { outletId } = useActiveOutlet()
+  // Overview pages are monitoring-only. Provisioning is handled elsewhere.
   const { isSuperadmin } = useCurrentUser()
 
   usePageTitle("Dining Areas")

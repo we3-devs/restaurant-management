@@ -23,6 +23,10 @@ const money = (value: number) => value.toFixed(2)
 const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
 
 export default function InventoryItemsPage() {
+  return <InventoryItemsList readOnly={false} />
+}
+
+export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   const { outletId } = useActiveOutlet()
   const [warehouseId, setWarehouseId] = useState<string>("all")
 
@@ -103,7 +107,7 @@ export default function InventoryItemsPage() {
             <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}>
               <DownloadIcon /> Export CSV
             </Button>
-            <CreateIngredientDialog />
+            {!readOnly && <CreateIngredientDialog />}
           </div>
         </div>
       </div>
@@ -157,9 +161,7 @@ export default function InventoryItemsPage() {
               return (
                 <TableRow key={stock.id}>
                   <TableCell>
-                    <Link href={`/dashboard/ingredients/${ingredient.id}`} className="font-medium hover:underline">
-                      {ingredient.name}
-                    </Link>
+                    {readOnly ? <span className="font-medium">{ingredient.name}</span> : <Link href={`/dashboard/ingredients/${ingredient.id}`} className="font-medium hover:underline">{ingredient.name}</Link>}
                     {!ingredient.isActive && <Badge variant="destructive" className="ml-2">inactive</Badge>}
                   </TableCell>
                   <TableCell>{ingredient.code}</TableCell>
@@ -175,7 +177,7 @@ export default function InventoryItemsPage() {
                   <TableCell className="text-right">{money(stock.averageCost)}</TableCell>
                   <TableCell className="text-right">{money(ingredient.sellingPrice)}</TableCell>
                   <TableCell className="text-right">
-                    <EditInventoryItemDialog ingredient={ingredient} />
+                    {!readOnly && <EditInventoryItemDialog ingredient={ingredient} />}
                   </TableCell>
                 </TableRow>
               )

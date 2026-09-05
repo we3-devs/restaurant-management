@@ -2,13 +2,12 @@ import {
   Boxes,
   Building2,
   Contact,
-  // FileText,
+  LayoutGrid,
   Gauge,
   type LucideIcon,
   Salad,
   ShieldAlert,
   ShieldCheck,
-  // Sparkles,
   Truck,
 } from "lucide-react"
 import { hasRoutePermission } from "@rms/auth/route-access"
@@ -35,14 +34,20 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard", label: "Dashboard", permission: true },
       { href: "/dashboard/summary", label: "Period Summary", permission: "dashboard.view" },
       { href: "/dashboard/analytics", label: "Analytics", permission: "dashboard.view" },
-      { href: "/dashboard/assistant", label: "Operations Assistant", permission: "dashboard.view" },
-      { href: "/dashboard/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
-      { href: "/dashboard/tables", label: "Tables", permission: "dining-tables.view" },
+      { href: "/dashboard/overview/foods", label: "Foods", permission: "foods.view" },
+      { href: "/dashboard/overview/inventory-items", label: "Inventory Items", permission: "ingredients.view" },
       { href: "/dashboard/orders", label: "Orders", permission: "orders.view" },
       { href: "/dashboard/sales", label: "Sales", permission: "reports.view" },
       { href: "/dashboard/invoices", label: "Invoices", permission: "orders.view" },
       { href: "/dashboard/reports", label: "Reports", permission: "reports.view" },
-      { href: "/dashboard/notifications", label: "Notifications", permission: true },
+    ],
+  },
+  {
+    label: "Floor Management",
+    icon: LayoutGrid,
+    links: [
+      { href: "/dashboard/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
+      { href: "/dashboard/tables", label: "Tables", permission: "dining-tables.view" },
     ],
   },
   {
@@ -50,14 +55,12 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: Salad,
     links: [
       { href: "/dashboard/food-categories", label: "Food Categories", permission: "food-categories.view" },
-      { href: "/dashboard/foods", label: "Foods", permission: "foods.view" },
+      { href: "/dashboard/foods", label: "Manage Foods", permission: "foods.view" },
       { href: "/dashboard/variants", label: "Variants", permission: "food-variants.view" },
       { href: "/dashboard/sub-variants", label: "Sub-variants", permission: "food-variants.view" },
       // The route keeps its old path so existing links and bookmarks still work;
       // only the label reflects that these rows are food items now.
       { href: "/dashboard/food-variants", label: "Food Items", permission: "food-variants.view" },
-      // { href: "/dashboard/addon-groups", label: "Addon Groups", permission: "addon-groups.view" },
-      // { href: "/dashboard/addons", label: "Addons", permission: "addons.view" },
     ],
   },
   {
@@ -67,7 +70,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/units", label: "Units", permission: "units.view" },
       { href: "/dashboard/ingredient-categories", label: "Ingredient Categories", permission: "ingredient-categories.view" },
       { href: "/dashboard/ingredients", label: "Ingredients", permission: "ingredients.view" },
-      { href: "/dashboard/inventory-items", label: "Inventory Items", permission: "ingredients.view" },
+      { href: "/dashboard/inventory-items", label: "Manage Inventory Items", permission: "ingredients.view" },
       { href: "/dashboard/stock-ins", label: "Stock-Ins", permission: "stock-ins.view" },
       { href: "/dashboard/stock-outs", label: "Stock-Outs", permission: "stock-outs.view" },
       { href: "/dashboard/stock-transfers", label: "Stock Transfers", permission: "stock-transfers.view" },
@@ -99,11 +102,6 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/staff-dashboard", label: "Staff Dashboard", permission: "employees.view" },
     ],
   },
-  // {
-  //   label: "Loyalty",
-  //   icon: Sparkles,
-  //   links: [{ href: "/dashboard/loyalty", label: "Loyalty", permission: "loyalty.view" }],
-  // },
   {
     label: "Organization",
     icon: Building2,
@@ -121,7 +119,7 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: ShieldCheck,
     links: [
       { href: "/dashboard/settings", label: "Settings", permission: "settings.view" },
-      { href: "/audit-logs", label: "Audit Logs", permission: "audit-logs.view" },
+      { href: "/dashboard/audit-logs", label: "Audit Logs", permission: "audit-logs.view" },
     ],
   },
   {
@@ -134,18 +132,13 @@ export const navGroupDefs: NavGroupDef[] = [
   },
 ]
 
-/** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx so both stay in sync with the nav. */
+/** Flattened {href, permission} table — shared with the server-side route guard in layout.tsx. */
 export const navRoutePermissions = navGroupDefs.flatMap((group) => group.links)
 
-/** Sidebar-only restriction (permissions/API access are untouched) — the "admin" role only ever sees these groups, regardless of what its permissions would otherwise reveal. Operations moved to operational-web entirely, so only Overview remains here. */
-const ADMIN_ROLE_VISIBLE_GROUPS = new Set(['Overview'])
-
-export function visibleNavGroups(permissions: string[], isSuperadmin: boolean, roleSlugs: string[] = []) {
+export function visibleNavGroups(permissions: string[], isSuperadmin: boolean) {
   const has = (permission: string | true) => hasRoutePermission({ isSuperadmin, permissions }, permission)
-  const restrictToAdminGroups = !isSuperadmin && roleSlugs.includes('admin')
 
   return navGroupDefs
-    .filter((group) => !restrictToAdminGroups || ADMIN_ROLE_VISIBLE_GROUPS.has(group.label))
     .map((group) => ({
       ...group,
       links: group.links.filter((link) => (link.superadminOnly ? isSuperadmin : has(link.permission))),

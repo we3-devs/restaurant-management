@@ -24,6 +24,7 @@ const STATUS_STYLES: Record<string, string> = {
 /** Read-only mirror of operational-web's floor board — monitoring only, no table actions live here. */
 export default function TablesPage() {
   const { outletId } = useActiveOutlet()
+  // Overview pages are monitoring-only. Provisioning is handled elsewhere.
   const { isSuperadmin } = useCurrentUser()
 
   usePageTitle("Tables")

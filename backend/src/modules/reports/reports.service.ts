@@ -183,7 +183,7 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
-      .addSelect('order.created_at', 'createdAt')
+      .addSelect(`TO_CHAR(order.created_at, 'YYYY-MM-DD"T"HH24:MI:SS')`, 'createdAt')
       .addSelect('order.subtotal', 'subtotal')
       .addSelect('order.discount_amount', 'discountAmount')
       .addSelect('order.tax_amount', 'taxAmount')
@@ -254,7 +254,7 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
-      .addSelect('order.created_at', 'createdAt')
+      .addSelect(`TO_CHAR(order.created_at, 'YYYY-MM-DD"T"HH24:MI:SS')`, 'createdAt')
       .addSelect('order.order_type', 'orderType')
       .addSelect('order.source', 'source')
       .addSelect('order.status', 'status')

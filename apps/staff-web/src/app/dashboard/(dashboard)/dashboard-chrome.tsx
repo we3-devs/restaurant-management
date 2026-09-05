@@ -13,6 +13,7 @@ import { OfflineIndicator } from "@rms/ui/offline-indicator"
 import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { Separator } from "@/components/ui/separator"
 import { visibleNavGroups } from "./nav-items"
+import { DashboardAssistantChatbot } from "./dashboard-assistant-chatbot"
 
 /**
  * Client component so visibleNavGroups() (whose result embeds Lucide icon
@@ -34,7 +35,7 @@ export function DashboardChrome({
   allowed: boolean
   children: React.ReactNode
 }) {
-  const groups = visibleNavGroups(permissions, isSuperadmin, roleSlugs)
+  const groups = visibleNavGroups(permissions, isSuperadmin)
 
   return (
     <>
@@ -60,6 +61,7 @@ export function DashboardChrome({
           </div>
         </AppSidebarShell>
       </div>
+      {(isSuperadmin || roleSlugs.includes("admin")) && <DashboardAssistantChatbot />}
     </>
   )
 }

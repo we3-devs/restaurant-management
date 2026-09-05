@@ -33,6 +33,10 @@ const columns: ColumnDef<Food>[] = [
 ]
 
 export default function FoodsPage() {
+  return <FoodsList readOnly={false} />
+}
+
+export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const { data: categories } = useFoodCategories({ limit: 100 })
   const { data, isLoading } = useFoods({
@@ -54,9 +58,7 @@ export default function FoodsPage() {
       <FoodsBackgroundPrefetch />
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Foods</h1>
-        <div className="flex gap-2">
-          <CreateFoodDialog />
-        </div>
+        {!readOnly && <CreateFoodDialog />}
       </div>
 
       <div className="w-64 space-y-1.5">
@@ -96,9 +98,7 @@ export default function FoodsPage() {
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    <Link href={`/dashboard/foods/${row.original.id}`} className="block">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </Link>
+                    {readOnly ? flexRender(cell.column.columnDef.cell, cell.getContext()) : <Link href={`/dashboard/foods/${row.original.id}`} className="block">{flexRender(cell.column.columnDef.cell, cell.getContext())}</Link>}
                   </TableCell>
                 ))}
               </TableRow>
