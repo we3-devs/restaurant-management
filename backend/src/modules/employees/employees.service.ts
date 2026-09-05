@@ -7,6 +7,7 @@ import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entit
 import { User } from '../users/entities/user.entity';
 import { Position } from './entities/position.entity';
 import { Employee } from './entities/employee.entity';
+import { EmployeeDepartmentAssignment } from './entities/employee-department-assignment.entity';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/create-employee.dto';
 import { CreatePositionDto, UpdatePositionDto } from './dto/create-position.dto';
@@ -23,6 +24,8 @@ export class EmployeesService {
     @InjectRepository(UserRoleAssignment)
     private readonly userRoleAssignmentRepo: Repository<UserRoleAssignment>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(EmployeeDepartmentAssignment)
+    private readonly departmentAssignments: Repository<EmployeeDepartmentAssignment>,
   ) {}
 
   // ---- Positions ----
@@ -183,6 +186,37 @@ export class EmployeesService {
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
     };
+  }
+
+  async listDepartments(employeeId: number) {
+    await this.findOne(employeeId);
+    return this.departmentAssignments.find({
+      where: { employeeId },
+      relations: { department: true },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async assignDepartment(employeeId: number, departmentId: number, assignedBy: number) {
+    const employee = await this.findOne(employeeId);
+    const department = await this.employeeRepo.manager.getRepository('outlet_departments').findOne({
+      where: { id: departmentId },
+    }) as { id: number; outlet_id?: number; outletId?: number } | null;
+    if (!department) throw new NotFoundException(`Department ${departmentId} not found`);
+    const departmentOutletId = Number(department.outletId ?? department.outlet_id);
+    if (departmentOutletId !== employee.outletId) {
+      throw new NotFoundException('Department does not belong to this employee\'s outlet');
+    }
+    const existing = await this.departmentAssignments.findOne({ where: { employeeId, departmentId } });
+    if (existing) return existing;
+    return this.departmentAssignments.save(
+      this.departmentAssignments.create({ employeeId, departmentId, assignedBy }),
+    );
+  }
+
+  async removeDepartment(employeeId: number, departmentId: number) {
+    await this.findOne(employeeId);
+    await this.departmentAssignments.delete({ employeeId, departmentId });
   }
 
   /** Users are the canonical identity record for linked employees. */

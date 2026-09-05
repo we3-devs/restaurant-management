@@ -10,10 +10,11 @@ import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
 import { EmployeesImporter } from './import/employees-importer';
 import { User } from '../users/entities/user.entity';
+import { EmployeeDepartmentAssignment } from './entities/employee-department-assignment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee, Position, EmployeeDocument, User]),
+    TypeOrmModule.forFeature([Employee, Position, EmployeeDocument, User, EmployeeDepartmentAssignment]),
     AuthModule,
     RolesModule,
     OutletsModule,

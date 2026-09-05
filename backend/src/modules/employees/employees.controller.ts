@@ -8,6 +8,7 @@ import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/create-employee.dto'
 import { CreatePositionDto, UpdatePositionDto } from './dto/create-position.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { EmployeesService } from './employees.service';
+import { AssignDepartmentDto } from './dto/assign-department.dto';
 
 @ApiTags('employees')
 @ApiBearerAuth()
@@ -81,5 +82,26 @@ export class EmployeesController {
     const employee = await this.employeesService.findOne(id);
     await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
     return this.employeesService.remove(id);
+  }
+
+  @Get('employees/:id/departments') @RequirePermissions('employees.view')
+  async listDepartments(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    const employee = await this.employeesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
+    return this.employeesService.listDepartments(id);
+  }
+
+  @Post('employees/:id/departments') @RequirePermissions('employees.manage')
+  async assignDepartment(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignDepartmentDto, @CurrentUser() user: User) {
+    const employee = await this.employeesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
+    return this.employeesService.assignDepartment(id, dto.departmentId, user.id);
+  }
+
+  @Delete('employees/:id/departments/:departmentId') @HttpCode(HttpStatus.NO_CONTENT) @RequirePermissions('employees.manage')
+  async removeDepartment(@Param('id', ParseIntPipe) id: number, @Param('departmentId', ParseIntPipe) departmentId: number, @CurrentUser() user: User) {
+    const employee = await this.employeesService.findOne(id);
+    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
+    return this.employeesService.removeDepartment(id, departmentId);
   }
 }
