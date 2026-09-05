@@ -64,7 +64,6 @@ export class EmployeeResponseDto {
   outletId: number;
 
   @ApiPropertyOptional({ nullable: true })
-  departmentId: number | null;
 
   @ApiProperty()
   name: string;

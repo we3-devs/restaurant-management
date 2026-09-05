@@ -172,9 +172,6 @@ export class EmployeesService {
       positionId: employee.positionId,
       positionName: employee.position?.name ?? null,
       outletId: employee.outletId,
-      // Kept as a compatibility field until the frontend consumes the
-      // employee departments endpoint; assignments are now many-to-many.
-      departmentId: null,
       name: identity.name,
       email: identity.email,
       phone: identity.phone,

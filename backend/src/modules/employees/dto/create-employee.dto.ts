@@ -9,7 +9,6 @@ export class CreateEmployeeDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() userId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() positionId?: number;
   @ApiProperty() @Type(() => Number) @IsInt() outletId: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() departmentId?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() photoUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsISO8601({ strict: true }) joiningDate?: string;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'terminated', 'resigned'] }) @IsOptional() @IsIn(['active', 'inactive', 'terminated', 'resigned']) employmentStatus?: 'active' | 'inactive' | 'terminated' | 'resigned';
@@ -25,7 +24,6 @@ export class UpdateEmployeeDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() userId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() positionId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() outletId?: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() departmentId?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() photoUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsISO8601({ strict: true }) joiningDate?: string;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'terminated', 'resigned'] }) @IsOptional() @IsIn(['active', 'inactive', 'terminated', 'resigned']) employmentStatus?: 'active' | 'inactive' | 'terminated' | 'resigned';

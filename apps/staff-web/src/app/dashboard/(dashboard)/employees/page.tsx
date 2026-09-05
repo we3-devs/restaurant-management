@@ -19,7 +19,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlets } from "@/hooks/use-outlets"
-import { useOutletDepartments } from "@/hooks/use-outlet-departments"
 import { useEmployees, usePositions, type Employee } from "@/hooks/use-employees"
 import { EMPLOYMENT_STATUSES } from "@/lib/validators/employees"
 import { CreateEmployeeDialog } from "./create-employee-dialog"
@@ -40,7 +39,6 @@ export default function EmployeesPage() {
 
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: positions } = usePositions()
-  const { data: departments } = useOutletDepartments({ limit: 100 })
   const { data, isLoading, isPlaceholderData } = useEmployees({
     page,
     limit: PAGE_SIZE,
@@ -53,7 +51,6 @@ export default function EmployeesPage() {
 
   const positionName = (id: number | null) => positions?.find((p) => p.id === id)?.name ?? "—"
   const outletName = (id: number) => outlets?.data.find((o) => o.id === id)?.name ?? "Loading…"
-  const departmentName = (id: number | null) => (id ? (departments?.data.find((d) => d.id === id)?.name ?? "Loading…") : "—")
 
   const columns = useMemo<ColumnDef<Employee>[]>(
     () => [
@@ -69,7 +66,6 @@ export default function EmployeesPage() {
       },
       { id: "position", header: "Position", cell: ({ row }) => positionName(row.original.positionId) },
       { id: "outlet", header: "Outlet", cell: ({ row }) => outletName(row.original.outletId) },
-      { id: "department", header: "Department", cell: ({ row }) => departmentName(row.original.departmentId) },
       {
         id: "employmentStatus",
         header: "Status",
@@ -82,7 +78,7 @@ export default function EmployeesPage() {
       { id: "joiningDate", header: "Joined", cell: ({ row }) => row.original.joiningDate ?? "—" },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [positions, outlets, departments],
+    [positions, outlets],
   )
 
   const table = useReactTable({ data: data?.data ?? [], columns, getCoreRowModel: getCoreRowModel() })

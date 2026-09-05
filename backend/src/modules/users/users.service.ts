@@ -251,7 +251,9 @@ export class UsersService {
       phone: user.phone,
       employeeId: employee?.id ?? null,
       outletId: employee?.outletId ?? null,
-      departmentId: employee?.departmentId ?? null,
+      // Department membership is now many-to-many. Keep this legacy response
+      // field null until clients consume employee department assignments.
+      departmentId: null,
       isSuperadmin: user.isSuperadmin,
       isActive,
       createdAt: user.createdAt,

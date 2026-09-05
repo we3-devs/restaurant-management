@@ -29,7 +29,6 @@ export interface Employee {
   userId: number | null
   positionId: number | null
   outletId: number
-  departmentId: number | null
   name: string
   email: string | null
   phone: string | null
