@@ -35,29 +35,29 @@ export class TenantGuard implements CanActivate {
     }
 
     const rows = await this.dataSource.query(
-      `SELECT t.id,
-              COALESCE(array_agg(DISTINCT ura.outlet_id)
-                FILTER (WHERE ura.outlet_id IS NOT NULL), '{}') AS outlet_ids,
-              COUNT(*) FILTER (
-                WHERE ura.outlet_id IS NOT NULL
-                  AND (o.id IS NULL OR o.tenant_id <> t.id)
-              ) AS invalid_outlet_assignments
+      `SELECT t.id
        FROM tenants t
-       LEFT JOIN user_role_assignments ura
-         ON ura.user_id = $3
-        AND ura.is_active = true
-        AND (ura.starts_at IS NULL OR ura.starts_at <= now())
-        AND (ura.ends_at IS NULL OR ura.ends_at > now())
-       LEFT JOIN outlets o ON o.id = ura.outlet_id
        WHERE LOWER(t.slug) = $1
          AND t.is_active = true
          AND t.id = $2
        LIMIT 1`,
-      [slug, user.tenantId, user.id],
+      [slug, user.tenantId],
     );
 
     if (!rows[0]) throw new ForbiddenException('You do not have access to this tenant');
-    if (Number(rows[0].invalid_outlet_assignments) > 0) {
+    const invalidAssignments = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count
+       FROM user_role_assignments ura
+       LEFT JOIN outlets o ON o.id = ura.outlet_id
+       WHERE ura.user_id = $1
+         AND ura.is_active = true
+         AND (ura.starts_at IS NULL OR ura.starts_at <= now())
+         AND (ura.ends_at IS NULL OR ura.ends_at > now())
+         AND ura.outlet_id IS NOT NULL
+         AND (o.id IS NULL OR o.tenant_id <> $2)`,
+      [user.id, user.tenantId],
+    );
+    if (Number(invalidAssignments[0]?.count ?? 0) > 0) {
       throw new ForbiddenException('Invalid user tenant/outlet assignment');
     }
     request.tenantId = Number(rows[0].id);
