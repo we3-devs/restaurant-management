@@ -1,7 +1,6 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
 import { Outlet } from '../../outlets/entities/outlet.entity';
-import { OutletDepartment } from '../../outlet-departments/entities/outlet-department.entity';
 import { User } from '../../users/entities/user.entity';
 import { Position } from './position.entity';
 
@@ -28,11 +27,6 @@ export class Employee {
   @ManyToOne(() => Outlet, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'outlet_id' })
   outlet: Outlet;
-  @Column({ name: 'department_id', type: 'bigint', transformer: new BigIntTransformer(), nullable: true })
-  departmentId: number | null;
-  @ManyToOne(() => OutletDepartment, { onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'department_id' })
-  department: OutletDepartment | null;
   /** Direct name copy from the User entity — used when no user account is linked. */
   @Column({ type: 'varchar', length: 500 })
   name: string;

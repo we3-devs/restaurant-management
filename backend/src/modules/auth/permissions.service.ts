@@ -208,4 +208,34 @@ export class PermissionsService {
       ),
     ];
   }
+
+  async isKitchenStaff(userId: number): Promise<boolean> {
+    const rows = await this.assignmentsRepository.manager.query(
+      `SELECT 1
+       FROM employees e
+       LEFT JOIN positions p ON p.id = e.position_id
+       WHERE e.user_id = $1
+         AND e.is_active = true
+         AND LOWER(COALESCE(p.slug, '')) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff')
+       LIMIT 1`,
+      [userId],
+    );
+    return rows.length > 0;
+  }
+
+  async getEmployeeDepartmentIds(userId: number, outletId: number): Promise<number[]> {
+    const rows = await this.assignmentsRepository.manager.query(
+      `SELECT DISTINCT eda.department_id AS "departmentId"
+       FROM employee_department_assignments eda
+       INNER JOIN employees e ON e.id = eda.employee_id
+       INNER JOIN outlet_departments d ON d.id = eda.department_id
+       WHERE e.user_id = $1
+         AND e.outlet_id = $2
+         AND e.is_active = true
+         AND d.outlet_id = e.outlet_id
+         AND d.is_active = true`,
+      [userId, outletId],
+    );
+    return rows.map((row: { departmentId: string | number }) => Number(row.departmentId));
+  }
 }

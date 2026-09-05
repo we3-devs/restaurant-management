@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -32,7 +32,10 @@ import { useUserRoleAssignments, useUsers } from "@/hooks/use-users"
 import {
   useDeleteEmployee,
   useEmployee,
+  useEmployeeDepartments,
   useEmployeePerformance,
+  useAssignEmployeeDepartment,
+  useRemoveEmployeeDepartment,
   usePositions,
   useUpdateEmployee,
 } from "@/hooks/use-employees"
@@ -56,6 +59,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
   const activeRoleAssignments = (roleAssignments ?? []).filter((assignment) => assignment.isActive)
   const updateEmployee = useUpdateEmployee(employeeId)
   const deleteEmployee = useDeleteEmployee()
+  const { data: employeeDepartments = [] } = useEmployeeDepartments(employeeId)
+  const assignDepartment = useAssignEmployeeDepartment(employeeId)
+  const removeDepartment = useRemoveEmployeeDepartment(employeeId)
+  const [departmentToAdd, setDepartmentToAdd] = useState("")
 
   const form = useForm<UpdateEmployeeInput>({
     resolver: zodResolver(updateEmployeeSchema),
@@ -66,7 +73,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
       userId: undefined,
       positionId: undefined,
       outletId: undefined,
-      departmentId: undefined,
       joiningDate: "",
       employmentStatus: "active",
       emergencyContactName: "",
@@ -75,11 +81,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
     },
   })
   const selectedOutletId = form.watch("outletId")
-  const selectedPositionId = form.watch("positionId")
-  const { data: departments } = useOutletDepartments({ outletId: selectedOutletId, limit: 100 })
-  const currentDepartment = departments?.data.find((d) => d.id === employee?.departmentId)
-  const selectedPosition = positions?.find((position) => position.id === selectedPositionId)
-  const isAdminRole = selectedPosition?.defaultRole?.level === "global"
+  const { data: departments } = useOutletDepartments({ outletId: employee?.outletId ?? selectedOutletId, limit: 100 })
 
   useEffect(() => {
     if (employee) {
@@ -90,7 +92,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
         userId: employee.userId ?? undefined,
         positionId: employee.positionId ?? undefined,
         outletId: employee.outletId,
-        departmentId: employee.departmentId ?? undefined,
         joiningDate: employee.joiningDate ?? "",
         employmentStatus: employee.employmentStatus,
         emergencyContactName: employee.emergencyContactName ?? "",
@@ -133,7 +134,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
               {employee.employeeCode} · {outlet?.name ?? "Loading…"}
-              {employee.departmentId && ` · ${currentDepartment?.name ?? "Loading…"}`}
             </p>
             <Badge variant={employee.employmentStatus === "active" ? "secondary" : "outline"}>
               {employee.employmentStatus}
@@ -235,7 +235,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                       value={field.value ? String(field.value) : "none"}
                       onValueChange={(v) => {
                         field.onChange(v === "none" ? undefined : Number(v))
-                        form.setValue("departmentId", undefined)
                       }}
                       disabled={!canManage}
                     >
@@ -266,7 +265,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                       value={field.value ? String(field.value) : ""}
                       onValueChange={(v) => {
                         field.onChange(Number(v))
-                        form.setValue("departmentId", undefined)
                       }}
                       disabled={!canManage}
                     >
@@ -285,39 +283,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
                   </FormItem>
                 )}
               />
-              {!isAdminRole && (
-                <FormField
-                  control={form.control}
-                  name="departmentId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Department</FormLabel>
-                      <Select
-                        items={[
-                          { value: "none", label: "No department" },
-                          ...(departments?.data.map((department) => ({ value: String(department.id), label: department.name })) ?? []),
-                        ]}
-                        value={field.value ? String(field.value) : "none"}
-                        onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
-                        disabled={!canManage || !selectedOutletId}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={selectedOutletId ? "Select a department" : "Select an outlet first"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No department</SelectItem>
-                          {departments?.data.map((department) => (
-                            <SelectItem key={department.id} value={String(department.id)}>
-                              {department.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
               <FormField
                 control={form.control}
                 name="userId"
@@ -433,6 +398,57 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
               )}
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Departments</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Assign this staff member to one or more departments in {outlet?.name ?? "this outlet"}.</p>
+          {canManage && (
+            <Select
+              items={(departments?.data ?? [])
+                .filter((department) => !employeeDepartments.some((assignment) => assignment.departmentId === department.id))
+                .map((department) => ({ value: String(department.id), label: department.name }))}
+              value={departmentToAdd}
+              onValueChange={async (value) => {
+                const nextValue = value ?? ""
+                setDepartmentToAdd(nextValue)
+                if (!nextValue) return
+                try {
+                  await assignDepartment.mutateAsync(Number(nextValue))
+                  toast.success("Department assigned")
+                  setDepartmentToAdd("")
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to assign department")
+                }
+              }}
+              disabled={assignDepartment.isPending}
+            >
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Add a department" />
+              </SelectTrigger>
+              <SelectContent>
+                {(departments?.data ?? [])
+                  .filter((department) => !employeeDepartments.some((assignment) => assignment.departmentId === department.id))
+                  .map((department) => <SelectItem key={department.id} value={String(department.id)}>{department.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {employeeDepartments.length === 0 && <p className="text-sm text-muted-foreground">No departments assigned.</p>}
+            {employeeDepartments.map((assignment) => (
+              <div key={assignment.id} className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                <span>{assignment.department.name}</span>
+                {canManage && <Button type="button" variant="ghost" size="sm" onClick={async () => {
+                  try { await removeDepartment.mutateAsync(assignment.departmentId); toast.success("Department removed") }
+                  catch (error) { toast.error(error instanceof Error ? error.message : "Failed to remove department") }
+                }}>Remove</Button>}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

@@ -44,6 +44,37 @@ export interface Employee {
   updatedAt: string
 }
 
+export interface EmployeeDepartmentAssignment {
+  id: number
+  employeeId: number
+  departmentId: number
+  department: { id: number; name: string; outletId: number }
+}
+
+export function useEmployeeDepartments(id: number) {
+  return useQuery({
+    queryKey: queryKeys.employees.departments(id),
+    queryFn: () => apiClient<EmployeeDepartmentAssignment[]>(`/employees/${id}/departments`),
+    enabled: id > 0,
+  })
+}
+
+export function useAssignEmployeeDepartment(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (departmentId: number) => apiClient<EmployeeDepartmentAssignment>(`/employees/${id}/departments`, { method: "POST", body: JSON.stringify({ departmentId }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.departments(id) }),
+  })
+}
+
+export function useRemoveEmployeeDepartment(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (departmentId: number) => apiClient<void>(`/employees/${id}/departments/${departmentId}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.departments(id) }),
+  })
+}
+
 export interface ListEmployeesParams {
   page?: number
   limit?: number

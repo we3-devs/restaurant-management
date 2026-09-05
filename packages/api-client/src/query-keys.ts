@@ -284,6 +284,7 @@ export const queryKeys = {
     lists: () => [...queryKeys.employees.all, "list"] as const,
     list: (params?: unknown) => [...queryKeys.employees.lists(), params] as const,
     detail: (id: number) => [...queryKeys.employees.all, "detail", id] as const,
+    departments: (id: number) => [...queryKeys.employees.all, "departments", id] as const,
     performance: (id: number, params?: unknown) => [...queryKeys.employees.all, "performance", id, params] as const,
   },
   shifts: {

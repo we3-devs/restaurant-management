@@ -75,7 +75,7 @@ export class EmployeesService {
         roleId: position.defaultRoleId,
         scopeType: isGlobal ? 'global' : 'outlet',
         outletId: outletId ?? IsNull(),
-        outletDepartmentId: isGlobal ? IsNull() : (employee.departmentId ?? IsNull()),
+        outletDepartmentId: IsNull(),
         warehouseId: IsNull(),
       },
     });
@@ -87,7 +87,7 @@ export class EmployeesService {
         roleId: position.defaultRoleId,
         scopeType: isGlobal ? 'global' : 'outlet',
         outletId,
-        outletDepartmentId: isGlobal ? null : employee.departmentId,
+        outletDepartmentId: null,
       }),
     );
   }
@@ -172,7 +172,9 @@ export class EmployeesService {
       positionId: employee.positionId,
       positionName: employee.position?.name ?? null,
       outletId: employee.outletId,
-      departmentId: employee.departmentId,
+      // Kept as a compatibility field until the frontend consumes the
+      // employee departments endpoint; assignments are now many-to-many.
+      departmentId: null,
       name: identity.name,
       email: identity.email,
       phone: identity.phone,

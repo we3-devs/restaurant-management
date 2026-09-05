@@ -76,14 +76,12 @@ export class OutletDepartmentsController {
 
     if (user.isSuperadmin) return departments;
 
-    const departmentIds =
-      await this.permissionsService.getAccessibleOutletDepartmentIds(user.id);
-    if (departmentIds.length === 0) return departments;
-
-    const scoped = departments.filter((department) =>
-      departmentIds.includes(department.id),
-    );
-    return scoped.length > 0 ? scoped : departments;
+    // Kitchen staff see only the departments explicitly assigned to their
+    // employee record. Waiters, cashiers, and other non-kitchen staff need to
+    // see every department in the outlet for ordering and service workflows.
+    if (!(await this.permissionsService.isKitchenStaff(user.id))) return departments;
+    const departmentIds = await this.permissionsService.getEmployeeDepartmentIds(user.id, outletId);
+    return departments.filter((department) => departmentIds.includes(department.id));
   }
 
   @Get(':id')
