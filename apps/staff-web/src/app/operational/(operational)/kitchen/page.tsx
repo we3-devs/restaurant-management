@@ -249,10 +249,11 @@ function TicketCard({
 }
 
 export default function KitchenPage() {
-  const { permissions, isSuperadmin } = useCurrentUser()
+  const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
 
-  const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
+  const { outletId: effectiveOutletId, departmentId, departments } = useActiveOutlet()
+  const isKitchenStaff = !isSuperadmin && (roleSlugs.includes("cook") || roleSlugs.includes("kitchen-helper"))
 
   // Live clock driving the "…m ago" timers so they tick without a refetch.
   const [now, setNow] = useState(() => Date.now())
@@ -267,6 +268,9 @@ export default function KitchenPage() {
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
+  const visibleStations = isKitchenStaff
+    ? stations.filter((station) => departments.some((department) => department.id === station.id))
+    : stations
   const hasUngrouped = tickets.some((ticket) => ticket.departmentId === null)
 
   // Filter to one station so each department only sees its own queue. Both
@@ -277,7 +281,7 @@ export default function KitchenPage() {
   // staying on the same outlet silently did nothing. Defaults to the active
   // outlet/department context's selected department, if it's one of this
   // outlet's stations, instead of dumping everyone into "all stations".
-  const assignedStation = stations.find((s) => s.id === departmentId)
+  const assignedStation = visibleStations.find((s) => s.id === departmentId)
   const [stationState, setStationState] = useState<{
     outletId: number | null
     departmentId: number | null
@@ -290,15 +294,19 @@ export default function KitchenPage() {
   const station =
     stationState.outletId === effectiveOutletId && stationState.departmentId === departmentId
       ? stationState.station
-      : (assignedStation ? String(assignedStation.id) : "all")
+      : (isKitchenStaff ? "all" : (assignedStation ? String(assignedStation.id) : "all"))
   const selectStation = (value: string) =>
     setStationState({ outletId: effectiveOutletId, departmentId, station: value })
 
   const visibleTickets = useMemo(() => {
-    if (station === "all") return tickets
+    if (station === "all") {
+      if (!isKitchenStaff) return tickets
+      const allowed = new Set(visibleStations.map((item) => item.id))
+      return tickets.filter((ticket) => ticket.departmentId !== null && allowed.has(ticket.departmentId))
+    }
     if (station === "ungrouped") return tickets.filter((ticket) => ticket.departmentId === null)
     return tickets.filter((ticket) => ticket.departmentId === Number(station))
-  }, [tickets, station])
+  }, [isKitchenStaff, tickets, station, visibleStations])
 
   const grouped = useMemo(() => {
     const buckets: Record<TicketStage, KitchenTicket[]> = { incoming: [], preparing: [], ready: [] }
@@ -342,12 +350,12 @@ export default function KitchenPage() {
               variant={station === "all" ? "default" : "ghost"}
               onClick={() => selectStation("all")}
             >
-              All stations
+              {isKitchenStaff ? "All assigned stations" : "All stations"}
               <Badge variant="outline" className="ml-1">
                 {tickets.length}
               </Badge>
             </Button>
-            {stations.map((s) => {
+            {visibleStations.map((s) => {
               const count = tickets.filter((ticket) => ticket.departmentId === s.id).length
               return (
                 <Button

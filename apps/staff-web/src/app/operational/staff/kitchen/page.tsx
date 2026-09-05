@@ -29,8 +29,8 @@ const STAGE_FILTERS: { stage: TicketStage; label: string; dot: string }[] = [
 export default function StaffKitchenPage() {
   const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
-  const isKitchenStaff = !isSuperadmin && roleSlugs.includes("cook")
-  const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
+  const isKitchenStaff = !isSuperadmin && (roleSlugs.includes("cook") || roleSlugs.includes("kitchen-helper"))
+  const { outletId: effectiveOutletId, departmentId, departments } = useActiveOutlet()
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -45,15 +45,29 @@ export default function StaffKitchenPage() {
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
-  const assignedStation = stations.find((s) => s.id === departmentId)
+  const visibleStations = isKitchenStaff
+    ? stations.filter((station) => departments.some((department) => department.id === station.id))
+    : stations
+  const assignedStation = visibleStations.find((s) => s.id === departmentId)
 
   const [stage, setStage] = useState<TicketStage>("incoming")
   const [station, setStation] = useState<string>(() => (assignedStation ? String(assignedStation.id) : "all"))
 
+  useEffect(() => {
+    if (!isKitchenStaff || visibleStations.length === 0) return
+    if (station === "all" || !visibleStations.some((item) => String(item.id) === station)) {
+      setStation(String(visibleStations[0].id))
+    }
+  }, [isKitchenStaff, station, visibleStations])
+
   const stationFiltered = useMemo(() => {
-    if (station === "all") return tickets
+    if (station === "all") {
+      if (!isKitchenStaff) return tickets
+      const allowed = new Set(visibleStations.map((item) => item.id))
+      return tickets.filter((ticket) => ticket.departmentId !== null && allowed.has(ticket.departmentId))
+    }
     return tickets.filter((ticket) => ticket.departmentId === Number(station))
-  }, [tickets, station])
+  }, [isKitchenStaff, tickets, station, visibleStations])
 
   const grouped = useMemo(() => {
     const buckets: Record<TicketStage, KitchenTicket[]> = { incoming: [], preparing: [], ready: [] }
@@ -85,12 +99,12 @@ export default function StaffKitchenPage() {
         <ListSkeleton count={6} />
       ) : (
         <>
-          {stations.length > 1 && (
+          {visibleStations.length > 1 && (
             <div className="flex flex-wrap gap-1.5">
               <Button size="sm" className="h-9" variant={station === "all" ? "default" : "ghost"} onClick={() => setStation("all")}>
-                All stations
+                {isKitchenStaff ? "All assigned stations" : "All stations"}
               </Button>
-              {stations.map((s) => (
+              {visibleStations.map((s) => (
                 <Button
                   key={s.id}
                   size="sm"
