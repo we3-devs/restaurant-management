@@ -221,8 +221,17 @@ export class ReportsService {
       .addSelect('SUM(item.quantity)', 'quantity')
       .addSelect('SUM(item.total_amount) / NULLIF(SUM(item.quantity), 0)', 'unitCost')
       .addSelect('SUM(item.total_amount)', 'totalCost')
-      .addSelect(`SUM(CASE WHEN ${creditedSql} THEN 0 ELSE item.total_amount END)`, 'paid')
-      .addSelect(`SUM(CASE WHEN ${creditedSql} THEN item.total_amount ELSE 0 END)`, 'notPaid')
+      // Allocate an order's actual paid ratio across its items. This keeps
+      // unpaid/partial orders out of Paid instead of assuming every
+      // non-credit order is fully settled.
+      .addSelect(`SUM(item.total_amount * CASE
+        WHEN order.grand_total <= 0 THEN 0
+        ELSE LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+      END)`, 'paid')
+      .addSelect(`SUM(item.total_amount * CASE
+        WHEN order.grand_total <= 0 THEN 1
+        ELSE 1 - LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+      END)`, 'notPaid')
       .from('order_items', 'item')
       .innerJoin('orders', 'order', 'order.id = item.order_id')
       .innerJoin('foods', 'food', 'food.id = item.food_id')
