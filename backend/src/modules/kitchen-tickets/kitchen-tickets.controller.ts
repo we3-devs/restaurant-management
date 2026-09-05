@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ExposeResponseFields } from '../../common/interceptors/expose-response-fields.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
@@ -58,6 +59,7 @@ export class KitchenTicketsController {
 
   @Get('bootstrap')
   @RequirePermissions('orders.view')
+  @ExposeResponseFields('createdAt')
   @ApiOperation({
     summary:
       'One-call KDS screen bootstrap: stations + open/in-progress tickets (with items) for an outlet',
