@@ -100,6 +100,10 @@ function TicketCard({
             <span className="text-xs text-muted-foreground">{orderLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
+            Order placed {new Date(ticket.order?.createdAt ?? ticket.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
+          </p>
+          <p className="hidden">
             Sent {formatTime(ticket.createdAt)}
             <span className="font-medium text-foreground/70"> · {elapsedMinutes(ticket.createdAt, now)}m</span>
             {ticket.department?.name ? ` · ${ticket.department.name}` : ""}

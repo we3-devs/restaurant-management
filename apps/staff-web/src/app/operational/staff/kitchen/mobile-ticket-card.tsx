@@ -89,8 +89,12 @@ export function MobileTicketCard({
           </div>
           <p className="text-xs text-muted-foreground">
             Order placed {new Date(orderCreatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
+          </p>
+          <p className="hidden">
+            Order placed {new Date(orderCreatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
             <span className="font-medium text-foreground/70"> Â· </span>
-            Sent {formatTime(ticket.createdAt)}
+            <span>Sent {formatTime(ticket.createdAt)}</span>
             <span className="font-medium text-foreground/70"> · {elapsedMinutes(ticket.createdAt, now)}m</span>
             {ticket.department?.name ? ` · ${ticket.department.name}` : ""}
           </p>
