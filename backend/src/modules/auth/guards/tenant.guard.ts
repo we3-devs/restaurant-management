@@ -28,6 +28,8 @@ export class TenantGuard implements CanActivate {
     const user = request.user;
     if (!user) throw new ForbiddenException('Tenant context requires authentication');
 
+    if (user.isSuperadmin) return true;
+
     const rows = await this.dataSource.query(
       `SELECT o.id
        FROM outlets o
