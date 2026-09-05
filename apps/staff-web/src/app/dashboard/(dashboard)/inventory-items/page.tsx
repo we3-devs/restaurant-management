@@ -87,7 +87,7 @@ export default function InventoryItemsPage() {
       </div>
 
       {showSkeleton ? (
-        <TableSkeleton rows={6} columns={7} />
+        <TableSkeleton rows={6} columns={8} />
       ) : (
         <Table>
           <TableHeader>
@@ -97,6 +97,7 @@ export default function InventoryItemsPage() {
               <TableHead>Category</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Location</TableHead>
+              <TableHead className="text-right">Available</TableHead>
               <TableHead className="text-right">Avg. cost</TableHead>
               <TableHead className="text-right">Total cost</TableHead>
             </TableRow>
@@ -104,7 +105,7 @@ export default function InventoryItemsPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   {warehouses?.data.length ? "No inventory items in this location." : "No warehouses found."}
                 </TableCell>
               </TableRow>
@@ -122,6 +123,9 @@ export default function InventoryItemsPage() {
                   <TableCell>{ingredient.category.name}</TableCell>
                   <TableCell>{unit?.shortName ?? unit?.name ?? "—"}</TableCell>
                   <TableCell>{location?.name ?? `Warehouse #${stock.warehouseId}`}</TableCell>
+                  <TableCell className="text-right">
+                    {Math.max(0, stock.quantity - stock.reservedQuantity)}
+                  </TableCell>
                   <TableCell className="text-right">{money(stock.averageCost)}</TableCell>
                   <TableCell className="text-right">{money(stock.stockValue)}</TableCell>
                 </TableRow>

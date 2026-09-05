@@ -8,6 +8,7 @@ export interface WarehouseIngredientStock {
   warehouseId: number
   ingredientId: number
   quantity: number
+  reservedQuantity: number
   averageCost: number
   stockValue: number
 }
