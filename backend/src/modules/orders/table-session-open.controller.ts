@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { OpenTableSessionDto } from '../table-sessions/dto/open-table-session.dto';
 import { User } from '../users/entities/user.entity';
 import { OrdersService } from './orders.service';
@@ -18,7 +19,10 @@ import { OrdersService } from './orders.service';
 @ApiBearerAuth()
 @Controller('table-sessions')
 export class TableSessionOpenController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly outletAccess: OutletAccessService,
+  ) {}
 
   @Post('open')
   @HttpCode(HttpStatus.CREATED)
@@ -27,7 +31,12 @@ export class TableSessionOpenController {
     summary:
       'Opens a table session and creates its first order atomically in one transaction, returning both — replaces the old create-session-then-create-order two-request flow so the client never renders an intermediate "no order yet" state.',
   })
-  open(@Body() dto: OpenTableSessionDto, @CurrentUser() user: User) {
+  async open(@Body() dto: OpenTableSessionDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      dto.outletId,
+    );
     return this.ordersService.openTableWithOrder(dto, user.id);
   }
 }
