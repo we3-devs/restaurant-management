@@ -63,12 +63,12 @@ export class AuthService {
     if (tenantSlug) {
       userQuery
         .leftJoin(
-          'outlets',
-          'login_outlet',
-          'login_outlet.tenant_id = user.tenant_id AND LOWER(login_outlet.slug) = LOWER(:tenantSlug)',
+          'tenants',
+          'login_tenant',
+          'login_tenant.id = user.tenant_id AND LOWER(login_tenant.slug) = LOWER(:tenantSlug) AND login_tenant.is_active = true',
           { tenantSlug },
         )
-        .andWhere('(user.is_superadmin = true OR login_outlet.id IS NOT NULL)');
+        .andWhere('(user.is_superadmin = true OR login_tenant.id IS NOT NULL)');
     }
 
     const user = await userQuery.getOne();
