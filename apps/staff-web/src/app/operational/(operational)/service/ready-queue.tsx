@@ -8,7 +8,7 @@ import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Card } from "@rms/ui/card"
 import { ListSkeleton } from "@rms/ui/skeletons"
-import { useMarkOrderReadyItemServed } from "@rms/api-client/hooks/use-orders"
+import { useMarkOrderReadyItemServed, useMarkOrderReadyItemsServed } from "@rms/api-client/hooks/use-orders"
 import { useReadyQueueGroups, type ReadyGroup } from "@/features/waiter/use-ready-queue"
 import { elapsedMinutes } from "@rms/api-client/kitchen/ticket-stage"
 
@@ -47,6 +47,7 @@ function ReadyGroupCard({
   outletId: number
 }) {
   const markServed = useMarkOrderReadyItemServed(group.orderId, outletId)
+  const markAllServed = useMarkOrderReadyItemsServed(group.orderId, outletId)
   const [confirming, setConfirming] = useState<number | null>(null)
 
   async function handleDeliver(itemId: number) {
@@ -56,6 +57,16 @@ function ReadyGroupCard({
       toast.success("Item delivered")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to mark delivered")
+    }
+  }
+
+  async function handleDeliverAll() {
+    try {
+      await markAllServed.mutateAsync()
+      setConfirming(null)
+      toast.success("All ready items delivered")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to mark all items delivered")
     }
   }
 
@@ -71,6 +82,14 @@ function ReadyGroupCard({
             Ready {elapsedMinutes(group.earliestReadyAt, now)}m ago
           </p>
         </div>
+        <Button
+          size="sm"
+          disabled={markAllServed.isPending || markServed.isPending}
+          onClick={handleDeliverAll}
+        >
+          <PackageCheckIcon />
+          {markAllServed.isPending ? "Delivering..." : "Deliver all"}
+        </Button>
       </div>
 
       <ul className="space-y-1">
