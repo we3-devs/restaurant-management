@@ -8,7 +8,7 @@ import {
   Salad,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
+  // Sparkles,
   Truck,
 } from "lucide-react"
 import { hasRoutePermission } from "@rms/auth/route-access"
@@ -55,8 +55,8 @@ export const navGroupDefs: NavGroupDef[] = [
       // The route keeps its old path so existing links and bookmarks still work;
       // only the label reflects that these rows are food items now.
       { href: "/dashboard/food-variants", label: "Food Items", permission: "food-variants.view" },
-      { href: "/dashboard/addon-groups", label: "Addon Groups", permission: "addon-groups.view" },
-      { href: "/dashboard/addons", label: "Addons", permission: "addons.view" },
+      // { href: "/dashboard/addon-groups", label: "Addon Groups", permission: "addon-groups.view" },
+      // { href: "/dashboard/addons", label: "Addons", permission: "addons.view" },
     ],
   },
   {
@@ -66,6 +66,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/units", label: "Units", permission: "units.view" },
       { href: "/dashboard/ingredient-categories", label: "Ingredient Categories", permission: "ingredient-categories.view" },
       { href: "/dashboard/ingredients", label: "Ingredients", permission: "ingredients.view" },
+      { href: "/dashboard/inventory-items", label: "Inventory Items", permission: "ingredients.view" },
       { href: "/dashboard/stock-ins", label: "Stock-Ins", permission: "stock-ins.view" },
       { href: "/dashboard/stock-outs", label: "Stock-Outs", permission: "stock-outs.view" },
       { href: "/dashboard/stock-transfers", label: "Stock Transfers", permission: "stock-transfers.view" },
@@ -96,11 +97,11 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/staff-dashboard", label: "Staff Dashboard", permission: "employees.view" },
     ],
   },
-  {
-    label: "Loyalty",
-    icon: Sparkles,
-    links: [{ href: "/dashboard/loyalty", label: "Loyalty", permission: "loyalty.view" }],
-  },
+  // {
+  //   label: "Loyalty",
+  //   icon: Sparkles,
+  //   links: [{ href: "/dashboard/loyalty", label: "Loyalty", permission: "loyalty.view" }],
+  // },
   {
     label: "Organization",
     icon: Building2,

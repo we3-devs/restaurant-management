@@ -18,16 +18,42 @@ async function readJson<T>(response: Response): Promise<T | null> {
   }
 }
 
+let staffRefreshInFlight: Promise<boolean> | null = null
+
+async function refreshStaffSession(): Promise<boolean> {
+  if (staffRefreshInFlight) return staffRefreshInFlight
+  staffRefreshInFlight = fetch("/api/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+    cache: "no-store",
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      staffRefreshInFlight = null
+    })
+  return staffRefreshInFlight
+}
+
 /**
  * Browser-side fetch wrapper. Always hits the same-origin proxy at
  * /api/backend/*, never the NestJS origin directly — the proxy attaches the
  * token server-side, so no token or CORS handling is needed here.
  */
 export async function apiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api/backend${path}`, {
+  const request = () => fetch(`/api/backend${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init.headers },
   })
+  let response = await request()
+
+  // The proxy normally refreshes server-side. This fallback covers an
+  // already-returned 401 and collapses simultaneous expired requests into a
+  // single refresh/rotation before replaying the original request once.
+  if (response.status === 401 && await refreshStaffSession()) {
+    response = await request()
+  }
 
   if (!response.ok) {
     const body = await readJson<{ message?: string }>(response)
