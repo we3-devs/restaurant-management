@@ -12,6 +12,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { OrdersService } from '../orders/orders.service';
+import { PermissionsService } from '../auth/permissions.service';
+import { User } from '../users/entities/user.entity';
 import {
   KdsBootstrapResponseDto,
   KitchenTicketItemResponseDto,
@@ -70,6 +72,7 @@ export class KitchenTicketsService {
     private readonly dataSource: DataSource,
     private readonly gateway: KitchenTicketsGateway,
     private readonly notificationsService: NotificationsService,
+    private readonly permissionsService: PermissionsService,
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
   ) {}
@@ -126,14 +129,39 @@ export class KitchenTicketsService {
   }
 
   /** KDS screen bootstrap: stations for the outlet + its open/in-progress tickets, fully hydrated for display. */
-  async getKdsBootstrap(outletId: number): Promise<KdsBootstrapResponseDto> {
+  async getKdsBootstrap(
+    outletId: number,
+    user: User,
+  ): Promise<KdsBootstrapResponseDto> {
+    const restrictToAssignedDepartments =
+      !user.isSuperadmin && (await this.permissionsService.isKitchenStaff(user.id));
+    const assignedDepartmentIds = restrictToAssignedDepartments
+      ? await this.permissionsService.getEmployeeDepartmentIds(user.id, outletId)
+      : null;
+
+    // Kitchen staff must be isolated at the API boundary. The frontend also
+    // filters its tabs for UX, but it must not be the security boundary.
     const [stations, tickets] = await Promise.all([
-      this.departmentsRepository.find({
-        where: { outletId, canPrepareOrder: true },
-        order: { name: 'ASC' },
-      }),
+      assignedDepartmentIds !== null && assignedDepartmentIds.length === 0
+        ? Promise.resolve([])
+        : this.departmentsRepository.find({
+            where: {
+              outletId,
+              canPrepareOrder: true,
+              ...(assignedDepartmentIds !== null
+                ? { id: In(assignedDepartmentIds) }
+                : {}),
+            },
+            order: { name: 'ASC' },
+          }),
       this.ticketsRepository.find({
-        where: { outletId, status: In(['open', 'in_progress']) },
+        where: {
+          outletId,
+          status: In(['open', 'in_progress']),
+          ...(assignedDepartmentIds !== null
+            ? { departmentId: In(assignedDepartmentIds) }
+            : {}),
+        },
         relations: TICKET_DISPLAY_RELATIONS,
         order: { priority: 'DESC', createdAt: 'ASC' },
       }),

@@ -55,7 +55,10 @@ export default function StaffKitchenPage() {
 
   useEffect(() => {
     if (!isKitchenStaff || visibleStations.length === 0) return
-    if (station === "all" || !visibleStations.some((item) => String(item.id) === station)) {
+    // "all" means all stations assigned to this kitchen user. Only repair a
+    // stale specific station selection; do not replace the combined view with
+    // the first station after the bootstrap request finishes.
+    if (station !== "all" && !visibleStations.some((item) => String(item.id) === station)) {
       setStation(String(visibleStations[0].id))
     }
   }, [isKitchenStaff, station, visibleStations])

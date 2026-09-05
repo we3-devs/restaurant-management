@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { KdsBootstrapQueryDto } from './dto/kds-bootstrap-query.dto';
 import { ListKitchenTicketsQueryDto } from './dto/list-kitchen-tickets-query.dto';
 import { UpdateKitchenTicketItemStatusDto } from './dto/update-kitchen-ticket-item-status.dto';
@@ -35,8 +37,11 @@ export class KitchenTicketsController {
     summary:
       'One-call KDS screen bootstrap: stations + open/in-progress tickets (with items) for an outlet',
   })
-  getBootstrap(@Query() query: KdsBootstrapQueryDto) {
-    return this.kitchenTicketsService.getKdsBootstrap(query.outletId);
+  getBootstrap(
+    @Query() query: KdsBootstrapQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.kitchenTicketsService.getKdsBootstrap(query.outletId, user);
   }
 
   @Get()

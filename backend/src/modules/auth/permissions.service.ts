@@ -216,7 +216,17 @@ export class PermissionsService {
        LEFT JOIN positions p ON p.id = e.position_id
        WHERE e.user_id = $1
          AND e.is_active = true
-         AND LOWER(COALESCE(p.slug, '')) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff')
+         AND (
+           LOWER(COALESCE(p.slug, '')) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff', 'dishwasher')
+           OR EXISTS (
+             SELECT 1
+             FROM user_role_assignments kitchen_ura
+             INNER JOIN roles kitchen_role ON kitchen_role.id = kitchen_ura.role_id
+             WHERE kitchen_ura.user_id = e.user_id
+               AND kitchen_ura.is_active = true
+               AND LOWER(kitchen_role.slug) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff')
+           )
+         )
        LIMIT 1`,
       [userId],
     );
