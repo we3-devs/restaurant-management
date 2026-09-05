@@ -79,17 +79,24 @@ export class KitchenTicketsService {
 
   async findAll(
     query: ListKitchenTicketsQueryDto,
+    accessibleOutletIds: number[] | 'ALL' = 'ALL',
+    assignedDepartmentIds: number[] | null = null,
   ): Promise<PaginatedResponse<KitchenTicketResponseDto>> {
     const { page, limit, outletId, orderId, departmentId, status } = query;
     const where: FindOptionsWhere<KitchenTicket> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
+    } else if (accessibleOutletIds !== 'ALL') {
+      where.outletId = In(accessibleOutletIds);
     }
     if (orderId !== undefined) {
       where.orderId = orderId;
     }
     if (departmentId !== undefined) {
       where.departmentId = departmentId;
+    }
+    if (assignedDepartmentIds !== null) {
+      where.departmentId = In(assignedDepartmentIds);
     }
     if (status !== undefined) {
       where.status = status;

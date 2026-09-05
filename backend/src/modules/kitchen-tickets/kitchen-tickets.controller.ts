@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -11,6 +12,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
+import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import { KdsBootstrapQueryDto } from './dto/kds-bootstrap-query.dto';
 import { ListKitchenTicketsQueryDto } from './dto/list-kitchen-tickets-query.dto';
@@ -29,7 +32,29 @@ import { KitchenTicketsService } from './kitchen-tickets.service';
 @ApiBearerAuth()
 @Controller('kitchen-tickets')
 export class KitchenTicketsController {
-  constructor(private readonly kitchenTicketsService: KitchenTicketsService) {}
+  constructor(
+    private readonly kitchenTicketsService: KitchenTicketsService,
+    private readonly outletAccess: OutletAccessService,
+    private readonly permissionsService: PermissionsService,
+  ) {}
+
+  private async assertTicketAccess(id: number, user: User): Promise<void> {
+    const ticket = await this.kitchenTicketsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(
+      user.id,
+      user.isSuperadmin,
+      ticket.outletId,
+    );
+    if (!user.isSuperadmin && (await this.permissionsService.isKitchenStaff(user.id))) {
+      const departments = await this.permissionsService.getEmployeeDepartmentIds(
+        user.id,
+        ticket.outletId,
+      );
+      if (ticket.departmentId === null || !departments.includes(ticket.departmentId)) {
+        throw new ForbiddenException('You do not have access to this kitchen department');
+      }
+    }
+  }
 
   @Get('bootstrap')
   @RequirePermissions('orders.view')
@@ -50,21 +75,43 @@ export class KitchenTicketsController {
     summary:
       'Lists kitchen tickets (paginated, optional outletId/orderId/departmentId/status filters)',
   })
-  findAll(@Query() query: ListKitchenTicketsQueryDto) {
-    return this.kitchenTicketsService.findAll(query);
+  async findAll(
+    @Query() query: ListKitchenTicketsQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(
+      user.id,
+      user.isSuperadmin,
+    );
+    if (query.outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(
+        user.id,
+        user.isSuperadmin,
+        query.outletId,
+      );
+    }
+    const assignedDepartments =
+      !user.isSuperadmin && (await this.permissionsService.isKitchenStaff(user.id))
+        ? query.outletId === undefined
+          ? []
+          : await this.permissionsService.getEmployeeDepartmentIds(user.id, query.outletId)
+        : null;
+    return this.kitchenTicketsService.findAll(query, accessible, assignedDepartments);
   }
 
   @Get(':id')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Gets a kitchen ticket' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     return this.kitchenTicketsService.findOneResponse(id);
   }
 
   @Get(':id/items')
   @RequirePermissions('orders.view')
   @ApiOperation({ summary: 'Lists the order items on a kitchen ticket' })
-  listItems(@Param('id', ParseIntPipe) id: number) {
+  async listItems(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     return this.kitchenTicketsService.listItems(id);
   }
 
@@ -78,7 +125,9 @@ export class KitchenTicketsController {
     @Param('id', ParseIntPipe) id: number,
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() dto: UpdateKitchenTicketItemStatusDto,
+    @CurrentUser() user: User,
   ) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.updateItemStatus(id, itemId, dto.status);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -89,7 +138,9 @@ export class KitchenTicketsController {
   async updatePriority(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateKitchenTicketPriorityDto,
+    @CurrentUser() user: User,
   ) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.updatePriority(id, dto.priority);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -100,7 +151,8 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Start': bulk-moves every sent_to_kitchen item to preparing",
   })
-  async startTicket(@Param('id', ParseIntPipe) id: number) {
+  async startTicket(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.startTicket(id);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -111,7 +163,8 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Mark Ready': bulk-moves every sent/preparing item to ready",
   })
-  async markTicketReady(@Param('id', ParseIntPipe) id: number) {
+  async markTicketReady(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.markTicketReady(id);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -122,7 +175,8 @@ export class KitchenTicketsController {
     summary:
       "Ticket-level 'Mark Served': bulk-moves every ready item to served",
   })
-  async markTicketServed(@Param('id', ParseIntPipe) id: number) {
+  async markTicketServed(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.markTicketServed(id);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -130,7 +184,8 @@ export class KitchenTicketsController {
   @Post(':id/cancel')
   @RequirePermissions('kitchen-tickets.manage')
   @ApiOperation({ summary: 'Cancels a kitchen ticket and its open items' })
-  async cancelTicket(@Param('id', ParseIntPipe) id: number) {
+  async cancelTicket(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.cancelTicket(id);
     return this.kitchenTicketsService.toResponse(ticket);
   }
@@ -143,7 +198,9 @@ export class KitchenTicketsController {
   async recallItem(
     @Param('id', ParseIntPipe) id: number,
     @Param('itemId', ParseIntPipe) itemId: number,
+    @CurrentUser() user: User,
   ) {
+    await this.assertTicketAccess(id, user);
     const ticket = await this.kitchenTicketsService.recallItem(id, itemId);
     return this.kitchenTicketsService.toResponse(ticket);
   }
