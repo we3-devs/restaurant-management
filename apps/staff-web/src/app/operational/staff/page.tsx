@@ -9,6 +9,7 @@ import { useCurrentUser } from "@rms/auth/current-user-context"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useDiningTables } from "@rms/api-client/hooks/use-dining-tables"
 import { useKdsBootstrap } from "@rms/api-client/hooks/use-kitchen-tickets"
+import { ticketStage } from "@rms/api-client/kitchen/ticket-stage"
 import { STAFF_NAV_ITEMS, canSeeStaffNavItem } from "./nav-items"
 
 /** Landing page — renders a tile per module the signed-in user's permissions actually unlock, instead of guessing one to redirect into. */
@@ -33,7 +34,10 @@ export default function StaffLandingPage() {
 
   const stats = [
     canSeeTables && { label: "Occupied tables", value: occupiedTables?.meta.total },
-    canSeeKitchen && { label: "Pending tickets", value: kds.data?.tickets.length },
+    canSeeKitchen && {
+      label: "Pending tickets",
+      value: kds.data?.tickets.filter((ticket) => ticketStage(ticket) !== "ready").length,
+    },
   ].filter((stat): stat is { label: string; value: number | undefined } => !!stat)
 
   return (

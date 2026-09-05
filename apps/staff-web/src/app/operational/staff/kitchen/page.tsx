@@ -30,7 +30,7 @@ export default function StaffKitchenPage() {
   const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
   const isKitchenStaff = !isSuperadmin && (roleSlugs.includes("cook") || roleSlugs.includes("kitchen-helper"))
-  const { outletId: effectiveOutletId, departmentId, departments } = useActiveOutlet()
+  const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -45,9 +45,10 @@ export default function StaffKitchenPage() {
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
-  const visibleStations = isKitchenStaff
-    ? stations.filter((station) => departments.some((department) => department.id === station.id))
-    : stations
+  // The bootstrap API already returns the caller's authorized stations. Do
+  // not apply a second client-side department-context filter here; a stale or
+  // still-loading outlet context must not hide a valid kitchen ticket.
+  const visibleStations = stations
   const assignedStation = visibleStations.find((s) => s.id === departmentId)
 
   const [stage, setStage] = useState<TicketStage>("incoming")
@@ -65,9 +66,7 @@ export default function StaffKitchenPage() {
 
   const stationFiltered = useMemo(() => {
     if (station === "all") {
-      if (!isKitchenStaff) return tickets
-      const allowed = new Set(visibleStations.map((item) => item.id))
-      return tickets.filter((ticket) => ticket.departmentId !== null && allowed.has(ticket.departmentId))
+      return tickets
     }
     return tickets.filter((ticket) => ticket.departmentId === Number(station))
   }, [isKitchenStaff, tickets, station, visibleStations])

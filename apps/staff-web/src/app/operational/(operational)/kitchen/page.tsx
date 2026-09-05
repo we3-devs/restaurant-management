@@ -252,7 +252,7 @@ export default function KitchenPage() {
   const { permissions, isSuperadmin, roleSlugs } = useCurrentUser()
   const canManage = isSuperadmin || permissions.includes("kitchen-tickets.manage")
 
-  const { outletId: effectiveOutletId, departmentId, departments } = useActiveOutlet()
+  const { outletId: effectiveOutletId, departmentId } = useActiveOutlet()
   const isKitchenStaff = !isSuperadmin && (roleSlugs.includes("cook") || roleSlugs.includes("kitchen-helper"))
 
   // Live clock driving the "…m ago" timers so they tick without a refetch.
@@ -268,9 +268,8 @@ export default function KitchenPage() {
 
   const tickets = useMemo(() => data?.tickets ?? [], [data])
   const stations = data?.stations ?? []
-  const visibleStations = isKitchenStaff
-    ? stations.filter((station) => departments.some((department) => department.id === station.id))
-    : stations
+  // The bootstrap API already returns the caller's authorized stations.
+  const visibleStations = stations
   const hasUngrouped = tickets.some((ticket) => ticket.departmentId === null)
 
   // Filter to one station so each department only sees its own queue. Both
@@ -300,9 +299,7 @@ export default function KitchenPage() {
 
   const visibleTickets = useMemo(() => {
     if (station === "all") {
-      if (!isKitchenStaff) return tickets
-      const allowed = new Set(visibleStations.map((item) => item.id))
-      return tickets.filter((ticket) => ticket.departmentId !== null && allowed.has(ticket.departmentId))
+      return tickets
     }
     if (station === "ungrouped") return tickets.filter((ticket) => ticket.departmentId === null)
     return tickets.filter((ticket) => ticket.departmentId === Number(station))
