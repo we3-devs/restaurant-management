@@ -25,9 +25,11 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useDeleteOutlet, useOutlet, useUpdateOutlet } from "@/hooks/use-outlets"
 import { updateOutletSchema, type UpdateOutletInput } from "@/lib/validators/outlets"
 import { usePageTitle } from "@rms/ui/use-page-title"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
 
 export function OutletDetail({ outletId }: { outletId: number }) {
   const router = useRouter()
+  const user = useCurrentUser()
   const { data: outlet, isLoading } = useOutlet(outletId)
   const showSkeleton = useDelayedLoading(isLoading)
   const updateOutlet = useUpdateOutlet(outletId)
@@ -74,7 +76,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">{outlet.name}</h1>
-        <AlertDialog>
+        {user.isSuperadmin && <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -91,7 +93,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
+        </AlertDialog>}
       </div>
 
       <Card>
@@ -99,7 +101,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
           <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
+          {user.isSuperadmin ? <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
@@ -116,7 +118,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
                 {updateOutlet.isPending ? "Saving..." : "Save changes"}
               </Button>
             </form>
-          </Form>
+          </Form> : <p className="text-sm text-muted-foreground">Only an admin can edit this outlet.</p>}
         </CardContent>
       </Card>
     </div>

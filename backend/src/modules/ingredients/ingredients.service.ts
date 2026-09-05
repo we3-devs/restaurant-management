@@ -111,6 +111,8 @@ export class IngredientsService {
       name: dto.name,
       slug: dto.slug,
       code: dto.code,
+      buyingPrice: dto.buyingPrice ?? 0,
+      sellingPrice: dto.sellingPrice ?? 0,
       barcode: dto.barcode ?? null,
       image: dto.image ?? null,
       baseUnitId: dto.baseUnitId,
@@ -163,6 +165,8 @@ export class IngredientsService {
     Object.assign(ingredient, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.code !== undefined && { code: dto.code }),
+      ...(dto.buyingPrice !== undefined && { buyingPrice: dto.buyingPrice }),
+      ...(dto.sellingPrice !== undefined && { sellingPrice: dto.sellingPrice }),
       ...(dto.barcode !== undefined && { barcode: dto.barcode }),
       ...(dto.image !== undefined && { image: dto.image }),
       ...(dto.minimumStock !== undefined && { minimumStock: dto.minimumStock }),

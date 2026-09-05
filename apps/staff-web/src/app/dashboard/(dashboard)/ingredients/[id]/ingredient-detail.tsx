@@ -45,7 +45,7 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
 
   const form = useForm<UpdateIngredientInput>({
     resolver: zodResolver(updateIngredientSchema),
-    defaultValues: { ingredientCategoryId: 0, name: "", code: "", isActive: true },
+    defaultValues: { ingredientCategoryId: 0, name: "", code: "", sellingPrice: 0, isActive: true },
   })
 
   useEffect(() => {
@@ -54,6 +54,7 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
         ingredientCategoryId: ingredient.ingredientCategoryId,
         name: ingredient.name,
         code: ingredient.code,
+        sellingPrice: ingredient.sellingPrice,
         isActive: ingredient.isActive,
       })
     }
@@ -155,6 +156,17 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
                   <FormItem>
                     <FormLabel>Code</FormLabel>
                     <FormControl {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sellingPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Selling price</FormLabel>
+                    <FormControl type="number" min="0" step="0.01" {...field} onChange={(event) => field.onChange(Number(event.target.value))} />
                     <FormMessage />
                   </FormItem>
                 )}

@@ -60,6 +60,26 @@ export class Ingredient {
   @Column({ type: 'varchar', length: 80 })
   code: string;
 
+  @Column({
+    name: 'buying_price',
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    default: 0,
+    transformer: new NumericTransformer(),
+  })
+  buyingPrice: number;
+
+  @Column({
+    name: 'selling_price',
+    type: 'decimal',
+    precision: 18,
+    scale: 4,
+    default: 0,
+    transformer: new NumericTransformer(),
+  })
+  sellingPrice: number;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   barcode: string | null;
 

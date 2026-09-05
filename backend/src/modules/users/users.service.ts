@@ -36,9 +36,14 @@ export class UsersService {
   ): Promise<PaginatedResponse<UserResponseDto>> {
     const { page, limit, search } = query;
     const [users, total] = await this.usersRepository.findAndCount({
+      // Superadmin accounts are control-plane accounts and must not appear in
+      // the ordinary staff user directory.
       where: search
-        ? [{ name: ILike(`%${search}%`) }, { email: ILike(`%${search}%`) }]
-        : {},
+        ? [
+            { isSuperadmin: false, name: ILike(`%${search}%`) },
+            { isSuperadmin: false, email: ILike(`%${search}%`) },
+          ]
+        : { isSuperadmin: false },
       order: { name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,

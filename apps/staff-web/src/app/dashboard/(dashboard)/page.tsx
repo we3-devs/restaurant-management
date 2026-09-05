@@ -80,7 +80,7 @@ export default function DashboardPage() {
           <p className="max-w-sm text-sm text-muted-foreground">
             Create your first outlet to start taking orders, managing tables, and tracking inventory.
           </p>
-          <CreateOutletDialog />
+          {user.isSuperadmin && <CreateOutletDialog />}
         </div>
       ) : (
         <DashboardStatsProvider outletId={outletId} enabled={dataEnabled && canViewDashboardStats}>

@@ -13,6 +13,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   useAddIngredientWastageItem,
@@ -28,6 +29,10 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: items } = useIngredientWastageItems(wastageId)
   const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
+  const { data: sourceStocks } = useWarehouseIngredientStocks({
+    warehouseId: wastage?.warehouseId,
+    limit: 100,
+  })
   const addItem = useAddIngredientWastageItem(wastageId)
   const removeItem = useRemoveIngredientWastageItem(wastageId)
   const approve = useApproveIngredientWastage(wastageId)
@@ -105,8 +110,8 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
               <TableRow>
                 <TableHead>Ingredient</TableHead>
                 <TableHead>Quantity</TableHead>
-                <TableHead>Unit cost</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead>{isDraft ? "Unit cost (estimated)" : "Unit cost"}</TableHead>
+                <TableHead>{isDraft ? "Total (estimated)" : "Total"}</TableHead>
                 {isDraft && <TableHead />}
               </TableRow>
             </TableHeader>
@@ -115,8 +120,8 @@ export function IngredientWastageDetail({ wastageId }: { wastageId: number }) {
                 <TableRow key={item.id}>
                   <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{item.unitCost}</TableCell>
-                  <TableCell>{item.totalCost}</TableCell>
+                  <TableCell>{item.unitCost || sourceStocks?.data.find((stock) => stock.ingredientId === item.ingredientId)?.averageCost || 0}</TableCell>
+                  <TableCell>{item.totalCost || item.quantity * (sourceStocks?.data.find((stock) => stock.ingredientId === item.ingredientId)?.averageCost || 0)}</TableCell>
                   {isDraft && (
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => removeItem.mutate(item.id)}>

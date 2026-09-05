@@ -18,6 +18,7 @@ export interface Food {
   foodType: string | null
   itemType: string
   departmentType: string | null
+  inventoryIngredientId: number | null
   basePrice: number
   hasVariants: boolean
   hasAddons: boolean
@@ -29,6 +30,8 @@ export interface Food {
   sortOrder: number
   createdAt: string
   updatedAt: string
+  /** Derived from active recipes and available (unreserved) stock. */
+  inventoryAvailable?: boolean
 }
 
 export interface FoodOutlet {

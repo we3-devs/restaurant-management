@@ -20,6 +20,7 @@ export function EditInventoryItemDialog({ ingredient }: { ingredient: Ingredient
       ingredientCategoryId: ingredient.ingredientCategoryId,
       name: ingredient.name,
       code: ingredient.code,
+      sellingPrice: ingredient.sellingPrice,
       isActive: ingredient.isActive,
     },
   })
@@ -29,6 +30,7 @@ export function EditInventoryItemDialog({ ingredient }: { ingredient: Ingredient
       ingredientCategoryId: ingredient.ingredientCategoryId,
       name: ingredient.name,
       code: ingredient.code,
+      sellingPrice: ingredient.sellingPrice,
       isActive: ingredient.isActive,
     })
   }, [ingredient, form])
@@ -70,6 +72,17 @@ export function EditInventoryItemDialog({ ingredient }: { ingredient: Ingredient
                 <FormItem>
                   <FormLabel>Item code</FormLabel>
                   <FormControl {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sellingPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Selling price</FormLabel>
+                  <FormControl type="number" min="0" step="0.01" {...field} onChange={(event) => field.onChange(Number(event.target.value))} />
                   <FormMessage />
                 </FormItem>
               )}

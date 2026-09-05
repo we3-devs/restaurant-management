@@ -22,6 +22,7 @@ interface ResolvedQuery {
   from: Date;
   to: Date;
   search?: string;
+  credited?: boolean;
   sortDir: 'ASC' | 'DESC';
   page: number;
   limit: number;
@@ -54,6 +55,7 @@ export class ReportsService {
       from,
       to,
       search: query.search,
+      credited: query.credited,
       sortDir: query.sortDir === 'ASC' ? 'ASC' : 'DESC',
       page: forExport ? 1 : query.page,
       limit: forExport ? EXPORT_ROW_CAP : query.limit,
@@ -102,6 +104,8 @@ export class ReportsService {
     switch (type) {
       case 'sales':
         return this.salesReport(resolved);
+      case 'sales-items':
+        return this.salesItemsReport(resolved);
       case 'orders':
         return this.ordersReport(resolved);
       case 'inventory':
@@ -203,6 +207,34 @@ export class ReportsService {
         search: `%${resolved.search}%`,
       });
     }
+    const { data, total } = await this.paginateRaw(qb, resolved);
+    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+  }
+
+  private async salesItemsReport(
+    resolved: ResolvedQuery,
+  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const creditedSql = `EXISTS (SELECT 1 FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .addSelect("COALESCE(food_variant.name, food.name)", 'itemName')
+      .addSelect('SUM(item.quantity)', 'quantity')
+      .addSelect('SUM(item.total_amount) / NULLIF(SUM(item.quantity), 0)', 'unitCost')
+      .addSelect('SUM(item.total_amount)', 'totalCost')
+      .addSelect(`SUM(CASE WHEN ${creditedSql} THEN 0 ELSE item.total_amount END)`, 'paid')
+      .addSelect(`SUM(CASE WHEN ${creditedSql} THEN item.total_amount ELSE 0 END)`, 'notPaid')
+      .from('order_items', 'item')
+      .innerJoin('orders', 'order', 'order.id = item.order_id')
+      .innerJoin('foods', 'food', 'food.id = item.food_id')
+      .leftJoin('food_variants', 'food_variant', 'food_variant.id = item.food_variant_id')
+      .where("order.status != 'cancelled'")
+      .andWhere("item.status != 'cancelled'")
+      .andWhere('order.created_at BETWEEN :from AND :to', { from: resolved.from, to: resolved.to })
+      .groupBy("COALESCE(food_variant.name, food.name)")
+      .orderBy('"totalCost"', resolved.sortDir);
+    if (resolved.outletIds !== undefined) qb.andWhere('order.outlet_id IN (:...outletIds)', { outletIds: resolved.outletIds });
+    if (resolved.search) qb.andWhere('(order.order_number ILIKE :search OR food.name ILIKE :search)', { search: `%${resolved.search}%` });
+    if (resolved.credited !== undefined) qb.andWhere(`${creditedSql} = :credited`, { credited: resolved.credited });
     const { data, total } = await this.paginateRaw(qb, resolved);
     return { data, meta: this.meta(resolved.page, resolved.limit, total) };
   }

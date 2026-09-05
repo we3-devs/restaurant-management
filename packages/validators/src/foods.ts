@@ -33,6 +33,7 @@ export const createFoodSchema = z.object({
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
   departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).optional(),
+  inventoryIngredientId: z.number().int().positive().nullable().optional(),
   basePrice: z.number().min(0),
 })
 
@@ -49,6 +50,7 @@ export const updateFoodSchema = z.object({
   foodType: z.enum(FOOD_TYPES).optional(),
   itemType: z.enum(FOOD_ITEM_TYPES),
   departmentType: z.enum(OUTLET_DEPARTMENT_TYPES).nullable().optional(),
+  inventoryIngredientId: z.number().int().positive().nullable().optional(),
   basePrice: z.number().min(0),
   isTaxable: z.boolean(),
   isDiscountable: z.boolean(),

@@ -14,9 +14,9 @@ export class GoodsReceivingItem {
   @ManyToOne(() => GoodsReceiving, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'goods_receiving_id' })
   goodsReceiving: GoodsReceiving;
-  @Column({ name: 'purchase_order_item_id', type: 'bigint', transformer: new BigIntTransformer() })
-  purchaseOrderItemId: number;
-  @ManyToOne(() => PurchaseOrderItem, { onDelete: 'RESTRICT' })
+  @Column({ name: 'purchase_order_item_id', type: 'bigint', transformer: new BigIntTransformer(), nullable: true })
+  purchaseOrderItemId: number | null;
+  @ManyToOne(() => PurchaseOrderItem, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'purchase_order_item_id' })
   purchaseOrderItem: PurchaseOrderItem;
   @Column({ name: 'ingredient_id', type: 'bigint', transformer: new BigIntTransformer() })

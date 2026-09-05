@@ -22,6 +22,7 @@ const REPORT_TYPE_GROUPS: { group: string; tabs: { value: ReportType; label: str
     group: "Sales & Service",
     tabs: [
       { value: "sales", label: "Sales" },
+      { value: "sales-items", label: "Sales Items" },
       { value: "orders", label: "Orders" },
       { value: "payments", label: "Payments" },
       { value: "kitchen-performance", label: "Kitchen Performance" },
@@ -83,6 +84,7 @@ const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T/
 /** What each report's `search` param actually filters by — shown as the search box placeholder so the field isn't a mystery. */
 const SEARCH_PLACEHOLDER: Record<ReportType, string> = {
   sales: "Search order #...",
+  "sales-items": "Search order or item...",
   orders: "Search order #...",
   inventory: "Search ingredient...",
   "stock-movements": "Search document #...",
@@ -138,8 +140,9 @@ export default function ReportsPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState<string | null>(null)
+  const [creditedFilter, setCreditedFilter] = useState("all")
 
-  const params = { outletId, ...range, search: search || undefined, page, limit: PAGE_SIZE }
+  const params = { outletId, ...range, search: search || undefined, credited: reportType === "sales-items" && creditedFilter !== "all" ? creditedFilter === "credited" : undefined, page, limit: PAGE_SIZE }
   const { data, isLoading, isPlaceholderData } = useReport(reportType, params)
   const showSkeleton = useDelayedLoading(isLoading)
 
@@ -210,6 +213,7 @@ export default function ReportsPage() {
             placeholder={SEARCH_PLACEHOLDER[reportType]}
           />
         </div>
+        {reportType === "sales-items" && <div className="w-44 space-y-1.5"><label className="text-sm font-medium">Credit status</label><Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited items</SelectItem><SelectItem value="uncredited">Non-credited items</SelectItem></SelectContent></Select></div>}
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}>
             <DownloadIcon /> {exporting === "csv" ? "Exporting..." : "CSV"}

@@ -10,7 +10,7 @@ export type RefundType = "refund" | "replacement" | "both"
 export interface PurchaseReturn {
   id: number
   returnNo: string
-  purchaseOrderId: number
+  purchaseOrderId: number | null
   goodsReceivingId: number | null
   supplierId: number
   outletId: number
@@ -27,7 +27,7 @@ export interface PurchaseReturn {
 export interface PurchaseReturnItem {
   id: number
   purchaseReturnId: number
-  purchaseOrderItemId: number
+  purchaseOrderItemId: number | null
   ingredientId: number
   quantity: number
   unitCost: number

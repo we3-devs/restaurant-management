@@ -51,15 +51,15 @@ export class AttendanceService {
   ) {}
 
   async setupQrCodes(outletId: number, createdBy: number) {
-    const existing = await this.qrStationRepo.count({ where: { outletId } });
-    if (existing > 0) throw new BadRequestException('Attendance QR codes already exist for this outlet');
-
+    const existing = await this.qrStationRepo.find({ where: { outletId } });
     const rows = (['clock-in', 'clock-out'] as const).map((action) => {
-      const token = randomBytes(32).toString('base64url');
-      return { action, token, tokenHash: this.hashQrToken(token) };
+      const station = existing.find((item) => item.action === action);
+      const token = station?.token ?? randomBytes(32).toString('base64url');
+      return { station, action, token, tokenHash: this.hashQrToken(token) };
     });
     await this.qrStationRepo.save(rows.map((row) => this.qrStationRepo.create({
-      outletId, action: row.action, tokenHash: row.tokenHash, createdBy,
+      ...(row.station ?? {}), outletId, action: row.action, token: row.token,
+      tokenHash: row.tokenHash, createdBy: row.station?.createdBy ?? createdBy,
     })));
     const profileUrl = (process.env.OPERATIONAL_WEB_URL ?? process.env.FRONTEND_URL?.split(',')[0] ?? 'http://localhost:3100').replace(/\/$/, '') + '/operational/staff/profile';
     return {
@@ -68,7 +68,7 @@ export class AttendanceService {
       clockOutToken: rows[1].token,
       clockInUrl: `${profileUrl}?attendanceToken=${encodeURIComponent(rows[0].token)}`,
       clockOutUrl: `${profileUrl}?attendanceToken=${encodeURIComponent(rows[1].token)}`,
-      warning: 'Save or print these QR values now. They are not returned again.',
+      warning: 'These QR codes are permanent. You can open this page again to view or print them.',
     };
   }
 

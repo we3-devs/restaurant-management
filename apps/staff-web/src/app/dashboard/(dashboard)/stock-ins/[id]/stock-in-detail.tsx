@@ -147,7 +147,7 @@ export function StockInDetail({ stockInId }: { stockInId: number }) {
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{unit?.shortName ?? "—"}</TableCell>
                   <TableCell>{item.unitCost}</TableCell>
-                  <TableCell>{item.totalCost}</TableCell>
+                  <TableCell>{item.totalCost || item.quantity * item.unitCost}</TableCell>
                   {isDraft && (
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => removeItem.mutate(item.id)}>

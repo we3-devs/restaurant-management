@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -46,6 +46,9 @@ import {
 import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useUnits } from "@/hooks/use-units"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
+import { useWarehouses } from "@/hooks/use-warehouses"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   FOOD_ITEM_TYPES,
@@ -60,6 +63,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
   const { data: food, isLoading } = useFood(foodId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: categories } = useFoodCategories({ limit: 100 })
+  const { data: inventoryIngredients } = useIngredients({ limit: 500 })
   const updateFood = useUpdateFood(foodId)
   const deleteFood = useDeleteFood()
 
@@ -74,6 +78,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       description: "",
       imageUrl: "",
       itemType: "ready_made",
+      inventoryIngredientId: null,
       departmentType: undefined,
       basePrice: 0,
       isTaxable: true,
@@ -95,6 +100,7 @@ export function FoodDetail({ foodId }: { foodId: number }) {
         imageUrl: food.imageUrl ?? "",
         foodType: (food.foodType as UpdateFoodInput["foodType"]) ?? undefined,
         itemType: food.itemType as UpdateFoodInput["itemType"],
+        inventoryIngredientId: food.inventoryIngredientId,
         departmentType: (food.departmentType as UpdateFoodInput["departmentType"]) ?? undefined,
         basePrice: food.basePrice,
         isTaxable: food.isTaxable,
@@ -310,6 +316,24 @@ export function FoodDetail({ foodId }: { foodId: number }) {
               />
               <FormField
                 control={form.control}
+                name="inventoryIngredientId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Direct inventory item (optional)</FormLabel>
+                    <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked directly" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not tracked directly</SelectItem>
+                        {inventoryIngredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Use for beverages, consumables, or other direct-sale items. Kitchen foods should use Recipe below.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="foodType"
                 render={({ field }) => (
                   <FormItem>
@@ -384,8 +408,45 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       <FoodOutletOverrides foodId={foodId} />
       <FoodAddonGroups foodId={foodId} hasAddons={food.hasAddons} />
       <FoodRecipes foodId={foodId} />
+      <FoodInventory inventoryIngredientId={food.inventoryIngredientId} />
     </div>
   )
+}
+
+function FoodInventory({ inventoryIngredientId }: { inventoryIngredientId: number | null }) {
+  const { outletId } = useActiveOutlet()
+  const { data: ingredients } = useIngredients({ limit: 500, outletId: outletId ?? undefined })
+  const { data: units } = useUnits({ limit: 500 })
+  const { data: warehouses } = useWarehouses({ limit: 100, outletId: outletId ?? undefined })
+  const [warehouseId, setWarehouseId] = useState("")
+  const selectedWarehouseId = warehouseId ? Number(warehouseId) : warehouses?.data.find((w) => w.isDefault)?.id
+  const { data: stocks, isLoading } = useWarehouseIngredientStocks({ warehouseId: selectedWarehouseId })
+  const rows = useMemo(() => {
+    const stockByIngredient = new Map((stocks?.data ?? []).map((stock) => [stock.ingredientId, stock]))
+    const ingredientById = new Map((ingredients?.data ?? []).map((ingredient) => [ingredient.id, ingredient]))
+    const unitById = new Map((units?.data ?? []).map((unit) => [unit.id, unit]))
+    if (inventoryIngredientId) {
+      const stock = stockByIngredient.get(inventoryIngredientId)
+      const ingredient = ingredientById.get(inventoryIngredientId)
+      return [{ recipe: { id: inventoryIngredientId, ingredientId: inventoryIngredientId, quantity: 1, wastageQuantity: 0, isActive: true, unitId: ingredient?.baseUnitId ?? 0 }, ingredient, unit: ingredient ? unitById.get(ingredient.baseUnitId) : undefined, available: stock ? Math.max(0, stock.quantity - stock.reservedQuantity) : 0 }]
+    }
+    return []
+  }, [inventoryIngredientId, stocks, ingredients, units])
+  const unavailable = rows.filter((row) => row.available < row.recipe.quantity + row.recipe.wastageQuantity)
+
+  return <Card>
+    <CardHeader><CardTitle className="flex items-center gap-2">Inventory availability <Badge variant={unavailable.length ? "destructive" : "secondary"}>{unavailable.length ? "unavailable" : "available"}</Badge></CardTitle></CardHeader>
+    <CardContent className="space-y-4">
+      <p className="text-sm text-muted-foreground">Only direct-sale items linked to an inventory ingredient are stock-controlled. Kitchen foods are not tracked here.</p>
+      <Select value={warehouseId || (selectedWarehouseId ? String(selectedWarehouseId) : "")} onValueChange={(value) => setWarehouseId(value ?? "")}>
+        <SelectTrigger className="w-full"><SelectValue placeholder="Select a warehouse" /></SelectTrigger>
+        <SelectContent>{warehouses?.data.map((warehouse) => <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}{warehouse.isDefault ? " (default)" : ""}</SelectItem>)}</SelectContent>
+      </Select>
+      {isLoading ? <p className="text-sm text-muted-foreground">Loading stock…</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">Kitchen food or no direct inventory item linked. This item is not stock-controlled.</p> : <div className="space-y-2">
+        {rows.map(({ recipe, ingredient, unit, available }) => { const required = recipe.quantity + recipe.wastageQuantity; const inStock = available >= required; return <div key={recipe.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{ingredient?.name ?? `Ingredient #${recipe.ingredientId}`} <span className="text-muted-foreground">· needs {required} {unit?.shortName ?? unit?.name ?? "units"}</span></span><Badge variant={inStock ? "secondary" : "destructive"}>{inStock ? `${available} available` : "out of stock"}</Badge></div> })}
+      </div>}
+    </CardContent>
+  </Card>
 }
 
 function FoodRecipes({ foodId }: { foodId: number }) {

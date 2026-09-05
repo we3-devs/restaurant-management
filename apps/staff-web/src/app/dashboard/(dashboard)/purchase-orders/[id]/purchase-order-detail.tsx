@@ -29,6 +29,8 @@ import { useIngredients } from "@/hooks/use-ingredients"
 import { useOutlet } from "@/hooks/use-outlets"
 import { useSupplier } from "@/hooks/use-suppliers"
 import { useWarehouse } from "@/hooks/use-warehouses"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
+import { useUnits } from "@/hooks/use-units"
 import {
   useAddPurchaseOrderItem,
   useApprovePurchaseOrder,
@@ -190,6 +192,7 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
         purchaseOrderId={purchaseOrderId}
         status={po.status}
         canManage={canManage}
+        warehouseId={po.warehouseId}
         items={items ?? []}
       />
     </div>
@@ -200,25 +203,42 @@ function PurchaseOrderItemsSection({
   purchaseOrderId,
   status,
   canManage,
+  warehouseId,
   items,
 }: {
   purchaseOrderId: number
   status: string
   canManage: boolean
+  warehouseId: number
   items: { id: number; ingredientId: number; quantity: number; unit: string | null; unitCost: number; discount: number; tax: number; total: number; receivedQuantity: number; remainingQuantity: number }[]
 }) {
   const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: units } = useUnits({ limit: 200 })
+  const { data: stocks } = useWarehouseIngredientStocks({ warehouseId })
   const addItem = useAddPurchaseOrderItem(purchaseOrderId)
   const removeItem = useRemovePurchaseOrderItem(purchaseOrderId)
   const [showForm, setShowForm] = useState(false)
 
   const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
+  const stockByIngredient = new Map((stocks?.data ?? []).map((stock) => [stock.ingredientId, stock]))
+  const selectedIngredient = ingredients?.data.find((ingredient) => ingredient.id === form.watch("ingredientId"))
+  const purchaseUnits = [selectedIngredient?.defaultPurchaseUnitId, selectedIngredient?.baseUnitId]
+    .filter((id, index, values): id is number => id !== null && id !== undefined && values.indexOf(id) === index)
+    .map((id) => units?.data.find((unit) => unit.id === id))
+    .filter((unit): unit is NonNullable<typeof unit> => Boolean(unit))
   const canEditItems = canManage && status === "draft"
 
   const form = useForm<AddPurchaseOrderItemInput>({
     resolver: zodResolver(addPurchaseOrderItemSchema),
     defaultValues: { ingredientId: 0, quantity: 0, unit: "", unitCost: 0, discount: 0, tax: 0 },
   })
+  const watchedQuantity = form.watch("quantity") ?? 0
+  const watchedUnitCost = form.watch("unitCost") ?? 0
+  const watchedDiscount = form.watch("discount") ?? 0
+  const watchedTax = form.watch("tax") ?? 0
+  const baseItemTotal = Number(watchedQuantity) * Number(watchedUnitCost)
+  const afterDiscount = Math.max(0, baseItemTotal - Number(watchedDiscount))
+  const itemTotalCost = afterDiscount + afterDiscount * (Number(watchedTax) / 100)
 
   async function onSubmit(values: AddPurchaseOrderItemInput) {
     try {
@@ -254,7 +274,9 @@ function PurchaseOrderItemsSection({
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No items yet.</p>
         ) : (
-          <Table>
+        <>
+        <p className="text-xs text-muted-foreground">Inventory is updated when goods are received against this purchase order. Approved orders remain pending until receipt.</p>
+        <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Ingredient</TableHead>
@@ -263,6 +285,8 @@ function PurchaseOrderItemsSection({
                 <TableHead>Total</TableHead>
                 <TableHead>Received</TableHead>
                 <TableHead>Remaining</TableHead>
+                <TableHead>Stock on hand</TableHead>
+                <TableHead>Available</TableHead>
                 {canEditItems && <TableHead />}
               </TableRow>
             </TableHeader>
@@ -277,6 +301,8 @@ function PurchaseOrderItemsSection({
                   <TableCell>{item.total.toFixed(2)}</TableCell>
                   <TableCell>{item.receivedQuantity}</TableCell>
                   <TableCell>{item.remainingQuantity}</TableCell>
+                  <TableCell>{stockByIngredient.get(item.ingredientId)?.quantity ?? 0}</TableCell>
+                  <TableCell>{Math.max(0, (stockByIngredient.get(item.ingredientId)?.quantity ?? 0) - (stockByIngredient.get(item.ingredientId)?.reservedQuantity ?? 0))}</TableCell>
                   {canEditItems && (
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => handleRemove(item.id)}>
@@ -287,7 +313,8 @@ function PurchaseOrderItemsSection({
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+        </Table>
+        </>
         )}
 
         {showForm && canEditItems && (
@@ -337,7 +364,12 @@ function PurchaseOrderItemsSection({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Unit</FormLabel>
-                    <FormControl placeholder="kg, pcs..." {...field} />
+                    <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={!selectedIngredient}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder={selectedIngredient ? "Select unit" : "Select ingredient first"} /></SelectTrigger>
+                      <SelectContent>
+                        {purchaseUnits.map((unit) => <SelectItem key={unit.id} value={unit.shortName}>{unit.shortName} — {unit.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -363,7 +395,7 @@ function PurchaseOrderItemsSection({
                 name="discount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount</FormLabel>
+                    <FormLabel>Discount (flat)</FormLabel>
                     <FormControl
                       type="number"
                       step="0.01"
@@ -379,7 +411,7 @@ function PurchaseOrderItemsSection({
                 name="tax"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tax</FormLabel>
+                    <FormLabel>Tax (%)</FormLabel>
                     <FormControl
                       type="number"
                       step="0.01"
@@ -390,6 +422,12 @@ function PurchaseOrderItemsSection({
                   </FormItem>
                 )}
               />
+              <div className="flex flex-col justify-end gap-1">
+                <span className="text-sm font-medium">Total cost</span>
+                <span className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-semibold">
+                  {itemTotalCost.toFixed(2)}
+                </span>
+              </div>
               <Button type="submit" disabled={addItem.isPending} className="col-span-2 w-fit sm:col-span-3">
                 {addItem.isPending ? "Adding..." : "Add item"}
               </Button>

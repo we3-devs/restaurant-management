@@ -24,6 +24,6 @@ export class MenuController {
   @ApiOperation({ summary: 'Download the POS menu catalog' })
   async bootstrap(@Query('outletId') outletId: number, @CurrentUser() user: User) {
     await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, outletId);
-    return this.menuService.getBootstrap();
+    return this.menuService.getBootstrap(outletId);
   }
 }

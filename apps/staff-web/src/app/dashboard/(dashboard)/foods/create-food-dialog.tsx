@@ -18,6 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { ImageUploadField } from "@/components/ui/image-upload-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFoodCategories } from "@/hooks/use-food-categories"
+import { useIngredients } from "@/hooks/use-ingredients"
 import { useCreateFood } from "@/hooks/use-foods"
 import {
   FOOD_ITEM_TYPES,
@@ -30,6 +31,7 @@ import {
 export function CreateFoodDialog() {
   const [open, setOpen] = useState(false)
   const { data: categories, isLoading: categoriesLoading } = useFoodCategories({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 500 })
   const createFood = useCreateFood()
 
   const form = useForm<CreateFoodInput>({
@@ -42,6 +44,7 @@ export function CreateFoodDialog() {
       skuSegment: "",
       imageUrl: "",
       itemType: "ready_made",
+      inventoryIngredientId: null,
       departmentType: undefined,
       basePrice: 0,
     },
@@ -58,6 +61,7 @@ export function CreateFoodDialog() {
         sku: "",
         imageUrl: "",
         itemType: "ready_made",
+        inventoryIngredientId: null,
         departmentType: undefined,
         basePrice: 0,
       })
@@ -204,6 +208,24 @@ export function CreateFoodDialog() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="inventoryIngredientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Direct inventory item (optional)</FormLabel>
+                  <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked directly" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not tracked directly</SelectItem>
+                      {ingredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">For beverages, consumables, and other direct-sale items.</p>
                   <FormMessage />
                 </FormItem>
               )}

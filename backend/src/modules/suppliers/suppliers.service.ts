@@ -194,7 +194,7 @@ export class SuppliersService {
     const supplier = await this.findOne(id);
     const manager = this.suppliersRepository.manager;
 
-    const [poCount, grnCount, returnCount, paymentCount, recentOrders] =
+    const [poCount, grnCount, returnCount, paymentCount, purchaseSummary, recentOrderRows] =
       await Promise.all([
         manager
           .createQueryBuilder()
@@ -222,9 +222,17 @@ export class SuppliersService {
           .getRawOne<{ count: string }>(),
         manager
           .createQueryBuilder()
+          .select("COALESCE(SUM(CASE WHEN po.status <> 'cancelled' THEN po.grand_total ELSE 0 END), 0)", 'totalPurchased')
+          .addSelect('MAX(po.created_at)', 'lastPurchaseDate')
+          .from('purchase_orders', 'po')
+          .where('po.supplier_id = :id', { id })
+          .getRawOne<{ totalPurchased: string; lastPurchaseDate: string | null }>(),
+        manager
+          .createQueryBuilder()
           .select('po.po_no', 'poNo')
           .addSelect('po.grand_total', 'grandTotal')
           .addSelect('po.status', 'status')
+          // Explicitly expose the database column in the API response.
           .addSelect('po.created_at', 'createdAt')
           .from('purchase_orders', 'po')
           .where('po.supplier_id = :id', { id })
@@ -234,12 +242,28 @@ export class SuppliersService {
       ]);
 
     return {
-      supplier,
+      supplier: {
+        ...supplier,
+        totalPurchased: Number(purchaseSummary?.totalPurchased ?? supplier.totalPurchased ?? 0),
+        lastPurchaseDate: purchaseSummary?.lastPurchaseDate
+          ? new Date(purchaseSummary.lastPurchaseDate).toISOString().slice(0, 10)
+          : supplier.lastPurchaseDate,
+      },
       purchaseOrderCount: Number(poCount?.count ?? 0),
       goodsReceivedCount: Number(grnCount?.count ?? 0),
       purchaseReturnCount: Number(returnCount?.count ?? 0),
       paymentCount: Number(paymentCount?.count ?? 0),
-      recentPurchaseOrders: recentOrders,
+      recentPurchaseOrders: recentOrderRows.map((order: { poNo?: string; grandTotal?: string | number; status?: string; createdAt?: string | Date; createdat?: string | Date; created_at?: string | Date }) => {
+        const rawDate = order.createdAt ?? order.createdat ?? order.created_at;
+        const timestampFromNumber = order.poNo?.match(/^[^-]+-[^-]+-(\d+)-/)?.[1];
+        const createdAt = rawDate ? new Date(rawDate).toISOString() : (timestampFromNumber ? new Date(Number(timestampFromNumber)).toISOString() : null);
+        return {
+          status: order.status ?? null,
+          poNo: order.poNo ?? null,
+          grandTotal: order.grandTotal ?? 0,
+          createdAt,
+        };
+      }),
     };
   }
 }

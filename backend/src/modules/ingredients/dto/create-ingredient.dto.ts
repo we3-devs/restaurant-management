@@ -48,6 +48,18 @@ export class CreateIngredientDto {
   @MaxLength(80)
   code: string;
 
+  @ApiPropertyOptional({ default: 0, description: 'Default buying price per base unit' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  buyingPrice?: number = 0;
+
+  @ApiPropertyOptional({ default: 0, description: 'Selling price per base unit' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sellingPrice?: number = 0;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

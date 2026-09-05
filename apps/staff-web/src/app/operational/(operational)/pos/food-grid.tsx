@@ -67,6 +67,10 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   // Cart-building is entirely local/offline — the order only ever hits the
   // network once, in a single batch, when "Place order" is tapped.
   function handleAdd(food: Food) {
+    if (food.inventoryAvailable === false) {
+      toast.error(`${food.name} is out of stock`, { duration: 1600 })
+      return
+    }
     if (food.hasVariants) {
       setVariantFood(food)
       return
@@ -113,7 +117,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
-                    className="flex h-full cursor-pointer flex-col overflow-hidden p-0 transition-colors hover:bg-muted/50"
+                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${food.inventoryAvailable === false ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"}`}
                     onClick={() => handleAdd(food)}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
@@ -133,6 +137,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                           <span className="text-sm font-medium">{food.basePrice}</span>
                         )}
                         <div className="flex gap-1">
+                          {food.inventoryAvailable === false && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
                           {food.hasVariants && (
                             <Badge variant="secondary" className="text-xs">
                               variants

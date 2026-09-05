@@ -22,7 +22,7 @@ export function CreateIngredientDialog() {
   const { data: units, isLoading: unitsLoading } = useUnits({ limit: 100 })
   const createIngredient = useCreateIngredient()
 
-  const defaultValues = { outletId: activeOutletId ?? 0, ingredientCategoryId: 0, name: "", slug: "", code: "", baseUnitId: 0 }
+  const defaultValues = { outletId: activeOutletId ?? 0, ingredientCategoryId: 0, name: "", slug: "", code: "", sellingPrice: 0, baseUnitId: 0 }
 
   const form = useForm<CreateIngredientInput>({
     resolver: zodResolver(createIngredientSchema),
@@ -128,6 +128,17 @@ export function CreateIngredientDialog() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sellingPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Selling price</FormLabel>
+                  <FormControl type="number" min="0" step="0.01" {...field} onChange={(event) => field.onChange(Number(event.target.value))} />
                   <FormMessage />
                 </FormItem>
               )}

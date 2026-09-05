@@ -5,6 +5,7 @@ import { queryKeys } from "../query-keys"
 
 export type ReportType =
   | "sales"
+  | "sales-items"
   | "orders"
   | "inventory"
   | "stock-movements"
@@ -51,6 +52,7 @@ export interface ReportParams {
   sortDir?: "ASC" | "DESC"
   page?: number
   limit?: number
+  credited?: boolean
 }
 
 export function useReport(type: ReportType, params: ReportParams) {

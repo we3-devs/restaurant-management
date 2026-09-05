@@ -22,6 +22,10 @@ export class AttendanceQrStation {
   @Column({ name: 'token_hash', type: 'varchar', length: 64, unique: true })
   tokenHash: string;
 
+  // Stored so an administrator can re-display the same permanent QR code.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  token: string | null;
+
   @Column({ name: 'created_by', type: 'bigint', transformer: new BigIntTransformer() })
   createdBy: number;
 

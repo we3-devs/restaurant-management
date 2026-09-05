@@ -10,10 +10,12 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import { CreateOutletDto } from './dto/create-outlet.dto';
@@ -75,6 +77,7 @@ export class OutletsController {
   }
 
   @Post()
+  @UseGuards(SuperadminGuard)
   @RequirePermissions('outlets.manage')
   @ApiOperation({ summary: 'Creates an outlet' })
   create(@Body() dto: CreateOutletDto) {
@@ -82,6 +85,7 @@ export class OutletsController {
   }
 
   @Patch(':id')
+  @UseGuards(SuperadminGuard)
   @RequirePermissions('outlets.manage')
   @ApiOperation({ summary: 'Updates an outlet' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOutletDto) {
@@ -89,6 +93,7 @@ export class OutletsController {
   }
 
   @Delete(':id')
+  @UseGuards(SuperadminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('outlets.manage')
   @ApiOperation({

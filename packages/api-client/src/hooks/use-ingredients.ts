@@ -17,7 +17,11 @@ export interface Ingredient {
   name: string
   slug: string
   code: string
+  buyingPrice: number
+  sellingPrice: number
   baseUnitId: number
+  defaultPurchaseUnitId: number | null
+  defaultUsageUnitId: number | null
   isActive: boolean
 }
 

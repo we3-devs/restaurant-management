@@ -160,6 +160,7 @@ export class FoodsService {
       foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'ready_made',
       departmentType: dto.departmentType ?? null,
+      inventoryIngredientId: dto.inventoryIngredientId ?? null,
       basePrice: dto.basePrice ?? 0,
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
@@ -219,6 +220,7 @@ export class FoodsService {
       ...(dto.departmentType !== undefined && {
         departmentType: dto.departmentType,
       }),
+      ...(dto.inventoryIngredientId !== undefined && { inventoryIngredientId: dto.inventoryIngredientId ?? null }),
       ...(dto.basePrice !== undefined && { basePrice: dto.basePrice }),
       ...(dto.isTaxable !== undefined && { isTaxable: dto.isTaxable }),
       ...(dto.isDiscountable !== undefined && {
@@ -496,6 +498,7 @@ export class FoodsService {
       foodType: food.foodType,
       itemType: food.itemType,
       departmentType: food.departmentType,
+      inventoryIngredientId: food.inventoryIngredientId,
       basePrice: food.basePrice,
       hasVariants: food.hasVariants,
       hasAddons: food.hasAddons,

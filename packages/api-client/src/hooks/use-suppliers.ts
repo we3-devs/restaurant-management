@@ -54,7 +54,7 @@ export interface SupplierRecentPurchaseOrder {
   poNo: string
   grandTotal: number
   status: string
-  createdAt: string
+  createdAt: string | null
 }
 
 export interface SupplierHistory {
@@ -86,7 +86,20 @@ export function useSuppliers(params: ListSuppliersParams = {}) {
 export function useSupplier(id: number) {
   return useQuery({
     queryKey: queryKeys.suppliers.detail(id),
-    queryFn: () => apiClient<SupplierHistory>(`/suppliers/${id}`),
+    queryFn: async () => {
+      const history = await apiClient<SupplierHistory>(`/suppliers/${id}`)
+      return {
+        ...history,
+        recentPurchaseOrders: history.recentPurchaseOrders.map((order) => {
+          if (order.createdAt) return order
+          const timestamp = order.poNo.match(/^[^-]+-[^-]+-(\d+)-/)?.[1]
+          return {
+            ...order,
+            createdAt: timestamp ? new Date(Number(timestamp)).toISOString() : null,
+          }
+        }),
+      }
+    },
     enabled: id > 0,
   })
 }
@@ -133,5 +146,24 @@ export function useCreateSupplierCategory() {
     mutationFn: (input: CreateSupplierCategoryInput) =>
       apiClient<SupplierCategory>("/supplier-categories", { method: "POST", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.supplierCategories.list() }),
+  })
+}
+
+export function useUpdateSupplierCategory(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateSupplierCategoryInput) => apiClient<SupplierCategory>(`/supplier-categories/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.supplierCategories.list() }),
+  })
+}
+
+export function useDeleteSupplierCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiClient<void>(`/supplier-categories/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.supplierCategories.list() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() })
+    },
   })
 }

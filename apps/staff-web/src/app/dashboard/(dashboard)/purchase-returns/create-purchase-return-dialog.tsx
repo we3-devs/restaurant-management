@@ -21,6 +21,7 @@ import { usePurchaseOrder, usePurchaseOrderItems, usePurchaseOrders } from "@/ho
 import { useCreatePurchaseReturn } from "@/hooks/use-purchase-returns"
 import { REFUND_TYPES, type CreatePurchaseReturnInput } from "@/lib/validators/purchase-returns"
 import { useSuppliers } from "@/hooks/use-suppliers"
+import { useWarehouses } from "@/hooks/use-warehouses"
 
 const RECEIVED_STATUSES = ["partially_received", "received", "completed"]
 
@@ -31,12 +32,18 @@ export function CreatePurchaseReturnDialog() {
   const [reason, setReason] = useState("")
   const [refundType, setRefundType] = useState<CreatePurchaseReturnInput["refundType"]>("refund")
   const [quantities, setQuantities] = useState<Record<number, string>>({})
+  const [standaloneSupplierId, setStandaloneSupplierId] = useState("")
+  const [standaloneWarehouseId, setStandaloneWarehouseId] = useState("")
+  const [standaloneIngredientId, setStandaloneIngredientId] = useState("")
+  const [standaloneQuantity, setStandaloneQuantity] = useState("")
+  const [standaloneUnitCost, setStandaloneUnitCost] = useState("")
 
   const { data: pos, isLoading: posLoading } = usePurchaseOrders({ limit: 100 })
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
   const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: warehouses } = useWarehouses({ limit: 100 })
   const createReturn = useCreatePurchaseReturn()
 
   const returnablePos = (pos?.data ?? []).filter((p) => RECEIVED_STATUSES.includes(p.status))
@@ -49,9 +56,20 @@ export function CreatePurchaseReturnDialog() {
     setReason("")
     setRefundType("refund")
     setQuantities({})
+    setStandaloneSupplierId(""); setStandaloneWarehouseId(""); setStandaloneIngredientId(""); setStandaloneQuantity(""); setStandaloneUnitCost("")
   }
 
   async function handleSubmit() {
+    if (poId === "standalone") {
+      const warehouse = warehouses?.data.find((w) => w.id === Number(standaloneWarehouseId))
+      const quantity = Number(standaloneQuantity)
+      if (!standaloneSupplierId || !warehouse || !standaloneIngredientId || quantity <= 0) { toast.error("Select supplier, warehouse, item, and enter a quantity"); return }
+      try {
+        await createReturn.mutateAsync({ supplierId: Number(standaloneSupplierId), outletId: warehouse.outletId, warehouseId: warehouse.id, returnDate, reason: reason || undefined, refundType, items: [{ ingredientId: Number(standaloneIngredientId), quantity, unitCost: standaloneUnitCost ? Number(standaloneUnitCost) : undefined }] })
+        toast.success("Standalone purchase return created"); resetAll(); setOpen(false)
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to create purchase return") }
+      return
+    }
     if (!po) return
     const returnItems = receivedItems
       .map((item) => {
@@ -108,6 +126,7 @@ export function CreatePurchaseReturnDialog() {
                   <SelectValue placeholder={posLoading ? "Loading…" : "Select a purchase order"} />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="standalone">Return without purchase order</SelectItem>
                   {returnablePos.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? "Loading…"}
@@ -121,6 +140,15 @@ export function CreatePurchaseReturnDialog() {
               <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
             </div>
           </div>
+
+          {poId === "standalone" && (
+            <div className="grid grid-cols-2 gap-3 rounded-md border p-3">
+              <div className="space-y-1.5"><Label>Supplier</Label><Select value={standaloneSupplierId} onValueChange={(v) => setStandaloneSupplierId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select supplier" /></SelectTrigger><SelectContent>{(suppliers?.data ?? []).map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.companyName}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Warehouse</Label><Select value={standaloneWarehouseId} onValueChange={(v) => setStandaloneWarehouseId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select warehouse" /></SelectTrigger><SelectContent>{(warehouses?.data ?? []).map((w) => <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Item</Label><Select value={standaloneIngredientId} onValueChange={(v) => setStandaloneIngredientId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select inventory item" /></SelectTrigger><SelectContent>{(ingredients?.data ?? []).map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="grid grid-cols-2 gap-2"><div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min="0" step="0.01" value={standaloneQuantity} onChange={(e) => setStandaloneQuantity(e.target.value)} /></div><div className="space-y-1.5"><Label>Unit cost</Label><Input type="number" min="0" step="0.01" value={standaloneUnitCost} onChange={(e) => setStandaloneUnitCost(e.target.value)} placeholder="Buying price" /></div></div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -175,7 +203,7 @@ export function CreatePurchaseReturnDialog() {
         </div>
 
         <DialogFooter>
-          <Button onClick={handleSubmit} disabled={!po || createReturn.isPending}>
+          <Button onClick={handleSubmit} disabled={(!po && poId !== "standalone") || createReturn.isPending}>
             {createReturn.isPending ? "Saving..." : "Create return"}
           </Button>
         </DialogFooter>

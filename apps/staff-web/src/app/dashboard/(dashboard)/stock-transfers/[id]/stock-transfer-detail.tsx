@@ -13,6 +13,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useIngredients } from "@/hooks/use-ingredients"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import {
   useAddStockTransferItem,
   useApproveStockTransfer,
@@ -30,6 +31,10 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
   const { data: items } = useStockTransferItems(transferId)
   const { data: ingredients } = useIngredients({ limit: 100, trackableOnly: true })
   const { data: warehouses } = useWarehouses({ limit: 100 })
+  const { data: sourceStocks } = useWarehouseIngredientStocks({
+    warehouseId: transfer?.fromWarehouseId,
+    limit: 100,
+  })
   const addItem = useAddStockTransferItem(transferId)
   const removeItem = useRemoveStockTransferItem(transferId)
   const approve = useApproveStockTransfer(transferId)
@@ -111,8 +116,8 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
               <TableRow>
                 <TableHead>Ingredient</TableHead>
                 <TableHead>Quantity</TableHead>
-                <TableHead>Unit cost</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead>{isDraft ? "Unit cost (estimated)" : "Unit cost"}</TableHead>
+                <TableHead>{isDraft ? "Total (estimated)" : "Total"}</TableHead>
                 {isDraft && <TableHead />}
               </TableRow>
             </TableHeader>
@@ -121,8 +126,12 @@ export function StockTransferDetail({ transferId }: { transferId: number }) {
                 <TableRow key={item.id}>
                   <TableCell>{ingredients?.data.find((i) => i.id === item.ingredientId)?.name ?? "Loading…"}</TableCell>
                   <TableCell>{item.requestedQuantity}</TableCell>
-                  <TableCell>{item.unitCost}</TableCell>
-                  <TableCell>{item.totalCost}</TableCell>
+                  <TableCell>
+                    {item.unitCost || sourceStocks?.data.find((stock) => stock.ingredientId === item.ingredientId)?.averageCost || 0}
+                  </TableCell>
+                  <TableCell>
+                    {item.totalCost || item.requestedQuantity * (sourceStocks?.data.find((stock) => stock.ingredientId === item.ingredientId)?.averageCost || 0)}
+                  </TableCell>
                   {isDraft && (
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => removeItem.mutate(item.id)}>

@@ -3,7 +3,7 @@ import { z } from "zod"
 export const GRN_STATUSES = ["draft", "received", "cancelled"] as const
 
 export const createGoodsReceivingItemSchema = z.object({
-  purchaseOrderItemId: z.number().positive(),
+  purchaseOrderItemId: z.number().positive().optional(),
   ingredientId: z.number().positive(),
   quantityReceived: z.number().positive("Received quantity must be greater than 0"),
   unitCost: z.number().min(0).optional(),
@@ -12,7 +12,7 @@ export const createGoodsReceivingItemSchema = z.object({
 })
 
 export const createGoodsReceivingSchema = z.object({
-  purchaseOrderId: z.number({ message: "Select a purchase order" }).positive(),
+  purchaseOrderId: z.number().positive().optional(),
   supplierId: z.number().positive(),
   outletId: z.number().positive(),
   warehouseId: z.number().positive(),

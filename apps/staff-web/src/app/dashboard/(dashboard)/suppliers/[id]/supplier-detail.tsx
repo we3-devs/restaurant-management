@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -20,15 +20,23 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import { useSupplierCategories, useDeleteSupplier, useSupplier, useUpdateSupplier } from "@/hooks/use-suppliers"
+import { useCreateSupplierCategory, useSupplierCategories, useDeleteSupplier, useSupplier, useUpdateSupplier } from "@/hooks/use-suppliers"
 import { SUPPLIER_STATUSES, updateSupplierSchema, type UpdateSupplierInput } from "@/lib/validators/suppliers"
 import { usePageTitle } from "@rms/ui/use-page-title"
+
+function formatPurchaseOrderDate(value: string | null | undefined) {
+  if (!value) return "—"
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString()
+}
 
 export function SupplierDetail({ supplierId }: { supplierId: number }) {
   const router = useRouter()
@@ -40,6 +48,10 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
   const { data: categories } = useSupplierCategories()
   const updateSupplier = useUpdateSupplier(supplierId)
   const deleteSupplier = useDeleteSupplier()
+  const createCategory = useCreateSupplierCategory()
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [newCategoryDescription, setNewCategoryDescription] = useState("")
 
   const supplier = history?.supplier
 
@@ -93,6 +105,20 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
     }
   }
 
+  async function addCategory() {
+    if (!newCategoryName.trim()) return
+    try {
+      const category = await createCategory.mutateAsync({ name: newCategoryName, description: newCategoryDescription })
+      form.setValue("categoryId", category.id, { shouldDirty: true, shouldValidate: true })
+      setNewCategoryName("")
+      setNewCategoryDescription("")
+      setCategoryDialogOpen(false)
+      toast.success("Supplier category created")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create supplier category")
+    }
+  }
+
   usePageTitle("Supplier Details")
 
   if (showSkeleton) return <DetailPageSkeleton fields={6} />
@@ -137,9 +163,9 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
           </CardHeader>
           <CardContent>
             <p className={overLimit ? "text-xl font-semibold text-destructive" : "text-xl font-semibold"}>
-              {supplier.outstandingBalance.toFixed(2)}
+              {Number(supplier.outstandingBalance).toFixed(2)}
             </p>
-            {overLimit && <p className="text-xs text-destructive">Over credit limit ({supplier.creditLimit.toFixed(2)})</p>}
+            {overLimit && <p className="text-xs text-destructive">Over credit limit ({Number(supplier.creditLimit).toFixed(2)})</p>}
           </CardContent>
         </Card>
         <Card>
@@ -147,7 +173,7 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total purchased</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xl font-semibold">{supplier.totalPurchased.toFixed(2)}</p>
+            <p className="text-xl font-semibold">{Number(supplier.totalPurchased).toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -205,8 +231,8 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
               <div key={po.poNo} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{po.poNo}</span>
                 <StatusBadge status={po.status} />
-                <span className="text-muted-foreground">{po.grandTotal.toFixed(2)}</span>
-                <span className="text-muted-foreground">{new Date(po.createdAt).toLocaleDateString()}</span>
+                <span className="text-muted-foreground">{Number(po.grandTotal).toFixed(2)}</span>
+                <span className="text-muted-foreground">{formatPurchaseOrderDate(po.createdAt)}</span>
               </div>
             ))}
           </CardContent>
@@ -239,7 +265,13 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
                     <FormLabel>Category</FormLabel>
                     <Select
                       value={field.value ? String(field.value) : "none"}
-                      onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
+                      onValueChange={(value) => {
+                        if (value === "create") {
+                          setCategoryDialogOpen(true)
+                          return
+                        }
+                        field.onChange(value === "none" ? undefined : Number(value))
+                      }}
                       disabled={!canManage}
                     >
                       <SelectTrigger className="w-full">
@@ -247,6 +279,7 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No category</SelectItem>
+                        {canManage && <SelectItem value="create">+ Add new category</SelectItem>}
                         {categories?.map((category) => (
                           <SelectItem key={category.id} value={String(category.id)}>
                             {category.name}
@@ -424,6 +457,19 @@ export function SupplierDetail({ supplierId }: { supplierId: number }) {
           </Form>
         </CardContent>
       </Card>
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Add supplier category</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" />
+            <Input value={newCategoryDescription} onChange={(event) => setNewCategoryDescription(event.target.value)} placeholder="Description (optional)" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={() => void addCategory()} disabled={!newCategoryName.trim() || createCategory.isPending}>{createCategory.isPending ? "Adding..." : "Add category"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

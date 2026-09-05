@@ -51,7 +51,7 @@ export class PurchaseReturnsService {
     return this.dataSource.transaction(async (manager) => {
       const prRepo = manager.getRepository(PurchaseReturn);
       const pr = await prRepo.save(prRepo.create({
-        purchaseOrderId: dto.purchaseOrderId, supplierId: dto.supplierId,
+        purchaseOrderId: dto.purchaseOrderId ?? null, supplierId: dto.supplierId,
         outletId: dto.outletId, warehouseId: dto.warehouseId,
         returnDate: dto.returnDate, reason: dto.reason ?? null,
         refundType: dto.refundType ?? 'refund',
@@ -63,11 +63,12 @@ export class PurchaseReturnsService {
           const ingredient = await this.ingredientsService.findOne(item.ingredientId);
           this.ingredientsService.assertTrackable(ingredient);
 
-          const totalCost = (item.unitCost ?? 0) * item.quantity;
+          const unitCost = item.unitCost ?? Number((ingredient as any).buyingPrice ?? 0);
+          const totalCost = unitCost * item.quantity;
           await manager.getRepository(PurchaseReturnItem).save(manager.getRepository(PurchaseReturnItem).create({
-            purchaseReturnId: pr.id, purchaseOrderItemId: item.purchaseOrderItemId,
+            purchaseReturnId: pr.id, purchaseOrderItemId: item.purchaseOrderItemId ?? null,
             ingredientId: item.ingredientId, quantity: item.quantity,
-            unitCost: item.unitCost ?? 0, totalCost,
+            unitCost, totalCost,
           }));
         }
       }
@@ -106,7 +107,7 @@ export class PurchaseReturnsService {
       const notification = await this.notificationsService.create({
         outletId: pr.outletId, type: 'purchase_return',
         title: `Purchase Return #${pr.returnNo} Processed`,
-        body: `Return processed against PO, inventory updated`,
+        body: pr.purchaseOrderId ? `Return processed against PO, inventory updated` : 'Standalone return processed, inventory updated',
         data: JSON.stringify({ returnId: id, returnNo: pr.returnNo }),
       });
       this.gateway.notifyNotificationCreated(notification);

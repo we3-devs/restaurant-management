@@ -62,7 +62,7 @@ export default function OutletsPage() {
               {isBackfillRunning ? "Processing history…" : "Process all old data"}
             </Button>
           )}
-          <CreateOutletDialog />
+          {user.isSuperadmin && <CreateOutletDialog />}
         </div>
       </div>
 
@@ -74,7 +74,7 @@ export default function OutletsPage() {
           <p className="max-w-sm text-sm text-muted-foreground">
             Create your first outlet to start taking orders, managing tables, and tracking inventory.
           </p>
-          <CreateOutletDialog />
+          {user.isSuperadmin && <CreateOutletDialog />}
         </div>
       ) : (
         <Table>

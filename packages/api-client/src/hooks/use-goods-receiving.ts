@@ -9,7 +9,7 @@ export type GRNStatus = "draft" | "received" | "cancelled"
 export interface GoodsReceiving {
   id: number
   grnNo: string
-  purchaseOrderId: number
+  purchaseOrderId: number | null
   supplierId: number
   outletId: number
   warehouseId: number
@@ -24,7 +24,7 @@ export interface GoodsReceiving {
 export interface GoodsReceivingItem {
   id: number
   goodsReceivingId: number
-  purchaseOrderItemId: number
+  purchaseOrderItemId: number | null
   ingredientId: number
   quantityReceived: number
   unitCost: number

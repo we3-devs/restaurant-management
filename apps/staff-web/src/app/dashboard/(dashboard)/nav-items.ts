@@ -39,6 +39,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
       { href: "/dashboard/tables", label: "Tables", permission: "dining-tables.view" },
       { href: "/dashboard/orders", label: "Orders", permission: "orders.view" },
+      { href: "/dashboard/sales", label: "Sales", permission: "reports.view" },
       { href: "/dashboard/invoices", label: "Invoices", permission: "orders.view" },
       { href: "/dashboard/reports", label: "Reports", permission: "reports.view" },
       { href: "/dashboard/notifications", label: "Notifications", permission: true },
@@ -80,6 +81,7 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: Truck,
     links: [
       { href: "/dashboard/suppliers", label: "Suppliers", permission: "suppliers.view" },
+      { href: "/dashboard/supplier-categories", label: "Supplier Categories", permission: "suppliers.view" },
       { href: "/dashboard/purchase-orders", label: "Purchase Orders", permission: "purchase-orders.view" },
       { href: "/dashboard/goods-receiving", label: "Goods Receiving", permission: "goods-receiving.view" },
       { href: "/dashboard/purchase-returns", label: "Purchase Returns", permission: "purchase-returns.view" },

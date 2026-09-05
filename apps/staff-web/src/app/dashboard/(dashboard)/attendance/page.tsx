@@ -94,7 +94,7 @@ export default function AttendancePage() {
         body: JSON.stringify({ outletId: activeOutletId }),
       })
       setQrSetup(result)
-      toast.success("Attendance QR codes created — save or print them now")
+      toast.success("Attendance QR codes loaded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create QR codes")
     } finally {
@@ -149,10 +149,10 @@ export default function AttendancePage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-medium">Staff attendance QR codes</p>
-              <p className="text-sm text-muted-foreground">Create one permanent clock-in and one clock-out QR per outlet.</p>
+              <p className="text-sm text-muted-foreground">View or print the permanent clock-in and clock-out QR codes for this outlet.</p>
             </div>
             <Button onClick={createQrCodes} disabled={qrLoading}>
-              {qrLoading ? "Creating…" : "Create QR codes"}
+              {qrLoading ? "Loading…" : "View QR codes"}
             </Button>
           </div>
           {qrSetup && (

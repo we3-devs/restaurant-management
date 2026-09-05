@@ -14,9 +14,9 @@ export class GoodsReceiving {
   id: number;
   @Column({ name: 'grn_no', type: 'varchar', length: 255, unique: true })
   grnNo: string;
-  @Column({ name: 'purchase_order_id', type: 'bigint', transformer: new BigIntTransformer() })
-  purchaseOrderId: number;
-  @ManyToOne(() => PurchaseOrder, { onDelete: 'RESTRICT' })
+  @Column({ name: 'purchase_order_id', type: 'bigint', transformer: new BigIntTransformer(), nullable: true })
+  purchaseOrderId: number | null;
+  @ManyToOne(() => PurchaseOrder, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'purchase_order_id' })
   purchaseOrder: PurchaseOrder;
   @Column({ name: 'supplier_id', type: 'bigint', transformer: new BigIntTransformer() })

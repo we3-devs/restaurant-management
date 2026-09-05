@@ -27,6 +27,12 @@ function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
+function lineTotal(quantity: number, unitCost: number, discount = 0, taxPercent = 0): number {
+  const base = quantity * unitCost;
+  const afterDiscount = Math.max(0, base - discount);
+  return round2(afterDiscount + afterDiscount * (taxPercent / 100));
+}
+
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
@@ -94,7 +100,7 @@ export class PurchaseOrdersService {
 
     if (dto.items?.length) {
       for (const item of dto.items) {
-        const total = round2((item.unitCost ?? 0) * item.quantity);
+        const total = lineTotal(item.quantity, item.unitCost ?? 0, item.discount ?? 0, item.tax ?? 0);
         await this.itemsRepo.save(
           this.itemsRepo.create({
             purchaseOrderId: po.id,
@@ -194,7 +200,7 @@ export class PurchaseOrdersService {
     dto: AddPurchaseOrderItemDto,
   ): Promise<PurchaseOrderItem> {
     const po = await this.assertStatus(poId, 'draft');
-    const total = round2((dto.unitCost ?? 0) * dto.quantity);
+    const total = lineTotal(dto.quantity, dto.unitCost ?? 0, dto.discount ?? 0, dto.tax ?? 0);
     const item = await this.itemsRepo.save(
       this.itemsRepo.create({
         purchaseOrderId: poId,
@@ -228,7 +234,7 @@ export class PurchaseOrdersService {
       ...(dto.discount !== undefined && { discount: dto.discount }),
       ...(dto.tax !== undefined && { tax: dto.tax }),
       remainingQuantity: qty - (item.receivedQuantity ?? 0),
-      total: round2(qty * cost),
+      total: lineTotal(qty, cost, dto.discount ?? item.discount, dto.tax ?? item.tax),
     });
     const saved = await this.itemsRepo.save(item);
     const po = await this.findOne(poId);

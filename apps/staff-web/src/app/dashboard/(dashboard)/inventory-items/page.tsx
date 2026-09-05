@@ -63,7 +63,7 @@ export default function InventoryItemsPage() {
   const showSkeleton = useDelayedLoading(isLoading)
 
   function handleExport() {
-    const header = ["Name", "Item code", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost"]
+    const header = ["Name", "Item code", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost", "Buying price", "Selling price"]
     const data = rows.map(({ ingredient, stock, unit }) => {
       const location = warehouses?.data.find((warehouse) => warehouse.id === stock.warehouseId)
       return [
@@ -76,6 +76,8 @@ export default function InventoryItemsPage() {
         Math.max(0, stock.quantity - stock.reservedQuantity),
         money(stock.averageCost),
         money(stock.stockValue),
+        money(stock.averageCost),
+        money(ingredient.sellingPrice),
       ]
     })
     const csv = [header, ...data].map((row) => row.map(csvCell).join(",")).join("\r\n")
@@ -124,7 +126,7 @@ export default function InventoryItemsPage() {
       </div>
 
       {showSkeleton ? (
-        <TableSkeleton rows={6} columns={10} />
+        <TableSkeleton rows={6} columns={12} />
       ) : (
         <Table>
           <TableHeader>
@@ -138,13 +140,15 @@ export default function InventoryItemsPage() {
               <TableHead className="text-right">Available</TableHead>
               <TableHead className="text-right">Avg. cost</TableHead>
               <TableHead className="text-right">Total cost</TableHead>
+              <TableHead className="text-right">Buying price</TableHead>
+              <TableHead className="text-right">Selling price</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                   {warehouses?.data.length ? "No inventory items in these warehouses." : "No warehouses found."}
                 </TableCell>
               </TableRow>
@@ -168,6 +172,8 @@ export default function InventoryItemsPage() {
                   </TableCell>
                   <TableCell className="text-right">{money(stock.averageCost)}</TableCell>
                   <TableCell className="text-right">{money(stock.stockValue)}</TableCell>
+                  <TableCell className="text-right">{money(stock.averageCost)}</TableCell>
+                  <TableCell className="text-right">{money(ingredient.sellingPrice)}</TableCell>
                   <TableCell className="text-right">
                     <EditInventoryItemDialog ingredient={ingredient} />
                   </TableCell>

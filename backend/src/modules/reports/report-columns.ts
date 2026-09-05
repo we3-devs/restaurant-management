@@ -1,5 +1,6 @@
 export const REPORT_TYPES = [
   'sales',
+  'sales-items',
   'orders',
   'inventory',
   'stock-movements',
@@ -55,6 +56,14 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     { key: 'serviceChargeAmount', header: 'Service Charge' },
     { key: 'grandTotal', header: 'Grand Total' },
     { key: 'paymentStatus', header: 'Payment Status' },
+  ],
+  'sales-items': [
+    { key: 'itemName', header: 'Item' },
+    { key: 'quantity', header: 'Total Quantity' },
+    { key: 'unitCost', header: 'Unit Cost' },
+    { key: 'totalCost', header: 'Total Cost' },
+    { key: 'paid', header: 'Paid' },
+    { key: 'notPaid', header: 'Not Paid' },
   ],
   orders: [
     { key: 'orderNumber', header: 'Order #' },

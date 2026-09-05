@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useOutlets } from "@/hooks/use-outlets"
-import { useCreateSupplier, useSupplierCategories } from "@/hooks/use-suppliers"
+import { useCreateSupplier, useCreateSupplierCategory, useSupplierCategories } from "@/hooks/use-suppliers"
 import {
   SUPPLIER_STATUSES,
   createSupplierSchema,
@@ -38,9 +39,13 @@ const defaultValues: CreateSupplierInput = {
 
 export function CreateSupplierDialog() {
   const [open, setOpen] = useState(false)
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [newCategoryDescription, setNewCategoryDescription] = useState("")
   const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
   const { data: categories, isLoading: categoriesLoading } = useSupplierCategories()
   const createSupplier = useCreateSupplier()
+  const createCategory = useCreateSupplierCategory()
 
   const form = useForm<CreateSupplierInput>({
     resolver: zodResolver(createSupplierSchema),
@@ -61,7 +66,22 @@ export function CreateSupplierDialog() {
     }
   }
 
+  async function addCategory() {
+    if (!newCategoryName.trim()) return
+    try {
+      const category = await createCategory.mutateAsync({ name: newCategoryName, description: newCategoryDescription })
+      form.setValue("categoryId", category.id, { shouldValidate: true })
+      setNewCategoryName("")
+      setNewCategoryDescription("")
+      setCategoryDialogOpen(false)
+      toast.success("Supplier category created")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create supplier category")
+    }
+  }
+
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button>Create supplier</Button>} />
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
@@ -114,13 +134,18 @@ export function CreateSupplierDialog() {
                   <FormLabel>Category (optional)</FormLabel>
                   <Select
                     value={field.value ? String(field.value) : "none"}
-                    onValueChange={(value) => field.onChange(value === "none" ? undefined : Number(value))}
+                    onValueChange={(value) => {
+                      if (value === "create") {
+                        setCategoryDialogOpen(true)
+                        return
+                      }
+                      field.onChange(value === "none" ? undefined : Number(value))
+                    }}
                   >
-                    <SelectTrigger className="w-full" disabled={categoriesLoading}>
-                      <SelectValue placeholder={categoriesLoading ? "Loading…" : "Select a category"} />
-                    </SelectTrigger>
+                    <div className="flex gap-2"><SelectTrigger className="flex-1" disabled={categoriesLoading}><SelectValue placeholder={categoriesLoading ? "Loading…" : "Select a category"} /></SelectTrigger><Button type="button" variant="outline" size="icon" onClick={() => setCategoryDialogOpen(true)} aria-label="Add supplier category">+</Button></div>
                     <SelectContent>
                       <SelectItem value="none">No category</SelectItem>
+                      <SelectItem value="create">+ Add new category</SelectItem>
                       {categories?.map((category) => (
                         <SelectItem key={category.id} value={String(category.id)}>
                           {category.name}
@@ -223,5 +248,16 @@ export function CreateSupplierDialog() {
         </Form>
       </DialogContent>
     </Dialog>
+    <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Add supplier category</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Category name" />
+          <Input value={newCategoryDescription} onChange={(event) => setNewCategoryDescription(event.target.value)} placeholder="Description (optional)" />
+        </div>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button><Button type="button" onClick={() => void addCategory()} disabled={!newCategoryName.trim() || createCategory.isPending}>{createCategory.isPending ? "Adding..." : "Add category"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
