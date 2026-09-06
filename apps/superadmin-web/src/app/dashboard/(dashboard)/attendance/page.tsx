@@ -59,6 +59,7 @@ export default function AttendancePage() {
   const [qrLoading, setQrLoading] = useState(false)
 
   const { data: outlets } = useOutlets({ limit: 100 })
+  const activeOutlet = outlets?.data.find((outlet) => outlet.id === activeOutletId)
   const { data: employees } = useEmployees({ limit: 200 })
   const { data, isLoading, isPlaceholderData } = useAttendanceList({
     page,
@@ -148,7 +149,7 @@ export default function AttendancePage() {
         <div className="rounded-xl border border-border/60 bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-medium">Staff attendance QR codes</p>
+              <p className="font-medium">Staff attendance QR codes{activeOutlet ? ` — ${activeOutlet.name}` : ""}</p>
               <p className="text-sm text-muted-foreground">View or print the permanent clock-in and clock-out QR codes for this outlet.</p>
             </div>
             <Button onClick={createQrCodes} disabled={qrLoading}>
