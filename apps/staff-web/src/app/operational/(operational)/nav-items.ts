@@ -29,8 +29,6 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/operational/floor", label: "Floor", permission: "table-sessions.view" },
       { href: "/operational/orders", label: "Orders", permission: "orders.view" },
       { href: "/operational/table-sessions", label: "Table Sessions", permission: "table-sessions.view" },
-      { href: "/operational/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
-      { href: "/operational/dining-tables", label: "Dining Tables", permission: "dining-tables.view" },
       { href: "/operational/reservations", label: "Reservations", permission: "reservations.view" },
     ],
   },

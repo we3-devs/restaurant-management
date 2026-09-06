@@ -27,6 +27,12 @@ export class DiningTableResponseDto {
   status: DiningTableStatus;
 
   @ApiProperty()
+  positionX: number;
+
+  @ApiProperty()
+  positionY: number;
+
+  @ApiProperty()
   shape: DiningTableShape;
 
   @ApiProperty()

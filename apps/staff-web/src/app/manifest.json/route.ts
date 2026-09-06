@@ -6,13 +6,21 @@ import { BACKEND_API_BASE } from "@/lib/server/backend-client";
 
 export const revalidate = 30;
 
+function tenantDisplayName(slug: string | undefined): string {
+  if (!slug) return "Restra";
+  return slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export async function GET(request: Request) {
   const tenant = resolveTenantHost(request.headers.get("host"));
   const branding = await fetchBranding(
     BACKEND_API_BASE,
     tenant ? { "X-Tenant-Slug": tenant.slug } : undefined,
   );
-  const restaurantName = branding.restaurantName?.trim() || "Restra";
+  const restaurantName = tenantDisplayName(tenant?.slug);
   const appName = `${restaurantName} Staff`;
   const icon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
 

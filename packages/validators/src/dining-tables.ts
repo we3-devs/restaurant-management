@@ -24,6 +24,8 @@ export const updateDiningTableSchema = z.object({
   code: z.string().optional(),
   capacity: z.number().min(1),
   status: z.enum(DINING_TABLE_STATUSES),
+  positionX: z.number().min(0).max(100).optional(),
+  positionY: z.number().min(0).max(100).optional(),
   isActive: z.boolean(),
 })
 

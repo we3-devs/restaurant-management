@@ -182,6 +182,8 @@ export class DiningTablesService {
       capacity: table.capacity,
       status: table.status,
       shape: table.shape,
+      positionX: table.positionX,
+      positionY: table.positionY,
       isActive: table.isActive,
       createdAt: table.createdAt,
       updatedAt: table.updatedAt,

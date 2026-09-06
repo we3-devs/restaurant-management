@@ -13,6 +13,8 @@ export interface DiningTable {
   code: string | null
   capacity: number
   status: string
+  positionX: number
+  positionY: number
   isActive: boolean
   createdAt: string
   updatedAt: string

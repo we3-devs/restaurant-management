@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArmchairIcon, GripIcon, RotateCcwIcon } from "lucide-react"
+import { useRef, useState } from "react"
+import { ArmchairIcon, GripIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@rms/ui/button"
@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
 import { useDeleteDiningArea } from "@rms/api-client/hooks/use-dining-areas"
-import { useDiningTables, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
+import { useDiningTables, useUpdateDiningTable, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { CreateDiningTableDialog } from "../tables/create-dining-table-dialog"
@@ -31,28 +31,9 @@ export default function FloorPlanPage() {
   const { isSuperadmin } = useCurrentUser()
   const [arrangeMode, setArrangeMode] = useState(false)
   const [positions, setPositions] = useState<Record<number, Point>>({})
-  const [hydrated, setHydrated] = useState(false)
   const { data: areas, isLoading } = useDiningAreas({ outletId: outletId ?? undefined, limit: 100 })
 
   usePageTitle("Floor Plan")
-
-  useEffect(() => {
-    if (!outletId) return
-    const timer = window.setTimeout(() => {
-      try {
-        const saved = window.localStorage.getItem(`rms-dashboard-floor-layout:${outletId}`)
-        setPositions(saved ? JSON.parse(saved) : {})
-      } catch {
-        setPositions({})
-      }
-      setHydrated(true)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [outletId])
-
-  useEffect(() => {
-    if (hydrated && outletId) window.localStorage.setItem(`rms-dashboard-floor-layout:${outletId}`, JSON.stringify(positions))
-  }, [hydrated, outletId, positions])
 
   if (!outletId) return <p className="text-sm text-muted-foreground">Select an outlet to design its floor plan.</p>
 
@@ -65,7 +46,6 @@ export default function FloorPlanPage() {
         <div className="flex items-center gap-2">
           {isSuperadmin && <CreateDiningAreaDialog />}
           <CreateDiningTableDialog />
-          {arrangeMode && Object.keys(positions).length > 0 && <Button variant="ghost" size="sm" onClick={() => setPositions({})}><RotateCcwIcon /> Reset</Button>}
           <Button variant={arrangeMode ? "default" : "outline"} size="sm" onClick={() => setArrangeMode((value) => !value)}>
             <GripIcon /> {arrangeMode ? "Done arranging" : "Arrange floor"}
           </Button>
@@ -115,18 +95,22 @@ function AreaMap({ outletId, area, isSuperadmin, arrangeMode, positions, onPosit
 
 function MapTable({ table, index, arrangeMode, position, onPositionChange }: { table: DiningTable; index: number; arrangeMode: boolean; position?: Point; onPositionChange: (tableId: number, point: Point) => void }) {
   const [dragging, setDragging] = useState(false)
-  const point = position ?? { x: 12 + (index % 4) * 23, y: 18 + Math.floor(index / 4) * 30 }
+  const lastPoint = useRef<Point | null>(null)
+  const updateTable = useUpdateDiningTable(table.id)
+  const point = position ?? ((table.positionX !== 0 || table.positionY !== 0) ? { x: table.positionX, y: table.positionY } : { x: 12 + (index % 4) * 23, y: 18 + Math.floor(index / 4) * 30 })
 
   function move(event: React.PointerEvent<HTMLButtonElement>) {
     if (!dragging) return
     const board = event.currentTarget.parentElement
     if (!board) return
     const bounds = board.getBoundingClientRect()
-    onPositionChange(table.id, { x: Math.max(7, Math.min(93, ((event.clientX - bounds.left) / bounds.width) * 100)), y: Math.max(10, Math.min(90, ((event.clientY - bounds.top) / bounds.height) * 100)) })
+    const nextPoint = { x: Math.max(7, Math.min(93, ((event.clientX - bounds.left) / bounds.width) * 100)), y: Math.max(10, Math.min(90, ((event.clientY - bounds.top) / bounds.height) * 100)) }
+    lastPoint.current = nextPoint
+    onPositionChange(table.id, nextPoint)
   }
 
   return (
-    <button type="button" className={cn("absolute w-28 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-2 py-3 text-center shadow-sm transition-shadow", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => setDragging(false) : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined}>
+    <button type="button" className={cn("absolute w-28 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-2 py-3 text-center shadow-sm transition-shadow", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined}>
       {arrangeMode ? <GripIcon className="mx-auto mb-1 size-4 opacity-50" /> : <ArmchairIcon className="mx-auto mb-1 size-4 opacity-60" />}
       <span className="block text-sm font-semibold">{table.name}</span>
       <span className="mt-0.5 block text-[11px] capitalize opacity-75">{table.status} · {table.capacity} seats</span>
