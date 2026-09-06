@@ -74,7 +74,8 @@ export function useUpdateIngredient(id: number) {
   return useMutation({
     mutationFn: (input: UpdateIngredientInput) =>
       apiClient<Ingredient>(`/ingredients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
-    onSuccess: () => {
+    onSuccess: (updatedIngredient) => {
+      queryClient.setQueryData(queryKeys.ingredients.detail(id), updatedIngredient)
       queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.detail(id) })
     },
