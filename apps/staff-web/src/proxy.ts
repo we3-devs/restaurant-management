@@ -20,13 +20,19 @@ export function proxy(request: NextRequest) {
   if (!isAllowedTenantHost(request.headers.get("host"), "staff")) {
     return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
   }
+  // PWA assets must be fetched before authentication redirects. In particular,
+  // redirecting /sw.js to /login makes service-worker registration fail because
+  // the browser receives HTML instead of JavaScript.
+  const { pathname } = request.nextUrl
+  if (pathname === "/sw.js" || pathname === "/manifest.json" || pathname === "/favicon.ico" || pathname.startsWith("/icons/")) {
+    return NextResponse.next({ request: { headers: tenantHeaders(request) } })
+  }
   // Access token cookie is short-lived (15min) and expires long before the
   // refresh token; checking only the access token would bounce an idle user
   // to /login even though their session is silently renewable in the DAL.
   const hasSession = Boolean(
     request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? request.cookies.get(REFRESH_TOKEN_COOKIE)?.value,
   )
-  const { pathname } = request.nextUrl
   // API proxy routes still need tenant context, but authentication is handled
   // by the backend/session wrapper instead of an edge redirect.
   if (pathname.startsWith("/api/")) {

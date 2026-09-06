@@ -9,6 +9,7 @@ import { fetchBranding } from "@rms/api-client/branding";
 import { StaticBrandColor } from "@rms/api-client/brand-color";
 import { BACKEND_API_BASE } from "@/lib/server/backend-client";
 import { resolveTenantHost } from "@rms/auth/tenant";
+import { RegisterStaffServiceWorker } from "./operational/staff/register-sw";
 
 function tenantDisplayName(slug: string | undefined): string {
   if (!slug) return "Restra";
@@ -65,6 +66,7 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <RouteProgress />
           <StaticBrandColor primaryColor={branding.primaryColor} />
+          <RegisterStaffServiceWorker />
           {children}
           <Toaster />
           {/* <RealtimeIndicator /> */}
