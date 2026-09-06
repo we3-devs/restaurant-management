@@ -9,6 +9,7 @@
 apps/*/.next
 apps/*/out
 backend/dist
+backend-superadmin/dist
 backend/build
 **/coverage
 **/.nyc_output

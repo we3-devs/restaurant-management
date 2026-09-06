@@ -1,0 +1,49 @@
+import { ApiProperty } from '@nestjs/swagger';
+import type {
+  OrderItemPackagingType,
+  OrderItemStatus,
+} from '../entities/order-item.entity';
+
+export class OrderItemResponseDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  orderId: number;
+
+  @ApiProperty()
+  foodId: number;
+
+  @ApiProperty({ required: false, nullable: true })
+  foodVariantId: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  preparationDepartmentId: number | null;
+
+  @ApiProperty()
+  quantity: number;
+
+  @ApiProperty()
+  unitPrice: number;
+
+  @ApiProperty()
+  taxAmount: number;
+
+  @ApiProperty()
+  totalAmount: number;
+
+  @ApiProperty()
+  status: OrderItemStatus;
+
+  @ApiProperty({ required: false, nullable: true })
+  note: string | null;
+
+  @ApiProperty()
+  packagingType: OrderItemPackagingType;
+
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty()
+  updatedAt: Date;
+}

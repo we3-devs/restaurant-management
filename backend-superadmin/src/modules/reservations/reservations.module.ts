@@ -1,0 +1,34 @@
+import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
+import { CustomersModule } from '../customers/customers.module';
+import { DiningTablesModule } from '../dining-tables/dining-tables.module';
+import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { OutletsModule } from '../outlets/outlets.module';
+import { TableSessionsModule } from '../table-sessions/table-sessions.module';
+import { ReservationTable } from './entities/reservation-table.entity';
+import { Reservation } from './entities/reservation.entity';
+import { ReservationReminderScheduler } from './reservation-reminder.scheduler';
+import { ReservationsController } from './reservations.controller';
+import { ReservationsService } from './reservations.service';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Reservation, ReservationTable]),
+    AuthModule,
+    OutletsModule,
+    CustomersModule,
+    DiningTablesModule,
+    forwardRef(() => TableSessionsModule),
+    NotificationsModule,
+    // Circular: KitchenTicketsModule imports OrdersModule, which imports
+    // TableSessionsModule -> ReservationsModule — without forwardRef this
+    // chain can resolve to `undefined` mid-cycle at module-load time.
+    forwardRef(() => KitchenTicketsModule),
+  ],
+  controllers: [ReservationsController],
+  providers: [ReservationsService, ReservationReminderScheduler],
+  exports: [TypeOrmModule, ReservationsService],
+})
+export class ReservationsModule {}

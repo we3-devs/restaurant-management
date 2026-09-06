@@ -1,0 +1,258 @@
+"use client"
+
+import { useState } from "react"
+import { toast } from "sonner"
+
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useIngredients } from "@/hooks/use-ingredients"
+import { usePurchaseOrder, usePurchaseOrderItems, usePurchaseOrders } from "@/hooks/use-purchase-orders"
+import { useCreateGoodsReceiving } from "@/hooks/use-goods-receiving"
+import { useSuppliers } from "@/hooks/use-suppliers"
+import { useWarehouses } from "@/hooks/use-warehouses"
+
+interface ReceivingRow {
+  quantityReceived: string
+  unitCost: string
+  batchNo: string
+  expiryDate: string
+}
+
+export function CreateGoodsReceivingDialog() {
+  const [open, setOpen] = useState(false)
+  const [poId, setPoId] = useState<string>("")
+  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
+  const [notes, setNotes] = useState("")
+  const [rows, setRows] = useState<Record<number, ReceivingRow>>({})
+  const [standaloneSupplierId, setStandaloneSupplierId] = useState("")
+  const [standaloneWarehouseId, setStandaloneWarehouseId] = useState("")
+  const [standaloneIngredientId, setStandaloneIngredientId] = useState("")
+  const [standaloneQuantity, setStandaloneQuantity] = useState("")
+  const [standaloneUnitCost, setStandaloneUnitCost] = useState("")
+
+  const { data: pos, isLoading: posLoading } = usePurchaseOrders({ limit: 100 })
+  const { data: suppliers } = useSuppliers({ limit: 100 })
+  const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
+  const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: warehouses } = useWarehouses({ limit: 100 })
+  const createGrn = useCreateGoodsReceiving()
+
+  const receivablePos = (pos?.data ?? []).filter((p) => p.status === "approved" || p.status === "partially_received")
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
+
+  function resetAll() {
+    setPoId("")
+    setReceivedDate(new Date().toISOString().slice(0, 10))
+    setNotes("")
+    setRows({})
+    setStandaloneSupplierId("")
+    setStandaloneWarehouseId("")
+    setStandaloneIngredientId("")
+    setStandaloneQuantity("")
+    setStandaloneUnitCost("")
+  }
+
+  const emptyRow: ReceivingRow = { quantityReceived: "", unitCost: "", batchNo: "", expiryDate: "" }
+
+  function updateRow(itemId: number, patch: Partial<ReceivingRow>) {
+    setRows((prev) => ({
+      ...prev,
+      [itemId]: { ...(prev[itemId] ?? emptyRow), ...patch },
+    }))
+  }
+
+  async function handleSubmit() {
+    if (poId === "standalone") {
+      const warehouse = warehouses?.data.find((w) => w.id === Number(standaloneWarehouseId))
+      const quantity = Number(standaloneQuantity)
+      if (!standaloneSupplierId || !warehouse || !standaloneIngredientId || quantity <= 0) {
+        toast.error("Select supplier, warehouse, item, and enter a quantity")
+        return
+      }
+      try {
+        await createGrn.mutateAsync({
+          supplierId: Number(standaloneSupplierId), outletId: warehouse.outletId, warehouseId: warehouse.id,
+          receivedDate, notes: notes || undefined,
+          items: [{ ingredientId: Number(standaloneIngredientId), quantityReceived: quantity, unitCost: standaloneUnitCost ? Number(standaloneUnitCost) : undefined }],
+        })
+        toast.success("Standalone goods receiving recorded")
+        resetAll(); setOpen(false)
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to record goods receiving") }
+      return
+    }
+    if (!po) return
+    const receivingItems = (items ?? [])
+      .map((item) => {
+        const row = rows[item.id]
+        const qty = row ? Number(row.quantityReceived) : 0
+        if (!qty || qty <= 0) return null
+        return {
+          purchaseOrderItemId: item.id,
+          ingredientId: item.ingredientId,
+          quantityReceived: qty,
+          unitCost: row.unitCost ? Number(row.unitCost) : undefined,
+          batchNo: row.batchNo || undefined,
+          expiryDate: row.expiryDate || undefined,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    if (receivingItems.length === 0) {
+      toast.error("Enter a received quantity for at least one item")
+      return
+    }
+
+    try {
+      await createGrn.mutateAsync({
+        purchaseOrderId: po.id,
+        supplierId: po.supplierId,
+        outletId: po.outletId,
+        warehouseId: po.warehouseId,
+        receivedDate,
+        notes: notes || undefined,
+        items: receivingItems,
+      })
+      toast.success("Goods receiving recorded")
+      resetAll()
+      setOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record goods receiving")
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) resetAll()
+      }}
+    >
+      <DialogTrigger render={<Button>Receive goods</Button>} />
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Receive goods against a purchase order</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Purchase order</Label>
+              <Select value={poId} onValueChange={(v) => { setPoId(v ?? ""); setRows({}) }}>
+                <SelectTrigger className="w-full" disabled={posLoading}>
+                  <SelectValue placeholder={posLoading ? "Loading…" : "Select a PO awaiting delivery"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standalone">Receive without purchase order</SelectItem>
+                  {receivablePos.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.poNo} · {suppliers?.data.find((s) => s.id === p.supplierId)?.companyName ?? "Loading…"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Received date</Label>
+              <Input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} />
+            </div>
+          </div>
+
+          {poId === "standalone" && (
+            <div className="grid grid-cols-2 gap-3 rounded-md border p-3">
+              <div className="space-y-1.5"><Label>Supplier</Label><Select value={standaloneSupplierId} onValueChange={(v) => setStandaloneSupplierId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select supplier" /></SelectTrigger><SelectContent>{(suppliers?.data ?? []).map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.companyName}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Warehouse</Label><Select value={standaloneWarehouseId} onValueChange={(v) => setStandaloneWarehouseId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select warehouse" /></SelectTrigger><SelectContent>{(warehouses?.data ?? []).map((w) => <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Item</Label><Select value={standaloneIngredientId} onValueChange={(v) => setStandaloneIngredientId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select inventory item" /></SelectTrigger><SelectContent>{(ingredients?.data ?? []).map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="grid grid-cols-2 gap-2"><div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min="0" step="0.01" value={standaloneQuantity} onChange={(e) => setStandaloneQuantity(e.target.value)} /></div><div className="space-y-1.5"><Label>Unit cost</Label><Input type="number" min="0" step="0.01" value={standaloneUnitCost} onChange={(e) => setStandaloneUnitCost(e.target.value)} placeholder="Buying price" /></div></div>
+            </div>
+          )}
+
+          {po && items && items.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ingredient</TableHead>
+                  <TableHead>Remaining</TableHead>
+                  <TableHead>Receive qty</TableHead>
+                  <TableHead>Unit cost</TableHead>
+                  <TableHead>Batch #</TableHead>
+                  <TableHead>Expiry</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items
+                  .filter((item) => item.remainingQuantity > 0)
+                  .map((item) => {
+                    const row = rows[item.id]
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>{ingredientName(item.ingredientId)}</TableCell>
+                        <TableCell>{item.remainingQuantity}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-24"
+                            value={row?.quantityReceived ?? ""}
+                            onChange={(e) => updateRow(item.id, { quantityReceived: e.target.value })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-24"
+                            placeholder={String(item.unitCost)}
+                            value={row?.unitCost ?? ""}
+                            onChange={(e) => updateRow(item.id, { unitCost: e.target.value })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="w-24"
+                            value={row?.batchNo ?? ""}
+                            onChange={(e) => updateRow(item.id, { batchNo: e.target.value })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="date"
+                            className="w-36"
+                            value={row?.expiryDate ?? ""}
+                            onChange={(e) => updateRow(item.id, { expiryDate: e.target.value })}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+              </TableBody>
+            </Table>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={handleSubmit} disabled={(!po && poId !== "standalone") || createGrn.isPending}>
+            {createGrn.isPending ? "Saving..." : "Record receiving"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

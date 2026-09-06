@@ -1,0 +1,62 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/lib/validators/*": ["../../packages/validators/src/*"],
+      "@/lib/utils": ["../../packages/ui/src/cn"],
+      "@/components/ui/*": ["../../packages/ui/src/*"],
+      "@/lib/auth/*": ["../../packages/auth/src/*"],
+      "@/lib/server/backend-client": ["../../packages/auth/src/server/backend-client"],
+      "@/lib/server/customer-backend-client": ["../../packages/auth/src/server/customer-backend-client"],
+      "@/lib/api/*": ["../../packages/api-client/src/*"],
+      "@/lib/query-keys": ["../../packages/api-client/src/query-keys"],
+      "@/lib/query-config": ["../../packages/api-client/src/query-config"],
+      "@/lib/realtime/*": ["../../packages/api-client/src/realtime/*"],
+      "@/components/providers/query-provider": ["../../packages/api-client/src/query-provider"],
+      "@/components/providers/theme-provider": ["../../packages/ui/src/theme-provider"],
+      "@/hooks/*": ["../../packages/api-client/src/hooks/*"],
+      "@/lib/outlet/*": ["../../packages/api-client/src/outlet/*"],
+      "@/lib/offline/*": ["../../packages/api-client/src/offline/*"],
+      "@/features/kitchen/*": ["../../packages/api-client/src/kitchen/*"],
+      "@/components/access-denied": ["../../packages/ui/src/access-denied"],
+      "@/components/command-palette": ["../../packages/ui/src/command-palette"],
+      "@/components/offline-indicator": ["../../packages/ui/src/offline-indicator"],
+      "@/components/stat-card": ["../../packages/ui/src/stat-card"],
+      "@/components/status-badge": ["../../packages/ui/src/status-badge"],
+      "@/components/theme-toggle": ["../../packages/ui/src/theme-toggle"],
+      "@/components/data-table-pagination": ["../../packages/ui/src/data-table-pagination"],
+      "@/components/date-range-filter": ["../../packages/ui/src/date-range-filter"],
+      "@/components/date-picker": ["../../packages/ui/src/date-picker"],
+      "@/components/qr-code": ["../../packages/ui/src/qr-code"],
+      "@/components/my-delivery-preferences": ["../../packages/ui/src/my-delivery-preferences"],
+      "@/components/bill-receipt": ["../../packages/ui/src/bill-receipt"],
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}

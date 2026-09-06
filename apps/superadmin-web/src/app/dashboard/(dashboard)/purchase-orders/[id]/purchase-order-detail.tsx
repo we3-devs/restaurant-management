@@ -1,0 +1,443 @@
+"use client"
+
+import { useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { StatusBadge } from "@/components/status-badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
+import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useIngredients } from "@/hooks/use-ingredients"
+import { useOutlet } from "@/hooks/use-outlets"
+import { useSupplier } from "@/hooks/use-suppliers"
+import { useWarehouse } from "@/hooks/use-warehouses"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
+import { useUnits } from "@/hooks/use-units"
+import {
+  useAddPurchaseOrderItem,
+  useApprovePurchaseOrder,
+  useCancelPurchaseOrder,
+  usePurchaseOrder,
+  usePurchaseOrderItems,
+  useRejectPurchaseOrder,
+  useRemovePurchaseOrderItem,
+  useSubmitPurchaseOrder,
+} from "@/hooks/use-purchase-orders"
+import { addPurchaseOrderItemSchema, type AddPurchaseOrderItemInput } from "@/lib/validators/purchase-orders"
+import { usePageTitle } from "@rms/ui/use-page-title"
+
+export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: number }) {
+  const { permissions, isSuperadmin } = useCurrentUser()
+  const canManage = isSuperadmin || permissions.includes("purchase-orders.manage")
+
+  const { data: po, isLoading } = usePurchaseOrder(purchaseOrderId)
+  const showSkeleton = useDelayedLoading(isLoading)
+  const { data: items } = usePurchaseOrderItems(purchaseOrderId)
+  const { data: supplier } = useSupplier(po?.supplierId ?? 0)
+  const { data: outlet } = useOutlet(po?.outletId ?? 0)
+  const { data: warehouse } = useWarehouse(po?.warehouseId ?? 0)
+
+  const submitPo = useSubmitPurchaseOrder(purchaseOrderId)
+  const approvePo = useApprovePurchaseOrder(purchaseOrderId)
+  const rejectPo = useRejectPurchaseOrder(purchaseOrderId)
+  const cancelPo = useCancelPurchaseOrder(purchaseOrderId)
+
+  async function runAction(action: () => Promise<unknown>, successMessage: string, failureMessage: string) {
+    try {
+      await action()
+      toast.success(successMessage)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : failureMessage)
+    }
+  }
+
+  usePageTitle("Purchase Order Details")
+
+  if (showSkeleton) return <DetailPageSkeleton fields={6} />
+  if (!isLoading && !po) return <NotFoundCard resource="Purchase order" />
+  if (!po) return null
+
+  const canCancel = canManage && !["completed", "cancelled"].includes(po.status)
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">{po.poNo}</h1>
+          <p className="text-sm text-muted-foreground">
+            Tenant: {po.outlet?.tenant?.name ?? "Loading…"} · Outlet: {po.outlet?.name ?? outlet?.name ?? "Loading…"}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm text-muted-foreground">
+              {supplier?.supplier.companyName ?? "Loading…"} · {outlet?.name ?? "Loading…"} ·{" "}
+              {warehouse?.name ?? "Loading…"}
+            </p>
+          </div>
+        </div>
+        <StatusBadge status={po.status} className="text-sm" />
+      </div>
+
+      {canManage && (
+        <div className="flex flex-wrap gap-2">
+          {po.status === "draft" && (
+            <Button
+              onClick={() => runAction(() => submitPo.mutateAsync(), "Submitted for approval", "Failed to submit")}
+              disabled={submitPo.isPending}
+            >
+              Submit for approval
+            </Button>
+          )}
+          {po.status === "pending_approval" && (
+            <>
+              <Button
+                onClick={() => runAction(() => approvePo.mutateAsync(), "Purchase order approved", "Failed to approve")}
+                disabled={approvePo.isPending}
+              >
+                Approve
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => runAction(() => rejectPo.mutateAsync(), "Purchase order rejected", "Failed to reject")}
+                disabled={rejectPo.isPending}
+              >
+                Reject
+              </Button>
+            </>
+          )}
+          {canCancel && po.status !== "pending_approval" && (
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="destructive">Cancel order</Button>} />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel purchase order {po.poNo}?</AlertDialogTitle>
+                  <AlertDialogDescription>This cannot be undone from the UI.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Back</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => runAction(() => cancelPo.mutateAsync(), "Purchase order cancelled", "Failed to cancel")}
+                  >
+                    Cancel order
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Subtotal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{po.subtotal.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Discount</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{po.discountAmount.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tax</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{po.taxAmount.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Grand total</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{po.grandTotal.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {po.notes && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{po.notes}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <PurchaseOrderItemsSection
+        purchaseOrderId={purchaseOrderId}
+        status={po.status}
+        canManage={canManage}
+        warehouseId={po.warehouseId}
+        items={items ?? []}
+      />
+    </div>
+  )
+}
+
+function PurchaseOrderItemsSection({
+  purchaseOrderId,
+  status,
+  canManage,
+  warehouseId,
+  items,
+}: {
+  purchaseOrderId: number
+  status: string
+  canManage: boolean
+  warehouseId: number
+  items: { id: number; ingredientId: number; quantity: number; unit: string | null; unitCost: number; discount: number; tax: number; total: number; receivedQuantity: number; remainingQuantity: number }[]
+}) {
+  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: units } = useUnits({ limit: 200 })
+  const { data: stocks } = useWarehouseIngredientStocks({ warehouseId })
+  const addItem = useAddPurchaseOrderItem(purchaseOrderId)
+  const removeItem = useRemovePurchaseOrderItem(purchaseOrderId)
+  const [showForm, setShowForm] = useState(false)
+
+  const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
+  const stockByIngredient = new Map((stocks?.data ?? []).map((stock) => [stock.ingredientId, stock]))
+  const selectedIngredient = ingredients?.data.find((ingredient) => ingredient.id === form.watch("ingredientId"))
+  const purchaseUnits = [selectedIngredient?.defaultPurchaseUnitId, selectedIngredient?.baseUnitId]
+    .filter((id, index, values): id is number => id !== null && id !== undefined && values.indexOf(id) === index)
+    .map((id) => units?.data.find((unit) => unit.id === id))
+    .filter((unit): unit is NonNullable<typeof unit> => Boolean(unit))
+  const canEditItems = canManage && status === "draft"
+
+  const form = useForm<AddPurchaseOrderItemInput>({
+    resolver: zodResolver(addPurchaseOrderItemSchema),
+    defaultValues: { ingredientId: 0, quantity: 0, unit: "", unitCost: 0, discount: 0, tax: 0 },
+  })
+  const watchedQuantity = form.watch("quantity") ?? 0
+  const watchedUnitCost = form.watch("unitCost") ?? 0
+  const watchedDiscount = form.watch("discount") ?? 0
+  const watchedTax = form.watch("tax") ?? 0
+  const baseItemTotal = Number(watchedQuantity) * Number(watchedUnitCost)
+  const afterDiscount = Math.max(0, baseItemTotal - Number(watchedDiscount))
+  const itemTotalCost = afterDiscount + afterDiscount * (Number(watchedTax) / 100)
+
+  async function onSubmit(values: AddPurchaseOrderItemInput) {
+    try {
+      await addItem.mutateAsync(values)
+      toast.success("Item added")
+      form.reset({ ingredientId: 0, quantity: 0, unit: "", unitCost: 0, discount: 0, tax: 0 })
+      setShowForm(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add item")
+    }
+  }
+
+  async function handleRemove(itemId: number) {
+    try {
+      await removeItem.mutateAsync(itemId)
+      toast.success("Item removed")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove item")
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Items</CardTitle>
+        {canEditItems && (
+          <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "Close" : "Add item"}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No items yet.</p>
+        ) : (
+        <>
+        <p className="text-xs text-muted-foreground">Inventory is updated when goods are received against this purchase order. Approved orders remain pending until receipt.</p>
+        <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ingredient</TableHead>
+                <TableHead>Qty</TableHead>
+                <TableHead>Unit cost</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Received</TableHead>
+                <TableHead>Remaining</TableHead>
+                <TableHead>Stock on hand</TableHead>
+                <TableHead>Available</TableHead>
+                {canEditItems && <TableHead />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{ingredientName(item.ingredientId)}</TableCell>
+                  <TableCell>
+                    {item.quantity} {item.unit ?? ""}
+                  </TableCell>
+                  <TableCell>{item.unitCost.toFixed(2)}</TableCell>
+                  <TableCell>{item.total.toFixed(2)}</TableCell>
+                  <TableCell>{item.receivedQuantity}</TableCell>
+                  <TableCell>{item.remainingQuantity}</TableCell>
+                  <TableCell>{stockByIngredient.get(item.ingredientId)?.quantity ?? 0}</TableCell>
+                  <TableCell>{Math.max(0, (stockByIngredient.get(item.ingredientId)?.quantity ?? 0) - (stockByIngredient.get(item.ingredientId)?.reservedQuantity ?? 0))}</TableCell>
+                  {canEditItems && (
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemove(item.id)}>
+                        Remove
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+        </Table>
+        </>
+        )}
+
+        {showForm && canEditItems && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-2 gap-3 rounded-lg border p-4 sm:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="ingredientId"
+                render={({ field }) => (
+                  <FormItem className="col-span-2 sm:col-span-1">
+                    <FormLabel>Ingredient</FormLabel>
+                    <Select value={field.value ? String(field.value) : ""} onValueChange={(v) => field.onChange(Number(v))}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an ingredient" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingredients?.data.map((ingredient) => (
+                          <SelectItem key={ingredient.id} value={String(ingredient.id)}>
+                            {ingredient.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantity</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      value={field.value ?? 0}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="unit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unit</FormLabel>
+                    <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={!selectedIngredient}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder={selectedIngredient ? "Select unit" : "Select ingredient first"} /></SelectTrigger>
+                      <SelectContent>
+                        {purchaseUnits.map((unit) => <SelectItem key={unit.id} value={unit.shortName}>{unit.shortName} — {unit.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="unitCost"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unit cost</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      value={field.value ?? 0}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="discount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discount (flat)</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      value={field.value ?? 0}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tax"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax (%)</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      value={field.value ?? 0}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex flex-col justify-end gap-1">
+                <span className="text-sm font-medium">Total cost</span>
+                <span className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-semibold">
+                  {itemTotalCost.toFixed(2)}
+                </span>
+              </div>
+              <Button type="submit" disabled={addItem.isPending} className="col-span-2 w-fit sm:col-span-3">
+                {addItem.isPending ? "Adding..." : "Add item"}
+              </Button>
+            </form>
+          </Form>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
