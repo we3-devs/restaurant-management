@@ -13,10 +13,27 @@ export interface Outlet {
   tenant?: { id: number; name: string }
 }
 
+export interface SuperadminTenant {
+  id: number
+  name: string
+  slug: string
+  isActive: boolean
+  outlets?: Outlet[]
+}
+
 export function useSuperadminOutlets(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.outlets.superadminAll(),
     queryFn: () => apiClient<Outlet[]>("/superadmin/outlets"),
+    staleTime: STALE_TIME.outlets,
+    enabled: options.enabled ?? true,
+  })
+}
+
+export function useSuperadminTenants(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.outlets.superadminTenants(),
+    queryFn: () => apiClient<SuperadminTenant[]>("/superadmin/tenants"),
     staleTime: STALE_TIME.outlets,
     enabled: options.enabled ?? true,
   })
