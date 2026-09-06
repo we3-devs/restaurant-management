@@ -17,6 +17,7 @@ export class AnalyticsController {
   @Get('dashboard') dashboard(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.dashboard(user, query); }
   @Get('daily') daily(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.daily(user, query); }
   @Post('daily/refresh') refreshDaily(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.refreshDaily(user, query); }
+  @Post('daily/backfill') backfill(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.backfill(user, query); }
   @Get('products') products(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.products(user, query); }
   @Get('inventory') inventory(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.inventory(user, query); }
   @Get('customers') customers(@CurrentUser() user: User, @Query() query: AnalyticsQueryDto) { return this.analytics.customers(user, query); }

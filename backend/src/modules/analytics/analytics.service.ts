@@ -76,6 +76,24 @@ export class AnalyticsService {
     return { range, refreshed };
   }
 
+  async backfill(user: User, query: AnalyticsQueryDto) {
+    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const earliest = this.orders.createQueryBuilder('order').select('MIN(order.created_at)', 'firstOrder');
+    if (query.outletId !== undefined) {
+      if (outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
+      earliest.andWhere('order.outlet_id = :outletId', { outletId: query.outletId });
+    } else if (outlets !== ALL_OUTLETS) {
+      earliest.andWhere('order.outlet_id IN (:...outletIds)', { outletIds: outlets });
+    }
+    const firstRow = await earliest.getRawOne<{ firstOrder: Date | string | null }>();
+    if (!firstRow?.firstOrder) return { range: null, refreshed: [], message: 'No historical orders found.' };
+    const business = await this.settings.getBusinessSettings();
+    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : 'Asia/Kathmandu';
+    const firstDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(firstRow.firstOrder));
+    const range = await this.snapshotRange({ ...query, from: query.from ?? firstDate });
+    return this.refreshDaily(user, { ...query, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
+  }
+
   private async snapshotRange(query: AnalyticsQueryDto) {
     const business = await this.settings.getBusinessSettings();
     const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
