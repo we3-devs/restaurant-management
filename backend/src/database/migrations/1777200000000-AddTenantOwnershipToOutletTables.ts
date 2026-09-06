@@ -119,8 +119,20 @@ export class AddTenantOwnershipToOutletTables1777200000000
             table_record.table_name
           );
 
+          -- Some child tables have immutability triggers (for example,
+          -- completed order payments). This is a metadata backfill, not a
+          -- business mutation, so temporarily suspend user triggers while
+          -- setting the derived tenant value.
+          EXECUTE format(
+            'ALTER TABLE %I DISABLE TRIGGER USER',
+            table_record.table_name
+          );
           EXECUTE format(
             'UPDATE %I t SET tenant_id = o.tenant_id FROM outlets o WHERE t.outlet_id = o.id AND t.tenant_id IS DISTINCT FROM o.tenant_id',
+            table_record.table_name
+          );
+          EXECUTE format(
+            'ALTER TABLE %I ENABLE TRIGGER USER',
             table_record.table_name
           );
 
