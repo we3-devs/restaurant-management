@@ -39,12 +39,22 @@ export class TenantGuard implements CanActivate {
        FROM tenants t
        WHERE LOWER(t.slug) = $1
          AND t.is_active = true
-         AND t.id = $2
+         AND ($2::bigint IS NULL OR t.id = $2)
        LIMIT 1`,
-      [slug, user.tenantId],
+      [slug, user.isSuperadmin ? null : user.tenantId],
     );
 
-    if (!rows[0]) throw new ForbiddenException('You do not have access to this tenant');
+    if (!rows[0]) {
+      throw new ForbiddenException(
+        user.isSuperadmin
+          ? 'Unknown or inactive tenant'
+          : 'You do not have access to this tenant',
+      );
+    }
+    request.tenantId = Number(rows[0].id);
+
+    if (user.isSuperadmin) return true;
+
     const invalidAssignments = await this.dataSource.query(
       `SELECT COUNT(*)::int AS count
        FROM user_role_assignments ura
@@ -60,7 +70,6 @@ export class TenantGuard implements CanActivate {
     if (Number(invalidAssignments[0]?.count ?? 0) > 0) {
       throw new ForbiddenException('Invalid user tenant/outlet assignment');
     }
-    request.tenantId = Number(rows[0].id);
     return true;
   }
 }

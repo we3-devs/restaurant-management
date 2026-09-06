@@ -20,9 +20,13 @@ export class OutletsService {
 
   async findAll(
     query: ListOutletsQueryDto,
+    tenantId?: number,
   ): Promise<PaginatedResponse<Outlet>> {
     const { page, limit, search } = query;
-    const where = search ? { name: ILike(`%${search}%`) } : {};
+    const where = {
+      ...(search ? { name: ILike(`%${search}%`) } : {}),
+      ...(tenantId !== undefined ? { tenantId } : {}),
+    };
 
     // Two independent round trips (rows + count) — run concurrently instead
     // of TypeORM's findAndCount(), which issues them one after another.
@@ -43,15 +47,21 @@ export class OutletsService {
   }
 
   /** Every outlet, unpaginated — used by GET /outlets/assigned for superadmins and users with only global/unscoped assignments. */
-  async findAllUnpaginated(): Promise<Outlet[]> {
-    return this.outletsRepository.find({ order: { name: 'ASC' } });
+  async findAllUnpaginated(tenantId?: number): Promise<Outlet[]> {
+    return this.outletsRepository.find({
+      where: tenantId !== undefined ? { tenantId } : {},
+      order: { name: 'ASC' },
+    });
   }
 
   /** Unpaginated lookup for exactly the given outlet IDs — used by GET /outlets/assigned so regular users never fetch (or need permission to view) the full outlet list. */
-  async findByIds(ids: number[]): Promise<Outlet[]> {
+  async findByIds(ids: number[], tenantId?: number): Promise<Outlet[]> {
     if (ids.length === 0) return [];
     return this.outletsRepository.find({
-      where: { id: In(ids) },
+      where: {
+        id: In(ids),
+        ...(tenantId !== undefined ? { tenantId } : {}),
+      },
       order: { name: 'ASC' },
     });
   }

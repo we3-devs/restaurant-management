@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { RequirePermissions } from '../auth/decorators/require-permissions.decor
 import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
+import { AuthenticatedRequest } from '../auth/types/authenticated-request';
 import { CreateOutletDto } from './dto/create-outlet.dto';
 import { ListOutletsQueryDto } from './dto/list-outlets-query.dto';
 import { UpdateOutletDto } from './dto/update-outlet.dto';
@@ -35,8 +37,8 @@ export class OutletsController {
   @Get()
   @RequirePermissions('outlets.view')
   @ApiOperation({ summary: 'Lists outlets (paginated, optional search)' })
-  findAll(@Query() query: ListOutletsQueryDto) {
-    return this.outletsService.findAll(query);
+  findAll(@Query() query: ListOutletsQueryDto, @CurrentUser() user: User, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.outletsService.findAll(query, request.tenantId ?? (user.isSuperadmin ? undefined : user.tenantId ?? undefined));
   }
 
   /**
@@ -52,9 +54,10 @@ export class OutletsController {
     summary:
       "Lists only the current user's assigned outlets (falls back to every outlet for superadmins / globally-scoped users)",
   })
-  async findAssigned(@CurrentUser() user: User) {
+  async findAssigned(@CurrentUser() user: User, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    const tenantId = request.tenantId ?? (user.isSuperadmin ? undefined : user.tenantId ?? undefined);
     if (user.isSuperadmin) {
-      return this.outletsService.findAllUnpaginated();
+      return this.outletsService.findAllUnpaginated(tenantId);
     }
     const outletIds = await this.permissionsService.getAccessibleOutletIds(
       user.id,
@@ -64,9 +67,9 @@ export class OutletsController {
       return [];
     }
     if (outletIds.length === 0) {
-      return this.outletsService.findAllUnpaginated();
+      return this.outletsService.findAllUnpaginated(tenantId);
     }
-    return this.outletsService.findByIds(outletIds);
+    return this.outletsService.findByIds(outletIds, tenantId);
   }
 
   @Get(':id')

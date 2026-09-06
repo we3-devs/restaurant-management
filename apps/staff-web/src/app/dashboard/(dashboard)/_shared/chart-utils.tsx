@@ -4,7 +4,7 @@ export function money(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
-export const CHART_COLOR = "var(--chart-1)"
+export const CHART_COLOR = "hsl(var(--chart-1))"
 
 export function pctChange(current: number, previous: number): number | undefined {
   if (!previous) return undefined

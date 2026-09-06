@@ -100,11 +100,11 @@
   --border: #E2E8F0;
   --input: #E2E8F0;
   --ring: #6366F1;
-  --chart-1: #4F46E5;
-  --chart-2: #8B5CF6;
-  --chart-3: #0EA5E9;
-  --chart-4: #F59E0B;
-  --chart-5: #10B981;
+  --chart-1: 243 75% 59%;
+  --chart-2: 258 90% 66%;
+  --chart-3: 199 89% 48%;
+  --chart-4: 38 92% 50%;
+  --chart-5: 160 84% 39%;
   --radius: 0.75rem;
   --sidebar: #FFFFFF;
   --sidebar-foreground: #0F172A;
@@ -136,11 +136,11 @@
   --border: rgb(36, 37, 33);
   --input: rgb(36, 37, 33);
   --ring: #6366F1;
-  --chart-1: #818CF8;
-  --chart-2: #A78BFA;
-  --chart-3: #38BDF8;
-  --chart-4: #FBBF24;
-  --chart-5: #34D399;
+  --chart-1: 234 89% 74%;
+  --chart-2: 255 92% 76%;
+  --chart-3: 198 93% 60%;
+  --chart-4: 43 96% 56%;
+  --chart-5: 158 64% 52%;
   --sidebar: rgb(19, 20, 18);
   --sidebar-foreground: #E2E8F0;
   --sidebar-primary: #6366F1;
@@ -206,9 +206,9 @@
   .dashboard-page [data-slot="card"] {
     background: linear-gradient(
       135deg,
-      color-mix(in srgb, var(--chart-1) 4%, var(--card)),
+      color-mix(in srgb, hsl(var(--chart-1)) 4%, var(--card)),
       var(--card) 56%,
-      color-mix(in srgb, var(--chart-3) 5%, var(--card))
+      color-mix(in srgb, hsl(var(--chart-3)) 5%, var(--card))
     );
   }
 

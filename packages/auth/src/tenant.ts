@@ -10,10 +10,14 @@ export interface TenantContext {
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 
-function configuredRootDomain(): string {
-  return (process.env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN ?? process.env.TENANT_ROOT_DOMAIN ?? "restra.com")
-    .toLowerCase()
-    .replace(/^\.+|\.+$/g, "")
+function configuredRootDomains(): string[] {
+  const configured = process.env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN ?? process.env.TENANT_ROOT_DOMAIN
+  // Keep both branded production domains recognized during the domain
+  // migration. An explicit environment value still takes precedence and is
+  // the recommended deployment configuration.
+  return [...new Set([configured, "restraservices.com", "restra.com"])]
+    .filter((domain): domain is string => Boolean(domain))
+    .map((domain) => domain.toLowerCase().replace(/^\.+|\.+$/g, ""))
 }
 
 function cleanHost(value: string | null | undefined): string {
@@ -27,18 +31,19 @@ function isLocalHost(host: string): boolean {
 /** Resolves only the production tenant host shapes; localhost remains host-only. */
 export function resolveTenantHost(rawHost: string | null | undefined): TenantContext | null {
   const host = cleanHost(rawHost)
-  const root = configuredRootDomain()
-  if (!host || !root || host === "localhost" || host === "127.0.0.1") return null
+  if (!host || host === "localhost" || host === "127.0.0.1") return null
 
-  const suffix = `.${root}`
-  if (!host.endsWith(suffix)) return null
+  for (const root of configuredRootDomains()) {
+    const suffix = `.${root}`
+    if (!host.endsWith(suffix)) continue
 
-  const labels = host.slice(0, -suffix.length).split(".").filter(Boolean)
-  if (labels.length === 1 && SLUG_RE.test(labels[0])) {
-    return { slug: labels[0], surface: "guest", host }
-  }
-  if (labels.length === 2 && labels[0] === "staff" && SLUG_RE.test(labels[1])) {
-    return { slug: labels[1], surface: "staff", host }
+    const labels = host.slice(0, -suffix.length).split(".").filter(Boolean)
+    if (labels.length === 1 && SLUG_RE.test(labels[0])) {
+      return { slug: labels[0], surface: "guest", host }
+    }
+    if (labels.length === 2 && labels[0] === "staff" && SLUG_RE.test(labels[1])) {
+      return { slug: labels[1], surface: "staff", host }
+    }
   }
   return null
 }

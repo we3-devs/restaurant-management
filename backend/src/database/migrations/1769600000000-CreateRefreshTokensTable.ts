@@ -48,15 +48,31 @@ export class CreateRefreshTokensTable1769600000000 implements MigrationInterface
       true,
     );
 
-    await queryRunner.createForeignKey(
-      'refresh_tokens',
-      new TableForeignKey({
-        columnNames: ['user_id'],
-        referencedTableName: 'users',
-        referencedColumnNames: ['id'],
-        onDelete: 'CASCADE',
-      }),
+    // The table may already exist when the database was restored from a schema
+    // dump. In that case createTable(..., true) skips the table, but the
+    // foreign key still needs to be checked before attempting to add it.
+    const refreshTokensTable = await queryRunner.getTable('refresh_tokens');
+    const hasUserForeignKey = refreshTokensTable?.foreignKeys.some(
+      (foreignKey) =>
+        foreignKey.columnNames.length === 1 &&
+        foreignKey.columnNames[0] === 'user_id' &&
+        foreignKey.referencedTableName === 'users' &&
+        foreignKey.referencedColumnNames.length === 1 &&
+        foreignKey.referencedColumnNames[0] === 'id',
     );
+
+    if (!hasUserForeignKey) {
+      await queryRunner.createForeignKey(
+        'refresh_tokens',
+        new TableForeignKey({
+          name: 'FK_3ddc983c5f7bcf132fd8732c3f4',
+          columnNames: ['user_id'],
+          referencedTableName: 'users',
+          referencedColumnNames: ['id'],
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

@@ -54,10 +54,10 @@ export default function DashboardPage() {
   usePageTitle("Dashboard")
 
   return (
-    <div className="dashboard-page page-shell space-y-7">
+    <div className="dashboard-page page-shell space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             {greeting()}, {user.name}
           </h1>
           <p className="text-sm text-muted-foreground">

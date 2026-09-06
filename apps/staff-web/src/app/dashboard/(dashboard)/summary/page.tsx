@@ -70,10 +70,10 @@ export default function SummaryPage() {
 
   usePageTitle("Period Summary")
   return (
-    <div className="page-shell space-y-7">
+    <div className="page-shell space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Period Summary</h1></div>
-        <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={setRange} /></div>
+        <div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Period Summary</h1></div>
+        <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={setRange} /></div>
       </div>
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon={ClipboardListIcon} label="Order count" value={stats.data ? String(stats.data.salesOverview.orderCount) : "—"} />
@@ -83,7 +83,7 @@ export default function SummaryPage() {
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.05fr_1.95fr]">
         <Card><CardHeader><CardTitle>Revenue summary</CardTitle><CardDescription>Aggregated from orders in this period</CardDescription></CardHeader><CardContent className="space-y-3">{[["Subtotal", totals.subtotal], ["Discount", -totals.discount], ["Service charge", totals.service], ["Tax", totals.tax], ["Grand total", totals.total], ["Paid", totals.paid], ["Due", totals.due], ["Refunded", -totals.refunded]].map(([label, value], index) => <div key={String(label)} className={index === 4 ? "flex items-center justify-between border-t pt-3 text-base font-semibold" : "flex items-center justify-between text-sm"}><span className="text-muted-foreground">{label}</span><span className="tabular-nums">{moneyOrDash(Number(value))}</span></div>)}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Revenue over time</CardTitle><CardDescription>Daily revenue within the selected range</CardDescription></CardHeader><CardContent className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={charts.data?.revenueTrend ?? []}><CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" /><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="grandTotal" name="Revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent></Card>
+        <Card><CardHeader><CardTitle>Revenue over time</CardTitle><CardDescription>Daily revenue within the selected range</CardDescription></CardHeader><CardContent className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={charts.data?.revenueTrend ?? []}><CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" /><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="grandTotal" name="Revenue" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent></Card>
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.05fr_1.95fr]">
       <Card><CardHeader><CardTitle>Payment breakdown</CardTitle><CardDescription>Collected amounts grouped by payment channel</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Method</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{(breakdown.data?.paymentBreakdown ?? []).map((row) => <TableRow key={row.method}><TableCell className="capitalize">{row.method.replaceAll("_", " ")}</TableCell><TableCell className="text-right font-medium">{money(row.amount)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
