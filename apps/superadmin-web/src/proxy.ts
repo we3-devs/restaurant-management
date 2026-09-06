@@ -29,6 +29,11 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   // API proxy routes still need tenant context, but authentication is handled
   // by the backend/session wrapper instead of an edge redirect.
+  // API routes perform their own authentication. In particular, login and
+  // refresh must be reachable before an auth cookie exists.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next()
+  }
   const isAuth = isAuthRoute(pathname)
 
   // Credential query parameters are never valid login state. Strip them at
