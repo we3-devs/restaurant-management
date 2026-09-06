@@ -2,11 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { DownloadIcon } from "lucide-react"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
@@ -14,6 +18,8 @@ import { useOrders, type Order } from "@/hooks/use-orders"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 20
+const defaultRange = (): DateRange => { const to = new Date(); const from = new Date(to); from.setDate(from.getDate() - 29); return { dateFrom: from.toISOString().slice(0, 10), dateTo: to.toISOString().slice(0, 10) } }
+function orderDateRange(range: DateRange) { const from = new Date(`${range.dateFrom}T00:00:00`); const to = new Date(`${range.dateTo}T00:00:00`); to.setDate(to.getDate() + 1); return { createdFrom: from.toISOString(), createdTo: to.toISOString() } }
 
 const columns: ColumnDef<Order>[] = [
   { accessorKey: "invoiceNumber", header: "Invoice #" },
@@ -44,15 +50,24 @@ const columns: ColumnDef<Order>[] = [
 export default function InvoicesPage() {
   const router = useRouter()
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState("")
+  const [range, setRange] = useState<DateRange>(defaultRange)
   const { outletId } = useActiveOutlet()
   const { data, isLoading, isPlaceholderData } = useOrders({
     page,
     limit: PAGE_SIZE,
+    search: search.trim() || undefined,
+    ...orderDateRange(range),
     outletId: outletId ?? undefined,
   })
   const showSkeleton = useDelayedLoading(isLoading)
 
   const invoices = data?.data?.filter((order) => order.invoiceNumber) ?? []
+  function exportInvoices() {
+    const values = invoices.map((invoice) => [invoice.invoiceNumber, invoice.orderNumber, invoice.status, invoice.grandTotal, invoice.invoiceGeneratedAt ?? "", invoice.createdAt])
+    const csv = [["Invoice", "Order", "Status", "Total", "Invoice date", "Order date"], ...values].map((row) => row.join(",")).join("\r\n")
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "invoices.csv"; link.click(); URL.revokeObjectURL(url)
+  }
 
   const table = useReactTable({
     data: invoices,
@@ -64,12 +79,11 @@ export default function InvoicesPage() {
 
   return (
     <div className="page-shell space-y-7">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Invoices</h1><p className="mt-1 text-sm text-muted-foreground">Completed orders and their payment status.</p></div>
-        <p className="text-sm text-muted-foreground">
-          {data?.meta?.total ? `${invoices.length} of ${data.meta.total} orders have invoices` : ""}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Invoices</h1>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={(value) => { setRange(value); setPage(1) }} /><Button variant="outline" size="sm" disabled={invoices.length === 0} onClick={exportInvoices}><DownloadIcon /> Export CSV</Button></div>
       </div>
+      <div className="max-w-md"><Input className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search invoices or orders..." /></div>
 
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />

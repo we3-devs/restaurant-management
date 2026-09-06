@@ -32,11 +32,6 @@ export default function LoyaltyPage() {
         </Button>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Customers earn points on purchases and can redeem them for discounts. The rules below control how points are
-        earned, redeemed and expired.
-      </p>
-
       {showSkeleton ? (
         <StatGridSkeleton count={6} className="sm:grid-cols-3 xl:grid-cols-3" />
       ) : (

@@ -14,25 +14,29 @@ export interface DateRange {
 export function DateRangeFilter({
   value,
   onChange,
+  compact = false,
 }: {
   value: DateRange
   onChange: (value: DateRange) => void
+  compact?: boolean
 }) {
   return (
-    <div className="flex items-end gap-2">
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">From</label>
+    <div className="flex items-center gap-2">
+      <div className={compact ? "flex items-center gap-1.5" : "space-y-1.5"}>
+        <label className={compact ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium"}>From</label>
         <Input
           type="date"
+          className={compact ? "h-8 w-32 border-border/60 bg-background/70 px-2 text-xs" : undefined}
           value={value.dateFrom}
           max={value.dateTo}
           onChange={(e) => onChange({ ...value, dateFrom: e.target.value })}
         />
       </div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">To</label>
+      <div className={compact ? "flex items-center gap-1.5" : "space-y-1.5"}>
+        <label className={compact ? "text-xs font-medium text-muted-foreground" : "text-sm font-medium"}>To</label>
         <Input
           type="date"
+          className={compact ? "h-8 w-32 border-border/60 bg-background/70 px-2 text-xs" : undefined}
           value={value.dateTo}
           min={value.dateFrom}
           onChange={(e) => onChange({ ...value, dateTo: e.target.value })}

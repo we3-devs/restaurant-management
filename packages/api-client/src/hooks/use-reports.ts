@@ -55,7 +55,7 @@ export interface ReportParams {
   credited?: boolean
 }
 
-export function useReport(type: ReportType, params: ReportParams) {
+export function useReport(type: ReportType, params: ReportParams, options?: { enabled?: boolean }) {
   const { outletId, ...rest } = params
   return useQuery({
     queryKey: queryKeys.reports.detail(type, params),
@@ -64,6 +64,7 @@ export function useReport(type: ReportType, params: ReportParams) {
         `/reports/${type}${toQueryString({ outletId: outletId ?? undefined, ...rest })}`,
       ),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled,
   })
 }
 

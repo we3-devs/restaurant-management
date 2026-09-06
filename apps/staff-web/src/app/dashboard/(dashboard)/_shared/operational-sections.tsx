@@ -24,13 +24,14 @@ import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
 import { useDashboardInventoryActivity, useDashboardStats, type DashboardStats } from "@/hooks/use-dashboard"
+import { useAnalyticsDashboard } from "@/hooks/use-analytics"
 import { useOrders, type Order } from "@/hooks/use-orders"
 import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useDiningTables } from "@/hooks/use-dining-tables"
 import { useDiningAreas } from "@/hooks/use-dining-areas"
 import { useTableSessions } from "@/hooks/use-table-sessions"
 import { useAttendanceToday } from "@/hooks/use-attendance"
-import { money, pctChange } from "./chart-utils"
+import { money } from "./chart-utils"
 
 function isoDate(d: Date): string {
   const year = d.getFullYear()
@@ -40,20 +41,16 @@ function isoDate(d: Date): string {
 }
 
 export function todayRange() {
-  const today = isoDate(new Date())
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  return { createdFrom: `${today}T00:00:00.000Z`, createdTo: `${isoDate(tomorrow)}T00:00:00.000Z` }
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { createdFrom: start.toISOString(), createdTo: end.toISOString() }
 }
 
 export function todayDashboardRange() {
   const today = isoDate(new Date())
   return { dateFrom: today, dateTo: today }
-}
-
-function yesterdayRange() {
-  const y = isoDate(new Date(Date.now() - 24 * 60 * 60_000))
-  return { dateFrom: y, dateTo: y }
 }
 
 function minutesSince(iso: string): number {
@@ -75,17 +72,14 @@ export interface OperationalSectionProps {
 
 interface DashboardStatsContextValue {
   today?: DashboardStats
-  yesterday?: DashboardStats
   todayQuery: ReturnType<typeof useDashboardStats>
-  yesterdayQuery: ReturnType<typeof useDashboardStats>
 }
 
 const DashboardStatsContext = createContext<DashboardStatsContextValue | null>(null)
 
 export function DashboardStatsProvider({ outletId, enabled, children }: OperationalSectionProps & { children: React.ReactNode }) {
   const todayQuery = useDashboardStats({ outletId, ...todayDashboardRange() }, { enabled })
-  const yesterdayQuery = useDashboardStats({ outletId, ...yesterdayRange() }, { enabled })
-  return <DashboardStatsContext.Provider value={{ today: todayQuery.data, yesterday: yesterdayQuery.data, todayQuery, yesterdayQuery }}>{children}</DashboardStatsContext.Provider>
+  return <DashboardStatsContext.Provider value={{ today: todayQuery.data, todayQuery }}>{children}</DashboardStatsContext.Provider>
 }
 
 function useDashboardStatsContext() {
@@ -110,7 +104,7 @@ function SectionError({ onRetry }: { onRetry: () => void }) {
 /* ------------------------------------------------------------------ */
 
 export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionProps) {
-  const { today, yesterday, todayQuery } = useDashboardStatsContext()
+  const { today, todayQuery } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(todayQuery.isLoading || !todayQuery.data)
 
   if (showSkeleton) return <StatGridSkeleton count={4} className="grid-cols-2 md:grid-cols-4" />
@@ -134,11 +128,7 @@ export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionPro
         icon={WalletIcon}
         label="Today's revenue"
         value={money(data.salesOverview.grandTotal)}
-        trend={
-          yesterday
-            ? { value: pctChange(data.salesOverview.grandTotal, yesterday.salesOverview.grandTotal) ?? 0, label: "vs yesterday" }
-            : undefined
-        }
+        description="Today so far"
       />
       <StatCard
         icon={ClockIcon}
@@ -528,12 +518,9 @@ export function KitchenStatusSection({ outletId, enabled }: OperationalSectionPr
 /* ------------------------------------------------------------------ */
 
 export function RevenueSnapshotSection({ outletId, enabled }: OperationalSectionProps) {
-  const { today, yesterday, todayQuery } = useDashboardStatsContext()
+  const { today, todayQuery } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(todayQuery.isLoading)
-
-  const change = today && yesterday
-    ? pctChange(today.salesOverview.grandTotal, yesterday.salesOverview.grandTotal)
-    : undefined
+  const change: number | undefined = undefined
 
   return (
     <Card>
@@ -673,6 +660,14 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { href: "/dashboard/ingredients", label: "Ingredients", icon: ChefHatIcon, permission: "ingredients.view" },
   { href: "/dashboard/reports", label: "Reports", icon: ReceiptIcon, permission: "reports.view" },
 ]
+
+export function DomainTodaySection({ outletId, enabled }: OperationalSectionProps) {
+  const query = useAnalyticsDashboard({ outletId, dateFrom: todayDashboardRange().dateFrom, dateTo: todayDashboardRange().dateTo }, { enabled })
+  if (query.isLoading) return <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Loading today&apos;s domain activity…</CardContent></Card>
+  if (query.isError) return <Card><CardContent><SectionError onRetry={() => void query.refetch()} /></CardContent></Card>
+  if (!query.data) return null
+  return <Card><CardHeader><CardTitle>Today&apos;s domain activity</CardTitle><CardDescription>Real records from purchasing, reservations, staff, loyalty, and system activity</CardDescription></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(query.data.domains).map(([key, report]) => <div key={key} className="flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm"><span className="truncate capitalize">{key.replaceAll("-", " ")}</span><span className="font-semibold tabular-nums">{report.meta.total.toLocaleString()}</span></div>)}</CardContent></Card>
+}
 
 export function QuickActionsSection({ actions }: { actions: QuickAction[] }) {
   if (actions.length === 0) return null

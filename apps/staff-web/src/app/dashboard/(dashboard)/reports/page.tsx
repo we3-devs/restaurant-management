@@ -161,11 +161,12 @@ export default function ReportsPage() {
 
   return (
     <div className="page-shell space-y-7">
-      <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reports</h1><p className="mt-1 text-sm text-muted-foreground">Review and export operational data by area.</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reports</h1><div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><Select value={reportType} onValueChange={(v) => { if (!v) return; setReportType(v as ReportType); setPage(1); setSearch("") }}><SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger><SelectContent>{REPORT_TYPE_GROUPS.map((group) => <SelectGroup key={group.group}><SelectLabel>{group.group}</SelectLabel>{group.tabs.map((tab) => <SelectItem key={tab.value} value={tab.value}>{tab.label}</SelectItem>)}</SelectGroup>)}</SelectContent></Select><DateRangeFilter compact value={range} onChange={(v) => { setRange(v); setPage(1) }} />{reportType === "sales-items" && <Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}><SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited</SelectItem><SelectItem value="uncredited">Non-credited</SelectItem></SelectContent></Select>}<Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}><DownloadIcon /> {exporting === "csv" ? "Exporting..." : "Export CSV"}</Button></div></div>
+      <div className="mt-3 max-w-md"><Input className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={SEARCH_PLACEHOLDER[reportType]} /></div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm">
-        <div className="w-64 space-y-1.5">
-          <label className="text-sm font-medium">Report</label>
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/70 p-2 shadow-sm">
+        <div className="w-48 space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Report</label>
           <Select
             value={reportType}
             onValueChange={(v) => {
@@ -178,7 +179,7 @@ export default function ReportsPage() {
               setSearch("")
             }}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-8 w-full text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -196,23 +197,13 @@ export default function ReportsPage() {
           </Select>
         </div>
         <DateRangeFilter
+          compact
           value={range}
           onChange={(v) => {
             setRange(v)
             setPage(1)
           }}
         />
-        <div className="w-56 space-y-1.5">
-          <label className="text-sm font-medium">Search</label>
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder={SEARCH_PLACEHOLDER[reportType]}
-          />
-        </div>
         {reportType === "sales-items" && <div className="w-44 space-y-1.5"><label className="text-sm font-medium">Credit status</label><Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited items</SelectItem><SelectItem value="uncredited">Non-credited items</SelectItem></SelectContent></Select></div>}
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}>

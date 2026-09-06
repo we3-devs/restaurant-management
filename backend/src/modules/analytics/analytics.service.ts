@@ -7,13 +7,86 @@ import { Order } from '../orders/entities/order.entity';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { SettingsService } from '../settings/settings.service';
 import { businessDateRange } from '../../common/reporting/reporting-date.util';
+import { ReportsService } from '../reports/reports.service';
+import type { ReportType } from '../reports/report-columns';
+import { AnalyticsDailySnapshot } from './entities/analytics-daily-snapshot.entity';
 
 type Scope = { from: Date; to: Date; outlets: AccessibleOutlets | number; query: AnalyticsQueryDto };
 const n = (value: unknown) => Number(value ?? 0);
 
 @Injectable()
 export class AnalyticsService {
-  constructor(@InjectRepository(Order) private readonly orders: Repository<Order>, private readonly access: OutletAccessService, private readonly settings: SettingsService) {}
+  constructor(
+    @InjectRepository(Order) private readonly orders: Repository<Order>,
+    @InjectRepository(AnalyticsDailySnapshot) private readonly snapshots: Repository<AnalyticsDailySnapshot>,
+    private readonly access: OutletAccessService,
+    private readonly settings: SettingsService,
+    private readonly reports: ReportsService,
+  ) {}
+
+  async dashboard(user: User, query: AnalyticsQueryDto) {
+    const [overview, products, inventory, customers] = await Promise.all([
+      this.overview(user, query),
+      this.products(user, query),
+      this.inventory(user, query),
+      this.customers(user, query),
+    ]);
+    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
+    const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
+    const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
+    return {
+      range: overview.range,
+      sales: overview,
+      products,
+      customers,
+      inventory,
+      domains: Object.fromEntries(reports.map(([type, result]) => [type, result])),
+    };
+  }
+
+  async daily(user: User, query: AnalyticsQueryDto) {
+    const range = await this.snapshotRange(query);
+    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const qb = this.snapshots.createQueryBuilder('snapshot')
+      .where('snapshot.business_date BETWEEN :from AND :to', { from: range.from, to: range.to })
+      .orderBy('snapshot.business_date', 'ASC');
+    if (query.outletId !== undefined) {
+      if (outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
+      qb.andWhere('snapshot.outlet_id = :outletId', { outletId: query.outletId });
+    } else if (outlets !== ALL_OUTLETS) {
+      // 0 is the persisted all-accessible-outlets aggregate.
+      qb.andWhere('snapshot.outlet_id IN (:...outletIds)', { outletIds: [...outlets, 0] });
+    }
+    const rows = await qb.getMany();
+    return { range, rows: rows.map((row) => ({ businessDate: row.businessDate, outletId: row.outletId, version: row.version, generatedAt: row.generatedAt, payload: row.payload })) };
+  }
+
+  async refreshDaily(user: User, query: AnalyticsQueryDto) {
+    const range = await this.snapshotRange(query);
+    const from = new Date(`${range.from}T00:00:00Z`);
+    const to = new Date(`${range.to}T00:00:00Z`);
+    const refreshed: string[] = [];
+    for (const cursor = new Date(from); cursor <= to; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      const businessDate = cursor.toISOString().slice(0, 10);
+      const payload = await this.dashboard(user, { ...query, from: businessDate, to: businessDate });
+      await this.snapshots.upsert({ outletId: query.outletId ?? 0, businessDate, version: 1, payload }, ['outletId', 'businessDate']);
+      refreshed.push(businessDate);
+    }
+    return { range, refreshed };
+  }
+
+  private async snapshotRange(query: AnalyticsQueryDto) {
+    const business = await this.settings.getBusinessSettings();
+    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? 'UTC' }).format(new Date());
+    const from = query.from ?? today;
+    const to = query.to ?? from;
+    if (from > to) throw new ForbiddenException('from must be before or equal to to');
+    // Keep the persisted key in business-date format while still validating the configured timezone.
+    businessDateRange(from, to, timezone);
+    return { from, to };
+  }
 
   private async scope(user: User, query: AnalyticsQueryDto): Promise<Scope> {
     const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);

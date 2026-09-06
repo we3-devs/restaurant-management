@@ -61,7 +61,6 @@ export default function FloorPlanPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Floor Plan</h1>
-          <p className="text-sm text-muted-foreground">Arrange dining areas and tables visually for this outlet.</p>
         </div>
         <div className="flex items-center gap-2">
           {isSuperadmin && <CreateDiningAreaDialog />}

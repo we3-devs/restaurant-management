@@ -6,6 +6,7 @@ import { DownloadIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,6 +15,7 @@ import { useIngredients } from "@/hooks/use-ingredients"
 import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import { useUnits } from "@/hooks/use-units"
 import { useWarehouses } from "@/hooks/use-warehouses"
+import { useAnalyticsInventory } from "@/hooks/use-analytics"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { CreateIngredientDialog } from "../ingredients/create-ingredient-dialog"
@@ -43,6 +45,9 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   const { data: stocks, isLoading: stocksLoading } = useWarehouseIngredientStocks({
     warehouseId: selectedWarehouseId,
   })
+  const today = new Date().toISOString().slice(0, 10)
+  const from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const inventoryAnalytics = useAnalyticsInventory({ outletId, dateFrom: from, dateTo: today })
 
   const rows = useMemo(() => {
     const ingredientById = new Map((ingredients?.data ?? []).map((ingredient) => [ingredient.id, ingredient]))
@@ -101,32 +106,26 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Inventory Items Overview" : "Manage Inventory Items"}</h1>
-            <p className="text-sm text-muted-foreground">Current stock, average cost, and total value by warehouse.</p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-2.5 py-1.5">
+              <label htmlFor="inventory-location" className="text-xs font-medium text-muted-foreground">Location</label>
+              <Select value={warehouseId} onValueChange={(value) => setWarehouseId(value ?? "")}>
+                <SelectTrigger id="inventory-location" className="h-8 w-36 border-0 bg-transparent px-1.5 text-sm shadow-none focus:ring-0">
+                  <SelectValue placeholder="All warehouses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All warehouses</SelectItem>
+                  {warehouses?.data.map((warehouse) => <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}>
               <DownloadIcon /> Export CSV
             </Button>
             {readOnly ? <Button variant="outline" render={<Link href="/dashboard/inventory-items" />}>Manage Inventory</Button> : <CreateIngredientDialog />}
           </div>
         </div>
-      </div>
-
-      <div className="w-64 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm space-y-1.5">
-        <label className="text-sm font-medium">Location</label>
-        <Select value={warehouseId} onValueChange={(value) => setWarehouseId(value ?? "")}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a warehouse" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All warehouses</SelectItem>
-            {warehouses?.data.map((warehouse) => (
-              <SelectItem key={warehouse.id} value={String(warehouse.id)}>
-                {warehouse.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {showSkeleton ? (
@@ -185,6 +184,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
           </TableBody>
         </Table></div>
       )}
+      {readOnly && <Card className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm"><CardHeader><CardTitle>Recent inventory movement</CardTitle><CardDescription>Movement totals for the last 30 days</CardDescription></CardHeader><CardContent>{inventoryAnalytics.data?.movement.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{inventoryAnalytics.data.movement.map((movement) => <div key={movement.type} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"><span className="capitalize">{movement.type.replaceAll("_", " ")}</span><span className="font-semibold tabular-nums">{movement.quantity.toLocaleString()}</span></div>)}</div> : <p className="py-6 text-center text-sm text-muted-foreground">No inventory movement in this period.</p>}</CardContent></Card>}
     </div>
   )
 }

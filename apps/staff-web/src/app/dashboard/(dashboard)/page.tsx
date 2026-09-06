@@ -8,6 +8,7 @@ import { CreateOutletDialog } from "./outlets/create-outlet-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   DiningAreasSection,
+  DomainTodaySection,
   DashboardStatsProvider,
   KitchenStatusSection,
   LiveOrdersSection,
@@ -103,6 +104,8 @@ export default function DashboardPage() {
           <DiningAreasSection outletId={outletId} enabled={dataEnabled} />
         </div>
       ) : null}
+
+      <DomainTodaySection outletId={outletId} enabled={dataEnabled} />
 
         </DashboardStatsProvider>
       )}

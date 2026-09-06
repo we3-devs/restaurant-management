@@ -18,9 +18,6 @@ export default function DataImportPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Data Import</h1>
-        <p className="text-sm text-muted-foreground">
-          Bulk-import historical or legacy data as CSV/Excel. Superadmin only.
-        </p>
       </div>
 
       <Tabs value={domain} onValueChange={(value) => value && setDomain(value)}>

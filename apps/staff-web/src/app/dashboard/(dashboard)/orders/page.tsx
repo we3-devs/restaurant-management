@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { DownloadIcon } from "lucide-react"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@/components/status-badge"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
@@ -72,6 +74,11 @@ export default function OrdersTrackingPage() {
     createdTo: range.dateTo,
   })
   const showSkeleton = useDelayedLoading(isLoading)
+  function exportOrders() {
+    const values = (data?.data ?? []).map((order) => [order.orderNumber, order.status, order.paymentStatus, order.orderType, order.createdAt, order.grandTotal])
+    const csv = [["Order", "Status", "Payment", "Type", "Created", "Total"], ...values].map((row) => row.join(",")).join("\r\n")
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "orders.csv"; link.click(); URL.revokeObjectURL(url)
+  }
 
   const table = useReactTable({
     data: data?.data ?? [],
@@ -83,47 +90,11 @@ export default function OrdersTrackingPage() {
 
   return (
     <div className="page-shell space-y-7">
-      <div className="">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Orders</h1>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={(value) => { setRange(value); setPage(1) }} /><Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value ?? "all"); setPage(1) }}><SelectTrigger id="order-status" className="h-8 w-32 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{ORDER_STATUSES.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="sm" disabled={!data || data.data.length === 0} onClick={exportOrders}><DownloadIcon /> Export CSV</Button></div>
       </div>
-
-      <div className="flex w-full flex-col gap-4 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-        <DateRangeFilter value={range} onChange={(value) => { setRange(value); setPage(1) }} />
-        <div className="w-full space-y-1.5 sm:max-w-md">
-          <label htmlFor="order-search" className="text-sm font-medium">Search orders or customers</label>
-          <Input
-            id="order-search"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Search order number or customer"
-          />
-        </div>
-        <div className="w-full space-y-1.5 sm:w-64">
-          <label htmlFor="order-status" className="text-sm font-medium">Filter by status</label>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value ?? "all")
-              setPage(1)
-            }}
-          >
-            <SelectTrigger id="order-status" className="w-full">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <div className="mt-3 max-w-md"><Input id="order-search" className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search orders or customers..." /></div>
 
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
