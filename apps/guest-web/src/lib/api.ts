@@ -3,7 +3,10 @@
 import { clearSession, getRefreshToken, getToken, setSession } from "./guest-auth";
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+  // Keep guest traffic same-origin so the Next proxy can derive the tenant
+  // from demo.restra.com / atithirestro.restra.com. A browser request sent
+  // directly to one shared backend has no reliable tenant context.
+  process.env.NEXT_PUBLIC_GUEST_API_URL || "/api/customer-backend";
 
 /** Unwraps the paginated {data,meta} envelope the public list endpoints use. */
 export async function getJson(path: string) {

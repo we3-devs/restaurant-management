@@ -19,9 +19,10 @@ export const EMPTY_BRANDING: Branding = {
  *
  * `baseUrl` includes the /api prefix, e.g. http://localhost:3001/api.
  */
-export async function fetchBranding(baseUrl: string): Promise<Branding> {
+export async function fetchBranding(baseUrl: string, headers?: HeadersInit): Promise<Branding> {
   try {
     const response = await fetch(`${baseUrl}/settings/branding/public`, {
+      headers,
       // Short on purpose. Branding changes rarely, but when it does the admin
       // is staring at the settings screen waiting for it — a long TTL reads as
       // "the save didn't work". Browsers cache favicons independently and far

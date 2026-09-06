@@ -17,12 +17,25 @@ export class TenantGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()])) {
-      return true;
-    }
-
     const request = context.switchToHttp().getRequest<AuthenticatedRequest & { tenantId?: number }>();
     const slug = String(request.headers['x-tenant-slug'] ?? '').trim().toLowerCase();
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
+
+    // Public guest routes still need a resolved tenant. Previously the early
+    // @Public() return meant branding, table lookup, and menu requests were
+    // always read from the shared/global dataset.
+    if (slug) {
+      const rows = await this.dataSource.query(
+        `SELECT t.id FROM tenants t
+         WHERE LOWER(t.slug) = $1 AND t.is_active = true
+         LIMIT 1`,
+        [slug],
+      );
+      if (!rows[0]) throw new ForbiddenException('Unknown or inactive tenant');
+      request.tenantId = Number(rows[0].id);
+    }
+
+    if (isPublic) return true;
     if (!slug) return true;
 
     const user = request.user;
