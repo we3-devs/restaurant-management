@@ -13,8 +13,6 @@ import {
   LiveOrdersSection,
   NeedsAttentionSection,
   OperationalKpiStrip,
-  PaymentStatusSection,
-  RevenueSnapshotSection,
   TableStatusSection,
 } from "./_shared/operational-sections"
 
@@ -49,7 +47,6 @@ export default function DashboardPage() {
   const canViewOrders = has("orders.view")
   const canViewKitchen = has("orders.view")
   const canViewTables = has("dining-tables.view")
-  const canViewDashboardStats = has("dashboard.view")
 
   const noOutletsYet = !isLoadingOutlets && outlets.length === 0
 
@@ -78,15 +75,15 @@ export default function DashboardPage() {
           {user.isSuperadmin && <CreateOutletDialog />}
         </div>
       ) : (
-        <DashboardStatsProvider outletId={outletId} enabled={dataEnabled && canViewDashboardStats}>
+        <DashboardStatsProvider outletId={outletId} enabled={dataEnabled}>
           <NeedsAttentionSection
             outletId={outletId}
             enabled={dataEnabled}
             canViewOrders={canViewOrders}
             canViewKitchen={canViewKitchen}
-            canViewDashboardStats={canViewDashboardStats}
+            canViewDashboardStats={true}
           />
-          {canViewDashboardStats ? <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} /> : null}
+          <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -106,11 +103,6 @@ export default function DashboardPage() {
           <DiningAreasSection outletId={outletId} enabled={dataEnabled} />
         </div>
       ) : null}
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {canViewDashboardStats ? <RevenueSnapshotSection outletId={outletId} enabled={dataEnabled} /> : null}
-        {canViewDashboardStats ? <PaymentStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
-      </div>
 
         </DashboardStatsProvider>
       )}

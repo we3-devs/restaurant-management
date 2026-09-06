@@ -41,6 +41,13 @@ function isoDate(d: Date): string {
 
 export function todayRange() {
   const today = isoDate(new Date())
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return { createdFrom: `${today}T00:00:00.000Z`, createdTo: `${isoDate(tomorrow)}T00:00:00.000Z` }
+}
+
+export function todayDashboardRange() {
+  const today = isoDate(new Date())
   return { dateFrom: today, dateTo: today }
 }
 
@@ -76,7 +83,7 @@ interface DashboardStatsContextValue {
 const DashboardStatsContext = createContext<DashboardStatsContextValue | null>(null)
 
 export function DashboardStatsProvider({ outletId, enabled, children }: OperationalSectionProps & { children: React.ReactNode }) {
-  const todayQuery = useDashboardStats({ outletId, ...todayRange() }, { enabled })
+  const todayQuery = useDashboardStats({ outletId, ...todayDashboardRange() }, { enabled })
   const yesterdayQuery = useDashboardStats({ outletId, ...yesterdayRange() }, { enabled })
   return <DashboardStatsContext.Provider value={{ today: todayQuery.data, yesterday: yesterdayQuery.data, todayQuery, yesterdayQuery }}>{children}</DashboardStatsContext.Provider>
 }
@@ -443,22 +450,22 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${row.total ? (row.occupied / row.total) * 100 : 0}%` }} />
                 </div>
-                <div className="mt-4 grid grid-cols-4 gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {row.tables.map((table) => (
                     <Link
                       key={table.id}
                       href={`/dashboard/tables/${table.id}`}
                       title={`${table.name} · ${table.status}`}
                       className={cn(
-                        "flex min-h-12 flex-col items-center justify-center rounded-xl border text-xs transition-all hover:-translate-y-0.5 hover:shadow-sm",
+                        "flex min-h-16 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-1.5 py-2 text-center text-xs transition-all hover:-translate-y-0.5 hover:shadow-sm",
                         table.status === "occupied" && "border-destructive/30 bg-destructive/10 text-destructive",
                         table.status === "reserved" && "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
                         table.status === "available" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
                         !["occupied", "reserved", "available"].includes(table.status) && "bg-muted/60 text-muted-foreground",
                       )}
                     >
-                      <span className="font-semibold">{table.name}</span>
-                      <span className="mt-0.5 capitalize opacity-80">{table.status}</span>
+                      <span className="w-full break-words font-semibold leading-tight">{table.name}</span>
+                      <span className="mt-1 rounded-full bg-background/50 px-1.5 py-0.5 text-[10px] capitalize leading-none opacity-80">{table.status}</span>
                     </Link>
                   ))}
                 </div>
