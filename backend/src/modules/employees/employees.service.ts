@@ -184,6 +184,7 @@ export class EmployeesService {
       photoUrl: employee.photoUrl,
       joiningDate: employee.joiningDate,
       employmentStatus: employee.employmentStatus,
+      requiresAttendance: employee.requiresAttendance,
       emergencyContactName: employee.emergencyContactName,
       emergencyContactPhone: employee.emergencyContactPhone,
       emergencyContactRelation: employee.emergencyContactRelation,

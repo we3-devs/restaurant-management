@@ -11,6 +11,7 @@ import {
 import { UsersIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlets } from "@/hooks/use-outlets"
-import { useEmployees, usePositions, type Employee } from "@/hooks/use-employees"
+import { useEmployees, usePositions, useUpdateEmployee, type Employee } from "@/hooks/use-employees"
 import { EMPLOYMENT_STATUSES } from "@/lib/validators/employees"
 import { CreateEmployeeDialog } from "./create-employee-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
@@ -66,6 +67,11 @@ export default function EmployeesPage() {
       },
       { id: "position", header: "Position", cell: ({ row }) => positionName(row.original.positionId) },
       { id: "outlet", header: "Outlet", cell: ({ row }) => outletName(row.original.outletId) },
+      {
+        id: "attendance",
+        header: "Attendance",
+        cell: ({ row }) => <AttendanceToggle employee={row.original} canManage={canManage} />,
+      },
       {
         id: "employmentStatus",
         header: "Status",
@@ -216,6 +222,24 @@ export default function EmployeesPage() {
           onPageChange={setPage}
         />
       )}
+    </div>
+  )
+}
+
+function AttendanceToggle({ employee, canManage }: { employee: Employee; canManage: boolean }) {
+  const updateEmployee = useUpdateEmployee(employee.id)
+
+  return (
+    <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+      <Switch
+        checked={employee.requiresAttendance}
+        disabled={!canManage || updateEmployee.isPending}
+        aria-label={`${employee.requiresAttendance ? "Disable" : "Enable"} attendance for ${employee.name}`}
+        onCheckedChange={(checked) => updateEmployee.mutate({ requiresAttendance: checked })}
+      />
+      <span className="text-xs text-muted-foreground">
+        {employee.requiresAttendance ? "Required" : "Not required"}
+      </span>
     </div>
   )
 }

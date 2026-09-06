@@ -19,6 +19,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './entities/user.entity';
 import { Employee } from '../employees/entities/employee.entity';
+import { Outlet } from '../outlets/entities/outlet.entity';
 
 @Injectable()
 export class UsersService {
@@ -174,6 +175,7 @@ export class UsersService {
       roleName: assignment.role.name,
       roleSlug: assignment.role.slug,
       scopeType: assignment.scopeType,
+      outletId: assignment.outletId,
       isActive: assignment.isActive,
       createdAt: assignment.createdAt,
     }));
@@ -186,14 +188,26 @@ export class UsersService {
     tenantId?: number,
   ): Promise<void> {
     await this.getUserOrThrow(userId, tenantId);
-    await this.rolesService.findOne(dto.roleId); // validates roleId, 404s if missing
+    const role = await this.rolesService.findOne(dto.roleId); // validates roleId, 404s if missing
+    if (!role.isAssignable) {
+      throw new ConflictException(`Role "${role.name}" cannot be assigned`);
+    }
+
+    if (dto.outletId !== undefined) {
+      const outlet = await this.assignmentsRepository.manager.getRepository(Outlet).findOne({
+        where: { id: dto.outletId, ...(tenantId !== undefined ? { tenantId } : {}) },
+      });
+      if (!outlet) {
+        throw new NotFoundException(`Outlet ${dto.outletId} not found in this tenant`);
+      }
+    }
 
     const existing = await this.assignmentsRepository.findOne({
       where: {
         userId,
         roleId: dto.roleId,
-        scopeType: 'global',
-        outletId: IsNull(),
+        scopeType: dto.outletId === undefined ? 'global' : 'outlet',
+        outletId: dto.outletId === undefined ? IsNull() : dto.outletId,
         outletDepartmentId: IsNull(),
         warehouseId: IsNull(),
       },
@@ -211,7 +225,8 @@ export class UsersService {
       this.assignmentsRepository.create({
         userId,
         roleId: dto.roleId,
-        scopeType: 'global',
+        scopeType: dto.outletId === undefined ? 'global' : 'outlet',
+        outletId: dto.outletId ?? null,
         isActive: true,
       }),
     );

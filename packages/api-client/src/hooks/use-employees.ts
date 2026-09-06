@@ -35,6 +35,7 @@ export interface Employee {
   photoUrl: string | null
   joiningDate: string | null
   employmentStatus: EmploymentStatus
+  requiresAttendance: boolean
   emergencyContactName: string | null
   emergencyContactPhone: string | null
   emergencyContactRelation: string | null

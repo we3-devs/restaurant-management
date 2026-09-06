@@ -23,6 +23,7 @@ export interface RoleAssignment {
   roleName: string
   roleSlug: string
   scopeType: string
+  outletId: number | null
   isActive: boolean
   createdAt: string
 }
@@ -106,8 +107,10 @@ export function useUserRoleAssignments(userId: number) {
 export function useAssignRole(userId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (roleId: number) =>
-      apiClient<void>(`/users/${userId}/role-assignments`, { method: "POST", body: JSON.stringify({ roleId }) }),
+    mutationFn: (input: number | { roleId: number; outletId?: number }) => {
+      const body = typeof input === "number" ? { roleId: input } : input
+      return apiClient<void>(`/users/${userId}/role-assignments`, { method: "POST", body: JSON.stringify(body) })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.roleAssignments(userId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) })

@@ -25,6 +25,7 @@ import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useRoles } from "@/hooks/use-roles"
+import { useOutlets } from "@/hooks/use-outlets"
 import {
   useAssignRole,
   useDeactivateUser,
@@ -45,12 +46,14 @@ export function UserDetail({ userId }: { userId: number }) {
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: assignments } = useUserRoleAssignments(userId)
   const { data: roles } = useRoles({ limit: 100 })
+  const { data: outlets } = useOutlets({ limit: 100 })
   const updateUser = useUpdateUser(userId)
   const deactivateUser = useDeactivateUser(userId)
   const assignRole = useAssignRole(userId)
   const revokeAssignment = useRevokeRoleAssignment(userId)
   const resetUserPassword = useResetUserPassword(userId)
   const [selectedRoleId, setSelectedRoleId] = useState<string>("")
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("global")
   const [newPassword, setNewPassword] = useState("")
 
   const form = useForm<UpdateUserInput>({
@@ -85,8 +88,11 @@ export function UserDetail({ userId }: { userId: number }) {
   async function handleAssign() {
     if (!selectedRoleId) return
     try {
-      await assignRole.mutateAsync(Number(selectedRoleId))
-      toast.success("Role assigned")
+      await assignRole.mutateAsync({
+        roleId: Number(selectedRoleId),
+        ...(selectedOutletId !== "global" ? { outletId: Number(selectedOutletId) } : {}),
+      })
+      toast.success(selectedOutletId === "global" ? "Global role assigned" : "Outlet access assigned")
       setSelectedRoleId("")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to assign role")
@@ -257,7 +263,9 @@ export function UserDetail({ userId }: { userId: number }) {
             )}
             {activeAssignments.map((assignment) => (
               <div key={assignment.id} className="flex items-center gap-1.5">
-                <Badge variant="secondary">{assignment.roleName}</Badge>
+                <Badge variant="secondary">
+                  {assignment.roleName} · {assignment.outletId ? (outlets?.data.find((outlet) => outlet.id === assignment.outletId)?.name ?? `Outlet #${assignment.outletId}`) : "All outlets"}
+                </Badge>
                 {canManageRoles && (
                   <Button variant="ghost" size="sm" onClick={() => handleRevoke(assignment.id)}>
                     Revoke
@@ -280,6 +288,20 @@ export function UserDetail({ userId }: { userId: number }) {
                       <SelectItem key={role.id} value={String(role.id)}>
                         {role.name}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <label className="text-sm font-medium">Outlet access</label>
+                <Select value={selectedOutletId} onValueChange={(value) => setSelectedOutletId(String(value ?? "global"))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select outlet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">All outlets</SelectItem>
+                    {outlets?.data.map((outlet) => (
+                      <SelectItem key={outlet.id} value={String(outlet.id)}>{outlet.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

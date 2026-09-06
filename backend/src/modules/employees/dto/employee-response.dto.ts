@@ -96,6 +96,9 @@ export class EmployeeResponseDto {
   isActive: boolean;
 
   @ApiProperty()
+  requiresAttendance: boolean;
+
+  @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()

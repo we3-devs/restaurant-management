@@ -48,6 +48,8 @@ export class Employee {
   emergencyContactRelation: string | null;
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+  @Column({ name: 'requires_attendance', type: 'boolean', default: true })
+  requiresAttendance: boolean;
   @Column({ name: 'created_by', type: 'bigint', transformer: new BigIntTransformer(), nullable: true })
   createdBy: number | null;
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
