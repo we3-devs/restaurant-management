@@ -13,7 +13,7 @@ export class TenantsController {
   constructor(private readonly service: TenantsService) {}
 
   @Get('tenants') list() { return this.service.list(); }
-  @Get('outlets') outlets() { return this.service.allOutlets(); }
+  @Get('outlets') allOutlets() { return this.service.allOutlets(); }
   @Post('tenants') create(@Body() dto: CreateTenantDto) { return this.service.create(dto); }
   @Patch('tenants/:id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTenantDto) { return this.service.update(id, dto); }
   @Get('tenants/:id/outlets') outlets(@Param('id', ParseIntPipe) id: number) { return this.service.outletsForTenant(id); }

@@ -5,6 +5,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { generateDocumentNumber } from '../../common/utils/document-number.util';
 import { UserRoleAssignment } from '../roles/entities/user-role-assignment.entity';
 import { User } from '../users/entities/user.entity';
+import { Outlet } from '../outlets/entities/outlet.entity';
 import { Position } from './entities/position.entity';
 import { Employee } from './entities/employee.entity';
 import { EmployeeDepartmentAssignment } from './entities/employee-department-assignment.entity';
@@ -142,6 +143,7 @@ export class EmployeesService {
   }
 
   async create(dto: CreateEmployeeDto, createdBy: number): Promise<EmployeeResponseDto> {
+    await this.syncUserTenantToOutlet(dto.userId, dto.outletId);
     await this.syncIdentityToUser(dto.userId, dto.name, dto.email, dto.phone);
     const employee = await this.employeeRepo.save(this.employeeRepo.create({
       ...dto, employeeCode: generateDocumentNumber('EMP', dto.outletId), createdBy,
@@ -152,6 +154,10 @@ export class EmployeesService {
 
   async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponseDto> {
     const e = await this.findOne(id);
+    await this.syncUserTenantToOutlet(
+      dto.userId !== undefined ? dto.userId : e.userId,
+      dto.outletId !== undefined ? dto.outletId : e.outletId,
+    );
     await this.syncIdentityToUser(dto.userId !== undefined ? dto.userId : e.userId, dto.name, dto.email, dto.phone);
     Object.assign(e, dto);
     const saved = await this.employeeRepo.save(e);
@@ -227,6 +233,21 @@ export class EmployeesService {
     if (email !== undefined && email !== '') user.email = email;
     if (phone !== undefined) user.phone = phone || null;
     await this.userRepo.save(user);
+  }
+
+  /** Keep a linked non-superadmin login inside the tenant that owns its outlet. */
+  private async syncUserTenantToOutlet(userId: number | null | undefined, outletId: number): Promise<void> {
+    if (!userId) return;
+    const [user, outlet] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId } }),
+      this.employeeRepo.manager.getRepository(Outlet).findOne({ where: { id: outletId } }),
+    ]);
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (!outlet) throw new NotFoundException(`Outlet ${outletId} not found`);
+    if (!user.isSuperadmin && user.tenantId !== outlet.tenantId) {
+      user.tenantId = outlet.tenantId;
+      await this.userRepo.save(user);
+    }
   }
 
   private toPositionResponse(position: Position): PositionResponseDto {
