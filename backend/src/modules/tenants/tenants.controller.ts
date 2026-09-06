@@ -5,9 +5,9 @@ import { AssignOutletDto } from './dto/assign-outlet.dto';
 import { CreateTenantDto, UpdateTenantDto } from './dto/create-tenant.dto';
 import { TenantsService } from './tenants.service';
 
-@ApiTags('superadmin')
+@ApiTags('tenants')
 @ApiBearerAuth()
-@Controller('superadmin')
+@Controller('tenants')
 @UseGuards(SuperadminGuard)
 export class TenantsController {
   constructor(private readonly service: TenantsService) {}

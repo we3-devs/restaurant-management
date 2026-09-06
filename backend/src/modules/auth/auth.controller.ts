@@ -9,7 +9,6 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiNoContentResponse,
@@ -31,7 +30,6 @@ import { PermissionsService } from './permissions.service';
 import { User } from '../users/entities/user.entity';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import type { Request } from 'express';
-import type { AppConfig } from '../../config/configuration';
 
 const WS_TICKET_TTL_SECONDS = 30;
 
@@ -49,7 +47,6 @@ export class AuthController {
     private readonly permissionsService: PermissionsService,
     private readonly wsTickets: WsTicketsService,
     private readonly poolMetrics: PoolMetrics,
-    private readonly configService: ConfigService<AppConfig>,
   ) {}
 
   @Public()
@@ -249,12 +246,6 @@ export class AuthController {
   }
 
   private assertApiUser(user: User): void {
-    const mode = this.configService.get('app', { infer: true })!.mode;
-    if (mode === 'superadmin' && !user.isSuperadmin) {
-      throw new UnauthorizedException('Only superadmins may use this API');
-    }
-    if (mode === 'normal' && user.isSuperadmin) {
-      throw new UnauthorizedException('Use the superadmin API');
-    }
+    if (user.isSuperadmin) throw new UnauthorizedException('Control-plane accounts cannot use the tenant API');
   }
 }

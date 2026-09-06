@@ -16,11 +16,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
-import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { CreateRoleAssignmentDto } from './dto/create-role-assignment.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
-import { SetSuperadminDto } from './dto/set-superadmin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UsersService } from './users.service';
@@ -71,7 +69,6 @@ export class UsersController {
   }
 
   @Patch(':id/password')
-  @UseGuards(SuperadminGuard)
   @RequirePermissions('users.manage')
   @ApiOperation({ summary: "Resets a user's password without revealing the old password" })
   resetPassword(
@@ -83,9 +80,8 @@ export class UsersController {
     return this.usersService.resetPassword(id, dto.newPassword, this.scope(user, request));
   }
 
-  @Patch(':id/superadmin')
-  @UseGuards(SuperadminGuard)
-  @RequirePermissions('users.manage')
+  /* removed superadmin flag mutation */
+  /*
   @ApiOperation({
     summary:
       "Grants or revokes a user's superadmin flag (superadmin bypasses all permission checks) — callable only by an existing superadmin",
@@ -98,6 +94,7 @@ export class UsersController {
   ) {
     return this.usersService.setSuperadmin(id, dto.isSuperadmin, this.scope(user, request));
   }
+  */
 
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.NO_CONTENT)

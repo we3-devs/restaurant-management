@@ -29,10 +29,6 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const { user } = request;
 
-    if (user.isSuperadmin) {
-      return true;
-    }
-
     const grantedSlugs = await this.permissionsService.getPermissionSlugs(
       user.id,
     );

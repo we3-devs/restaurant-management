@@ -12,12 +12,10 @@ import {
   Post,
   Req,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
-import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import { AuthenticatedRequest } from '../auth/types/authenticated-request';
@@ -80,6 +78,7 @@ export class OutletsController {
     return this.outletsService.findOne(id);
   }
 
+  /*
   @Post()
   @UseGuards(SuperadminGuard)
   @RequirePermissions('outlets.manage')
@@ -90,7 +89,9 @@ export class OutletsController {
     }
     return this.outletsService.create(dto, request.tenantId);
   }
+  */
 
+  /*
   @Patch(':id')
   @UseGuards(SuperadminGuard)
   @RequirePermissions('outlets.manage')
@@ -110,4 +111,5 @@ export class OutletsController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.outletsService.remove(id);
   }
+  */
 }

@@ -24,7 +24,7 @@ export interface SuperadminTenant {
 export function useSuperadminOutlets(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.outlets.superadminAll(),
-    queryFn: () => apiClient<Outlet[]>("/superadmin/outlets"),
+    queryFn: () => apiClient<Outlet[]>("/tenants/outlets"),
     staleTime: STALE_TIME.outlets,
     enabled: options.enabled ?? true,
   })
@@ -33,7 +33,7 @@ export function useSuperadminOutlets(options: { enabled?: boolean } = {}) {
 export function useSuperadminTenants(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.outlets.superadminTenants(),
-    queryFn: () => apiClient<SuperadminTenant[]>("/superadmin/tenants"),
+    queryFn: () => apiClient<SuperadminTenant[]>("/tenants"),
     staleTime: STALE_TIME.outlets,
     enabled: options.enabled ?? true,
   })
@@ -43,7 +43,7 @@ export function useUpdateSuperadminTenant() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, ...input }: { id: number; name?: string; isActive?: boolean }) =>
-      apiClient<SuperadminTenant>(`/superadmin/tenants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+      apiClient<SuperadminTenant>(`/tenants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
   })
 }
@@ -51,7 +51,7 @@ export function useUpdateSuperadminTenant() {
 export function useDeleteSuperadminTenant() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => apiClient<void>(`/superadmin/tenants/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => apiClient<void>(`/tenants/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
   })
 }

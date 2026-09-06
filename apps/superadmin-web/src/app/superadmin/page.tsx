@@ -32,7 +32,7 @@ export default function SuperadminPage() {
 
   const load = async () => {
     setLoading(true)
-    try { setTenants(await api("/superadmin/tenants")) }
+    try { setTenants(await api("/tenants")) }
     catch (error) { toast.error(error instanceof Error ? error.message : "Failed to load tenants") }
     finally { setLoading(false) }
   }
@@ -41,7 +41,7 @@ export default function SuperadminPage() {
   async function createTenant(event: React.FormEvent) {
     event.preventDefault()
     try {
-      await api("/superadmin/tenants", { method: "POST", body: JSON.stringify({ name, slug }) })
+      await api("/tenants", { method: "POST", body: JSON.stringify({ name, slug }) })
       setName(""); setSlug(""); toast.success("Tenant created")
       await queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() })
       await load()
@@ -59,7 +59,7 @@ export default function SuperadminPage() {
       await load()
       return
     }
-    try { await api(`/superadmin/outlets/${outletId}/tenant`, { method: "PATCH", body: JSON.stringify({ tenantId }) }); toast.success("Outlet moved"); await load() }
+    try { await api(`/tenants/outlets/${outletId}/tenant`, { method: "PATCH", body: JSON.stringify({ tenantId }) }); toast.success("Outlet moved"); await load() }
     catch (error) { toast.error(error instanceof Error ? error.message : "Failed to move outlet") }
   }
 

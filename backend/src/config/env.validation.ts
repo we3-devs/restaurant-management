@@ -10,10 +10,6 @@ import {
 } from 'class-validator';
 
 class EnvironmentVariables {
-  @IsOptional()
-  @IsString()
-  API_MODE?: 'normal' | 'superadmin';
-
   @IsInt()
   @Min(1)
   @Max(65535)

@@ -1,6 +1,6 @@
 export interface AppConfig {
   app: {
-    mode: 'normal' | 'superadmin';
+    mode: 'normal';
     port: number;
     frontendUrls: string[];
     publicUrl: string;
@@ -41,7 +41,7 @@ export default (): AppConfig => ({
     // The normal API and superadmin API run as separate processes. The normal
     // API must never accept a superadmin session, and the superadmin API must
     // never accept an ordinary admin/staff session.
-    mode: process.env.API_MODE === 'superadmin' ? 'superadmin' : 'normal',
+    mode: 'normal',
     port: parseInt(process.env.PORT ?? '3001', 10),
     // FRONTEND_URL may be a comma-separated list — dashboard-web and
     // operational-web are two different origins in dev (ports 3000/3100)

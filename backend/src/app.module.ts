@@ -59,7 +59,6 @@ import { ServiceRequestsModule } from './modules/service-requests/service-reques
 import { SettingsModule } from './modules/settings/settings.module';
 import { OperatingHoursModule } from './modules/operating-hours/operating-hours.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
-import { DataImportModule } from './modules/data-import/data-import.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { StockAdjustmentsModule } from './modules/stock-adjustments/stock-adjustments.module';
@@ -76,7 +75,6 @@ import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
-import { TenantsModule } from './modules/tenants/tenants.module';
 
 @Module({
   providers: [
@@ -246,7 +244,6 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     SettingsModule,
     OperatingHoursModule,
     UploadsModule,
-    DataImportModule,
     AuditLogsModule,
     LoyaltyModule,
     MenuModule,
@@ -254,7 +251,6 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     CustomerAuthModule,
     CustomerPortalModule,
     AssistantModule,
-    TenantsModule,
   ],
 })
 export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
