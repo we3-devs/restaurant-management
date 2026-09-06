@@ -131,6 +131,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
       {showSkeleton ? (
         <TableSkeleton rows={6} columns={12} />
       ) : (
+        <>
         <div className="space-y-3 md:hidden">
           {rows.length === 0 ? (
             <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-sm text-muted-foreground">
@@ -217,6 +218,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
             })}
           </TableBody>
         </Table></div>
+        </>
       )}
       {readOnly && <Card className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm"><CardHeader><CardTitle>Recent inventory movement</CardTitle><CardDescription>Movement totals for the last 30 days</CardDescription></CardHeader><CardContent>{inventoryAnalytics.data?.movement.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{inventoryAnalytics.data.movement.map((movement) => <div key={movement.type} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"><span className="capitalize">{movement.type.replaceAll("_", " ")}</span><span className="font-semibold tabular-nums">{movement.quantity.toLocaleString()}</span></div>)}</div> : <p className="py-6 text-center text-sm text-muted-foreground">No inventory movement in this period.</p>}</CardContent></Card>}
     </div>
