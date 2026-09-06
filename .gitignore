@@ -6,13 +6,14 @@
 # =========================
 # Build output
 # =========================
-apps/*/.next
-apps/*/out
-backend/dist
+**/.next
+**/out
+**/dist
 backend-superadmin/dist
-backend/build
+**/build
 **/coverage
 **/.nyc_output
+**/.turbo
 
 # =========================
 # Environment files
@@ -36,13 +37,20 @@ lerna-debug.log*
 # =========================
 # Vercel
 # =========================
-apps/*/.vercel
+**/.vercel
 
 # =========================
 # TypeScript
 # =========================
 **/*.tsbuildinfo
-apps/*/next-env.d.ts
+**/next-env.d.ts
+
+# =========================
+# Test tooling
+# =========================
+**/playwright-report
+**/test-results
+**/.eslintcache
 
 # =========================
 # Runtime
@@ -87,6 +95,7 @@ AGENTS.md
 # Misc
 # =========================
 *.pem
+*.local
 
 
 /rms-main/*
@@ -105,3 +114,8 @@ launcher.bat
 # and on an ephemeral host this directory does not survive a redeploy.
 /backend/uploads/*
 !/backend/uploads/.gitkeep
+
+# Superadmin runtime uploads are also generated data.
+/backend-superadmin/uploads/*
+!/backend-superadmin/uploads/.gitkeep
+
