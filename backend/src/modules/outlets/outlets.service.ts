@@ -75,8 +75,19 @@ export class OutletsService {
     return outlet;
   }
 
-  async create(dto: CreateOutletDto): Promise<Outlet> {
-    const outlet = this.outletsRepository.create({ name: dto.name });
+  async create(dto: CreateOutletDto, tenantId: number): Promise<Outlet> {
+    const slugBase = dto.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 70) || 'outlet';
+    const slug = `${slugBase}-${Date.now().toString(36)}`.slice(0, 80);
+    const outlet = this.outletsRepository.create({
+      name: dto.name,
+      slug,
+      tenantId,
+    });
     try {
       return await this.outletsRepository.save(outlet);
     } catch (error) {

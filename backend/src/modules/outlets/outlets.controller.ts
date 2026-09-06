@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -83,8 +84,11 @@ export class OutletsController {
   @UseGuards(SuperadminGuard)
   @RequirePermissions('outlets.manage')
   @ApiOperation({ summary: 'Creates an outlet' })
-  create(@Body() dto: CreateOutletDto) {
-    return this.outletsService.create(dto);
+  create(@Body() dto: CreateOutletDto, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    if (request.tenantId === undefined) {
+      throw new ForbiddenException('Outlet creation requires a tenant hostname');
+    }
+    return this.outletsService.create(dto, request.tenantId);
   }
 
   @Patch(':id')
