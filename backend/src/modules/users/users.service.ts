@@ -125,6 +125,13 @@ export class UsersService {
     }
   }
 
+  async resetPassword(id: number, newPassword: string): Promise<void> {
+    const user = await this.getUserOrThrowWithPassword(id);
+    const saltRounds = this.configService.get('bcrypt', { infer: true })!.saltRounds;
+    user.password = await bcrypt.hash(newPassword, saltRounds);
+    await this.usersRepository.save(user);
+  }
+
   async setSuperadmin(id: number, isSuperadmin: boolean): Promise<UserResponseDto> {
     const user = await this.getUserOrThrow(id);
     user.isSuperadmin = isSuperadmin;
@@ -227,6 +234,16 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User ${id} not found`);
     }
+    return user;
+  }
+
+  private async getUserOrThrowWithPassword(id: number): Promise<User> {
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :id', { id })
+      .getOne();
+    if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
   }
 

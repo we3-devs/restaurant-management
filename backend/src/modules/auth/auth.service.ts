@@ -45,6 +45,22 @@ export class AuthService {
     return user;
   }
 
+  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :userId', { userId })
+      .getOne();
+
+    if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const saltRounds = this.configService.get('bcrypt', { infer: true })!.saltRounds;
+    user.password = await bcrypt.hash(newPassword, saltRounds);
+    await this.usersRepository.save(user);
+  }
+
   async login(
     email: string,
     password: string,

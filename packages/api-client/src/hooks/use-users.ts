@@ -70,6 +70,20 @@ export function useUpdateUser(id: number) {
   })
 }
 
+export function useResetUserPassword(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (newPassword: string) =>
+      apiClient<void>(`/users/${id}/password`, {
+        method: "PATCH",
+        body: JSON.stringify({ newPassword }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(id) })
+    },
+  })
+}
+
 export function useDeactivateUser(id: number) {
   const queryClient = useQueryClient()
   return useMutation({

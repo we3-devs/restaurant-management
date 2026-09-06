@@ -27,6 +27,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { PermissionsService } from './permissions.service';
 import { User } from '../users/entities/user.entity';
+import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import type { Request } from 'express';
 
 const WS_TICKET_TTL_SECONDS = 30;
@@ -148,6 +149,17 @@ export class AuthController {
       departmentIds: [], // Defer to department select fetch
       roleSlugs,
     };
+  }
+
+  @Post('change-password')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Changes the authenticated user password' })
+  async changePassword(
+    @CurrentUser() user: User,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<void> {
+    await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
   }
 
   @Post('ws-ticket')

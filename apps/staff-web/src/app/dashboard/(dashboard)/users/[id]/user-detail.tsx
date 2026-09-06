@@ -29,6 +29,7 @@ import {
   useAssignRole,
   useDeactivateUser,
   useRevokeRoleAssignment,
+  useResetUserPassword,
   useUpdateUser,
   useUser,
   useUserRoleAssignments,
@@ -48,7 +49,9 @@ export function UserDetail({ userId }: { userId: number }) {
   const deactivateUser = useDeactivateUser(userId)
   const assignRole = useAssignRole(userId)
   const revokeAssignment = useRevokeRoleAssignment(userId)
+  const resetUserPassword = useResetUserPassword(userId)
   const [selectedRoleId, setSelectedRoleId] = useState<string>("")
+  const [newPassword, setNewPassword] = useState("")
 
   const form = useForm<UpdateUserInput>({
     resolver: zodResolver(updateUserSchema),
@@ -96,6 +99,16 @@ export function UserDetail({ userId }: { userId: number }) {
       toast.success("Role revoked")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to revoke role")
+    }
+  }
+
+  async function handleResetPassword() {
+    try {
+      await resetUserPassword.mutateAsync(newPassword)
+      setNewPassword("")
+      toast.success("Password reset")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reset password")
     }
   }
 
@@ -198,6 +211,40 @@ export function UserDetail({ userId }: { userId: number }) {
           )}
         </CardContent>
       </Card>
+
+      {isSuperadmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Reset password</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Set a new password for this user. The existing password cannot be viewed or recovered.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="new-user-password">New password</label>
+                <input
+                  id="new-user-password"
+                  type="password"
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  placeholder="At least 8 characters"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={newPassword.length < 8 || resetUserPassword.isPending}
+              >
+                {resetUserPassword.isPending ? "Resetting..." : "Reset password"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

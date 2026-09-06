@@ -20,6 +20,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { SetSuperadminDto } from './dto/set-superadmin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -56,6 +57,17 @@ export class UsersController {
   @ApiOperation({ summary: "Updates a user's name/email" })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
+  }
+
+  @Patch(':id/password')
+  @UseGuards(SuperadminGuard)
+  @RequirePermissions('users.manage')
+  @ApiOperation({ summary: "Resets a user's password without revealing the old password" })
+  resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    return this.usersService.resetPassword(id, dto.newPassword);
   }
 
   @Patch(':id/superadmin')
