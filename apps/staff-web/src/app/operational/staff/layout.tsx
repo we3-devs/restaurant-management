@@ -10,7 +10,6 @@ import { AccessDenied } from "@rms/ui/access-denied"
 import { StaffHeader } from "./staff-header"
 import { StaffTabBar } from "./staff-tab-bar"
 import { StaffOfflineBanner } from "./staff-offline-banner"
-import { RegisterStaffServiceWorker } from "./register-sw"
 import { isStaffRouteBlockedForRole, staffRoutePermissions } from "./nav-items"
 
 /**
@@ -55,7 +54,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             }}
           >
             <StaffHeader />
-            <RegisterStaffServiceWorker />
             <StaffOfflineBanner />
             <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
               {allowed ? children : <AccessDenied />}

@@ -6,8 +6,7 @@ import { DownloadIcon, RefreshCwIcon, XIcon } from "lucide-react"
 import { Button } from "@rms/ui/button"
 
 const VISIT_COUNT_KEY = "staff-pwa-visit-count"
-const INSTALL_DISMISSED_KEY = "staff-pwa-install-dismissed"
-const MIN_VISITS_BEFORE_PROMPT = 3
+const INSTALL_DISMISSED_KEY = "staff-pwa-install-dismissed-v2"
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -67,9 +66,7 @@ export function RegisterStaffServiceWorker() {
 
     function handleBeforeInstallPrompt(event: Event) {
       event.preventDefault()
-      if (visits >= MIN_VISITS_BEFORE_PROMPT) {
-        setInstallEvent(event as BeforeInstallPromptEvent)
-      }
+      setInstallEvent(event as BeforeInstallPromptEvent)
     }
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
