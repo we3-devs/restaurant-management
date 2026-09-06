@@ -53,8 +53,8 @@ export function AssistantPanel() {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h1 className="text-2xl font-semibold">Operations Assistant</h1>
-				<p className="text-sm text-muted-foreground">Read-only answers based on your restaurant data.</p>
+				<h1 className="text-2xl font-semibold">Restra AI</h1>
+				<p className="text-sm text-muted-foreground">Your playful AI sidekick for restaurant operations.</p>
 			</div>
 			<Card className="bg-card bg-none">
 				<CardHeader>
@@ -87,7 +87,7 @@ export function AssistantPanel() {
 							onKeyDown={(event) => {
 								if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void ask(); }
 							}}
-							placeholder="Ask about bookings, revenue, cancellations…"
+							placeholder="Ask Restra AI about your restaurant…"
 							aria-label="Assistant question"
 						/>
 						<Button onClick={() => void ask()} disabled={busy || !question.trim()} aria-label="Send question">

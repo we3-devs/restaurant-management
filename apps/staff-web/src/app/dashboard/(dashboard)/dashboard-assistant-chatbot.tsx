@@ -58,9 +58,9 @@ export function DashboardAssistantChatbot() {
   return (
     <div className="fixed right-4 bottom-4 z-50 sm:right-6 sm:bottom-6">
       {open && (
-        <Card className="mb-3 flex h-[680px] w-[560px] max-w-[calc(100vw-2rem)] flex-col bg-card bg-none shadow-xl">
+        <Card className="mb-3 flex h-[min(680px,calc(100dvh-2rem))] w-[560px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden bg-card bg-none shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <div><CardTitle className="text-base">Operations Assistant</CardTitle><p className="text-xs text-muted-foreground">Ask about your operations</p></div>
+            <div><CardTitle className="text-base">Restra AI</CardTitle><p className="text-xs text-muted-foreground">Your restaurant’s smart sidekick</p></div>
             <div className="flex items-center gap-1">
               {messages.length > 0 && <Button variant="ghost" size="icon" onClick={() => { setMessages([]); setMessage("") }} aria-label="Clear conversation"><Trash2Icon /></Button>}
               <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close assistant"><XIcon /></Button>
@@ -68,7 +68,7 @@ export function DashboardAssistantChatbot() {
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {messages.length === 0 && <div className="rounded-lg bg-muted p-3 text-sm"><p className="mb-2 font-medium">What would you like to know?</p><p className="text-muted-foreground">Try “How many bookings did we get today?”</p></div>}
+              {messages.length === 0 && <div className="rounded-lg bg-muted p-3 text-sm"><p className="mb-2 font-medium">Hey! What can I help you discover?</p><p className="text-muted-foreground">Ask me about your restaurant’s sales, orders, inventory, or today’s service.</p></div>}
               <div className="space-y-3">
                 {messages.map((item) => <div key={item.id} className={`flex gap-2 ${item.role === "user" ? "justify-end" : "justify-start"}`}><div className={`flex max-w-[88%] gap-2 rounded-lg p-3 text-sm ${item.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{item.role === "assistant" ? <BotIcon className="mt-0.5 size-4 shrink-0" /> : <UserIcon className="mt-0.5 size-4 shrink-0" />}<div className="whitespace-pre-wrap">{item.route && <p className="mb-1 text-[10px] font-medium uppercase opacity-60">{item.route}</p>}<AssistantMessage text={item.text} /></div></div></div>)}
                 {busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><BotIcon className="size-4" /> Thinking…</div>}
@@ -77,15 +77,21 @@ export function DashboardAssistantChatbot() {
             </div>
             {message && <p className="text-sm text-destructive">{message}</p>}
             <div className="flex gap-2">
-              <Input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void ask() } }} placeholder="Ask a question..." aria-label="Assistant question" />
+              <Input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void ask() } }} placeholder="Ask Restra AI about your restaurant…" aria-label="Ask Restra AI a question" />
               <Button size="icon" onClick={() => void ask()} disabled={busy || !question.trim()} aria-label="Send question"><SendIcon /></Button>
             </div>
           </CardContent>
         </Card>
       )}
       {!open && (
-        <Button size="icon-lg" className="ml-auto rounded-full shadow-lg" onClick={() => setOpen(true)} aria-label="Open assistant">
-          <MessageCircleIcon />
+        <Button
+          size="icon"
+          className="ml-auto size-12 rounded-full bg-primary p-0 text-primary-foreground shadow-lg ring-1 ring-primary/30 transition-transform hover:scale-105 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          onClick={() => setOpen(true)}
+          aria-label="Talk to Restra AI"
+          title="Talk to Restra AI"
+        >
+          <MessageCircleIcon className="size-5" strokeWidth={2.25} />
         </Button>
       )}
     </div>

@@ -128,6 +128,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/outlets", label: "Outlets", permission: true, superadminOnly: true },
       { href: "/dashboard/audit-logs", label: "Audit Logs", permission: true, superadminOnly: true },
       { href: "/dashboard/data-import", label: "Data Import", permission: true, superadminOnly: true },
+      { href: "/superadmin/analytics", label: "Analytics Data", permission: true, superadminOnly: true },
     ],
   },
 ]
