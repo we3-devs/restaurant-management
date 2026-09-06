@@ -61,6 +61,7 @@ export class PurchaseOrdersService {
     }
     const [data, total] = await this.poRepo.findAndCount({
       where,
+      relations: { outlet: { tenant: true } },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -72,7 +73,10 @@ export class PurchaseOrdersService {
   }
 
   async findOne(id: number): Promise<PurchaseOrder> {
-    const po = await this.poRepo.findOne({ where: { id } });
+    const po = await this.poRepo.findOne({
+      where: { id },
+      relations: { outlet: { tenant: true } },
+    });
     if (!po) throw new NotFoundException(`Purchase order ${id} not found`);
     return po;
   }

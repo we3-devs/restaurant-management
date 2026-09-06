@@ -14,6 +14,11 @@ export interface Ingredient {
     name: string
     type: "raw_material" | "ready_product" | "packaging" | "consumable" | "beverage"
   }
+  outlet?: {
+    id: number
+    name: string
+    tenant?: { id: number; name: string }
+  }
   name: string
   slug: string
   code: string

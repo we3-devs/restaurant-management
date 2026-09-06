@@ -47,6 +47,8 @@ export default function IngredientsPage() {
   const columns: ColumnDef<Ingredient>[] = [
     { accessorKey: "name", header: "Name" },
     { accessorKey: "code", header: "Code" },
+    { id: "tenant", header: "Tenant", cell: ({ row }) => row.original.outlet?.tenant?.name ?? "—" },
+    { id: "outlet", header: "Outlet", cell: ({ row }) => row.original.outlet?.name ?? "—" },
     {
       id: "category",
       header: "Category",

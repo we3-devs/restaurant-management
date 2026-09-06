@@ -61,7 +61,7 @@ export class IngredientsService {
 
     const [ingredients, total] = await this.ingredientsRepository.findAndCount({
       where,
-      relations: { category: true },
+      relations: { category: true, outlet: { tenant: true } },
       order: { name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -77,7 +77,7 @@ export class IngredientsService {
   async findOne(id: number): Promise<Ingredient> {
     const ingredient = await this.ingredientsRepository.findOne({
       where: { id },
-      relations: { category: true },
+      relations: { category: true, outlet: { tenant: true } },
     });
     if (!ingredient) {
       throw new NotFoundException(`Ingredient ${id} not found`);

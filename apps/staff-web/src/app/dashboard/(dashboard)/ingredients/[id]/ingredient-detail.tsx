@@ -88,7 +88,12 @@ export function IngredientDetail({ ingredientId }: { ingredientId: number }) {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{ingredient.name}</h1>
+        <div>
+          <h1 className="text-lg font-semibold">{ingredient.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            Tenant: {ingredient.outlet?.tenant?.name ?? "—"} · Outlet: {ingredient.outlet?.name ?? "—"}
+          </p>
+        </div>
         <AlertDialog>
           <AlertDialogTrigger render={<Button variant="destructive">Delete</Button>} />
           <AlertDialogContent>

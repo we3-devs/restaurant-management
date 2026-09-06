@@ -56,6 +56,8 @@ export default function PurchaseOrdersPage() {
     () => [
       { id: "poNo", header: "PO #", cell: ({ row }) => <span className="font-medium">{row.original.poNo}</span> },
       { id: "supplier", header: "Supplier", cell: ({ row }) => supplierName(row.original.supplierId) },
+      { id: "tenant", header: "Tenant", cell: ({ row }) => row.original.outlet?.tenant?.name ?? "—" },
+      { id: "outlet", header: "Outlet", cell: ({ row }) => row.original.outlet?.name ?? "—" },
       {
         id: "status",
         header: "Status",

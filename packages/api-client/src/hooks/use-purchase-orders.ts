@@ -23,6 +23,11 @@ export interface PurchaseOrder {
   poNo: string
   supplierId: number
   outletId: number
+  outlet?: {
+    id: number
+    name: string
+    tenant?: { id: number; name: string }
+  }
   warehouseId: number
   expectedDeliveryDate: string | null
   currency: string

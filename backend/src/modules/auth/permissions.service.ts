@@ -53,10 +53,10 @@ export class PermissionsService {
       .addSelect('ura.outlet_id', 'outletId')
       .addSelect('ura.outlet_department_id', 'outletDepartmentId')
       .addSelect('roles.slug', 'roleSlug')
-      .addSelect('user.tenant_id', 'tenantId')
+      .addSelect('assigned_user.tenant_id', 'tenantId')
       .addSelect('assigned_outlet.tenant_id', 'outletTenantId')
       .from('user_role_assignments', 'ura')
-      .innerJoin('users', 'user', 'user.id = ura.user_id')
+      .innerJoin('users', 'assigned_user', 'assigned_user.id = ura.user_id')
       .innerJoin(
         'roles',
         'roles',

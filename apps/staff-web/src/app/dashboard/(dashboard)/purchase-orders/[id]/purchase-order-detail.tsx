@@ -82,6 +82,9 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{po.poNo}</h1>
+          <p className="text-sm text-muted-foreground">
+            Tenant: {po.outlet?.tenant?.name ?? "Loading…"} · Outlet: {po.outlet?.name ?? outlet?.name ?? "Loading…"}
+          </p>
           <div className="flex items-center gap-1.5">
             <p className="text-sm text-muted-foreground">
               {supplier?.supplier.companyName ?? "Loading…"} · {outlet?.name ?? "Loading…"} ·{" "}
