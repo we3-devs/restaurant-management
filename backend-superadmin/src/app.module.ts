@@ -168,6 +168,9 @@ import { TenantsModule } from './modules/tenants/tenants.module';
           extra: {
             max: 13,
             min: 10,
+            // Dedicated control-plane connections are explicitly recognized
+            // by the tenant RLS policy so superadmin can manage all tenants.
+            options: '-c app.control_plane=true',
             idleTimeoutMillis: 60_000,
             // node-postgres uses this both to bound establishing a new
             // physical connection AND how long a caller queues waiting for
