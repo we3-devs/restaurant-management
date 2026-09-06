@@ -39,6 +39,23 @@ export function useSuperadminTenants(options: { enabled?: boolean } = {}) {
   })
 }
 
+export function useUpdateSuperadminTenant() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: number; name?: string; isActive?: boolean }) =>
+      apiClient<SuperadminTenant>(`/superadmin/tenants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
+  })
+}
+
+export function useDeleteSuperadminTenant() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiClient<void>(`/superadmin/tenants/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
+  })
+}
+
 export interface ListOutletsParams {
   page?: number
   limit?: number

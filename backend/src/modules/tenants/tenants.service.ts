@@ -35,6 +35,18 @@ export class TenantsService {
     return this.tenants.save(tenant);
   }
 
+  async remove(id: number): Promise<void> {
+    const tenant = await this.requireTenant(id);
+    try {
+      await this.tenants.remove(tenant);
+    } catch (error) {
+      if (error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23503') {
+        throw new ConflictException('Cannot delete a tenant while users, outlets, or related records still reference it');
+      }
+      throw error;
+    }
+  }
+
   async outletsForTenant(tenantId: number) {
     await this.requireTenant(tenantId);
     return this.outlets.find({ where: { tenantId }, order: { name: 'ASC' } });

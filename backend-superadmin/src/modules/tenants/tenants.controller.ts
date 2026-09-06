@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { AssignOutletDto } from './dto/assign-outlet.dto';
@@ -16,6 +16,7 @@ export class TenantsController {
   @Get('outlets') allOutlets() { return this.service.allOutlets(); }
   @Post('tenants') create(@Body() dto: CreateTenantDto) { return this.service.create(dto); }
   @Patch('tenants/:id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTenantDto) { return this.service.update(id, dto); }
+  @Delete('tenants/:id') @HttpCode(HttpStatus.NO_CONTENT) remove(@Param('id', ParseIntPipe) id: number) { return this.service.remove(id); }
   @Get('tenants/:id/outlets') outlets(@Param('id', ParseIntPipe) id: number) { return this.service.outletsForTenant(id); }
   @Patch('outlets/:id/tenant') assign(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignOutletDto) { return this.service.assignOutlet(id, dto.tenantId); }
 }
