@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SetupAttendanceQrDto {
   @ApiProperty() @Type(() => Number) @IsInt() @Min(1) outletId: number;
+  @ApiProperty() @IsOptional() @Type(() => Number) @IsInt() @Min(1) tenantId?: number;
 }
 
 export class ScanAttendanceQrDto {

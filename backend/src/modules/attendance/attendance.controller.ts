@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -9,6 +9,7 @@ import { ListAttendanceQueryDto } from './dto/list-attendance-query.dto';
 import { AttendanceService } from './attendance.service';
 import { ScanAttendanceQrDto, SetupAttendanceQrDto } from './dto/attendance-qr.dto';
 import { AllowWithoutPresence } from '../auth/decorators/allow-without-presence.decorator';
+import { AuthenticatedRequest } from '../auth/types/authenticated-request';
 
 @ApiTags('attendance')
 @ApiBearerAuth()
@@ -21,7 +22,8 @@ export class AttendanceController {
 
   @Post('qr/setup') @RequirePermissions('attendance.manage') @AllowWithoutPresence()
   @ApiOperation({ summary: 'Creates the permanent clock-in and clock-out QR codes for an outlet' })
-  async setupQr(@Body() dto: SetupAttendanceQrDto, @CurrentUser() user: User) {
+  async setupQr(@Body() dto: SetupAttendanceQrDto, @CurrentUser() user: User, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    this.assertTenant(request, dto.tenantId);
     await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, dto.outletId);
     return this.attendanceService.setupQrCodes(dto.outletId, user.id);
   }
@@ -40,12 +42,13 @@ export class AttendanceController {
 
   @Get() @RequirePermissions('attendance.view')
   @ApiOperation({ summary: 'Lists attendance (paginated, filterable)' })
-  async findAll(@Query() query: ListAttendanceQueryDto, @CurrentUser() user: User) {
+  async findAll(@Query() query: ListAttendanceQueryDto, @CurrentUser() user: User, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    const tenantId = this.assertTenant(request, query.tenantId);
     const accessible = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
     if (accessible !== 'ALL' && query.outletId !== undefined) {
       await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, query.outletId);
     }
-    return this.attendanceService.findAll(query, accessible);
+    return this.attendanceService.findAll({ ...query, tenantId }, accessible);
   }
 
   @Post('clock-in') @RequirePermissions('attendance.manage')
@@ -80,5 +83,16 @@ export class AttendanceController {
       await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, parsedOutletId);
     }
     return this.attendanceService.getToday(parsedOutletId, accessible);
+  }
+
+  private assertTenant(request: AuthenticatedRequest & { tenantId?: number }, suppliedTenantId?: number): number {
+    const resolvedTenantId = request.tenantId;
+    if (resolvedTenantId === undefined) {
+      throw new ForbiddenException('Tenant context is required for attendance');
+    }
+    if (suppliedTenantId !== undefined && suppliedTenantId !== resolvedTenantId) {
+      throw new ForbiddenException('Tenant ID does not match the authenticated tenant context');
+    }
+    return resolvedTenantId;
   }
 }

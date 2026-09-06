@@ -35,6 +35,7 @@ export interface AttendanceToday {
 }
 
 export interface ListAttendanceParams {
+  tenantId?: number
   page?: number
   limit?: number
   employeeId?: number

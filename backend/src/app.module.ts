@@ -1,4 +1,4 @@
-import { Module, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
@@ -75,9 +75,12 @@ import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
+import { TenantContext } from './common/tenant/tenant-context';
+import { TenantRlsMiddleware } from './common/tenant/tenant-rls.middleware';
 
 @Module({
   providers: [
+    TenantContext,
     {
       provide: APP_INTERCEPTOR,
       useClass: TimingInterceptor,
@@ -253,9 +256,16 @@ import { AssistantModule } from './modules/assistant/assistant.module';
     AssistantModule,
   ],
 })
-export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
+export class AppModule implements NestModule, OnApplicationBootstrap, OnModuleDestroy {
   private warmupTimer?: NodeJS.Timeout;
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly tenantContext: TenantContext,
+  ) {}
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantRlsMiddleware).forRoutes('*');
+  }
 
   /**
    * Fires 10 trivial queries in parallel Ã¢â‚¬â€ at boot, and then on a repeating
@@ -281,6 +291,7 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
    * aging out.
    */
   async onApplicationBootstrap() {
+    this.installTenantRlsQueryContext();
     const warmConnections = 10;
     const pingAll = () =>
       Promise.all(
@@ -293,6 +304,30 @@ export class AppModule implements OnApplicationBootstrap, OnModuleDestroy {
       pingAll().catch(() => undefined);
     }, 45_000);
     this.warmupTimer.unref();
+  }
+
+  /**
+   * RLS reads current_setting('app.tenant_id') from the PostgreSQL session.
+   * TypeORM obtains and releases pooled connections per query, so bind the
+   * setting immediately before every query rather than leaving tenant state on
+   * a connection after it returns to the pool.
+   */
+  private installTenantRlsQueryContext(): void {
+    const dataSource = this.dataSource as DataSource & { __tenantRlsPatched?: boolean };
+    if (dataSource.__tenantRlsPatched) return;
+    dataSource.__tenantRlsPatched = true;
+
+    const createQueryRunner = dataSource.createQueryRunner.bind(dataSource);
+    dataSource.createQueryRunner = ((mode?: 'master' | 'slave') => {
+      const queryRunner: any = createQueryRunner(mode);
+      const rawQuery = queryRunner.query.bind(queryRunner);
+      queryRunner.query = async (query: string, parameters?: unknown[], useStructuredResult?: boolean) => {
+        const tenantId = this.tenantContext.getTenantId();
+        await rawQuery(`SELECT set_config('app.tenant_id', $1, false)`, [tenantId === null ? '' : String(tenantId)]);
+        return rawQuery(query, parameters, useStructuredResult);
+      };
+      return queryRunner;
+    }) as DataSource['createQueryRunner'];
   }
 
   onModuleDestroy() {

@@ -62,6 +62,7 @@ export default function AttendancePage() {
   const activeOutlet = outlets?.data.find((outlet) => outlet.id === activeOutletId)
   const { data: employees } = useEmployees({ limit: 200 })
   const { data, isLoading, isPlaceholderData } = useAttendanceList({
+    tenantId: activeOutlet?.tenantId,
     page,
     limit: PAGE_SIZE,
     outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
@@ -92,7 +93,7 @@ export default function AttendancePage() {
     try {
       const result = await apiClient<{ clockInUrl: string; clockOutUrl: string }>("/attendance/qr/setup", {
         method: "POST",
-        body: JSON.stringify({ outletId: activeOutletId }),
+        body: JSON.stringify({ outletId: activeOutletId, tenantId: activeOutlet?.tenantId }),
       })
       setQrSetup(result)
       toast.success("Attendance QR codes loaded")

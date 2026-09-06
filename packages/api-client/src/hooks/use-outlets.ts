@@ -8,6 +8,7 @@ import type { CreateOutletInput, UpdateOutletInput } from "@rms/validators/outle
 export interface Outlet {
   id: number
   name: string
+  tenantId: number
   createdAt: string
   updatedAt: string
   tenant?: { id: number; name: string }

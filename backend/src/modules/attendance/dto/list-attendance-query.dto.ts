@@ -4,6 +4,7 @@ import { IsDateString, IsIn, IsInt, IsOptional, IsString } from 'class-validator
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListAttendanceQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() tenantId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() employeeId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() outletId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() shiftId?: number;
