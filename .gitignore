@@ -118,7 +118,3 @@ launcher.bat
 /backend-superadmin/uploads/*
 !/backend-superadmin/uploads/.gitkeep
 
-# Superadmin runtime uploads are also generated data.
-/backend-superadmin/uploads/*
-!/backend-superadmin/uploads/.gitkeep
-
