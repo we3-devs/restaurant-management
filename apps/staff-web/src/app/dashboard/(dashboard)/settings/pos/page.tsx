@@ -19,6 +19,14 @@ import { posSettingsSchema, type PosSettingsInput } from "@/lib/validators/setti
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 const BILL_NUMBER_RESET_PERIODS = ["never", "daily", "monthly", "yearly"] as const
+const PAYMENT_METHODS = [
+  { value: "none", label: "None" },
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "mobile", label: "Mobile payment" },
+  { value: "credit", label: "Customer credit" },
+  { value: "custom", label: "Custom" },
+] as const
 
 const defaultValues: PosSettingsInput = {
   receiptPrefix: "",
@@ -140,7 +148,8 @@ export default function PosSettingsPage() {
                     <FormItem>
                       <FormLabel>Bill number digits</FormLabel>
                       <FormControl
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         step="1"
                         min="1"
                         disabled={!canManage}
@@ -202,7 +211,8 @@ export default function PosSettingsPage() {
                     <FormItem>
                       <FormLabel>Invoice number digits</FormLabel>
                       <FormControl
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         step="1"
                         min="1"
                         disabled={!canManage}
@@ -249,7 +259,17 @@ export default function PosSettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Default payment method</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <Select
+                        value={PAYMENT_METHODS.some((option) => option.value === field.value) ? field.value || "none" : "custom"}
+                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>{PAYMENT_METHODS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {(!PAYMENT_METHODS.some((option) => option.value === field.value) || field.value === "custom") && (
+                        <FormControl disabled={!canManage} placeholder="e.g. QR payment" {...field} />
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

@@ -36,6 +36,14 @@ const CALENDAR_SYSTEMS = [
   { value: "BS", label: "BS (Bikram Sambat)" },
 ] as const
 
+const CURRENCIES = [
+  { value: "none", label: "None" },
+  { value: "NPR", label: "NPR — Nepalese rupee" },
+  { value: "USD", label: "USD — US dollar" },
+  { value: "INR", label: "INR — Indian rupee" },
+  { value: "custom", label: "Custom" },
+] as const
+
 export default function BusinessSettingsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
   const canView = isSuperadmin || permissions.includes("settings.view")
@@ -194,7 +202,17 @@ export default function BusinessSettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <Select
+                        value={CURRENCIES.some((option) => option.value === field.value) ? field.value || "none" : "custom"}
+                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>{CURRENCIES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {(!CURRENCIES.some((option) => option.value === field.value) || field.value === "custom") && (
+                        <FormControl disabled={!canManage} placeholder="e.g. NPR" {...field} />
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

@@ -46,7 +46,7 @@ export const navGroupDefs: NavGroupDef[] = [
     label: "Floor Management",
     icon: LayoutGrid,
     links: [
-      { href: "/dashboard/dining-areas", label: "Dining Areas", permission: "dining-areas.view" },
+      { href: "/dashboard/floor", label: "Floor Plan", permission: "dining-tables.view" },
       { href: "/dashboard/tables", label: "Tables", permission: "dining-tables.view" },
     ],
   },
@@ -108,7 +108,6 @@ export const navGroupDefs: NavGroupDef[] = [
     links: [
       { href: "/dashboard/users", label: "Users", permission: "users.view" },
       { href: "/dashboard/roles", label: "Roles", permission: "roles.view" },
-      { href: "/dashboard/outlets", label: "Outlets", permission: "outlets.view" },
       { href: "/dashboard/outlet-departments", label: "Departments", permission: "outlet-departments.view" },
       { href: "/dashboard/warehouses", label: "Warehouses", permission: "warehouses.view" },
       { href: "/dashboard/customers", label: "Customers", permission: "customers.view" },
@@ -119,7 +118,6 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: ShieldCheck,
     links: [
       { href: "/dashboard/settings", label: "Settings", permission: "settings.view" },
-      { href: "/dashboard/audit-logs", label: "Audit Logs", permission: "audit-logs.view" },
     ],
   },
   {
@@ -127,6 +125,8 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: ShieldAlert,
     links: [
       { href: "/superadmin", label: "Tenant Management", permission: true, superadminOnly: true },
+      { href: "/dashboard/outlets", label: "Outlets", permission: true, superadminOnly: true },
+      { href: "/dashboard/audit-logs", label: "Audit Logs", permission: true, superadminOnly: true },
       { href: "/dashboard/data-import", label: "Data Import", permission: true, superadminOnly: true },
     ],
   },

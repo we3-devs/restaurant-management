@@ -9,7 +9,10 @@ export default function FloorPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Floor</h1>
+        <div>
+          <h1 className="text-lg font-semibold">Floor</h1>
+          <p className="text-sm text-muted-foreground">See your dining room at a glance</p>
+        </div>
       </div>
 
       {outletId ? (

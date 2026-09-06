@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
@@ -24,6 +25,15 @@ const defaultValues: KitchenSettingsInput = {
   recallLimit: 0,
   preparationTimerMinutes: 0,
 }
+
+const PRIORITIES = [
+  { value: "none", label: "None" },
+  { value: "low", label: "Low" },
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
+  { value: "custom", label: "Custom" },
+] as const
 
 export default function KitchenSettingsPage() {
   const { permissions, isSuperadmin } = useCurrentUser()
@@ -81,7 +91,8 @@ export default function KitchenSettingsPage() {
                     <FormItem>
                       <FormLabel>Ticket timeout (minutes)</FormLabel>
                       <FormControl
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canManage}
                         value={field.value ?? 0}
                         onChange={(e) => field.onChange(Number(e.target.value))}
@@ -96,7 +107,17 @@ export default function KitchenSettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Default priority</FormLabel>
-                      <FormControl disabled={!canManage} {...field} />
+                      <Select
+                        value={PRIORITIES.some((option) => option.value === field.value) ? field.value || "none" : "custom"}
+                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>{PRIORITIES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {(!PRIORITIES.some((option) => option.value === field.value) || field.value === "custom") && (
+                        <FormControl disabled={!canManage} placeholder="e.g. rush" {...field} />
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -108,7 +129,8 @@ export default function KitchenSettingsPage() {
                     <FormItem>
                       <FormLabel>Recall limit</FormLabel>
                       <FormControl
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canManage}
                         value={field.value ?? 0}
                         onChange={(e) => field.onChange(Number(e.target.value))}
@@ -124,7 +146,8 @@ export default function KitchenSettingsPage() {
                     <FormItem>
                       <FormLabel>Preparation timer (minutes)</FormLabel>
                       <FormControl
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canManage}
                         value={field.value ?? 0}
                         onChange={(e) => field.onChange(Number(e.target.value))}

@@ -37,8 +37,13 @@ export function AppSidebarNav({
   const pathname = usePathname()
 
   const activeGroupLabel = groups.find((group) =>
-    group.links.some((link) => pathname === link.href || pathname.startsWith(`${link.href}/`)),
+    group.links.some((link) => isNavLinkActive(pathname, link.href)),
   )?.label
+  const [openGroup, setOpenGroup] = useState(activeGroupLabel)
+
+  useEffect(() => {
+    setOpenGroup(forceOpenGroup ?? activeGroupLabel)
+  }, [activeGroupLabel, forceOpenGroup])
 
   if (collapsed) {
     return (
@@ -75,8 +80,8 @@ export function AppSidebarNav({
           key={group.label}
           group={group}
           pathname={pathname}
-          defaultOpen={group.label === activeGroupLabel}
-          forceOpen={group.label === forceOpenGroup}
+          open={group.label === openGroup}
+          onToggle={() => setOpenGroup((current) => (current === group.label ? undefined : group.label))}
         />
       ))}
     </nav>
@@ -88,53 +93,63 @@ export function AppSidebarNav({
 function NavSection({
   group,
   pathname,
-  defaultOpen,
-  forceOpen,
+  open,
+  onToggle,
 }: {
   group: NavGroup
   pathname: string
-  defaultOpen: boolean
-  forceOpen: boolean
+  open: boolean
+  onToggle: () => void
 }) {
-  const [open, setOpen] = useState(defaultOpen)
   const Icon = group.icon
-
-  useEffect(() => {
-    if (forceOpen) setOpen(true)
-  }, [forceOpen])
 
   return (
     <div className="flex flex-col" data-nav-group={group.label}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted hover:text-foreground"
       >
         <Icon className="size-3.5 shrink-0" />
         <span className="flex-1 text-left">{group.label}</span>
         <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
       </button>
-      {open && (
-        <div className="mt-0.5 flex flex-col gap-0.5 border-l border-border/60 pl-3.5">
-          {group.links.map((link) => {
-            const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "relative rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
-                  active
-                    ? "bg-primary/10 font-medium text-primary before:absolute before:top-1/2 before:-left-3.75 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {link.label}
-              </Link>
-            )
-          })}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+          open ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="mt-0.5 flex flex-col gap-0.5 border-l border-border/60 pl-3.5">
+            {group.links.map((link) => {
+              const active = isNavLinkActive(pathname, link.href)
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  tabIndex={open ? 0 : -1}
+                  className={cn(
+                    "relative rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
+                    active
+                      ? "bg-primary/10 font-medium text-primary before:absolute before:top-1/2 before:-left-3.75 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
+}
+
+function isNavLinkActive(pathname: string, href: string): boolean {
+  // The dashboard home link is a landing page, not a parent route. Without
+  // this exception it stays highlighted on every dashboard sub-page.
+  if (href === "/dashboard") return pathname === href
+  return pathname === href || pathname.startsWith(`${href}/`)
 }
