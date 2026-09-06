@@ -12,6 +12,8 @@ interface ActiveAssignmentRow {
   outletId: string | null;
   outletDepartmentId: string | null;
   roleSlug: string | null;
+  tenantId: string | null;
+  outletTenantId: string | null;
 }
 
 // Every method below reads from the same underlying active-role-assignment
@@ -51,7 +53,10 @@ export class PermissionsService {
       .addSelect('ura.outlet_id', 'outletId')
       .addSelect('ura.outlet_department_id', 'outletDepartmentId')
       .addSelect('roles.slug', 'roleSlug')
+      .addSelect('user.tenant_id', 'tenantId')
+      .addSelect('assigned_outlet.tenant_id', 'outletTenantId')
       .from('user_role_assignments', 'ura')
+      .innerJoin('users', 'user', 'user.id = ura.user_id')
       .innerJoin(
         'roles',
         'roles',
@@ -66,6 +71,11 @@ export class PermissionsService {
         'permissions',
         'permissions',
         'permissions.id = role_permissions.permission_id AND permissions.is_active = true',
+      )
+      .leftJoin(
+        'outlets',
+        'assigned_outlet',
+        'assigned_outlet.id = ura.outlet_id',
       )
       .where('ura.user_id = :userId', { userId })
       .andWhere('ura.is_active = true')
@@ -163,9 +173,21 @@ export class PermissionsService {
     if (rows.length === 0) {
       return null;
     }
+    const tenantId = rows.find((row) => row.tenantId !== null)?.tenantId;
+    if (tenantId === null || tenantId === undefined) return [];
+
+    if (rows.some((row) => row.outletId === null)) {
+      const outlets = await this.assignmentsRepository.manager.query(
+        'SELECT id FROM outlets WHERE tenant_id = $1',
+        [tenantId],
+      ) as Array<{ id: string }>;
+      return outlets.map((outlet) => Number(outlet.id));
+    }
+
     return [
       ...new Set(
         rows
+          .filter((row) => row.outletTenantId === tenantId)
           .map((row) => row.outletId)
           .filter((id): id is string => id !== null)
           .map(Number),

@@ -131,7 +131,41 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
       {showSkeleton ? (
         <TableSkeleton rows={6} columns={12} />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm"><Table>
+        <div className="space-y-3 md:hidden">
+          {rows.length === 0 ? (
+            <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-sm text-muted-foreground">
+              {warehouses?.data.length ? "No inventory items in these warehouses." : "No warehouses found."}
+            </div>
+          ) : rows.map(({ ingredient, stock, unit }) => {
+            const location = warehouses?.data.find((warehouse) => warehouse.id === stock.warehouseId)
+            return (
+              <div key={stock.id} className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  {ingredient.image ? (
+                    <img src={ingredient.image} alt="" className="size-12 shrink-0 rounded-xl border object-cover" />
+                  ) : (
+                    <div className="size-12 shrink-0 rounded-xl border bg-muted" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {readOnly ? <p className="truncate font-medium">{ingredient.name}</p> : <Link href={`/dashboard/ingredients/${ingredient.id}`} className="block truncate font-medium hover:underline">{ingredient.name}</Link>}
+                    <p className="truncate text-xs text-muted-foreground">{ingredient.code} · {ingredient.category.name}</p>
+                  </div>
+                  {!ingredient.isActive && <Badge variant="destructive">inactive</Badge>}
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Location</p><p className="truncate">{location?.name ?? `Warehouse #${stock.warehouseId}`}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Unit</p><p>{unit?.shortName ?? unit?.name ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Available</p><p className="font-medium tabular-nums">{Math.max(0, stock.quantity - stock.reservedQuantity)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Total quantity</p><p className="tabular-nums">{stock.quantity}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Avg. cost</p><p className="tabular-nums">{money(stock.averageCost)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Selling price</p><p className="tabular-nums">{money(ingredient.sellingPrice)}</p></div>
+                </div>
+                {!readOnly && <div className="mt-4 border-t pt-3"><EditInventoryItemDialog ingredient={ingredient} /></div>}
+              </div>
+            )
+          })}
+        </div>
+        <div className="hidden overflow-x-auto rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm md:block"><Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>

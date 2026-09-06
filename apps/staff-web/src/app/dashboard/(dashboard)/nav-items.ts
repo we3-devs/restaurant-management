@@ -2,6 +2,7 @@ import {
   Boxes,
   Building2,
   Contact,
+  FolderOpen,
   LayoutGrid,
   Gauge,
   type LucideIcon,
@@ -118,6 +119,14 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: ShieldCheck,
     links: [
       { href: "/dashboard/settings", label: "Settings", permission: "settings.view" },
+    ],
+  },
+  {
+    label: "Account",
+    icon: FolderOpen,
+    links: [
+      { href: "/dashboard/profile", label: "Profile", permission: true },
+      { href: "/dashboard/assets", label: "Assets", permission: "settings.view" },
     ],
   },
   {

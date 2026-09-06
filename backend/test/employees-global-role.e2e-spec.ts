@@ -28,7 +28,7 @@ interface IdResponseBody {
  * a position whose default role is level='global' (e.g. an outlet-wide
  * admin) used to always get an outlet-scoped assignment, which silently
  * narrowed PermissionsService.getAccessibleOutletIds() to just that one
- * outlet instead of granting access to all outlets.
+ * outlet instead of granting access to all outlets in the user's tenant.
  */
 describe('Employees — global role sync (e2e)', () => {
   let app: INestApplication;
@@ -100,7 +100,7 @@ describe('Employees — global role sync (e2e)', () => {
     await app.close();
   });
 
-  it('grants an unscoped assignment (not outlet-scoped) for a global-level position role, so accessible outlets is ALL', async () => {
+  it('grants an unscoped assignment (not outlet-scoped) for a global-level position role across the user tenant only', async () => {
     // Two outlets, so a wrongly outlet-scoped grant would be observably
     // narrower than "all outlets" (with only one outlet in the DB, a buggy
     // single-outlet scope and the correct all-outlets result would look
@@ -189,7 +189,8 @@ describe('Employees — global role sync (e2e)', () => {
       user.id,
       false,
     );
-    expect(accessible).toBe(ALL_OUTLETS);
+    expect(accessible).toEqual(expect.arrayContaining([outletA.id, outletB.id]));
+    expect(accessible).not.toBe(ALL_OUTLETS);
   });
 
   it('does not silently narrow access if a pre-fix outlet-scoped row for the same global role still exists', async () => {

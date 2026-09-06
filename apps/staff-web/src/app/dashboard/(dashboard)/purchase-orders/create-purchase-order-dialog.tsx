@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useAssignedOutlets } from "@/hooks/use-outlets"
 import { useSuppliers } from "@/hooks/use-suppliers"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { useCreatePurchaseOrder } from "@/hooks/use-purchase-orders"
@@ -35,7 +35,7 @@ const defaultValues: CreatePurchaseOrderInput = {
 export function CreatePurchaseOrderDialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const { data: outlets, isLoading: outletsLoading } = useOutlets({ limit: 100 })
+  const { data: outlets, isLoading: outletsLoading } = useAssignedOutlets()
   const { data: suppliers, isLoading: suppliersLoading } = useSuppliers({ limit: 100 })
   const { data: warehouses, isLoading: warehousesLoading } = useWarehouses({ limit: 100 })
   const createPurchaseOrder = useCreatePurchaseOrder()
@@ -102,7 +102,7 @@ export function CreatePurchaseOrderDialog() {
                       <SelectValue placeholder={outletsLoading ? "Loading…" : "Select an outlet"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {outlets?.data.map((outlet) => (
+                    {outlets?.map((outlet) => (
                         <SelectItem key={outlet.id} value={String(outlet.id)}>
                           {outlet.name}
                         </SelectItem>

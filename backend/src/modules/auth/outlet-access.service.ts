@@ -32,7 +32,7 @@ export class OutletAccessService {
       // Zero active role assignments — not "global", just no access.
       return [];
     }
-    return outletIds.length === 0 ? ALL_OUTLETS : outletIds;
+    return outletIds;
   }
 
   async canAccessOutlet(

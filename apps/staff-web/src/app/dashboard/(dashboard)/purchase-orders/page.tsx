@@ -18,7 +18,7 @@ import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import { useOutlets } from "@/hooks/use-outlets"
+import { useAssignedOutlets } from "@/hooks/use-outlets"
 import { useSuppliers } from "@/hooks/use-suppliers"
 import { usePurchaseOrders, type PurchaseOrder } from "@/hooks/use-purchase-orders"
 import { PURCHASE_ORDER_STATUSES } from "@/lib/validators/purchase-orders"
@@ -38,7 +38,7 @@ export default function PurchaseOrdersPage() {
   const [outletFilter, setOutletFilter] = useState("all")
   const [page, setPage] = useState(1)
 
-  const { data: outlets } = useOutlets({ limit: 100 })
+  const { data: outlets } = useAssignedOutlets()
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data, isLoading, isPlaceholderData } = usePurchaseOrders({
     page,
@@ -132,7 +132,7 @@ export default function PurchaseOrdersPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All outlets</SelectItem>
-              {outlets?.data.map((outlet) => (
+              {outlets?.map((outlet) => (
                 <SelectItem key={outlet.id} value={String(outlet.id)}>
                   {outlet.name}
                 </SelectItem>

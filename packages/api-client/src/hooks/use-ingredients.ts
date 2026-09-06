@@ -17,6 +17,7 @@ export interface Ingredient {
   name: string
   slug: string
   code: string
+  image: string | null
   buyingPrice: number
   sellingPrice: number
   baseUnitId: number
