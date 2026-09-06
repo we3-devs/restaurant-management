@@ -51,7 +51,8 @@ export function resolveTenantHost(rawHost: string | null | undefined): TenantCon
     if (labels.length === 1 && SLUG_RE.test(labels[0])) {
       return { slug: labels[0], surface: "guest", host }
     }
-    if (labels.length === 2 && labels[0] === "staff" && SLUG_RE.test(labels[1])) {
+    if (labels.length === 2 && (labels[0] === "staff" || labels[0] === "guest") && SLUG_RE.test(labels[1])) {
+      if (labels[0] === "guest") return { slug: labels[1], surface: "guest", host }
       return { slug: labels[1], surface: "staff", host }
     }
   }
@@ -98,4 +99,12 @@ export function tenantFromRequest(request: Request): TenantContext | null {
   const host = cleanHost(request.headers.get("host"))
   if (!slug || !SLUG_RE.test(slug) || (surface !== "guest" && surface !== "staff")) return null
   return { slug, surface, host }
+}
+
+/** Builds the public guest QR URL for a tenant-owned table. */
+export function tenantGuestUrl(tenantSlug: string | null | undefined, tableCode: string): string | null {
+  if (!tenantSlug || !tableCode) return null
+  const root = configuredRootDomains()[0] ?? 'restraservices.com'
+  const protocol = root.endsWith('.localhost') ? 'http' : 'https'
+  return `${protocol}://guest.${tenantSlug}.${root}/?table=${encodeURIComponent(tableCode)}`
 }

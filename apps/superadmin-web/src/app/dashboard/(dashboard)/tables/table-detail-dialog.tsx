@@ -18,8 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { useDeleteDiningTable, type DiningTable } from "@/hooks/use-dining-tables";
 import { DownloadableQrCode } from "./downloadable-qr-code";
-
-const GUEST_WEB_URL = process.env.NEXT_PUBLIC_GUEST_WEB_URL;
+import { tenantGuestUrl } from "@rms/auth/tenant";
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context";
 
 export function TableDetailDialog({
 	table,
@@ -31,6 +31,7 @@ export function TableDetailDialog({
 	onClose: () => void;
 }) {
 	const deleteTable = useDeleteDiningTable();
+	const { activeTenantSlug } = useActiveOutlet();
 
 	async function handleDelete() {
 		try {
@@ -42,7 +43,7 @@ export function TableDetailDialog({
 		}
 	}
 
-	const guestUrl = table.code ? `${GUEST_WEB_URL}?table=${table.code}` : null;
+	const guestUrl = tenantGuestUrl(activeTenantSlug, table.code ?? "");
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>

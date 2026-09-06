@@ -7,6 +7,7 @@ import { ClockIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
+import { resolveTenantHost, tenantGuestUrl } from "@rms/auth/tenant"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import {
@@ -168,8 +169,11 @@ export function TableActionsDialog({
     }
   }
 
-  const guestUrl =
-    table.code && typeof window !== "undefined" ? `${window.location.origin}/guest?table=${table.code}` : null
+  const guestUrl = (() => {
+    if (!table.code || typeof window === "undefined") return null
+    const tenant = resolveTenantHost(window.location.host)
+    return tenantGuestUrl(tenant?.slug, table.code)
+  })()
 
   function handleViewOrder() {
     if (activeOrder) {

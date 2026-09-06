@@ -7,6 +7,7 @@ import { ClockIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
+import { tenantGuestUrl } from "@rms/auth/tenant"
 import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import {
@@ -34,6 +35,7 @@ import {
 } from "@rms/api-client/hooks/use-table-sessions"
 import { CheckoutPanel } from "../pos/checkout-panel"
 import { TableQrCode } from "./table-qr-code"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
 function formatSeatedFor(startedAt: string | null): string | null {
   if (!startedAt) return null
@@ -57,6 +59,7 @@ export function TableActionsDialog({
 }) {
   const router = useRouter()
   const user = useCurrentUser()
+  const { activeTenantSlug } = useActiveOutlet()
   // Cashiers get everything waiters get (order-taking, transfer, end session,
   // reservations) plus cashier-only tools: customer assignment, in-dialog
   // checkout, and calling a waiter on the guest's behalf.
@@ -168,8 +171,7 @@ export function TableActionsDialog({
     }
   }
 
-  const guestUrl =
-    table.code && typeof window !== "undefined" ? `${window.location.origin}/guest?table=${table.code}` : null
+  const guestUrl = tenantGuestUrl(activeTenantSlug, table.code ?? "")
 
   function handleViewOrder() {
     if (activeOrder) {
