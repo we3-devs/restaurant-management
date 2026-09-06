@@ -201,9 +201,17 @@ export class IngredientsService {
 
   async moveToOutlet(id: number, dto: MoveIngredientDto): Promise<Ingredient> {
     await this.outletsService.findOne(dto.outletId);
-    const ingredient = await this.findOne(id);
-    ingredient.outletId = dto.outletId;
-    return this.ingredientsRepository.save(ingredient).then(() => this.findOne(id));
+    await this.findOne(id);
+
+    const result = await this.ingredientsRepository.update(
+      { id },
+      { outletId: dto.outletId },
+    );
+    if (!result.affected) {
+      throw new NotFoundException(`Ingredient ${id} not found`);
+    }
+
+    return this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {
