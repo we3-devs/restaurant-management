@@ -9,7 +9,6 @@
 **/.next
 **/out
 **/dist
-backend-superadmin/dist
 **/build
 **/coverage
 **/.nyc_output
@@ -114,6 +113,10 @@ launcher.bat
 # and on an ephemeral host this directory does not survive a redeploy.
 /backend/uploads/*
 !/backend/uploads/.gitkeep
+
+# Superadmin runtime uploads are also generated data.
+/backend-superadmin/uploads/*
+!/backend-superadmin/uploads/.gitkeep
 
 # Superadmin runtime uploads are also generated data.
 /backend-superadmin/uploads/*
