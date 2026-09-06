@@ -33,6 +33,7 @@ export class UsersService {
 
   async findAll(
     query: ListUsersQueryDto,
+    tenantId?: number,
   ): Promise<PaginatedResponse<UserResponseDto>> {
     const { page, limit, search } = query;
     const [users, total] = await this.usersRepository.findAndCount({
@@ -40,10 +41,10 @@ export class UsersService {
       // the ordinary staff user directory.
       where: search
         ? [
-            { isSuperadmin: false, name: ILike(`%${search}%`) },
-            { isSuperadmin: false, email: ILike(`%${search}%`) },
+            { isSuperadmin: false, name: ILike(`%${search}%`), ...(tenantId !== undefined ? { tenantId } : {}) },
+            { isSuperadmin: false, email: ILike(`%${search}%`), ...(tenantId !== undefined ? { tenantId } : {}) },
           ]
-        : { isSuperadmin: false },
+        : { isSuperadmin: false, ...(tenantId !== undefined ? { tenantId } : {}) },
       order: { name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -65,14 +66,14 @@ export class UsersService {
     };
   }
 
-  async findOne(id: number): Promise<UserResponseDto> {
-    const user = await this.getUserOrThrow(id);
+  async findOne(id: number, tenantId?: number): Promise<UserResponseDto> {
+    const user = await this.getUserOrThrow(id, tenantId);
     const activeUserIds = await this.getActiveUserIds([id]);
     const employee = await this.employeesRepository.findOne({ where: { userId: id } });
     return this.toResponse(user, activeUserIds.has(id), employee ?? undefined);
   }
 
-  async create(dto: CreateUserDto): Promise<UserResponseDto> {
+  async create(dto: CreateUserDto, tenantId: number): Promise<UserResponseDto> {
     const saltRounds = this.configService.get('bcrypt', {
       infer: true,
     })!.saltRounds;
@@ -83,6 +84,7 @@ export class UsersService {
       email: dto.email,
       password,
       isSuperadmin: false,
+      tenantId,
     });
 
     try {
@@ -100,8 +102,8 @@ export class UsersService {
     }
   }
 
-  async update(id: number, dto: UpdateUserDto): Promise<UserResponseDto> {
-    const user = await this.getUserOrThrow(id);
+  async update(id: number, dto: UpdateUserDto, tenantId?: number): Promise<UserResponseDto> {
+    const user = await this.getUserOrThrow(id, tenantId);
     Object.assign(user, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.email !== undefined && { email: dto.email }),
@@ -125,15 +127,15 @@ export class UsersService {
     }
   }
 
-  async resetPassword(id: number, newPassword: string): Promise<void> {
-    const user = await this.getUserOrThrowWithPassword(id);
+  async resetPassword(id: number, newPassword: string, tenantId?: number): Promise<void> {
+    const user = await this.getUserOrThrowWithPassword(id, tenantId);
     const saltRounds = this.configService.get('bcrypt', { infer: true })!.saltRounds;
     user.password = await bcrypt.hash(newPassword, saltRounds);
     await this.usersRepository.save(user);
   }
 
-  async setSuperadmin(id: number, isSuperadmin: boolean): Promise<UserResponseDto> {
-    const user = await this.getUserOrThrow(id);
+  async setSuperadmin(id: number, isSuperadmin: boolean, tenantId?: number): Promise<UserResponseDto> {
+    const user = await this.getUserOrThrow(id, tenantId);
     user.isSuperadmin = isSuperadmin;
     const saved = await this.usersRepository.save(user);
     const activeUserIds = await this.getActiveUserIds([id]);
@@ -147,8 +149,8 @@ export class UsersService {
    * how PermissionsGuard ends up denying them everything. Login stays
    * possible; that's a deliberate trade-off, not a gap.
    */
-  async deactivate(id: number): Promise<void> {
-    await this.getUserOrThrow(id);
+  async deactivate(id: number, tenantId?: number): Promise<void> {
+    await this.getUserOrThrow(id, tenantId);
     await this.assignmentsRepository.update(
       { userId: id, isActive: true },
       { isActive: false },
@@ -157,8 +159,9 @@ export class UsersService {
 
   async listRoleAssignments(
     userId: number,
+    tenantId?: number,
   ): Promise<RoleAssignmentResponseDto[]> {
-    await this.getUserOrThrow(userId);
+    await this.getUserOrThrow(userId, tenantId);
     const assignments = await this.assignmentsRepository.find({
       where: { userId },
       relations: { role: true },
@@ -180,8 +183,9 @@ export class UsersService {
   async assignRole(
     userId: number,
     dto: CreateRoleAssignmentDto,
+    tenantId?: number,
   ): Promise<void> {
-    await this.getUserOrThrow(userId);
+    await this.getUserOrThrow(userId, tenantId);
     await this.rolesService.findOne(dto.roleId); // validates roleId, 404s if missing
 
     const existing = await this.assignmentsRepository.findOne({
@@ -216,7 +220,9 @@ export class UsersService {
   async revokeRoleAssignment(
     userId: number,
     assignmentId: number,
+    tenantId?: number,
   ): Promise<void> {
+    await this.getUserOrThrow(userId, tenantId);
     const assignment = await this.assignmentsRepository.findOne({
       where: { id: assignmentId, userId },
     });
@@ -229,19 +235,22 @@ export class UsersService {
     await this.assignmentsRepository.save(assignment);
   }
 
-  private async getUserOrThrow(id: number): Promise<User> {
-    const user = await this.usersRepository.findOne({ where: { id } });
+  private async getUserOrThrow(id: number, tenantId?: number): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { id, ...(tenantId !== undefined ? { tenantId } : {}) },
+    });
     if (!user) {
       throw new NotFoundException(`User ${id} not found`);
     }
     return user;
   }
 
-  private async getUserOrThrowWithPassword(id: number): Promise<User> {
+  private async getUserOrThrowWithPassword(id: number, tenantId?: number): Promise<User> {
     const user = await this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
       .where('user.id = :id', { id })
+      .andWhere(tenantId !== undefined ? 'user.tenant_id = :tenantId' : '1=1', { tenantId })
       .getOne();
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
