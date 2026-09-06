@@ -4,7 +4,7 @@
 // file). Versioned so a deploy can invalidate stale shell/image caches — bump
 // this AND src/lib/app-version.ts's APP_VERSION together on any deploy that
 // changes staff-PWA code, otherwise installed clients keep the old cached JS.
-const CACHE_VERSION = "v5"
+const CACHE_VERSION = "v6"
 const SHELL_CACHE = `rms-shell-${CACHE_VERSION}`
 const IMAGE_CACHE = `rms-images-${CACHE_VERSION}`
 const API_CACHE = `rms-api-${CACHE_VERSION}`
@@ -14,7 +14,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(["/manifest.json", "/icons/icon.svg", "/icons/icon-maskable.svg"]))
+      .then((cache) => cache.addAll(["/manifest.json", "/icons/logo.png", "/icons/favicon.ico"]))
       .then(() => self.skipWaiting()),
   )
 })

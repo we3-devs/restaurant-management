@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   );
   const restaurantName = tenantDisplayName(tenant?.slug);
   const appName = `${restaurantName} Staff`;
-  const icon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
+  const icon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/logo.png";
 
   const manifest: MetadataRoute.Manifest = {
     name: appName,
@@ -36,6 +36,8 @@ export async function GET(request: Request) {
     icons: [
       { src: icon, sizes: "any", purpose: "any" },
       { src: icon, sizes: "any", purpose: "maskable" },
+      { src: "/icons/logo.png", sizes: "500x500", type: "image/png", purpose: "any" },
+      { src: "/icons/logo.png", sizes: "500x500", type: "image/png", purpose: "maskable" },
     ],
   };
 
