@@ -46,4 +46,4 @@ npm run dev
 
 Each business domain gets its own NestJS module under
 `backend/src/modules/<domain>/{<domain>.module.ts, .controller.ts, .service.ts, entities/, dto/}`,
-following the `auth`/`roles` modules as the reference pattern.
+following the `auth`/`roles` modules as the reference pattern. .
