@@ -10,6 +10,16 @@ export interface Outlet {
   name: string
   createdAt: string
   updatedAt: string
+  tenant?: { id: number; name: string }
+}
+
+export function useSuperadminOutlets(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.outlets.superadminAll(),
+    queryFn: () => apiClient<Outlet[]>("/superadmin/outlets"),
+    staleTime: STALE_TIME.outlets,
+    enabled: options.enabled ?? true,
+  })
 }
 
 export interface ListOutletsParams {

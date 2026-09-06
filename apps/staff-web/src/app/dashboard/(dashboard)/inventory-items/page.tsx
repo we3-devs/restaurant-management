@@ -72,12 +72,14 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   const showSkeleton = useDelayedLoading(isLoading)
 
   function handleExport() {
-    const header = ["Name", "Item code", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost", "Buying price", "Selling price"]
+    const header = ["Name", "Item code", "Tenant", "Outlet", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost", "Buying price", "Selling price"]
     const data = rows.map(({ ingredient, stock, unit }) => {
       const location = warehouses?.data.find((warehouse) => warehouse.id === stock.warehouseId)
       return [
         ingredient.name,
         ingredient.code,
+        ingredient.outlet?.tenant?.name ?? "",
+        ingredient.outlet?.name ?? "",
         ingredient.category.name,
         unit?.shortName ?? unit?.name ?? "",
         location?.name ?? `Warehouse #${stock.warehouseId}`,
@@ -129,7 +131,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {showSkeleton ? (
-        <TableSkeleton rows={6} columns={12} />
+        <TableSkeleton rows={6} columns={14} />
       ) : (
         <>
         <div className="space-y-3 md:hidden">
@@ -150,6 +152,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                   <div className="min-w-0 flex-1">
                     {readOnly ? <p className="truncate font-medium">{ingredient.name}</p> : <Link href={`/dashboard/ingredients/${ingredient.id}`} className="block truncate font-medium hover:underline">{ingredient.name}</Link>}
                     <p className="truncate text-xs text-muted-foreground">{ingredient.code} · {ingredient.category.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{ingredient.outlet?.tenant?.name ?? "—"} · {ingredient.outlet?.name ?? "—"}</p>
                   </div>
                   {!ingredient.isActive && <Badge variant="destructive">inactive</Badge>}
                 </div>
@@ -171,6 +174,8 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Item code</TableHead>
+              <TableHead>Tenant</TableHead>
+              <TableHead>Outlet</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Location</TableHead>
@@ -186,7 +191,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={14} className="h-24 text-center text-muted-foreground">
                   {warehouses?.data.length ? "No inventory items in these warehouses." : "No warehouses found."}
                 </TableCell>
               </TableRow>
@@ -199,6 +204,8 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                     {!ingredient.isActive && <Badge variant="destructive" className="ml-2">inactive</Badge>}
                   </TableCell>
                   <TableCell>{ingredient.code}</TableCell>
+                  <TableCell>{ingredient.outlet?.tenant?.name ?? "—"}</TableCell>
+                  <TableCell>{ingredient.outlet?.name ?? "—"}</TableCell>
                   <TableCell>{ingredient.category.name}</TableCell>
                   <TableCell>{unit?.shortName ?? unit?.name ?? "—"}</TableCell>
                   <TableCell>{location?.name ?? `Warehouse #${stock.warehouseId}`}</TableCell>

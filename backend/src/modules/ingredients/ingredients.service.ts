@@ -19,6 +19,7 @@ import { UnitsService } from '../units/units.service';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { ListIngredientsQueryDto } from './dto/list-ingredients-query.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
+import { MoveIngredientDto } from './dto/move-ingredient.dto';
 import { Ingredient } from './entities/ingredient.entity';
 import {
   isTrackableIngredientType,
@@ -196,6 +197,13 @@ export class IngredientsService {
       }
       throw error;
     }
+  }
+
+  async moveToOutlet(id: number, dto: MoveIngredientDto): Promise<Ingredient> {
+    await this.outletsService.findOne(dto.outletId);
+    const ingredient = await this.findOne(id);
+    ingredient.outletId = dto.outletId;
+    return this.ingredientsRepository.save(ingredient).then(() => this.findOne(id));
   }
 
   async remove(id: number): Promise<void> {

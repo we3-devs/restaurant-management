@@ -16,6 +16,10 @@ export class TenantsService {
     return this.tenants.find({ relations: { outlets: true }, order: { name: 'ASC' } });
   }
 
+  allOutlets() {
+    return this.outlets.find({ relations: { tenant: true }, order: { name: 'ASC' } });
+  }
+
   async create(dto: CreateTenantDto) {
     try { return await this.tenants.save(this.tenants.create(dto)); }
     catch (error) {

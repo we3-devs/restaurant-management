@@ -39,13 +39,23 @@ export default function SuperadminPage() {
   }
 
   async function moveOutlet(outletId: number, tenantId: number) {
+    const outlet = tenants.flatMap((item) => item.outlets ?? []).find((item) => item.id === outletId)
+    const targetTenant = tenants.find((item) => item.id === tenantId)
+    if (!outlet || !targetTenant || outlet.tenantId === tenantId) return
+    const confirmed = window.confirm(
+      `Move "${outlet.name}" to "${targetTenant.name}"? This changes tenant visibility for its ingredients, inventory, purchase orders, and related outlet data.`,
+    )
+    if (!confirmed) {
+      await load()
+      return
+    }
     try { await api(`/superadmin/outlets/${outletId}/tenant`, { method: "PATCH", body: JSON.stringify({ tenantId }) }); toast.success("Outlet moved"); await load() }
     catch (error) { toast.error(error instanceof Error ? error.message : "Failed to move outlet") }
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <div><h1 className="text-2xl font-semibold">Tenant Management</h1><p className="text-sm text-muted-foreground">Manage tenants and their outlet ownership.</p></div>
+      <div><h1 className="text-2xl font-semibold">Tenant Management</h1><p className="text-sm text-muted-foreground">Manage tenant ownership. Moving an outlet also moves the tenant ownership of its ingredients, inventory, purchase orders, and related records.</p></div>
       <form onSubmit={createTenant} className="flex flex-wrap items-end gap-3 rounded-lg border p-4">
         <label className="grid gap-1 text-sm">Tenant name<input className="h-9 rounded-md border bg-background px-3" value={name} onChange={(e) => setName(e.target.value)} required /></label>
         <label className="grid gap-1 text-sm">Slug<input className="h-9 rounded-md border bg-background px-3" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} pattern="[a-z0-9-]+" required /></label>

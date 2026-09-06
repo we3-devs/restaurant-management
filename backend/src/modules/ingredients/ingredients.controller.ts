@@ -10,15 +10,18 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { SuperadminGuard } from '../auth/guards/superadmin.guard';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { CreateIngredientDto } from './dto/create-ingredient.dto';
 import { ListIngredientsQueryDto } from './dto/list-ingredients-query.dto';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto';
+import { MoveIngredientDto } from './dto/move-ingredient.dto';
 import { IngredientsService } from './ingredients.service';
 
 @ApiTags('ingredients')
@@ -97,6 +100,17 @@ export class IngredientsController {
       ingredient.outletId,
     );
     return this.ingredientsService.update(id, dto);
+  }
+
+  @Patch(':id/outlet')
+  @UseGuards(SuperadminGuard)
+  @RequirePermissions('ingredients.manage')
+  @ApiOperation({ summary: 'Moves an ingredient to another outlet (superadmin repair action)' })
+  async moveToOutlet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: MoveIngredientDto,
+  ) {
+    return this.ingredientsService.moveToOutlet(id, dto);
   }
 
   @Delete(':id')

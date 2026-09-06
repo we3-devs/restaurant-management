@@ -50,6 +50,7 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.outlets.lists(), params] as const,
     detail: (id: number) => [...queryKeys.outlets.all, "detail", id] as const,
     assigned: () => [...queryKeys.outlets.all, "assigned"] as const,
+    superadminAll: () => [...queryKeys.outlets.all, "superadmin-all"] as const,
   },
   outletDepartments: {
     all: ["outlet-departments"] as const,

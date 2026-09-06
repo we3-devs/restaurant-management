@@ -81,6 +81,18 @@ export function useUpdateIngredient(id: number) {
   })
 }
 
+export function useMoveIngredientToOutlet(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (outletId: number) =>
+      apiClient<Ingredient>(`/ingredients/${id}/outlet`, { method: "PATCH", body: JSON.stringify({ outletId }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.detail(id) })
+    },
+  })
+}
+
 export function useDeleteIngredient() {
   const queryClient = useQueryClient()
   return useMutation({
