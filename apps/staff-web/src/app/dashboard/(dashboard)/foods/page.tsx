@@ -5,6 +5,7 @@ import Link from "next/link"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -57,11 +58,11 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
     <div className="page-shell space-y-7">
       <FoodsBackgroundPrefetch />
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Foods Overview" : "Manage Foods"}</h1>
-        {!readOnly && <CreateFoodDialog />}
+        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Foods Overview" : "Manage Foods"}</h1>{readOnly && <p className="mt-1 text-sm text-muted-foreground">Menu performance and availability at a glance.</p>}</div>
+        {readOnly ? <Button variant="outline" render={<Link href="/dashboard/foods" />}>Manage Foods</Button> : <CreateFoodDialog />}
       </div>
 
-      <div className="w-64 space-y-1.5">
+      <div className="w-64 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm space-y-1.5">
         <label className="text-sm font-medium">Filter by category</label>
         <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value ?? "all")}>
           <SelectTrigger className="w-full">
@@ -81,7 +82,7 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
       {showSkeleton ? (
         <TableSkeleton rows={6} columns={columns.length} />
       ) : (
-        <Table>
+        <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm"><Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -104,7 +105,7 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></div>
       )}
     </div>
   )

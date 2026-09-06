@@ -79,6 +79,13 @@ export default function DashboardPage() {
         </div>
       ) : (
         <DashboardStatsProvider outletId={outletId} enabled={dataEnabled && canViewDashboardStats}>
+          <NeedsAttentionSection
+            outletId={outletId}
+            enabled={dataEnabled}
+            canViewOrders={canViewOrders}
+            canViewKitchen={canViewKitchen}
+            canViewDashboardStats={canViewDashboardStats}
+          />
           {canViewDashboardStats ? <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -87,13 +94,6 @@ export default function DashboardPage() {
             <LiveOrdersSection outletId={outletId} enabled={dataEnabled} />
           ) : null}
         </div>
-        <NeedsAttentionSection
-          outletId={outletId}
-          enabled={dataEnabled}
-          canViewOrders={canViewOrders}
-          canViewKitchen={canViewKitchen}
-          canViewDashboardStats={canViewDashboardStats}
-        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

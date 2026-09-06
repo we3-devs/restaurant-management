@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@/components/status-badge"
+import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
@@ -19,8 +20,10 @@ import { ORDER_STATUSES } from "@/lib/validators/orders"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 const PAGE_SIZE = 20
+const defaultRange = (): DateRange => { const to = new Date(); const from = new Date(to); from.setDate(from.getDate() - 29); return { dateFrom: from.toISOString().slice(0, 10), dateTo: to.toISOString().slice(0, 10) } }
 
 const createColumns = (customerNameFor: (order: Order) => string): ColumnDef<Order>[] => [
+  { accessorKey: "orderNumber", header: "Order #" },
   {
     id: "customer",
     header: "Customer",
@@ -35,6 +38,8 @@ const createColumns = (customerNameFor: (order: Order) => string): ColumnDef<Ord
   },
   { id: "status", header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   { id: "paymentStatus", header: "Payment", cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} /> },
+  { id: "orderType", header: "Type", cell: ({ row }) => <span className="capitalize">{row.original.orderType.replaceAll("_", " ")}</span> },
+  { accessorKey: "createdAt", header: "Created", cell: ({ row }) => new Date(row.original.createdAt).toLocaleString() },
   { accessorKey: "grandTotal", header: "Total" },
 ]
 /** Read-only order status tracking for admin — no create/edit here, that stays in operational-web/POS. */
@@ -43,6 +48,7 @@ export default function OrdersTrackingPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [range, setRange] = useState<DateRange>(defaultRange)
   const { outletId } = useActiveOutlet()
   const { data: customers } = useCustomers({ limit: 500 })
   const { data: tableSessions } = useTableSessions({ outletId: outletId ?? undefined, limit: 500 })
@@ -62,6 +68,8 @@ export default function OrdersTrackingPage() {
     search: search.trim() || undefined,
     outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
+    createdFrom: range.dateFrom,
+    createdTo: range.dateTo,
   })
   const showSkeleton = useDelayedLoading(isLoading)
 
@@ -74,12 +82,13 @@ export default function OrdersTrackingPage() {
   usePageTitle("Orders")
 
   return (
-    <div className="space-y-4">
+    <div className="page-shell space-y-7">
       <div className="">
-        <h1 className="text-lg font-semibold">Orders</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Orders</h1>
       </div>
 
-      <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex w-full flex-col gap-4 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+        <DateRangeFilter value={range} onChange={(value) => { setRange(value); setPage(1) }} />
         <div className="w-full space-y-1.5 sm:max-w-md">
           <label htmlFor="order-search" className="text-sm font-medium">Search orders or customers</label>
           <Input
@@ -119,7 +128,7 @@ export default function OrdersTrackingPage() {
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : (
-        <div className={isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
+        <div className={`overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm ${isPlaceholderData ? "opacity-60 transition-opacity" : ""}`}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (

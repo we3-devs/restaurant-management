@@ -39,6 +39,9 @@ export interface Order {
   orderSource: string
   status: string
   paymentStatus: string
+  approvalStatus: "pending" | "accepted" | "rejected"
+  cancelledAt: string | null
+  cancelReason: string | null
   completedAt: string | null
   note: string | null
   subtotal: number

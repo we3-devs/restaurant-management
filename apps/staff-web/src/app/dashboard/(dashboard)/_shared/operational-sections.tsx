@@ -23,7 +23,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
-import { useDashboardStats, type DashboardStats } from "@/hooks/use-dashboard"
+import { useDashboardInventoryActivity, useDashboardStats, type DashboardStats } from "@/hooks/use-dashboard"
 import { useOrders, type Order } from "@/hooks/use-orders"
 import { useKdsBootstrap } from "@/hooks/use-kitchen-tickets"
 import { useDiningTables } from "@/hooks/use-dining-tables"
@@ -111,13 +111,21 @@ export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionPro
   if (!todayQuery.data) return null
 
   const data = todayQuery.data!
-  const pendingOrders = data.ordersOverview.find((o) => o.status === "pending")?.count ?? 0
-
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       <StatCard
+        icon={UtensilsCrossedIcon}
+        label="Active table sessions"
+        value={String(data.activeTableSessions)}
+      />
+      <StatCard
+        icon={ChefHatIcon}
+        label="Orders in kitchen"
+        value={String((data.ordersOverview.find((o) => o.status === "preparing")?.count ?? 0) + (data.ordersOverview.find((o) => o.status === "partially_ready")?.count ?? 0))}
+      />
+      <StatCard
         icon={WalletIcon}
-        label="Today's Sales"
+        label="Today's revenue"
         value={money(data.salesOverview.grandTotal)}
         trend={
           yesterday
@@ -126,21 +134,10 @@ export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionPro
         }
       />
       <StatCard
-        icon={ShoppingBagIcon}
-        label="Orders Today"
-        value={String(data.salesOverview.orderCount)}
-        trend={
-          yesterday
-            ? { value: pctChange(data.salesOverview.orderCount, yesterday.salesOverview.orderCount) ?? 0, label: "vs yesterday" }
-            : undefined
-        }
-      />
-      <StatCard icon={UtensilsCrossedIcon} label="Active Tables" value={String(data.activeTableSessions)} />
-      <StatCard
         icon={ClockIcon}
-        label="Pending Orders"
-        value={String(pendingOrders)}
-        description={pendingOrders > 0 ? "awaiting kitchen" : "all caught up"}
+        label="Average ticket prep time"
+        value={data.kitchenOverview.avgPrepMinutes == null ? "—" : `${data.kitchenOverview.avgPrepMinutes.toFixed(1)} min`}
+        description="Today"
       />
     </div>
   )
@@ -150,39 +147,18 @@ export function OperationalKpiStrip({ outletId, enabled }: OperationalSectionPro
 /* Live orders                                                        */
 /* ------------------------------------------------------------------ */
 
-const LIVE_STATUSES = ["pending", "preparing", "ready", "served"] as const
-
 export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps) {
-  const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["completed", "cancelled"], limit: 30 }, { enabled })
+  const ordersQuery = useOrders({ outletId: outletId ?? undefined, ...todayRange(), limit: 15 }, { enabled })
   const showSkeleton = useDelayedLoading(ordersQuery.isLoading)
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data])
-  const counts = useMemo(() => {
-    const result: Record<(typeof LIVE_STATUSES)[number], number> = { pending: 0, preparing: 0, ready: 0, served: 0 }
-    for (const order of orders) {
-      if (order.status in result) result[order.status as (typeof LIVE_STATUSES)[number]]++
-    }
-    return result
-  }, [orders])
-
-  const relevantOrders = useMemo(() => {
-    const priority: Record<string, number> = { pending: 0, preparing: 1, ready: 2, served: 3 }
-    return orders
-      .filter((o) => o.status in priority)
-      .slice()
-      .sort((a, b) => {
-        const rank = (priority[a.status] ?? 9) - (priority[b.status] ?? 9)
-        if (rank !== 0) return rank
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      })
-      .slice(0, 8)
-  }, [orders])
+  const relevantOrders = useMemo(() => orders.slice(0, 15), [orders])
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Live orders</CardTitle>
-        <CardDescription>What&apos;s currently in flight</CardDescription>
+        <CardTitle>Recent orders</CardTitle>
+        <CardDescription>Latest orders across the active outlet</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {showSkeleton ? (
@@ -191,19 +167,10 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
           <SectionError onRetry={() => ordersQuery.refetch()} />
         ) : (
           <>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              {LIVE_STATUSES.map((status) => (
-                <div key={status} className="rounded-lg border bg-muted/30 py-2">
-                  <p className="text-lg font-semibold tabular-nums">{counts[status]}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{status}</p>
-                </div>
-              ))}
-            </div>
-
             {relevantOrders.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No active orders</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">No recent orders</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {relevantOrders.map((order) => {
                   return (
                     <Link
@@ -211,7 +178,7 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
                       href={`/dashboard/orders/${order.id}`}
                       className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
                     >
-                      <span className="min-w-0 flex-1 truncate font-medium">#{order.orderNumber}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium">#{order.orderNumber}<span className="ml-2 text-xs font-normal text-muted-foreground">{order.orderType.replaceAll("_", " ")}</span></span>
                       <span className="shrink-0 text-muted-foreground">{order.tableName ?? "No Table"}</span>
                       <StatusBadge status={order.status} className="shrink-0" />
                       <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">
@@ -262,73 +229,63 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
   const ordersQuery = useOrders(
     // This widget needs a complete unpaid-bill count, not just the first page
     // of the newest orders. Keep the request within the API's maximum page size.
-    { outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 500 },
+    { outletId: outletId ?? undefined, ...todayRange(), excludeStatus: ["cancelled"], limit: 500 },
     { enabled: enabled && canViewOrders },
   )
   const kdsQuery = useKdsBootstrap(enabled && canViewKitchen ? outletId : null)
-  const { today: stats, todayQuery: statsQuery } = useDashboardStatsContext()
+  const { todayQuery: statsQuery } = useDashboardStatsContext()
+  const inventoryQuery = useDashboardInventoryActivity({ outletId }, { enabled: enabled && canViewDashboardStats })
 
   const isLoading =
-    (canViewOrders && ordersQuery.isLoading) || (canViewKitchen && kdsQuery.isLoading) || (canViewDashboardStats && statsQuery.isLoading)
+    (canViewOrders && ordersQuery.isLoading) || (canViewKitchen && kdsQuery.isLoading) || (canViewDashboardStats && (statsQuery.isLoading || inventoryQuery.isLoading))
   const showSkeleton = useDelayedLoading(isLoading)
 
   const items = useMemo<AttentionItem[]>(() => {
     const result: AttentionItem[] = []
     const orders = ordersQuery.data?.data ?? []
 
-    const delayed = orders.filter((o) => ["pending", "preparing"].includes(o.status) && minutesSince(o.createdAt) > 15)
-    if (delayed.length > 0) {
-      result.push({
-        id: "delayed-orders",
-        severity: "critical",
-        label: `${delayed.length} order${delayed.length > 1 ? "s" : ""} waiting longer than 15 minutes`,
-        href: "/dashboard/orders",
-      })
-    }
-
-    const unpaid = orders.filter((o) => o.paymentStatus !== "paid" && o.status !== "cancelled")
-    if (unpaid.length > 0) {
-      result.push({
-        id: "unpaid-bills",
-        severity: "warning",
-        label: `${unpaid.length} unpaid bill${unpaid.length > 1 ? "s" : ""}`,
-        href: "/dashboard/orders",
-      })
-    }
-
-    const tickets = kdsQuery.data?.tickets ?? []
-    const delayedTickets = tickets.filter((t) => ["open", "in_progress"].includes(t.status) && minutesSince(t.createdAt) > 20)
-    if (delayedTickets.length > 0) {
-      result.push({
-        id: "delayed-kitchen",
-        severity: "critical",
-        label: `${delayedTickets.length} delayed kitchen ticket${delayedTickets.length > 1 ? "s" : ""}`,
-        href: "/dashboard/tables",
-      })
-    }
-
-    const outOfStock = stats?.inventoryOverview.outOfStockCount ?? 0
-    if (outOfStock > 0) {
-      result.push({
-        id: "out-of-stock",
-        severity: "critical",
-        label: `${outOfStock} ingredient${outOfStock > 1 ? "s" : ""} out of stock`,
-        href: "/dashboard/ingredients",
-      })
-    }
-
-    const lowStock = stats?.inventoryOverview.lowStockCount ?? 0
-    if (lowStock > 0) {
+    const lowStock = inventoryQuery.data?.lowStockItems ?? []
+    if (lowStock.length > 0) {
       result.push({
         id: "low-stock",
         severity: "warning",
-        label: `${lowStock} low-stock ingredient${lowStock > 1 ? "s" : ""}`,
+        label: `${lowStock.length} ingredient${lowStock.length > 1 ? "s" : ""} at or below reorder level`,
         href: "/dashboard/ingredients",
+      })
+    }
+
+    const recalled = (kdsQuery.data?.tickets ?? []).filter((ticket) => ticket.recallCount > 0)
+    if (recalled.length > 0) {
+      result.push({
+        id: "recalled-tickets",
+        severity: "critical",
+        label: `${recalled.length} recalled kitchen ticket${recalled.length > 1 ? "s" : ""}`,
+        href: "/dashboard/kitchen",
+      })
+    }
+
+    const pendingApproval = orders.filter((o) => o.approvalStatus === "pending")
+    if (pendingApproval.length > 0) {
+      result.push({
+        id: "pending-approval",
+        severity: "warning",
+        label: `${pendingApproval.length} order${pendingApproval.length > 1 ? "s" : ""} pending approval`,
+        href: "/dashboard/orders",
+      })
+    }
+
+    const unpaidCompleted = orders.filter((o) => o.status === "completed" && ["unpaid", "partial"].includes(o.paymentStatus))
+    if (unpaidCompleted.length > 0) {
+      result.push({
+        id: "unpaid-completed",
+        severity: "critical",
+        label: `${unpaidCompleted.length} completed order${unpaidCompleted.length > 1 ? "s" : ""} unpaid`,
+        href: "/dashboard/invoices",
       })
     }
 
     return result
-  }, [ordersQuery.data, kdsQuery.data, statsQuery.data])
+  }, [ordersQuery.data, kdsQuery.data, inventoryQuery.data, statsQuery.data])
 
   return (
     <Card>
@@ -346,13 +303,13 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
             <p className="text-xs text-muted-foreground">No action required</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {items.map((item) => (
               <Link
                 key={item.id}
                 href={item.href}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-colors hover:opacity-80",
+                  "flex min-w-64 shrink-0 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-sm transition-colors hover:opacity-80",
                   SEVERITY_STYLES[item.severity],
                 )}
               >
@@ -520,22 +477,19 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
 
 export function KitchenStatusSection({ outletId, enabled }: OperationalSectionProps) {
   const kdsQuery = useKdsBootstrap(enabled ? outletId : null)
-  const { today: stats } = useDashboardStatsContext()
   const showSkeleton = useDelayedLoading(kdsQuery.isLoading)
 
   const tickets = kdsQuery.data?.tickets ?? []
   const openTickets = tickets.filter((t) => t.status === "open")
   const inProgressTickets = tickets.filter((t) => t.status === "in_progress")
-  const readyItems = tickets.flatMap((t) => t.items ?? []).filter((i) => i.status === "ready")
   const active = [...openTickets, ...inProgressTickets]
-  const delayed = active.filter((t) => minutesSince(t.createdAt) > 20)
-  const longestWaiting = active.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0]
+  const queue = active.slice().sort((a, b) => new Date(a.startedAt ?? a.createdAt).getTime() - new Date(b.startedAt ?? b.createdAt).getTime()).slice(0, 10)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Kitchen</CardTitle>
-        <CardDescription>Live ticket status</CardDescription>
+        <CardTitle>Kitchen queue</CardTitle>
+        <CardDescription>Open and preparing tickets, oldest first</CardDescription>
       </CardHeader>
       <CardContent>
         {showSkeleton ? (
@@ -545,43 +499,16 @@ export function KitchenStatusSection({ outletId, enabled }: OperationalSectionPr
         ) : tickets.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No kitchen activity</p>
         ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="rounded-lg border bg-muted/30 py-2">
-                <p className="text-lg font-semibold tabular-nums">{openTickets.length}</p>
-                <p className="text-xs text-muted-foreground">Pending</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 py-2">
-                <p className="text-lg font-semibold tabular-nums">{inProgressTickets.length}</p>
-                <p className="text-xs text-muted-foreground">Preparing</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 py-2">
-                <p className="text-lg font-semibold tabular-nums">{readyItems.length}</p>
-                <p className="text-xs text-muted-foreground">Ready</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 py-2">
-                <p className={cn("text-lg font-semibold tabular-nums", delayed.length > 0 && "text-destructive")}>
-                  {delayed.length}
-                </p>
-                <p className="text-xs text-muted-foreground">Delayed</p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Longest waiting</span>
-              {longestWaiting ? (
-                <Link href={`/dashboard/orders/${longestWaiting.orderId}`} className="font-medium hover:underline">
-                  #{longestWaiting.order?.orderNumber ?? longestWaiting.orderId} — {elapsedLabel(longestWaiting.createdAt)}
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </div>
-              {stats?.kitchenOverview.avgPrepMinutes != null && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Avg prep time</span>
-                <span className="font-medium">{stats.kitchenOverview.avgPrepMinutes.toFixed(1)} min</span>
-              </div>
-            )}
+          <div className="space-y-1.5">
+            {queue.map((ticket) => (
+              <Link key={ticket.id} href={`/dashboard/orders/${ticket.orderId}`} className="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm transition-colors hover:border-border hover:bg-muted/50">
+                <span className={cn("size-2 shrink-0 rounded-full", ticket.status === "in_progress" ? "bg-amber-500" : "bg-sky-500")} />
+                <span className="min-w-0 flex-1 truncate font-medium">#{ticket.order?.orderNumber ?? ticket.orderId}</span>
+                <span className="text-xs capitalize text-muted-foreground">{ticket.status.replaceAll("_", " ")}</span>
+                {ticket.recallCount > 0 && <Badge variant="destructive">recalled</Badge>}
+                <span className="w-14 text-right text-xs text-muted-foreground">{elapsedLabel(ticket.startedAt ?? ticket.createdAt)}</span>
+              </Link>
+            ))}
           </div>
         )}
       </CardContent>
@@ -629,7 +556,7 @@ export function RevenueSnapshotSection({ outletId, enabled }: OperationalSection
 
 export function PaymentStatusSection({ outletId, enabled }: OperationalSectionProps) {
   const { today: stats, todayQuery: statsQuery } = useDashboardStatsContext()
-  const ordersQuery = useOrders({ outletId: outletId ?? undefined, excludeStatus: ["cancelled"], limit: 500 }, { enabled })
+  const ordersQuery = useOrders({ outletId: outletId ?? undefined, ...todayRange(), excludeStatus: ["cancelled"], limit: 500 }, { enabled })
   const showSkeleton = useDelayedLoading(statsQuery.isLoading)
 
   const unpaidCount = (ordersQuery.data?.data ?? []).filter((o) => o.paymentStatus !== "paid").length

@@ -107,12 +107,12 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
             <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}>
               <DownloadIcon /> Export CSV
             </Button>
-            {!readOnly && <CreateIngredientDialog />}
+            {readOnly ? <Button variant="outline" render={<Link href="/dashboard/inventory-items" />}>Manage Inventory</Button> : <CreateIngredientDialog />}
           </div>
         </div>
       </div>
 
-      <div className="w-64 space-y-1.5">
+      <div className="w-64 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm space-y-1.5">
         <label className="text-sm font-medium">Location</label>
         <Select value={warehouseId} onValueChange={(value) => setWarehouseId(value ?? "")}>
           <SelectTrigger className="w-full">
@@ -132,7 +132,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
       {showSkeleton ? (
         <TableSkeleton rows={6} columns={12} />
       ) : (
-        <Table>
+        <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm"><Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -183,7 +183,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
               )
             })}
           </TableBody>
-        </Table>
+        </Table></div>
       )}
     </div>
   )
