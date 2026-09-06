@@ -41,15 +41,15 @@ export default function SalesPage() {
   }
 
   usePageTitle("Sales")
-  return <div className="space-y-4">
-    <div><h1 className="text-lg font-semibold">Sales</h1><p className="text-sm text-muted-foreground">Overall quantity and value sold for each item in the selected period.</p></div>
-    <div className="flex flex-wrap items-end gap-3">
+  return <div className="page-shell space-y-7">
+    <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Sales</h1><p className="mt-1 text-sm text-muted-foreground">The item-level ledger of what sold in the selected period.</p></div>
+    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm">
       <DateRangeFilter value={range} onChange={(value) => { setRange(value); setPage(1) }} />
       <div className="w-56 space-y-1.5"><label className="text-sm font-medium">Search item</label><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search item..." /></div>
       <div className="w-44 space-y-1.5"><label className="text-sm font-medium">Credit status</label><Select value={credited} onValueChange={(value) => { setCredited(value ?? "all"); setPage(1) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited items</SelectItem><SelectItem value="uncredited">Non-credited items</SelectItem></SelectContent></Select></div>
       <div className="ml-auto flex items-center gap-1.5"><Button variant="outline" size="sm" disabled={!!exporting} onClick={() => exportSales("csv")}><DownloadIcon /> CSV</Button><Button variant="outline" size="sm" disabled={!!exporting} onClick={() => exportSales("xlsx")}><DownloadIcon /> Excel</Button><Button variant="outline" size="sm" disabled={!!exporting} onClick={() => exportSales("pdf")}><DownloadIcon /> PDF</Button></div>
     </div>
-    {showSkeleton ? <TableSkeleton rows={15} columns={6} /> : !data || data.data.length === 0 ? <div className="rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">No sales for this range.</div> : <div className={isPlaceholderData ? "opacity-60" : undefined}><Table><TableHeader><TableRow>{data.columns.map((column) => <TableHead key={column.key}>{column.header}</TableHead>)}</TableRow></TableHeader><TableBody>{data.data.map((row, index) => <TableRow key={index}>{data.columns.map((column) => <TableCell key={column.key}>{formatSalesValue(column.key, row[column.key])}</TableCell>)}</TableRow>)}</TableBody></Table></div>}
+    {showSkeleton ? <TableSkeleton rows={15} columns={6} /> : !data || data.data.length === 0 ? <div className="rounded-2xl border border-dashed py-16 text-center text-sm text-muted-foreground">No sales for this range.</div> : <div className={`overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm ${isPlaceholderData ? "opacity-60" : ""}`}><Table><TableHeader><TableRow>{data.columns.map((column) => <TableHead key={column.key}>{column.header}</TableHead>)}</TableRow></TableHeader><TableBody>{data.data.map((row, index) => <TableRow key={index}>{data.columns.map((column) => <TableCell key={column.key}>{formatSalesValue(column.key, row[column.key])}</TableCell>)}</TableRow>)}</TableBody></Table></div>}
     {data && <DataTablePagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onPageChange={setPage} />}
   </div>
 }

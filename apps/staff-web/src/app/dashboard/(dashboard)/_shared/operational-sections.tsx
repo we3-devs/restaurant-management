@@ -448,6 +448,7 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
       return {
         id: area.id,
         name: area.name,
+        tables: areaTables,
         total: areaTables.length,
         occupied: areaTables.filter((t) => t.status === "occupied").length,
         reserved: areaTables.filter((t) => t.status === "reserved").length,
@@ -470,27 +471,40 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No dining areas configured</p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{row.name}</span>
-                <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.occupied)} />
-                    {row.occupied}
+              <div key={row.id} className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold tracking-tight">{row.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{row.occupied} of {row.total} tables occupied</p>
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                    {row.total ? Math.round((row.occupied / row.total) * 100) : 0}%
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.reserved)} />
-                    {row.reserved}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className={cn("size-2 rounded-full", TABLE_STATUS_DOT.available)} />
-                    {row.available}
-                  </span>
-                  <span className="tabular-nums font-medium text-foreground">
-                    {row.occupied}/{row.total}
-                  </span>
-                </span>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${row.total ? (row.occupied / row.total) * 100 : 0}%` }} />
+                </div>
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  {row.tables.map((table) => (
+                    <Link
+                      key={table.id}
+                      href={`/dashboard/tables/${table.id}`}
+                      title={`${table.name} · ${table.status}`}
+                      className={cn(
+                        "flex min-h-12 flex-col items-center justify-center rounded-xl border text-xs transition-all hover:-translate-y-0.5 hover:shadow-sm",
+                        table.status === "occupied" && "border-destructive/30 bg-destructive/10 text-destructive",
+                        table.status === "reserved" && "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                        table.status === "available" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                        !["occupied", "reserved", "available"].includes(table.status) && "bg-muted/60 text-muted-foreground",
+                      )}
+                    >
+                      <span className="font-semibold">{table.name}</span>
+                      <span className="mt-0.5 capitalize opacity-80">{table.status}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

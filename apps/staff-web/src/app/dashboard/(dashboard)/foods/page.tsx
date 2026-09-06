@@ -54,10 +54,10 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
   usePageTitle("Foods")
 
   return (
-    <div className="space-y-4">
+    <div className="page-shell space-y-7">
       <FoodsBackgroundPrefetch />
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Foods</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Foods Overview" : "Manage Foods"}</h1>
         {!readOnly && <CreateFoodDialog />}
       </div>
 

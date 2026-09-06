@@ -195,3 +195,24 @@
     display: none !important;
   }
 }
+
+@layer components {
+  .page-shell {
+    min-width: 0;
+  }
+
+  /* The live dashboard uses the same soft color language as Settings while
+     keeping operational states (alerts and tables) visually stronger. */
+  .dashboard-page [data-slot="card"] {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--chart-1) 4%, var(--card)),
+      var(--card) 56%,
+      color-mix(in srgb, var(--chart-3) 5%, var(--card))
+    );
+  }
+
+  .dashboard-page [data-slot="card"] [data-slot="card-title"] {
+    letter-spacing: -0.01em;
+  }
+}

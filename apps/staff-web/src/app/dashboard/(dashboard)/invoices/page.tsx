@@ -63,9 +63,9 @@ export default function InvoicesPage() {
   usePageTitle("Invoices")
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Invoices</h1>
+    <div className="page-shell space-y-7">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Invoices</h1><p className="mt-1 text-sm text-muted-foreground">Completed orders and their payment status.</p></div>
         <p className="text-sm text-muted-foreground">
           {data?.meta?.total ? `${invoices.length} of ${data.meta.total} orders have invoices` : ""}
         </p>
@@ -74,7 +74,7 @@ export default function InvoicesPage() {
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
       ) : (
-        <div className={isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
+        <div className={`overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm ${isPlaceholderData ? "opacity-60 transition-opacity" : ""}`}>
           {invoices.length > 0 ? (
             <Table>
               <TableHeader>

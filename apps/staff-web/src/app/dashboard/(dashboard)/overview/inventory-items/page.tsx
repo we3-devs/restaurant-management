@@ -3,5 +3,5 @@
 import { InventoryItemsList } from "../../inventory-items/page"
 
 export default function OverviewInventoryItemsPage() {
-  return <InventoryItemsList readOnly />
+  return <div className="page-shell"><InventoryItemsList readOnly /></div>
 }

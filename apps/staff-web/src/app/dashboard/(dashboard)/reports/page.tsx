@@ -160,10 +160,10 @@ export default function ReportsPage() {
   usePageTitle("Reports")
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-lg font-semibold">Reports</h1>
+    <div className="page-shell space-y-7">
+      <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reports</h1><p className="mt-1 text-sm text-muted-foreground">Review and export operational data by area.</p></div>
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm">
         <div className="w-64 space-y-1.5">
           <label className="text-sm font-medium">Report</label>
           <Select

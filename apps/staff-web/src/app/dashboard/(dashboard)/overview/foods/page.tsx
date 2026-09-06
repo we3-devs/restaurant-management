@@ -3,5 +3,5 @@
 import { FoodsList } from "../../foods/page"
 
 export default function OverviewFoodsPage() {
-  return <FoodsList readOnly />
+  return <div className="page-shell"><FoodsList readOnly /></div>
 }

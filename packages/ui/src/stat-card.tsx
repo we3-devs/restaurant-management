@@ -28,10 +28,10 @@ export function StatCard({
 
   return (
     <Card>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-3 py-5">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/10">
             <Icon className="size-4.5" />
           </div>
         </div>

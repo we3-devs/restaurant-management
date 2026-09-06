@@ -14,10 +14,7 @@ import {
   NeedsAttentionSection,
   OperationalKpiStrip,
   PaymentStatusSection,
-  QUICK_ACTIONS,
-  QuickActionsSection,
   RevenueSnapshotSection,
-  StaffShiftSection,
   TableStatusSection,
 } from "./_shared/operational-sections"
 
@@ -53,18 +50,16 @@ export default function DashboardPage() {
   const canViewKitchen = has("orders.view")
   const canViewTables = has("dining-tables.view")
   const canViewDashboardStats = has("dashboard.view")
-  const canViewStaff = has("attendance.view")
-  const quickActions = QUICK_ACTIONS.filter((action) => has(action.permission))
 
   const noOutletsYet = !isLoadingOutlets && outlets.length === 0
 
   usePageTitle("Dashboard")
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page page-shell space-y-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {greeting()}, {user.name}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -117,13 +112,6 @@ export default function DashboardPage() {
         {canViewDashboardStats ? <PaymentStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
       </div>
 
-      {canViewStaff ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <StaffShiftSection outletId={outletId} enabled={dataEnabled} />
-        </div>
-      ) : null}
-
-          <QuickActionsSection actions={quickActions} />
         </DashboardStatsProvider>
       )}
     </div>

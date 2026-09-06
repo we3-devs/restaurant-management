@@ -96,11 +96,11 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   usePageTitle("Inventory Items")
 
   return (
-    <div className="space-y-4">
+    <div className="page-shell space-y-7">
       <div>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold">Inventory Items</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Inventory Items Overview" : "Manage Inventory Items"}</h1>
             <p className="text-sm text-muted-foreground">Current stock, average cost, and total value by warehouse.</p>
           </div>
           <div className="flex items-center gap-2">
