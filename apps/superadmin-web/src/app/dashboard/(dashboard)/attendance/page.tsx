@@ -59,13 +59,15 @@ export default function AttendancePage() {
   const [qrLoading, setQrLoading] = useState(false)
 
   const { data: outlets } = useOutlets({ limit: 100 })
-  const activeOutlet = outlets?.data.find((outlet) => outlet.id === activeOutletId)
+  const effectiveOutletFilter = !isSuperadmin && activeOutletId ? String(activeOutletId) : outletFilter
+  const selectedOutletId = effectiveOutletFilter !== "all" ? Number(effectiveOutletFilter) : activeOutletId
+  const activeOutlet = outlets?.data.find((outlet) => outlet.id === selectedOutletId)
   const { data: employees } = useEmployees({ limit: 200 })
   const { data, isLoading, isPlaceholderData } = useAttendanceList({
     tenantId: activeOutlet?.tenantId,
     page,
     limit: PAGE_SIZE,
-    outletId: outletFilter !== "all" ? Number(outletFilter) : undefined,
+    outletId: selectedOutletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     dateFrom: dateRange.dateFrom || undefined,
     dateTo: dateRange.dateTo || undefined,
@@ -85,7 +87,7 @@ export default function AttendancePage() {
   }
 
   async function createQrCodes() {
-    if (!activeOutletId) {
+    if (!selectedOutletId) {
       toast.error("Select an outlet from the navigation bar first")
       return
     }
@@ -93,7 +95,7 @@ export default function AttendancePage() {
     try {
       const result = await apiClient<{ clockInUrl: string; clockOutUrl: string }>("/attendance/qr/setup", {
         method: "POST",
-        body: JSON.stringify({ outletId: activeOutletId, tenantId: activeOutlet?.tenantId }),
+        body: JSON.stringify({ outletId: selectedOutletId, tenantId: activeOutlet?.tenantId }),
       })
       setQrSetup(result)
       toast.success("Attendance QR codes loaded")
@@ -173,12 +175,12 @@ export default function AttendancePage() {
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-56 space-y-1.5">
           <label className="text-sm font-medium">Filter by outlet</label>
-          <Select value={outletFilter} onValueChange={(v) => { setOutletFilter(v ?? "all"); setPage(1) }}>
+          <Select value={effectiveOutletFilter} disabled={!isSuperadmin} onValueChange={(v) => { setOutletFilter(v ?? "all"); setPage(1) }}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="All outlets" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All outlets</SelectItem>
+              {isSuperadmin && <SelectItem value="all">All outlets</SelectItem>}
               {outlets?.data.map((outlet) => (
                 <SelectItem key={outlet.id} value={String(outlet.id)}>
                   {outlet.name}

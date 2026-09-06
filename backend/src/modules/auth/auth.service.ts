@@ -66,6 +66,9 @@ export class AuthService {
     password: string,
     tenantSlug?: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
+    if (!tenantSlug?.trim()) {
+      throw new UnauthorizedException('Tenant context is required to log in');
+    }
     const loginStartUs = this.nowMicros();
     const phases: Record<string, number> = {};
 
