@@ -1,7 +1,4 @@
-import { ForbiddenException, Inject, Injectable, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
-import type { Request } from 'express';
-import { DataSource } from 'typeorm';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 import { PermissionsService } from './permissions.service';
 
@@ -17,28 +14,15 @@ export type AccessibleOutlets = number[] | typeof ALL_OUTLETS;
  * ALL_OUTLETS sentinel (or a genuinely empty list, meaning "no outlets")
  * instead of re-deriving that meaning themselves at each call site.
  */
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class OutletAccessService {
-  constructor(
-    private readonly permissionsService: PermissionsService,
-    private readonly dataSource: DataSource,
-    @Inject(REQUEST) private readonly request: Request & { tenantId?: number },
-  ) {}
+  constructor(private readonly permissionsService: PermissionsService) {}
 
   async getAccessibleOutletIds(
     userId: number,
     isSuperadmin: boolean,
   ): Promise<AccessibleOutlets> {
     if (isSuperadmin) {
-      // A tenant hostname scopes even superadmins. They retain full access
-      // inside that tenant, but must not see another tenant's outlets.
-      if (this.request.tenantId !== undefined) {
-        const rows = await this.dataSource.query(
-          'SELECT id FROM outlets WHERE tenant_id = $1 ORDER BY name ASC',
-          [this.request.tenantId],
-        );
-        return rows.map((row: { id: string | number }) => Number(row.id));
-      }
       return ALL_OUTLETS;
     }
     const outletIds = await this.permissionsService.getAccessibleOutletIds(
