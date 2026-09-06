@@ -32,6 +32,9 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
       body,
       headers: {
         ...(isBinary ? { "Content-Type": contentType } : {}),
+        ...(request.headers.get("X-Tenant-Slug")
+          ? { "X-Tenant-Slug": request.headers.get("X-Tenant-Slug") as string }
+          : {}),
       },
     })
 

@@ -25,6 +25,14 @@ import { isStaffRouteBlockedForRole, staffRoutePermissions } from "./nav-items"
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
 
+  if (user.isSuperadmin) {
+    const requestHost = (await headers()).get("host")?.split(":")[0]
+    const superadminHost = process.env.NEXT_PUBLIC_SUPERADMIN_HOST ?? "pikachu.restraservices.com"
+    redirect(requestHost === "localhost" || requestHost === "127.0.0.1"
+      ? "http://localhost:3300/dashboard"
+      : `https://${superadminHost}/dashboard`)
+  }
+
   const pathname = (await headers()).get("x-pathname") ?? ""
 
   // Mirrors (dashboard)/layout.tsx's cross-app bounce, other direction: a

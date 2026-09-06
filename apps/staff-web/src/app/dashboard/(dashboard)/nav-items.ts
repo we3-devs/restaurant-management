@@ -7,7 +7,6 @@ import {
   Gauge,
   type LucideIcon,
   Salad,
-  ShieldAlert,
   ShieldCheck,
   Truck,
 } from "lucide-react"
@@ -127,17 +126,6 @@ export const navGroupDefs: NavGroupDef[] = [
     links: [
       { href: "/dashboard/profile", label: "Profile", permission: true },
       { href: "/dashboard/assets", label: "Assets", permission: "settings.view" },
-    ],
-  },
-  {
-    label: "Superadmin",
-    icon: ShieldAlert,
-    links: [
-      { href: "/superadmin", label: "Tenant Management", permission: true, superadminOnly: true },
-      { href: "/dashboard/outlets", label: "Outlets", permission: true, superadminOnly: true },
-      { href: "/dashboard/audit-logs", label: "Audit Logs", permission: true, superadminOnly: true },
-      { href: "/dashboard/data-import", label: "Data Import", permission: true, superadminOnly: true },
-      { href: "/superadmin/analytics", label: "Analytics Data", permission: true, superadminOnly: true },
     ],
   },
 ]

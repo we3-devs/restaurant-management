@@ -1,12 +1,14 @@
 "use client"
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useAssignedOutletDepartments } from "../hooks/use-outlet-departments"
 import type { OutletDepartment } from "../hooks/use-outlet-departments"
-import { useAssignedOutlets, useOutlets, type Outlet } from "../hooks/use-outlets"
+import { useAssignedOutlets, useOutlets, useSuperadminTenants, type Outlet, type SuperadminTenant } from "../hooks/use-outlets"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
 const ACTIVE_OUTLET_STORAGE_KEY = "active-outlet-id"
+const ACTIVE_TENANT_STORAGE_KEY = "active-tenant-slug"
 const ACTIVE_DEPARTMENT_STORAGE_KEY = "active-department-id"
 const ALL_OUTLETS_SENTINEL = "all"
 
@@ -33,6 +35,10 @@ interface ActiveOutletContextValue {
   showOutletPicker: boolean
   /** Only superadmins may pick "All Outlets" — every other role must always have one specific outlet active. */
   isSuperadmin: boolean
+  tenants: SuperadminTenant[]
+  activeTenantSlug: string | null
+  setActiveTenantSlug: (slug: string) => void
+  isLoadingTenants: boolean
 
   departmentId: number | null
   setDepartmentId: (id: number | null) => void
@@ -56,8 +62,40 @@ const ActiveOutletContext = createContext<ActiveOutletContextValue | null>(null)
  */
 export function ActiveOutletProvider({ children }: { children: React.ReactNode }) {
   const { isSuperadmin } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const tenantsQuery = useSuperadminTenants({ enabled: isSuperadmin })
+  const tenants = tenantsQuery.data ?? []
+  const [activeTenantSlug, setActiveTenantSlugState] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY),
+  )
 
-  const allOutletsQuery = useOutlets({ limit: 100 }, { enabled: isSuperadmin })
+  useEffect(() => {
+    if (!isSuperadmin || tenantsQuery.isLoading || tenants.length === 0) return
+    const selected = tenants.some((tenant) => tenant.slug === activeTenantSlug)
+    if (!selected) {
+      setActiveTenantSlugState(tenants[0].slug)
+      localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, tenants[0].slug)
+      setIsAllOutlets(true)
+      setOutletIdState(null)
+    }
+  }, [activeTenantSlug, isSuperadmin, tenants, tenantsQuery.isLoading])
+
+  function setActiveTenantSlug(slug: string) {
+    if (!tenants.some((tenant) => tenant.slug === slug)) return
+    setActiveTenantSlugState(slug)
+    localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, slug)
+    setIsAllOutlets(true)
+    setOutletIdState(null)
+    // Tenant is part of the server-side request context, so cached results
+    // from the previous tenant must never be shown after switching.
+    void queryClient.invalidateQueries()
+  }
+
+  useEffect(() => {
+    if (activeTenantSlug) localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, activeTenantSlug)
+  }, [activeTenantSlug])
+
+  const allOutletsQuery = useOutlets({ limit: 100 }, { enabled: isSuperadmin && activeTenantSlug !== null })
   const assignedOutletsQuery = useAssignedOutlets({ enabled: !isSuperadmin })
 
   const outlets = useMemo(
@@ -68,6 +106,9 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   // Non-superadmins never get an interactive picker, even with multiple
   // assigned outlets — they're always locked onto their first assignment
   // (see the auto-select effect below). Switching is a superadmin-only concept.
+  // The shared outlet context still knows the superadmin picker is available
+  // for compatibility, but the global header renders the tenant picker for
+  // superadmins instead. Regular-user outlet behavior remains unchanged.
   const showOutletPicker = isSuperadmin
 
   const [outletId, setOutletIdState] = useState<number | null>(() => readStoredId(ACTIVE_OUTLET_STORAGE_KEY))
@@ -75,7 +116,9 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   // both are represented as `null` — without this, the auto-select effect
   // below couldn't tell "never chosen yet" from "chose All on purpose" and
   // would keep bouncing the user back to a single outlet.
-  const [isAllOutlets, setIsAllOutlets] = useState<boolean>(() => readStoredOutletWasAll())
+  const [isAllOutlets, setIsAllOutlets] = useState<boolean>(() =>
+    isSuperadmin && activeTenantSlug !== null ? true : readStoredOutletWasAll(),
+  )
 
   function setOutletId(id: number | null) {
     // "All Outlets" is a superadmin-only concept. A non-superadmin can still
@@ -160,6 +203,10 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
         isLoadingOutlets,
         showOutletPicker,
         isSuperadmin,
+        tenants,
+        activeTenantSlug,
+        setActiveTenantSlug,
+        isLoadingTenants: tenantsQuery.isLoading,
         departmentId,
         setDepartmentId,
         departments,

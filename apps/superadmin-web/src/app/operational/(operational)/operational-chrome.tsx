@@ -4,7 +4,7 @@ import { AccessDenied } from "@rms/ui/access-denied"
 import { AppSidebarShell } from "@rms/ui/app-sidebar-shell"
 import { MobileNavToggle } from "@rms/ui/mobile-nav-toggle"
 import { HeaderDepartmentSwitcher } from "@rms/ui/header-department-switcher"
-import { HeaderOutletSwitcher } from "@rms/ui/header-outlet-switcher"
+import { HeaderTenantSwitcher } from "@rms/ui/header-tenant-switcher"
 import { HeaderPortalSwitcher } from "@rms/ui/header-portal-switcher"
 import { HeaderSearchButton } from "@rms/ui/header-search-button"
 import { NotificationBell } from "@rms/ui/notification-bell"
@@ -49,7 +49,7 @@ export function OperationalChrome({
               <HeaderSearchButton />
               <div className="flex flex-1 items-center justify-end gap-1.5">
                 <OfflineIndicator />
-                <HeaderOutletSwitcher />
+                <HeaderTenantSwitcher />
                 <OperatingStatusBadge />
                 <HeaderDepartmentSwitcher />
                 <HeaderPortalSwitcher current="staff" />

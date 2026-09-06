@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Skeleton } from "./skeleton"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
-/** Global outlet switcher in the header — same ActiveOutletProvider every page already reads from, so switching here updates POS/Floor/Kitchen/dashboard consistently. Hidden when the user only has one outlet (same rule as every other outlet picker in the app). */
+/** Kept for tenant-scoped staff layouts; platform superadmins use the tenant switcher. */
 export function HeaderOutletSwitcher() {
   const { outletId, setOutletId, outlets, showOutletPicker, isLoadingOutlets, isSuperadmin } = useActiveOutlet()
   const [mounted, setMounted] = useState(false)
@@ -22,7 +22,7 @@ export function HeaderOutletSwitcher() {
   // Keep the header from reflowing while the outlet list is in flight — the
   // switcher sits next to the app title, so a late pop-in shifts everything.
   if (showOutletPicker && isLoadingOutlets) return <Skeleton className="h-8 w-44 rounded-md" />
-  if (!showOutletPicker) return null
+  if (!showOutletPicker || isSuperadmin) return null
 
   return (
     <Select

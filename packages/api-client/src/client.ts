@@ -42,10 +42,22 @@ async function refreshStaffSession(): Promise<boolean> {
  * token server-side, so no token or CORS handling is needed here.
  */
 export async function apiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const request = () => fetch(`/api/backend${path}`, {
+  const request = () => {
+    const headers = new Headers(init.headers)
+    headers.set("Content-Type", headers.get("Content-Type") ?? "application/json")
+    // Superadmins choose the tenant in the header. Reading this at request
+    // time keeps every query/mutation in sync without threading tenant props
+    // through every hook.
+    if (typeof window !== "undefined") {
+      const tenantSlug = window.localStorage.getItem("active-tenant-slug")
+      if (tenantSlug) headers.set("X-Tenant-Slug", tenantSlug)
+      else headers.delete("X-Tenant-Slug")
+    }
+    return fetch(`/api/backend${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
-  })
+      headers,
+    })
+  }
   let response = await request()
 
   // The proxy normally refreshes server-side. This fallback covers an

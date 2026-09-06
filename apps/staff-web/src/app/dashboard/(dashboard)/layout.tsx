@@ -16,6 +16,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // from CurrentUserProvider instead of fetching it again.
   const user = await getCurrentUser()
 
+  if (user.isSuperadmin) {
+    const requestHost = (await headers()).get("host")?.split(":")[0]
+    const superadminHost = process.env.NEXT_PUBLIC_SUPERADMIN_HOST ?? "pikachu.restraservices.com"
+    redirect(requestHost === "localhost" || requestHost === "127.0.0.1"
+      ? "http://localhost:3300/dashboard"
+      : `https://${superadminHost}/dashboard`)
+  }
+
   const pathname = (await headers()).get("x-pathname") ?? ""
 
   // "/" redirects straight to /dashboard without knowing the user's portal
