@@ -28,6 +28,16 @@ function isLocalHost(host: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")
 }
 
+/** Superadmin is global and uses one dedicated host, without tenant context. */
+export function isAllowedSuperadminHost(rawHost: string | null | undefined): boolean {
+  const host = cleanHost(rawHost)
+  if (process.env.NODE_ENV !== "production" && isLocalHost(host)) return true
+  const configuredHost = cleanHost(
+    process.env.NEXT_PUBLIC_SUPERADMIN_HOST ?? "pikachu.restraservices.com",
+  )
+  return host === configuredHost
+}
+
 /** Resolves only the production tenant host shapes; localhost remains host-only. */
 export function resolveTenantHost(rawHost: string | null | undefined): TenantContext | null {
   const host = cleanHost(rawHost)

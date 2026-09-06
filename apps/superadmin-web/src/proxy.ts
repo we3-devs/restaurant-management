@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/session"
-import { isAllowedTenantHost, tenantHeaders } from "@rms/auth/tenant"
+import { isAllowedSuperadminHost } from "@rms/auth/tenant"
 
 // Routes that must be reachable without a (staff) session. /guest (QR
 // ordering, its own customer-JWT auth) moved to operational-web along with
@@ -17,8 +17,8 @@ function isAuthRoute(pathname: string): boolean {
  * called from (dashboard)/layout.tsx.
  */
 export function proxy(request: NextRequest) {
-  if (!isAllowedTenantHost(request.headers.get("host"), "staff")) {
-    return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
+  if (!isAllowedSuperadminHost(request.headers.get("host"))) {
+    return new NextResponse("Unknown superadmin host", { status: 421, headers: { "Cache-Control": "no-store" } })
   }
   // Access token cookie is short-lived (15min) and expires long before the
   // refresh token; checking only the access token would bounce an idle user
@@ -29,9 +29,6 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   // API proxy routes still need tenant context, but authentication is handled
   // by the backend/session wrapper instead of an edge redirect.
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next({ request: { headers: tenantHeaders(request) } })
-  }
   const isAuth = isAuthRoute(pathname)
 
   // Credential query parameters are never valid login state. Strip them at
@@ -60,7 +57,7 @@ export function proxy(request: NextRequest) {
 
   // Forward the pathname to server components (layout.tsx route guards read
   // it via headers()) since there's no other reliable way to get it there.
-  const requestHeaders = tenantHeaders(request)
+  const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-pathname", pathname)
   return NextResponse.next({ request: { headers: requestHeaders } })
 }

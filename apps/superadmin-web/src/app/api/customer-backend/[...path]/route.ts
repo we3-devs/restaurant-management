@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { tenantFromRequest } from "@rms/auth/tenant"
 import { customerBackendFetch, CustomerUnauthorizedError } from "@rms/auth/server/customer-backend-client"
 
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>): Promise<NextResponse> {
@@ -25,9 +24,7 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
       {
         method: request.method,
         body: body || undefined,
-        headers: {
-          ...(tenantFromRequest(request) ? { "X-Tenant-Slug": tenantFromRequest(request)!.slug } : {}),
-        },
+        headers: {},
       },
       tokenOverride,
     )

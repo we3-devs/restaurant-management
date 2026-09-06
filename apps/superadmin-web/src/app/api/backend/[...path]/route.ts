@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { BackendUnauthorizedError, backendFetch } from "@/lib/server/backend-client"
-import { tenantFromRequest } from "@rms/auth/tenant"
 
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>): Promise<NextResponse> {
   const { path } = await params
@@ -28,13 +27,11 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   }
 
   try {
-    const tenant = tenantFromRequest(request)
     const response = await backendFetch(targetPath, {
       method: request.method,
       body,
       headers: {
         ...(isBinary ? { "Content-Type": contentType } : {}),
-        ...(tenant ? { "X-Tenant-Slug": tenant.slug } : {}),
       },
     })
 
