@@ -48,6 +48,7 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: LayoutGrid,
     links: [
       { href: "/dashboard/floor", label: "Floor Plan", permission: "dining-tables.view" },
+      { href: "/dashboard/dining-areas", label: "Dining Areas", permission: "dining-tables.view" },
       { href: "/dashboard/tables", label: "Tables", permission: "dining-tables.view" },
     ],
   },
