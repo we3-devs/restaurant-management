@@ -5,7 +5,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { IsNull, Repository } from 'typeorm';
 import { AppConfig } from '../../config/configuration';
-import { Position } from '../../modules/employees/entities/position.entity';
 import { Permission } from '../../modules/roles/entities/permission.entity';
 import { RolePermission } from '../../modules/roles/entities/role-permission.entity';
 import type { PortalAccess } from '../../modules/roles/entities/portal-access';
@@ -173,31 +172,6 @@ async function grantPermissionSlug(
   await upsertRolePermission(rolePermissionRepo, roleId, permission.id);
 }
 
-async function upsertPosition(
-  repo: Repository<Position>,
-  input: { name: string; slug: string; description: string; defaultRoleId: number },
-): Promise<Position> {
-  let position = await repo.findOne({ where: { slug: input.slug } });
-  if (!position) {
-    position = repo.create({
-      name: input.name,
-      slug: input.slug,
-      description: input.description,
-      defaultRoleId: input.defaultRoleId,
-      isActive: true,
-    });
-    position = await repo.save(position);
-    logger.log(`Created position "${position.slug}"`);
-  } else if (position.defaultRoleId !== input.defaultRoleId) {
-    position.defaultRoleId = input.defaultRoleId;
-    position = await repo.save(position);
-    logger.log(`Linked position "${position.slug}" -> role ${input.defaultRoleId}`);
-  } else {
-    logger.log(`Position "${position.slug}" already exists, skipping`);
-  }
-  return position;
-}
-
 interface RoleSeed {
   slug: string;
   name: string;
@@ -211,7 +185,6 @@ interface RoleSeed {
   singlePermissions: string[];
   /** Removes a permission slug this role used to have, so re-running the seed against an already-provisioned DB actually tightens it. */
   revokePermissions?: string[];
-  position: { name: string; slug: string; description: string };
 }
 
 const OPERATIONAL_ROLES: RoleSeed[] = [
@@ -242,7 +215,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       // OrderPaymentsController#assertRefundAllowed.
       'orders.discount', 'order-payments.refund', 'orders.delete',
     ],
-    position: { name: 'Manager', slug: 'manager', description: 'Runs day-to-day outlet operations.' },
   },
   {
     slug: 'cashier',
@@ -275,7 +247,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     // Stale grants from an earlier version of this role definition, unused by
     // any cashier-reachable screen.
     revokePermissions: ['outlet-departments.view', 'shifts.view'],
-    position: { name: 'Cashier', slug: 'cashier', description: 'Handles billing, payments and loyalty redemption at the counter.' },
   },
   {
     slug: 'waiter',
@@ -291,7 +262,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'foods.view', 'food-categories.view', 'food-variants.view', 'customer-credit.view',
       'addons.view', 'outlets.view', 'settings.view',
     ],
-    position: { name: 'Waiter', slug: 'waiter', description: 'Takes orders, serves tables, settles bills.' },
   },
   {
     slug: 'bartender',
@@ -308,7 +278,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'foods.view', 'food-categories.view', 'food-variants.view',
       'addons.view', 'outlets.view', 'settings.view',
     ],
-    position: { name: 'Bartender', slug: 'bartender', description: 'Prepares and serves drink orders at the bar.' },
   },
   {
     slug: 'host',
@@ -318,7 +287,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     portal: 'staff',
     fullModules: ['reservations', 'table-sessions'],
     singlePermissions: ['dining-tables.view', 'dining-areas.view', 'customers.view'],
-    position: { name: 'Host/Hostess', slug: 'host-hostess', description: 'Greets guests, manages the seating queue and reservations.' },
   },
   {
     slug: 'cook',
@@ -344,7 +312,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'food-categories.manage', 'food-categories.view',
       'food-variants.manage', 'food-variants.view',
     ],
-    position: { name: 'Cook', slug: 'cook', description: 'Prepares kitchen orders.' },
   },
   {
     slug: 'housekeeping',
@@ -354,7 +321,6 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     portal: 'staff',
     fullModules: ['dining-tables'],
     singlePermissions: ['dining-areas.view', 'table-sessions.view', 'attendance.view', 'shifts.view'],
-    position: { name: 'Housekeeping Staff', slug: 'housekeeping', description: 'Cleans and resets tables and dining areas between seatings.' },
   },
   {
     slug: 'kitchen-helper',
@@ -364,15 +330,13 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     portal: 'staff',
     fullModules: [],
     singlePermissions: ['orders.view', 'attendance.view', 'shifts.view'],
-    position: { name: 'Dishwasher', slug: 'dishwasher', description: 'Kitchen support — dishwashing and cleaning.' },
   },
 ];
 
-async function seedOperationalRolesAndPositions(
+async function seedOperationalRoles(
   roleRepo: Repository<Role>,
   permissionRepo: Repository<Permission>,
   rolePermissionRepo: Repository<RolePermission>,
-  positionRepo: Repository<Position>,
 ): Promise<void> {
   for (const seed of OPERATIONAL_ROLES) {
     const role = await upsertOperationalRole(roleRepo, seed);
@@ -387,7 +351,6 @@ async function seedOperationalRolesAndPositions(
       await revokeRolePermissionBySlug(permissionRepo, rolePermissionRepo, role.id, slug);
     }
 
-    await upsertPosition(positionRepo, { ...seed.position, defaultRoleId: role.id });
   }
 }
 
@@ -454,7 +417,6 @@ async function run() {
   const assignmentRepo = app.get<Repository<UserRoleAssignment>>(
     getRepositoryToken(UserRoleAssignment),
   );
-  const positionRepo = app.get<Repository<Position>>(getRepositoryToken(Position));
 
   const role = await upsertRole(roleRepo);
   const usersViewPermission = await upsertPermission(
@@ -869,7 +831,7 @@ async function run() {
   );
   await upsertGlobalAssignment(assignmentRepo, user.id, role.id);
 
-  await seedOperationalRolesAndPositions(roleRepo, permissionRepo, rolePermissionRepo, positionRepo);
+  await seedOperationalRoles(roleRepo, permissionRepo, rolePermissionRepo);
 
   logger.log('Seed complete.');
   await app.close();
