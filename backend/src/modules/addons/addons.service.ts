@@ -16,6 +16,8 @@ import { CreateAddonDto } from './dto/create-addon.dto';
 import { ListAddonsQueryDto } from './dto/list-addons-query.dto';
 import { UpdateAddonRecipeDto } from './dto/update-addon-recipe.dto';
 import { UpdateAddonDto } from './dto/update-addon.dto';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class AddonsService {
@@ -27,23 +29,25 @@ export class AddonsService {
     private readonly addonGroupsService: AddonGroupsService,
     private readonly ingredientsService: IngredientsService,
     private readonly unitsService: UnitsService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /** Bulk name lookup for display-only consumers (e.g. order item rows) that need many addons by id without a full findAll roundtrip. */
   async findByIds(ids: number[]): Promise<Addon[]> {
     if (ids.length === 0) return [];
-    return this.addonsRepository.find({ where: { id: In(ids) } });
+    return this.addonsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(ids) }) });
   }
 
   async findAll(query: ListAddonsQueryDto): Promise<PaginatedResponse<Addon>> {
     const { page, limit, search, addonGroupId } = query;
-    const where: FindOptionsWhere<Addon> = {};
+    let where: FindOptionsWhere<Addon> = {};
     if (addonGroupId !== undefined) {
       where.addonGroupId = addonGroupId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [addons, total] = await this.addonsRepository.findAndCount({
       where,
@@ -59,7 +63,7 @@ export class AddonsService {
   }
 
   async findOne(id: number): Promise<Addon> {
-    const addon = await this.addonsRepository.findOne({ where: { id } });
+    const addon = await this.addonsRepository.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!addon) {
       throw new NotFoundException(`Addon ${id} not found`);
     }
@@ -77,6 +81,7 @@ export class AddonsService {
       price: dto.price ?? 0,
       sortOrder: dto.sortOrder ?? 0,
       isRecipeEnabled: dto.isRecipeEnabled ?? false,
+      ...tenantFields(this.tenantContext),
     });
     return this.addonsRepository.save(addon);
   }
@@ -115,7 +120,7 @@ export class AddonsService {
 
   async listRecipes(addonId: number): Promise<AddonRecipe[]> {
     await this.findOne(addonId);
-    return this.addonRecipesRepository.find({ where: { addonId } });
+    return this.addonRecipesRepository.find({ where: scopedWhere(this.tenantContext, { addonId }) });
   }
 
   async addRecipe(
@@ -132,6 +137,7 @@ export class AddonsService {
       unitId: dto.unitId,
       quantity: dto.quantity,
       wastageQuantity: dto.wastageQuantity ?? 0,
+      ...tenantFields(this.tenantContext),
     });
 
     try {
@@ -175,7 +181,7 @@ export class AddonsService {
   /** Used by OrdersService to resolve required ingredients for an addon. */
   async resolveRecipes(addonId: number): Promise<AddonRecipe[]> {
     return this.addonRecipesRepository.find({
-      where: { addonId, isActive: true },
+      where: scopedWhere(this.tenantContext, { addonId, isActive: true }),
     });
   }
 
@@ -184,7 +190,7 @@ export class AddonsService {
     recipeId: number,
   ): Promise<AddonRecipe> {
     const recipe = await this.addonRecipesRepository.findOne({
-      where: { id: recipeId, addonId },
+      where: scopedWhere(this.tenantContext, { id: recipeId, addonId }),
     });
     if (!recipe) {
       throw new NotFoundException(

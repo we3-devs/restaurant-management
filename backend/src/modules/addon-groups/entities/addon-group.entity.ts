@@ -17,6 +17,9 @@ export class AddonGroup {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({ type: 'varchar', length: 255 })
   name: string;
 

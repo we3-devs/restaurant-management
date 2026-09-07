@@ -13,6 +13,8 @@ import { ListUnitsQueryDto } from './dto/list-units-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UnitConversion } from './entities/unit-conversion.entity';
 import { Unit } from './entities/unit.entity';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class UnitsService {
@@ -21,17 +23,19 @@ export class UnitsService {
     private readonly unitsRepository: Repository<Unit>,
     @InjectRepository(UnitConversion)
     private readonly unitConversionsRepository: Repository<UnitConversion>,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async findAll(query: ListUnitsQueryDto): Promise<PaginatedResponse<Unit>> {
     const { page, limit, search, type } = query;
-    const where: FindOptionsWhere<Unit> = {};
+    let where: FindOptionsWhere<Unit> = {};
     if (type !== undefined) {
       where.type = type;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [units, total] = await this.unitsRepository.findAndCount({
       where,
@@ -48,7 +52,7 @@ export class UnitsService {
 
   /** Internal lookup used by IngredientsService to validate a unit id. */
   async findOne(id: number): Promise<Unit> {
-    const unit = await this.unitsRepository.findOne({ where: { id } });
+    const unit = await this.unitsRepository.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!unit) {
       throw new NotFoundException(`Unit ${id} not found`);
     }
@@ -61,6 +65,7 @@ export class UnitsService {
       shortName: dto.shortName,
       type: dto.type ?? 'quantity',
       isBase: dto.isBase ?? false,
+      ...tenantFields(this.tenantContext),
     });
 
     try {
@@ -113,7 +118,7 @@ export class UnitsService {
 
   async listConversions(fromUnitId: number): Promise<UnitConversion[]> {
     await this.findOne(fromUnitId);
-    return this.unitConversionsRepository.find({ where: { fromUnitId } });
+    return this.unitConversionsRepository.find({ where: scopedWhere(this.tenantContext, { fromUnitId }) });
   }
 
   /**
@@ -144,11 +149,12 @@ export class UnitsService {
               toUnitId: dto.toUnitId,
               multiplier: dto.multiplier,
               isActive,
+              ...tenantFields(this.tenantContext),
             }),
           );
 
           const existingReverse = await manager.findOne(UnitConversion, {
-            where: { fromUnitId: dto.toUnitId, toUnitId: fromUnitId },
+            where: scopedWhere<UnitConversion>(this.tenantContext, { fromUnitId: dto.toUnitId, toUnitId: fromUnitId }),
           });
           if (existingReverse) {
             existingReverse.multiplier = reverseMultiplier;
@@ -161,6 +167,7 @@ export class UnitsService {
                 toUnitId: fromUnitId,
                 multiplier: reverseMultiplier,
                 isActive,
+                ...tenantFields(this.tenantContext),
               }),
             );
           }
@@ -193,7 +200,7 @@ export class UnitsService {
       return 1;
     }
     const conversion = await this.unitConversionsRepository.findOne({
-      where: { fromUnitId, toUnitId, isActive: true },
+      where: scopedWhere(this.tenantContext, { fromUnitId, toUnitId, isActive: true }),
     });
     if (!conversion) {
       throw new BadRequestException(
@@ -206,7 +213,7 @@ export class UnitsService {
   /** Also removes the paired reverse conversion (toUnit → fromUnit), if one exists. */
   async removeConversion(id: number): Promise<void> {
     const conversion = await this.unitConversionsRepository.findOne({
-      where: { id },
+      where: scopedWhere(this.tenantContext, { id }),
     });
     if (!conversion) {
       throw new NotFoundException(`Unit conversion ${id} not found`);

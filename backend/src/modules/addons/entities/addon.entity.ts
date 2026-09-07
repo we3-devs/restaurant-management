@@ -21,6 +21,9 @@ export class Addon {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'addon_group_id',
     type: 'bigint',

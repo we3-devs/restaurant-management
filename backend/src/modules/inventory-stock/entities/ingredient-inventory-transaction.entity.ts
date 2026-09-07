@@ -31,6 +31,9 @@ export class IngredientInventoryTransaction {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'ingredient_id',
     type: 'bigint',

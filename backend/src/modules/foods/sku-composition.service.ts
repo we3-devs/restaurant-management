@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 import { SKU_SEPARATOR } from '../../common/sku.util';
+import { TenantContext } from '../../common/tenant/tenant-context';
 
 /**
  * A SKU part, derived from a name unless an explicit segment overrides it.
@@ -29,7 +30,10 @@ const part = (table: string) =>
  */
 @Injectable()
 export class SkuCompositionService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly tenantContext: TenantContext,
+  ) {}
 
   /**
    * Rewrites `sku` for a food and all of its items.
@@ -76,11 +80,18 @@ export class SkuCompositionService {
     // than parameterised — it is a module constant, never user input.
     const sep = `'${SKU_SEPARATOR}'`;
 
+    const tenantId = this.tenantContext.getTenantId();
+    const scopedParams = tenantId === null ? params : [...params, tenantId];
+    const tenantPredicate = tenantId === null
+      ? ''
+      : ` AND f.tenant_id = $${params.length + 1}`;
+    const scopedFoodWhere = `(${where})${tenantPredicate}`;
+
     try {
       const run = async (manager: EntityManager) => {
         await manager.query(
-          `UPDATE foods f SET sku = ${part('f')} WHERE ${where}`,
-          params,
+          `UPDATE foods f SET sku = ${part('f')} WHERE ${scopedFoodWhere}`,
+          scopedParams,
         );
 
         // A food item's code is exactly food-variant-subvariant. Both dimension
@@ -100,8 +111,8 @@ export class SkuCompositionService {
              FROM foods f
             WHERE v.food_id = f.id
               AND v.deleted_at IS NULL
-              AND (${where})`,
-          params,
+              AND ${scopedFoodWhere}`,
+          scopedParams,
         );
       };
 

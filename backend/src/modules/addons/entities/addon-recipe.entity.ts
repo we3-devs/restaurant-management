@@ -18,6 +18,9 @@ export class AddonRecipe {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'addon_id',
     type: 'bigint',

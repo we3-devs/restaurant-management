@@ -11,6 +11,8 @@ import { CreateFoodCategoryDto } from './dto/create-food-category.dto';
 import { ListFoodCategoriesQueryDto } from './dto/list-food-categories-query.dto';
 import { UpdateFoodCategoryDto } from './dto/update-food-category.dto';
 import { FoodCategory } from './entities/food-category.entity';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 export interface PublicFoodCategory {
   id: number;
@@ -23,6 +25,7 @@ export class FoodCategoriesService {
   constructor(
     @InjectRepository(FoodCategory)
     private readonly categoriesRepository: Repository<FoodCategory>,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /** Guest-facing category listing for /guest ordering — active categories only, trimmed fields. */
@@ -30,13 +33,14 @@ export class FoodCategoriesService {
     query: ListFoodCategoriesQueryDto,
   ): Promise<PaginatedResponse<PublicFoodCategory>> {
     const { page, limit, search, parentId } = query;
-    const where: FindOptionsWhere<FoodCategory> = { isActive: true };
+    let where: FindOptionsWhere<FoodCategory> = { isActive: true };
     if (parentId !== undefined) {
       where.parentId = parentId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [categories, total] = await this.categoriesRepository.findAndCount({
       where,
@@ -59,13 +63,14 @@ export class FoodCategoriesService {
     query: ListFoodCategoriesQueryDto,
   ): Promise<PaginatedResponse<FoodCategory>> {
     const { page, limit, search, parentId } = query;
-    const where: FindOptionsWhere<FoodCategory> = {};
+    let where: FindOptionsWhere<FoodCategory> = {};
     if (parentId !== undefined) {
       where.parentId = parentId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [categories, total] = await this.categoriesRepository.findAndCount({
       where,
@@ -83,7 +88,7 @@ export class FoodCategoriesService {
   /** Internal lookup used by FoodsService to validate a foodCategoryId. */
   async findOne(id: number): Promise<FoodCategory> {
     const category = await this.categoriesRepository.findOne({
-      where: { id },
+      where: scopedWhere(this.tenantContext, { id }),
     });
     if (!category) {
       throw new NotFoundException(`Food category ${id} not found`);
@@ -103,6 +108,7 @@ export class FoodCategoriesService {
       description: dto.description ?? null,
       image: dto.image ?? null,
       sortOrder: dto.sortOrder ?? 0,
+      ...tenantFields(this.tenantContext),
     });
 
     try {

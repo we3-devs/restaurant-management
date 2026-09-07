@@ -25,6 +25,9 @@ export class Food {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'food_category_id',
     type: 'bigint',

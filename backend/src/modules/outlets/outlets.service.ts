@@ -10,12 +10,15 @@ import { CreateOutletDto } from './dto/create-outlet.dto';
 import { ListOutletsQueryDto } from './dto/list-outlets-query.dto';
 import { UpdateOutletDto } from './dto/update-outlet.dto';
 import { Outlet } from './entities/outlet.entity';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class OutletsService {
   constructor(
     @InjectRepository(Outlet)
     private readonly outletsRepository: Repository<Outlet>,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async findAll(
@@ -68,7 +71,7 @@ export class OutletsService {
 
   /** Internal lookup used by OutletDepartments/Warehouses to validate an outletId. */
   async findOne(id: number): Promise<Outlet> {
-    const outlet = await this.outletsRepository.findOne({ where: { id } });
+    const outlet = await this.outletsRepository.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!outlet) {
       throw new NotFoundException(`Outlet ${id} not found`);
     }

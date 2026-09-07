@@ -17,6 +17,9 @@ export class UnitConversion {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'from_unit_id',
     type: 'bigint',

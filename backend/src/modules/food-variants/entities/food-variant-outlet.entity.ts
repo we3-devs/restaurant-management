@@ -22,6 +22,9 @@ export class FoodVariantOutlet {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'food_variant_id',
     type: 'bigint',

@@ -6,12 +6,15 @@ import { AddonGroup } from './entities/addon-group.entity';
 import { CreateAddonGroupDto } from './dto/create-addon-group.dto';
 import { ListAddonGroupsQueryDto } from './dto/list-addon-groups-query.dto';
 import { UpdateAddonGroupDto } from './dto/update-addon-group.dto';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class AddonGroupsService {
   constructor(
     @InjectRepository(AddonGroup)
     private readonly addonGroupsRepository: Repository<AddonGroup>,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async findAll(
@@ -19,7 +22,7 @@ export class AddonGroupsService {
   ): Promise<PaginatedResponse<AddonGroup>> {
     const { page, limit, search } = query;
     const [addonGroups, total] = await this.addonGroupsRepository.findAndCount({
-      where: search ? { name: ILike(`%${search}%`) } : {},
+      where: scopedWhere<AddonGroup>(this.tenantContext, search ? { name: ILike(`%${search}%`) } : {}),
       order: { sortOrder: 'ASC', name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -34,7 +37,7 @@ export class AddonGroupsService {
   /** Internal lookup used by AddonsService/FoodsService to validate an addonGroupId. */
   async findOne(id: number): Promise<AddonGroup> {
     const addonGroup = await this.addonGroupsRepository.findOne({
-      where: { id },
+      where: scopedWhere(this.tenantContext, { id }),
     });
     if (!addonGroup) {
       throw new NotFoundException(`Addon group ${id} not found`);
@@ -49,6 +52,7 @@ export class AddonGroupsService {
       minSelect: dto.minSelect ?? 0,
       maxSelect: dto.maxSelect ?? null,
       sortOrder: dto.sortOrder ?? 0,
+      ...tenantFields(this.tenantContext),
     });
     return this.addonGroupsRepository.save(addonGroup);
   }

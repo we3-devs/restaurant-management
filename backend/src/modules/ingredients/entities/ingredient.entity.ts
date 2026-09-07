@@ -29,6 +29,9 @@ export class Ingredient {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'outlet_id',
     type: 'bigint',

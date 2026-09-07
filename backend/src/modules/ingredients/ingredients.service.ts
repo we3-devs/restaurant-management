@@ -25,6 +25,8 @@ import {
   isTrackableIngredientType,
   TRACKED_INGREDIENT_TYPES,
 } from '../ingredient-categories/ingredient-category-type.util';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class IngredientsService {
@@ -34,6 +36,7 @@ export class IngredientsService {
     private readonly unitsService: UnitsService,
     private readonly ingredientCategoriesService: IngredientCategoriesService,
     private readonly outletsService: OutletsService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async findAll(
@@ -42,7 +45,7 @@ export class IngredientsService {
   ): Promise<PaginatedResponse<Ingredient>> {
     const { page, limit, search, outletId, ingredientCategoryId, type, trackableOnly } =
       query;
-    const where: FindOptionsWhere<Ingredient> = {};
+    let where: FindOptionsWhere<Ingredient> = {};
     if (outletId !== undefined) {
       where.outletId = outletId;
     } else if (accessibleOutletIds !== 'ALL') {
@@ -59,6 +62,7 @@ export class IngredientsService {
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [ingredients, total] = await this.ingredientsRepository.findAndCount({
       where,
@@ -77,7 +81,7 @@ export class IngredientsService {
   /** Internal lookup used by the stock-movement document services. */
   async findOne(id: number): Promise<Ingredient> {
     const ingredient = await this.ingredientsRepository.findOne({
-      where: { id },
+      where: scopedWhere(this.tenantContext, { id }),
       relations: { category: true, outlet: { tenant: true } },
     });
     if (!ingredient) {
@@ -126,6 +130,7 @@ export class IngredientsService {
       isPerishable: dto.isPerishable ?? false,
       trackExpiry: dto.trackExpiry ?? false,
       description: dto.description ?? null,
+      ...tenantFields(this.tenantContext),
     });
 
     try {
@@ -204,7 +209,7 @@ export class IngredientsService {
     await this.findOne(id);
 
     const result = await this.ingredientsRepository.update(
-      { id },
+      scopedWhere(this.tenantContext, { id }),
       { outletId: dto.outletId },
     );
     if (!result.affected) {

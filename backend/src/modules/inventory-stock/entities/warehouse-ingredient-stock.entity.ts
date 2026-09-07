@@ -17,6 +17,9 @@ export class WarehouseIngredientStock {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'warehouse_id',
     type: 'bigint',

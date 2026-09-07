@@ -31,8 +31,11 @@ import { FoodAddonGroup } from './entities/food-addon-group.entity';
 import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
+import { FoodVariant } from '../food-variants/entities/food-variant.entity';
 import { SkuCompositionService } from './sku-composition.service';
 import { normaliseSkuSegment } from '../../common/sku.util';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 export interface PublicFood {
   id: number;
@@ -56,31 +59,35 @@ export class FoodsService {
     private readonly foodAddonGroupsRepository: Repository<FoodAddonGroup>,
     @InjectRepository(FoodRecipe)
     private readonly foodRecipesRepository: Repository<FoodRecipe>,
+    @InjectRepository(FoodVariant)
+    private readonly foodVariantsRepository: Repository<FoodVariant>,
     private readonly foodCategoriesService: FoodCategoriesService,
     private readonly outletsService: OutletsService,
     private readonly addonGroupsService: AddonGroupsService,
     private readonly ingredientsService: IngredientsService,
     private readonly unitsService: UnitsService,
     private readonly skuCompositionService: SkuCompositionService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /** Bulk name lookup for display-only consumers (e.g. order item rows) that need many foods by id without a full findAll roundtrip. */
   async findByIds(ids: number[]): Promise<Food[]> {
     if (ids.length === 0) return [];
-    return this.foodsRepository.find({ where: { id: In(ids) } });
+    return this.foodsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(ids) }) });
   }
 
   async findAll(
     query: ListFoodsQueryDto,
   ): Promise<PaginatedResponse<FoodResponseDto>> {
     const { page, limit, search, foodCategoryId } = query;
-    const where: FindOptionsWhere<Food> = {};
+    let where: FindOptionsWhere<Food> = {};
     if (foodCategoryId !== undefined) {
       where.foodCategoryId = foodCategoryId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [foods, total] = await this.foodsRepository.findAndCount({
       where,
@@ -104,13 +111,14 @@ export class FoodsService {
     query: ListFoodsQueryDto,
   ): Promise<PaginatedResponse<PublicFood>> {
     const { page, limit, search, foodCategoryId } = query;
-    const where: FindOptionsWhere<Food> = { isActive: true };
+    let where: FindOptionsWhere<Food> = { isActive: true };
     if (foodCategoryId !== undefined) {
       where.foodCategoryId = foodCategoryId;
     }
     if (search) {
       where.name = ILike(`%${search}%`);
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [foods, total] = await this.foodsRepository.findAndCount({
       where,
@@ -136,7 +144,7 @@ export class FoodsService {
 
   /** Internal lookup used by FoodVariantsService to validate a foodId. */
   async findOne(id: number): Promise<Food> {
-    const food = await this.foodsRepository.findOne({ where: { id } });
+    const food = await this.foodsRepository.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!food) {
       throw new NotFoundException(`Food ${id} not found`);
     }
@@ -146,6 +154,9 @@ export class FoodsService {
   async create(dto: CreateFoodDto): Promise<Food> {
     if (dto.foodCategoryId !== undefined) {
       await this.foodCategoriesService.findOne(dto.foodCategoryId);
+    }
+    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
+      await this.ingredientsService.findOne(dto.inventoryIngredientId);
     }
 
     const food = this.foodsRepository.create({
@@ -167,6 +178,7 @@ export class FoodsService {
       isFeatured: dto.isFeatured ?? false,
       preparationTime: dto.preparationTime ?? null,
       sortOrder: dto.sortOrder ?? 0,
+      ...tenantFields(this.tenantContext),
     });
 
     try {
@@ -202,6 +214,9 @@ export class FoodsService {
         await this.foodCategoriesService.findOne(dto.foodCategoryId);
       }
       food.foodCategoryId = dto.foodCategoryId;
+    }
+    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
+      await this.ingredientsService.findOne(dto.inventoryIngredientId);
     }
 
     Object.assign(food, {
@@ -255,7 +270,7 @@ export class FoodsService {
 
   async listOutletOverrides(foodId: number): Promise<FoodOutlet[]> {
     await this.findOne(foodId);
-    return this.foodOutletsRepository.find({ where: { foodId } });
+    return this.foodOutletsRepository.find({ where: scopedWhere(this.tenantContext, { foodId }) });
   }
 
   async upsertOutletOverride(
@@ -266,13 +281,14 @@ export class FoodsService {
     await this.outletsService.findOne(dto.outletId);
 
     let override = await this.foodOutletsRepository.findOne({
-      where: { foodId, outletId: dto.outletId },
+      where: scopedWhere(this.tenantContext, { foodId, outletId: dto.outletId }),
     });
 
     if (!override) {
       override = this.foodOutletsRepository.create({
         foodId,
         outletId: dto.outletId,
+        ...tenantFields(this.tenantContext),
       });
     }
     override.price = dto.price ?? null;
@@ -283,13 +299,13 @@ export class FoodsService {
 
   async removeOutletOverride(foodId: number, outletId: number): Promise<void> {
     await this.findOne(foodId);
-    await this.foodOutletsRepository.delete({ foodId, outletId });
+    await this.foodOutletsRepository.delete(scopedWhere(this.tenantContext, { foodId, outletId }));
   }
 
   async listAddonGroups(foodId: number): Promise<FoodAddonGroup[]> {
     await this.findOne(foodId);
     return this.foodAddonGroupsRepository.find({
-      where: { foodId },
+      where: scopedWhere(this.tenantContext, { foodId }),
       relations: { addonGroup: true },
     });
   }
@@ -302,7 +318,7 @@ export class FoodsService {
     await this.addonGroupsService.findOne(dto.addonGroupId);
 
     const existing = await this.foodAddonGroupsRepository.findOne({
-      where: { foodId, addonGroupId: dto.addonGroupId },
+      where: scopedWhere(this.tenantContext, { foodId, addonGroupId: dto.addonGroupId }),
     });
     if (existing) {
       return; // idempotent
@@ -312,6 +328,7 @@ export class FoodsService {
       this.foodAddonGroupsRepository.create({
         foodId,
         addonGroupId: dto.addonGroupId,
+        ...tenantFields(this.tenantContext),
       }),
     );
 
@@ -326,12 +343,12 @@ export class FoodsService {
     addonGroupId: number,
   ): Promise<void> {
     await this.findOne(foodId);
-    await this.foodAddonGroupsRepository.delete({ foodId, addonGroupId });
+    await this.foodAddonGroupsRepository.delete(scopedWhere(this.tenantContext, { foodId, addonGroupId }));
   }
 
   /** Marks a food as having variants — called by FoodVariantsService on create. */
   async markHasVariants(foodId: number): Promise<void> {
-    await this.foodsRepository.update({ id: foodId }, { hasVariants: true });
+    await this.foodsRepository.update(scopedWhere(this.tenantContext, { id: foodId }), { hasVariants: true });
   }
 
   /**
@@ -345,7 +362,7 @@ export class FoodsService {
   ): Promise<{ food: Food; price: number }> {
     const food = await this.findOne(foodId);
     const override = await this.foodOutletsRepository.findOne({
-      where: { foodId, outletId },
+      where: scopedWhere(this.tenantContext, { foodId, outletId }),
     });
 
     if (override && !override.isAvailable) {
@@ -361,7 +378,7 @@ export class FoodsService {
 
   async listRecipes(foodId: number): Promise<FoodRecipe[]> {
     await this.findOne(foodId);
-    return this.foodRecipesRepository.find({ where: { foodId } });
+    return this.foodRecipesRepository.find({ where: scopedWhere(this.tenantContext, { foodId }) });
   }
 
   async addRecipe(
@@ -371,6 +388,19 @@ export class FoodsService {
     await this.findOne(foodId);
     await this.ingredientsService.findOne(dto.ingredientId);
     await this.unitsService.findOne(dto.unitId);
+    if (dto.foodVariantId !== undefined && dto.foodVariantId !== null) {
+      const foodVariant = await this.foodVariantsRepository.findOne({
+        where: scopedWhere(this.tenantContext, {
+          id: dto.foodVariantId,
+          foodId,
+        }),
+      });
+      if (!foodVariant) {
+        throw new NotFoundException(
+          `Food variant ${dto.foodVariantId} not found on food ${foodId}`,
+        );
+      }
+    }
 
     const recipe = this.foodRecipesRepository.create({
       foodId,
@@ -379,6 +409,7 @@ export class FoodsService {
       unitId: dto.unitId,
       quantity: dto.quantity,
       wastageQuantity: dto.wastageQuantity ?? 0,
+      ...tenantFields(this.tenantContext),
     });
 
     try {
@@ -430,9 +461,9 @@ export class FoodsService {
   ): Promise<FoodRecipe[]> {
     const rows = await this.foodRecipesRepository.find({
       where: [
-        { foodId, foodVariantId: IsNull(), isActive: true },
+        scopedWhere(this.tenantContext, { foodId, foodVariantId: IsNull(), isActive: true }),
         ...(foodVariantId !== null
-          ? [{ foodId, foodVariantId, isActive: true }]
+          ? [scopedWhere(this.tenantContext, { foodId, foodVariantId, isActive: true })]
           : []),
       ],
     });
@@ -455,7 +486,7 @@ export class FoodsService {
     recipeId: number,
   ): Promise<FoodRecipe> {
     const recipe = await this.foodRecipesRepository.findOne({
-      where: { id: recipeId, foodId },
+      where: scopedWhere(this.tenantContext, { id: recipeId, foodId }),
     });
     if (!recipe) {
       throw new NotFoundException(

@@ -11,6 +11,8 @@ import { SkuCompositionService } from '../foods/sku-composition.service';
 import { CreateVariantDto, UpdateVariantDto } from './dto/variant.dto';
 import { SubVariant } from './entities/sub-variant.entity';
 import { Variant } from './entities/variant.entity';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 /**
  * The two global option lists. Both have an identical shape and identical
@@ -27,6 +29,7 @@ export class VariantsService {
     @InjectRepository(FoodVariant)
     private readonly foodItemsRepository: Repository<FoodVariant>,
     private readonly skuCompositionService: SkuCompositionService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   private repo(kind: 'variant' | 'sub-variant') {
@@ -36,11 +39,11 @@ export class VariantsService {
   }
 
   findAll(kind: 'variant' | 'sub-variant') {
-    return this.repo(kind).find({ order: { sortOrder: 'ASC', name: 'ASC' } });
+    return this.repo(kind).find({ where: scopedWhere(this.tenantContext, {}), order: { sortOrder: 'ASC', name: 'ASC' } });
   }
 
   async findOne(kind: 'variant' | 'sub-variant', id: number) {
-    const row = await this.repo(kind).findOne({ where: { id } });
+    const row = await this.repo(kind).findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!row) throw new NotFoundException(`${kind} ${id} not found`);
     return row;
   }
@@ -49,7 +52,8 @@ export class VariantsService {
     const repo = this.repo(kind);
     try {
       return await repo.save(
-        repo.create({
+          repo.create({
+          ...tenantFields(this.tenantContext),
           name: dto.name.trim(),
           skuSegment: dto.skuSegment
             ? normaliseSkuSegment(dto.skuSegment)
@@ -104,8 +108,8 @@ export class VariantsService {
   async remove(kind: 'variant' | 'sub-variant', id: number) {
     const row = await this.findOne(kind, id);
     const inUse = await this.foodItemsRepository.count({
-      where:
-        kind === 'variant' ? { variantId: id } : { subVariantId: id },
+      where: scopedWhere<FoodVariant>(this.tenantContext,
+        kind === 'variant' ? { variantId: id } : { subVariantId: id }),
     });
     if (inUse > 0) {
       throw new ConflictException(

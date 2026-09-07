@@ -15,6 +15,8 @@ import {
   InventoryTransactionType,
 } from './entities/ingredient-inventory-transaction.entity';
 import { WarehouseIngredientStock } from './entities/warehouse-ingredient-stock.entity';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
@@ -45,6 +47,7 @@ export class WarehouseIngredientStocksService {
     @InjectRepository(IngredientInventoryTransaction)
     private readonly transactionsRepository: Repository<IngredientInventoryTransaction>,
     private readonly dataSource: DataSource,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /**
@@ -65,7 +68,7 @@ export class WarehouseIngredientStocksService {
     }
 
     const { page, limit, warehouseId, ingredientId } = query;
-    const where: FindOptionsWhere<WarehouseIngredientStock> = {};
+    let where: FindOptionsWhere<WarehouseIngredientStock> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
     } else if (accessibleWarehouseIds !== 'ALL') {
@@ -74,6 +77,7 @@ export class WarehouseIngredientStocksService {
     if (ingredientId !== undefined) {
       where.ingredientId = ingredientId;
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [data, total] = await this.stocksRepository.findAndCount({
       where,
@@ -101,7 +105,7 @@ export class WarehouseIngredientStocksService {
     }
 
     const { page, limit, warehouseId, ingredientId, transactionType } = query;
-    const where: FindOptionsWhere<IngredientInventoryTransaction> = {};
+    let where: FindOptionsWhere<IngredientInventoryTransaction> = {};
     if (warehouseId !== undefined) {
       where.warehouseId = warehouseId;
     } else if (accessibleWarehouseIds !== 'ALL') {
@@ -113,6 +117,7 @@ export class WarehouseIngredientStocksService {
     if (transactionType !== undefined) {
       where.transactionType = transactionType as InventoryTransactionType;
     }
+    where = scopedWhere(this.tenantContext, where);
 
     const [data, total] = await this.transactionsRepository.findAndCount({
       where,
@@ -137,7 +142,7 @@ export class WarehouseIngredientStocksService {
     ingredientId: number,
   ): Promise<WarehouseIngredientStock> {
     const stock = await this.stocksRepository.findOne({
-      where: { warehouseId, ingredientId },
+      where: scopedWhere(this.tenantContext, { warehouseId, ingredientId }),
     });
     return (
       stock ??
@@ -148,6 +153,7 @@ export class WarehouseIngredientStocksService {
         reservedQuantity: 0,
         averageCost: 0,
         stockValue: 0,
+        ...tenantFields(this.tenantContext),
       })
     );
   }
@@ -168,7 +174,7 @@ export class WarehouseIngredientStocksService {
       const stockRepo = txManager.getRepository(WarehouseIngredientStock);
 
       let stock = await stockRepo.findOne({
-        where: { warehouseId, ingredientId },
+        where: scopedWhere(this.tenantContext, { warehouseId, ingredientId }),
         lock: { mode: 'pessimistic_write' },
       });
       if (!stock) {
@@ -180,6 +186,7 @@ export class WarehouseIngredientStocksService {
             reservedQuantity: 0,
             averageCost: 0,
             stockValue: 0,
+            ...tenantFields(this.tenantContext),
           }),
         );
       }
@@ -221,8 +228,7 @@ export class WarehouseIngredientStocksService {
 
       let stock = await stockRepo.findOne({
         where: {
-          warehouseId: params.warehouseId,
-          ingredientId: params.ingredientId,
+          ...scopedWhere(this.tenantContext, { warehouseId: params.warehouseId, ingredientId: params.ingredientId }),
         },
         lock: { mode: 'pessimistic_write' },
       });
@@ -234,6 +240,7 @@ export class WarehouseIngredientStocksService {
             quantity: 0,
             averageCost: 0,
             stockValue: 0,
+            ...tenantFields(this.tenantContext),
           }),
         );
       }
@@ -287,6 +294,7 @@ export class WarehouseIngredientStocksService {
           referenceId: params.referenceId,
           remarks: params.remarks ?? null,
           createdBy: params.createdBy,
+          ...tenantFields(this.tenantContext),
         }),
       );
 

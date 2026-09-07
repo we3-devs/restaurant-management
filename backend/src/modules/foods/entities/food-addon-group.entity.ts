@@ -20,6 +20,9 @@ export class FoodAddonGroup {
   })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
   @Column({
     name: 'food_id',
     type: 'bigint',
