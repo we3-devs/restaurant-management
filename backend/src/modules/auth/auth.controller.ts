@@ -68,7 +68,7 @@ export class AuthController {
         : undefined,
     );
     this.assertApiUser(user);
-    return { ...tokens, user: await this.toAuthUser(user) };
+    return { ...tokens, user: await this.toAuthUser(user, undefined, undefined, true) };
   }
 
   @Public()
@@ -81,7 +81,7 @@ export class AuthController {
   async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
     const { tokens, user } = await this.authService.refresh(dto.refreshToken);
     this.assertApiUser(user);
-    return { ...tokens, user: await this.toAuthUser(user) };
+    return { ...tokens, user: await this.toAuthUser(user, undefined, undefined, true) };
   }
 
   @Public()
@@ -223,6 +223,7 @@ export class AuthController {
     user: User,
     portal?: 'dashboard' | 'staff',
     hasBothPortals?: boolean,
+    includeOutletIds = false,
   ) {
     const resolvedPortal =
       portal ??
@@ -234,6 +235,11 @@ export class AuthController {
       (user.isSuperadmin
         ? true
         : await this.permissionsService.hasBothPortals(user.id));
+    const outletIds = includeOutletIds
+      ? (user.isSuperadmin
+        ? []
+        : ((await this.permissionsService.getAccessibleOutletIds(user.id)) ?? []))
+      : [];
     return {
       id: user.id,
       name: user.name,
@@ -242,6 +248,7 @@ export class AuthController {
       isSuperadmin: user.isSuperadmin,
       portal: resolvedPortal,
       hasBothPortals: resolvedHasBothPortals,
+      outletIds,
     };
   }
 
