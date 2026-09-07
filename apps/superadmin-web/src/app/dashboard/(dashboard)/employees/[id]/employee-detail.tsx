@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -28,7 +27,7 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useOutlet, useOutlets, useSuperadminOutlets } from "@/hooks/use-outlets"
 import { useOutletDepartments } from "@/hooks/use-outlet-departments"
-import { useUserRoleAssignments, useUsers } from "@/hooks/use-users"
+import { useUsers } from "@/hooks/use-users"
 import {
   useDeleteEmployee,
   useEmployee,
@@ -56,8 +55,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
   const { data: outlet } = useOutlet(employee?.outletId ?? 0)
   const { data: performance } = useEmployeePerformance(employeeId)
   const linkedUser = users?.data.find((u) => u.id === employee?.userId)
-  const { data: roleAssignments } = useUserRoleAssignments(employee?.userId ?? 0)
-  const activeRoleAssignments = (roleAssignments ?? []).filter((assignment) => assignment.isActive)
   const updateEmployee = useUpdateEmployee(employeeId)
   const deleteEmployee = useDeleteEmployee()
   const { data: employeeDepartments = [] } = useEmployeeDepartments(employeeId)
@@ -453,34 +450,6 @@ export function EmployeeDetail({ employeeId }: { employeeId: number }) {
         </CardContent>
       </Card>
 
-      {employee.userId && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Roles</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Access is granted by the linked account&apos;s role assignments, not by the position above — a user can
-              hold more than one role at once.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {activeRoleAssignments.length === 0 && (
-                <p className="text-sm text-muted-foreground">No active role assignments.</p>
-              )}
-              {activeRoleAssignments.map((assignment) => (
-                <Badge key={assignment.id} variant="secondary">
-                  {assignment.roleName}
-                </Badge>
-              ))}
-            </div>
-            {canManage && (
-              <Link href={`/dashboard/users/${employee.userId}`} className="text-sm text-primary underline underline-offset-4">
-                Manage roles on the linked account
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
