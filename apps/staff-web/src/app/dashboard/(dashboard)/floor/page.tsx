@@ -52,11 +52,11 @@ export default function FloorPlanPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 rounded-xl border bg-card px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3 py-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" /> Available</span>
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-destructive" /> Occupied</span>
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" /> Reserved</span>
-        <span className="ml-auto">{arrangeMode ? "Drag tables to position them on the map." : "Use this map to plan your dining room."}</span>
+        <span className="w-full sm:ml-auto sm:w-auto">{arrangeMode ? "Drag tables to position them on the map." : "Use this map to plan your dining room."}</span>
       </div>
 
       {isLoading && <div className="h-80 animate-pulse rounded-xl border bg-muted/30" />}
@@ -84,7 +84,7 @@ function AreaMap({ outletId, area, isSuperadmin, arrangeMode, positions, onPosit
   return (
     <section className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{area.name}</h2>{area.code && <span className="text-xs text-muted-foreground">{area.code}</span>}{!area.isActive && <Badge variant="destructive">inactive</Badge>}</div><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{tables?.data.length ?? 0} tables</span>{isSuperadmin && <AlertDialog><AlertDialogTrigger render={<Button variant="destructive" size="xs">Delete area</Button>} /><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete dining area &quot;{area.name}&quot;?</AlertDialogTitle><AlertDialogDescription>This permanently deletes any tables under this area too. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={handleDelete}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}</div></div>
-      <div className="relative h-[360px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px]">
+      <div className="relative h-[420px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:h-[360px]">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.05] via-transparent to-amber-500/[0.05]" />
         {(tables?.data ?? []).map((table, index) => <MapTable key={table.id} table={table} index={index} arrangeMode={arrangeMode} position={positions[table.id]} onPositionChange={onPositionChange} />)}
         {(tables?.data.length ?? 0) === 0 && <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">No tables in this area yet.</p>}
@@ -110,10 +110,10 @@ function MapTable({ table, index, arrangeMode, position, onPositionChange }: { t
   }
 
   return (
-    <button type="button" className={cn("absolute w-28 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-2 py-3 text-center shadow-sm transition-shadow", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined}>
+    <button type="button" className={cn("absolute w-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-1 py-2 text-center shadow-sm transition-shadow sm:w-28 sm:px-2 sm:py-3", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined}>
       {arrangeMode ? <GripIcon className="mx-auto mb-1 size-4 opacity-50" /> : <ArmchairIcon className="mx-auto mb-1 size-4 opacity-60" />}
-      <span className="block text-sm font-semibold">{table.name}</span>
-      <span className="mt-0.5 block text-[11px] capitalize opacity-75">{table.status} · {table.capacity} seats</span>
+      <span className="block text-xs font-semibold sm:text-sm">{table.name}</span>
+      <span className="mt-0.5 block text-[10px] capitalize opacity-75 sm:text-[11px]">{table.status} · {table.capacity} seats</span>
     </button>
   )
 }

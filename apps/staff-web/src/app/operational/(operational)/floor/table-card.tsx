@@ -48,13 +48,13 @@ export function TableCard({
             router.push(`${basePath}?tableId=${table.id}`)
           }}
           className={cn(
-            "flex w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-4 text-center transition-colors hover:opacity-80",
+            "flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border-2 p-2 text-center transition-colors hover:opacity-80 sm:gap-1 sm:p-4",
             STATUS_STYLES[table.status] ?? STATUS_STYLES.available,
           )}
         >
-          <span className="text-sm font-semibold">{table.name}</span>
-          <span className="text-xs capitalize">{table.status}</span>
-          <span className="text-xs opacity-75">seats {table.capacity}</span>
+          <span className="text-xs font-semibold sm:text-sm">{table.name}</span>
+          <span className="text-[10px] capitalize sm:text-xs">{table.status}</span>
+          <span className="text-[10px] opacity-75 sm:text-xs">seats {table.capacity}</span>
         </button>
         {arrivingAt && (
           <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-amber-500/50 bg-amber-500 px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-white shadow-sm">

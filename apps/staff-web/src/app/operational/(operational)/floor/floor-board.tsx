@@ -118,7 +118,7 @@ function AreaSection({
         <h2 className="text-sm font-semibold">{areaName}</h2>
         <span className="text-xs text-muted-foreground">{tables?.data.length ?? 0} tables</span>
       </div>
-      <div className="relative h-[340px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px]">
+      <div className="relative h-[420px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:h-[340px]">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-amber-500/[0.04]" />
         {(tables?.data ?? []).map((table, index) => (
           <MapTable key={table.id} table={table} index={index} arrivingAt={arrivingSoonByTable.get(table.id)} basePath={basePath} />
@@ -137,7 +137,7 @@ function getPosition(index: number, position?: { x: number; y: number }) {
 function MapTable({ table, index, arrivingAt, basePath }: { table: DiningTable; index: number; arrivingAt?: string; basePath?: string }) {
   const point = getPosition(index, { x: table.positionX, y: table.positionY })
   return (
-    <div className="absolute w-28 -translate-x-1/2 -translate-y-1/2" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
+    <div className="absolute w-20 -translate-x-1/2 -translate-y-1/2 sm:w-28" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
       <TableCard table={table} arrivingAt={arrivingAt} basePath={basePath} />
     </div>
   )
