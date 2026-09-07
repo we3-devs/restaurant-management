@@ -15,7 +15,7 @@ import { Label } from "@rms/ui/label"
 import { Input } from "@rms/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateOrder } from "@rms/api-client/hooks/use-orders"
-import { useCustomers } from "@rms/api-client/hooks/use-customers"
+import { useCreateCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
 import type { PosBootstrapTable } from "@rms/api-client/hooks/use-bootstrap"
 import { tableSessionName, useOpenTableSession, useTableSessions } from "@rms/api-client/hooks/use-table-sessions"
 import { ORDER_TYPES } from "@rms/validators/orders"
@@ -56,6 +56,7 @@ export function StartSaleDialog({
   )
   const [guestCount, setGuestCount] = useState(2)
   const [customerId, setCustomerId] = useState<string>("")
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
 
   // Arriving via a table-card click on /floor (?tableId=...) — jump straight
   // into the walk-in form pre-filled for that table instead of making the
@@ -166,12 +167,22 @@ export function StartSaleDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Customer (optional)</Label>
-                <Select value={customerId || "none"} onValueChange={(value) => setCustomerId(value === "none" ? "" : (value ?? ""))}>
+                <Select
+                  value={customerId || "none"}
+                  onValueChange={(value) => {
+                    if (value === "create") {
+                      setCreateCustomerOpen(true)
+                      return
+                    }
+                    setCustomerId(value === "none" ? "" : (value ?? ""))
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Walk-in" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Walk-in (no customer)</SelectItem>
+                    <SelectItem value="create">+ Create customer</SelectItem>
                     {customers?.data.map((customer) => (
                       <SelectItem key={customer.id} value={String(customer.id)}>
                         {customer.name}
@@ -179,6 +190,11 @@ export function StartSaleDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <CreateCustomerDialog
+                  open={createCustomerOpen}
+                  onOpenChange={setCreateCustomerOpen}
+                  onCreated={(customer) => setCustomerId(String(customer.id))}
+                />
               </div>
             </>
           ) : (
@@ -273,6 +289,72 @@ export function StartSaleDialog({
             }}
             disabled={busy}
           />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CreateCustomerDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: (customer: { id: number }) => void
+}) {
+  const [name, setName] = useState("")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const createCustomer = useCreateCustomer()
+
+  async function handleCreate() {
+    if (name.trim().length < 2) {
+      toast.error("Name must be at least 2 characters")
+      return
+    }
+    try {
+      const customer = await createCustomer.mutateAsync({
+        name: name.trim(),
+        phone: phone || undefined,
+        email: email || undefined,
+      })
+      onCreated(customer)
+      toast.success(`Customer "${customer.name}" created`)
+      setName("")
+      setPhone("")
+      setEmail("")
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create customer")
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create customer</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Jane Doe" />
+          </div>
+          <div className="space-y-1">
+            <Label>Phone (optional)</Label>
+            <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="555-0100" />
+          </div>
+          <div className="space-y-1">
+            <Label>Email (optional)</Label>
+            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jane@example.com" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleCreate} disabled={createCustomer.isPending}>
+            {createCustomer.isPending ? "Creating..." : "Create customer"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
