@@ -66,7 +66,9 @@ export class RolesService {
       slug: dto.slug,
       level: dto.level ?? 'global',
       rank: dto.rank ?? 100,
-      isAssignable: dto.isAssignable ?? true,
+      // Staff receive access through an assigned position. Roles are
+      // permission templates and must not be assigned directly to users.
+      isAssignable: false,
       isActive: true,
       portal: dto.portal ?? 'dashboard',
       isSystem: false,
@@ -94,7 +96,7 @@ export class RolesService {
     Object.assign(role, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.rank !== undefined && { rank: dto.rank }),
-      ...(dto.isAssignable !== undefined && { isAssignable: dto.isAssignable }),
+      isAssignable: false,
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       ...(dto.portal !== undefined && { portal: dto.portal }),
       ...(dto.description !== undefined && { description: dto.description }),
@@ -184,7 +186,7 @@ export class RolesService {
            VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, now(), now())
            ON CONFLICT (tenant_id, slug) DO NOTHING
            RETURNING id`,
-          [template.name, template.slug, tenantId, template.level, template.rank, template.portal, template.isAssignable, template.isActive, template.description],
+          [template.name, template.slug, tenantId, template.level, template.rank, template.portal, false, template.isActive, template.description],
         ) as Array<{ id: string }>;
         roleId = insertedRole[0]?.id ? Number(insertedRole[0].id) : undefined;
         if (!roleId) {
@@ -283,7 +285,7 @@ export class RolesService {
            VALUES ($1, $2, NULL, $3, $4, $5, $6, false, $7, $8, now(), now())
            ON CONFLICT DO NOTHING
            RETURNING id`,
-          [sourceRole.name, sourceRole.slug, sourceRole.level, sourceRole.rank, sourceRole.portal, sourceRole.isAssignable, sourceRole.isActive, sourceRole.description],
+          [sourceRole.name, sourceRole.slug, sourceRole.level, sourceRole.rank, sourceRole.portal, false, sourceRole.isActive, sourceRole.description],
         ) as Array<{ id: string }>;
         const templateId = insertedTemplate[0]?.id
           ? Number(insertedTemplate[0].id)

@@ -70,7 +70,7 @@ export class RolesService {
       slug: dto.slug,
       level: dto.level ?? 'global',
       rank: dto.rank ?? 100,
-      isAssignable: dto.isAssignable ?? true,
+      isAssignable: false,
       isActive: true,
       portal: dto.portal ?? 'dashboard',
       isSystem: false,
@@ -99,7 +99,7 @@ export class RolesService {
     Object.assign(role, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.rank !== undefined && { rank: dto.rank }),
-      ...(dto.isAssignable !== undefined && { isAssignable: dto.isAssignable }),
+      isAssignable: false,
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       ...(dto.portal !== undefined && { portal: dto.portal }),
       ...(dto.description !== undefined && { description: dto.description }),

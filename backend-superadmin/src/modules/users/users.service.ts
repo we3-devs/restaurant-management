@@ -186,7 +186,10 @@ export class UsersService {
     tenantId?: number,
   ): Promise<void> {
     await this.getUserOrThrow(userId, tenantId);
-    await this.rolesService.findOne(dto.roleId); // validates roleId, 404s if missing
+    const role = await this.rolesService.findOne(dto.roleId); // validates roleId, 404s if missing
+    if (!role.isAssignable) {
+      throw new ConflictException('Roles are assigned through positions, not directly to users');
+    }
 
     const existing = await this.assignmentsRepository.findOne({
       where: {

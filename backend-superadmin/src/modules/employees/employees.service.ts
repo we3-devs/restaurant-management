@@ -60,7 +60,17 @@ export class EmployeesService {
    * implied by their position.
    */
   private async syncRoleFromPosition(employee: Employee): Promise<void> {
-    if (!employee.userId || !employee.positionId) return;
+    if (!employee.userId) return;
+
+    // Roles are derived exclusively from the employee's position. Remove any
+    // previous direct/position-derived assignments before applying the current
+    // position, so changing position cannot leave stale access behind.
+    await this.userRoleAssignmentRepo.update(
+      { userId: employee.userId, isActive: true },
+      { isActive: false },
+    );
+
+    if (!employee.positionId) return;
     const position = await this.positionRepo.findOne({
       where: { id: employee.positionId },
       relations: ['defaultRole'],
