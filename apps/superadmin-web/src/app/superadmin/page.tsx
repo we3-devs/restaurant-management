@@ -110,7 +110,7 @@ export default function SuperadminPage() {
   async function importRoleTemplates(tenant: Tenant) {
     try {
       const result = await api(`/roles/templates/import/${tenant.id}`, { method: "POST" })
-      toast.success(result?.imported?.length ? `Imported ${result.imported.length} role templates` : "Role templates already imported")
+      toast.success(result?.imported?.length ? `Imported ${result.imported.length} role templates into ${tenant.name}` : `Roles are already available for ${tenant.name}`)
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to import role templates") }
   }
 

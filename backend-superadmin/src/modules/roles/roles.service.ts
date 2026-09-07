@@ -159,6 +159,7 @@ export class RolesService {
     );
     if (!tenant[0]) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
+    await this.ensureReusableTemplates();
     const templates = await this.rolesRepository.find({
       where: { tenantId: IsNull() },
       order: { rank: 'ASC', name: 'ASC' },
@@ -206,6 +207,67 @@ export class RolesService {
       [tenantId],
     );
     return { imported };
+  }
+
+  /**
+   * Older databases have the default roles attached to the first tenant
+   * instead of storing them as reusable control-plane templates. Promote the
+   * most complete existing tenant role set once so every tenant can import it.
+   */
+  private async ensureReusableTemplates(): Promise<void> {
+    const templateCount = await this.rolesRepository.manager.query(
+      'SELECT COUNT(*)::int AS count FROM roles WHERE tenant_id IS NULL',
+    );
+    if (Number(templateCount[0]?.count ?? 0) > 0) return;
+
+    const [source] = await this.rolesRepository.manager.query(
+      `SELECT tenant_id
+       FROM roles
+       WHERE tenant_id IS NOT NULL
+       GROUP BY tenant_id
+       ORDER BY COUNT(*) DESC, tenant_id ASC
+       LIMIT 1`,
+    ) as Array<{ tenant_id: string }>;
+    if (!source) return;
+
+    const sourceRoles = await this.rolesRepository.find({
+      where: { tenantId: Number(source.tenant_id) },
+      order: { rank: 'ASC', name: 'ASC' },
+    });
+    for (const sourceRole of sourceRoles) {
+      let template = await this.rolesRepository.findOne({ where: { tenantId: IsNull(), slug: sourceRole.slug } });
+      if (!template) {
+        template = await this.rolesRepository.save(this.rolesRepository.create({
+          name: sourceRole.name,
+          slug: sourceRole.slug,
+          tenantId: null,
+          level: sourceRole.level,
+          rank: sourceRole.rank,
+          portal: sourceRole.portal,
+          isAssignable: sourceRole.isAssignable,
+          isSystem: false,
+          isActive: sourceRole.isActive,
+          description: sourceRole.description,
+        }));
+      }
+
+      const permissions = await this.rolePermissionsRepository.find({ where: { roleId: sourceRole.id } });
+      for (const permission of permissions) {
+        const exists = await this.rolePermissionsRepository.findOne({ where: { roleId: template.id, permissionId: permission.permissionId } });
+        if (!exists) await this.rolePermissionsRepository.save(this.rolePermissionsRepository.create({ roleId: template.id, permissionId: permission.permissionId }));
+      }
+    }
+
+    await this.rolesRepository.manager.query(
+      `INSERT INTO positions (name, slug, description, default_role_id, tenant_id, is_active, created_at, updated_at)
+       SELECT p.name, p.slug, p.description, target.id, NULL, p.is_active, now(), now()
+       FROM positions p
+       INNER JOIN roles source ON source.id = p.default_role_id AND source.tenant_id = $1
+       INNER JOIN roles target ON target.slug = source.slug AND target.tenant_id IS NULL
+       WHERE p.tenant_id = $1
+       ON CONFLICT (slug) WHERE tenant_id IS NULL DO NOTHING`,
+      [Number(source.tenant_id)],
+    );
   }
 
   private async getPermissionSlugs(roleId: number): Promise<string[]> {
