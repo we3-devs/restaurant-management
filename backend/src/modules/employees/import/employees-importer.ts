@@ -118,12 +118,12 @@ export class EmployeesImporter implements ImportDomainConfig<Record<string, stri
           repo.create({
             employeeCode: row.employeeCode,
             name: row.name,
-            outletId: row.outletId!,
             positionId: row.positionId,
             email: row.email,
             phone: row.phone,
           }),
         );
+        await manager.query('INSERT INTO employee_outlet_assignments (employee_id, outlet_id) VALUES ($1, $2) ON CONFLICT (employee_id, outlet_id) DO NOTHING', [created.id, row.outletId!]);
         succeeded.push({ rowNumber: row.rowNumber, entityId: created.id });
       } catch (error) {
         failures.push({ rowNumber: row.rowNumber, error: error instanceof Error ? error.message : 'Unknown error' });
@@ -157,7 +157,7 @@ export class EmployeesImporter implements ImportDomainConfig<Record<string, stri
       sheet.addRow([
         employee.name,
         employee.employeeCode,
-        outletById.get(employee.outletId) ?? '',
+        '',
         employee.positionId ? (positionById.get(employee.positionId) ?? '') : '',
         employee.email ?? '',
         employee.phone ?? '',

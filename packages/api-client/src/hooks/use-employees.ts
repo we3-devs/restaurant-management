@@ -28,7 +28,7 @@ export interface Employee {
   employeeCode: string
   userId: number | null
   positionId: number | null
-  outletId: number
+  outletIds: number[]
   name: string
   email: string | null
   phone: string | null

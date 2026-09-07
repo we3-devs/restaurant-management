@@ -65,7 +65,7 @@ export default function EmployeesPage() {
         ),
       },
       { id: "position", header: "Position", cell: ({ row }) => positionName(row.original.positionId) },
-      { id: "outlet", header: "Outlet", cell: ({ row }) => outletName(row.original.outletId) },
+      { id: "outlet", header: "Outlets", cell: ({ row }) => row.original.outletIds.map(outletName).join(", ") },
       {
         id: "employmentStatus",
         header: "Status",

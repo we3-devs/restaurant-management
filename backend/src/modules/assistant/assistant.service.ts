@@ -51,7 +51,7 @@ export class AssistantService {
     } else if (intent === 'menu') {
       metrics = await this.db.query(`SELECT name, item_type AS type, food_type AS "foodType", is_active AS "isActive" FROM foods WHERE is_active = true ORDER BY name LIMIT 200`);
     } else if (intent === 'staffSummary') {
-      metrics = await this.db.query(`SELECT employment_status AS status, COUNT(*)::int AS count FROM employees WHERE is_active = true${ids ? ' AND outlet_id = ANY($1::bigint[])' : ''} GROUP BY employment_status ORDER BY employment_status`, params);
+      metrics = await this.db.query(`SELECT employment_status AS status, COUNT(*)::int AS count FROM employees WHERE is_active = true${ids ? ' AND EXISTS (SELECT 1 FROM employee_outlet_assignments eoa WHERE eoa.employee_id = employees.id AND eoa.is_active = true AND eoa.outlet_id = ANY($1::bigint[]))' : ''} GROUP BY employment_status ORDER BY employment_status`, params);
     } else if (intent === 'payments') {
       metrics = await this.db.query(`SELECT method, type, COUNT(*)::int AS count, COALESCE(SUM(amount),0)::numeric AS amount FROM order_payments WHERE status = 'completed'${dateFilter('created_at')}${outletFilter} GROUP BY method, type ORDER BY amount DESC`, params);
     } else if (intent === 'orderDetails') {

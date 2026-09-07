@@ -61,7 +61,8 @@ export class EmployeeResponseDto {
   positionName: string | null;
 
   @ApiProperty()
-  outletId: number;
+  @ApiProperty({ type: [Number] })
+  outletIds: number[];
 
   @ApiPropertyOptional({ nullable: true })
 

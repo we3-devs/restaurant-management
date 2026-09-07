@@ -50,13 +50,18 @@ export class PermissionsService {
       .createQueryBuilder()
       .select('permissions.slug', 'slug')
       .addSelect('roles.portal', 'portal')
-      .addSelect(`CASE WHEN roles.level = 'global' THEN NULL ELSE employee.outlet_id END`, 'outletId')
+      .addSelect(`CASE WHEN roles.level = 'global' THEN NULL ELSE employee_assignment.outlet_id END`, 'outletId')
       .addSelect('NULL', 'outletDepartmentId')
       .addSelect('roles.slug', 'roleSlug')
       .addSelect('assigned_user.tenant_id', 'tenantId')
       .addSelect('assigned_outlet.tenant_id', 'outletTenantId')
       .from('employees', 'employee')
       .innerJoin('users', 'assigned_user', 'assigned_user.id = employee.user_id')
+      .innerJoin(
+        'employee_outlet_assignments',
+        'employee_assignment',
+        'employee_assignment.employee_id = employee.id AND employee_assignment.is_active = true',
+      )
       .innerJoin('positions', 'position', 'position.id = employee.position_id AND position.is_active = true')
       .innerJoin(
         'roles',
@@ -76,7 +81,7 @@ export class PermissionsService {
       .leftJoin(
         'outlets',
         'assigned_outlet',
-        'assigned_outlet.id = employee.outlet_id',
+        'assigned_outlet.id = employee_assignment.outlet_id',
       )
       .where('employee.user_id = :userId', { userId })
       .andWhere('employee.is_active = true')
@@ -252,11 +257,11 @@ export class PermissionsService {
          SELECT eda.department_id
          FROM employee_department_assignments eda
          INNER JOIN employees e ON e.id = eda.employee_id
+         INNER JOIN employee_outlet_assignments eoa ON eoa.employee_id = e.id AND eoa.outlet_id = $2 AND eoa.is_active = true
          INNER JOIN outlet_departments d ON d.id = eda.department_id
          WHERE e.user_id = $1
-           AND e.outlet_id = $2
            AND e.is_active = true
-           AND d.outlet_id = e.outlet_id
+           AND d.outlet_id = eoa.outlet_id
            AND d.is_active = true
 
       ) assigned_departments`,

@@ -1,6 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
-import { Outlet } from '../../outlets/entities/outlet.entity';
 import { User } from '../../users/entities/user.entity';
 import { Position } from './position.entity';
 
@@ -22,11 +21,6 @@ export class Employee {
   @ManyToOne(() => Position, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'position_id' })
   position: Position | null;
-  @Column({ name: 'outlet_id', type: 'bigint', transformer: new BigIntTransformer() })
-  outletId: number;
-  @ManyToOne(() => Outlet, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'outlet_id' })
-  outlet: Outlet;
   /** Direct name copy from the User entity — used when no user account is linked. */
   @Column({ type: 'varchar', length: 500 })
   name: string;

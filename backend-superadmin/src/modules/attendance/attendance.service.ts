@@ -75,7 +75,12 @@ export class AttendanceService {
   async scanQr(dto: ScanAttendanceQrDto, userId: number): Promise<Attendance> {
     const station = await this.qrStationRepo.findOne({ where: { tokenHash: this.hashQrToken(dto.token) } });
     if (!station) throw new BadRequestException('Invalid attendance QR code');
-    const employee = await this.employeeRepo.findOne({ where: { userId: userId, outletId: station.outletId, isActive: true, employmentStatus: 'active' } });
+    const employee = await this.employeeRepo.createQueryBuilder('employee')
+      .innerJoin('employee_outlet_assignments', 'employee_assignment', 'employee_assignment.employee_id = employee.id AND employee_assignment.outlet_id = :outletId AND employee_assignment.is_active = true', { outletId: station.outletId })
+      .where('employee.user_id = :userId', { userId })
+      .andWhere('employee.is_active = true')
+      .andWhere('employee.employment_status = :employmentStatus', { employmentStatus: 'active' })
+      .getOne();
     if (!employee) throw new BadRequestException('Your account is not linked to an active employee at this outlet');
 
     if (station.action === 'clock-in') {

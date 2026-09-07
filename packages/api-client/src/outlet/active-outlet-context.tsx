@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAssignedOutletDepartments } from "../hooks/use-outlet-departments"
 import type { OutletDepartment } from "../hooks/use-outlet-departments"
@@ -103,7 +103,6 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     [isSuperadmin, allOutletsQuery.data, assignedOutletsQuery.data],
   )
   const isLoadingOutlets = isSuperadmin ? allOutletsQuery.isLoading : assignedOutletsQuery.isLoading
-  const outletLogoutStarted = useRef(false)
   // Regular users select among their assigned outlets from Profile. The
   // shared header never exposes an "all" or null option for them.
   const showOutletPicker = isSuperadmin
@@ -146,19 +145,6 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     const stillValid = outletId !== null && outlets.some((o) => o.id === outletId)
     if (!stillValid) setOutletIdState(outlets[0].id)
   }, [outlets, isLoadingOutlets, outletId, isAllOutlets, isSuperadmin])
-
-  useEffect(() => {
-    if (isSuperadmin || isLoadingOutlets || assignedOutletsQuery.isError || outletLogoutStarted.current) return
-    if (outlets.length > 0) return
-
-    outletLogoutStarted.current = true
-    void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(ACTIVE_OUTLET_STORAGE_KEY)
-        window.location.replace("/login")
-      }
-    })
-  }, [assignedOutletsQuery.isError, isLoadingOutlets, isSuperadmin, outletId, outlets])
 
   useEffect(() => {
     if (isAllOutlets) {

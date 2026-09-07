@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -96,7 +96,11 @@ export class AssignmentsController {
   @ApiOperation({ summary: 'Per-employee performance statistics' })
   async getPerformance(@Param('employeeId', ParseIntPipe) employeeId: number, @Query('dateFrom') dateFrom: string | undefined, @Query('dateTo') dateTo: string | undefined, @CurrentUser() user: User) {
     const employee = await this.employeesService.findOne(employeeId);
-    await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, employee.outletId);
+    const employeeOutlets = await this.employeesService.getOutletIds(employee.id);
+    const accessibleOutlets = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    if (accessibleOutlets !== 'ALL' && !employeeOutlets.some((id) => accessibleOutlets.includes(id))) {
+      throw new ForbiddenException('You do not have access to this employee');
+    }
     return this.assignmentsService.getPerformance(employeeId, dateFrom, dateTo);
   }
 }

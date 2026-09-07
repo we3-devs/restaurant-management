@@ -796,14 +796,15 @@ export class ReportsService {
       .addSelect('employee.joining_date', 'joiningDate')
       .from('employees', 'employee')
       .leftJoin('positions', 'position', 'position.id = employee.position_id')
-      .innerJoin('outlets', 'outlet', 'outlet.id = employee.outlet_id')
+      .innerJoin('employee_outlet_assignments', 'employee_assignment', 'employee_assignment.employee_id = employee.id AND employee_assignment.is_active = true')
+      .innerJoin('outlets', 'outlet', 'outlet.id = employee_assignment.outlet_id')
       .where('employee.created_at BETWEEN :from AND :to', {
         from: resolved.from,
         to: resolved.to,
       })
       .orderBy('employee.created_at', resolved.sortDir);
     if (resolved.outletIds !== undefined) {
-      qb.andWhere('employee.outlet_id IN (:...outletIds)', {
+      qb.andWhere('employee_assignment.outlet_id IN (:...outletIds)', {
         outletIds: resolved.outletIds,
       });
     }
@@ -894,7 +895,7 @@ export class ReportsService {
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const outletFilter =
       resolved.outletIds !== undefined
-        ? 'AND employee.outlet_id IN (:...outletIds)'
+        ? 'AND EXISTS (SELECT 1 FROM employee_outlet_assignments eoa WHERE eoa.employee_id = employee.id AND eoa.is_active = true AND eoa.outlet_id IN (:...outletIds))'
         : '';
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
@@ -952,7 +953,7 @@ export class ReportsService {
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const outletFilter =
       resolved.outletIds !== undefined
-        ? 'AND employee.outlet_id IN (:...outletIds)'
+        ? 'AND EXISTS (SELECT 1 FROM employee_outlet_assignments eoa WHERE eoa.employee_id = employee.id AND eoa.is_active = true AND eoa.outlet_id IN (:...outletIds))'
         : '';
     const qb = this.ordersRepository.manager
       .createQueryBuilder()

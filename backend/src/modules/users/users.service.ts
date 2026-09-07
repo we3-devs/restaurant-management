@@ -298,7 +298,7 @@ export class UsersService {
       email: user.email,
       phone: user.phone,
       employeeId: employee?.id ?? null,
-      outletId: employee?.outletId ?? null,
+      outletId: null,
       // Department membership is now many-to-many. Keep this legacy response
       // field null until clients consume employee department assignments.
       departmentId: null,

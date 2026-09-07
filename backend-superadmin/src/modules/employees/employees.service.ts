@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, IsNull, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -9,6 +9,7 @@ import { Outlet } from '../outlets/entities/outlet.entity';
 import { Position } from './entities/position.entity';
 import { Employee } from './entities/employee.entity';
 import { EmployeeDepartmentAssignment } from './entities/employee-department-assignment.entity';
+import { EmployeeOutletAssignment } from './entities/employee-outlet-assignment.entity';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/create-employee.dto';
 import { CreatePositionDto, UpdatePositionDto } from './dto/create-position.dto';
@@ -27,6 +28,8 @@ export class EmployeesService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(EmployeeDepartmentAssignment)
     private readonly departmentAssignments: Repository<EmployeeDepartmentAssignment>,
+    @InjectRepository(EmployeeOutletAssignment)
+    private readonly outletAssignments: Repository<EmployeeOutletAssignment>,
   ) {}
 
   // ---- Positions ----
@@ -78,29 +81,11 @@ export class EmployeesService {
     if (!position?.defaultRoleId) return;
 
     const isGlobal = position.defaultRole?.level === 'global';
-    const outletId = isGlobal ? null : employee.outletId;
-
-    const existing = await this.userRoleAssignmentRepo.findOne({
-      where: {
-        userId: employee.userId,
-        roleId: position.defaultRoleId,
-        scopeType: isGlobal ? 'global' : 'outlet',
-        outletId: outletId ?? IsNull(),
-        outletDepartmentId: IsNull(),
-        warehouseId: IsNull(),
-      },
-    });
-    if (existing) return;
-
-    await this.userRoleAssignmentRepo.save(
-      this.userRoleAssignmentRepo.create({
-        userId: employee.userId,
-        roleId: position.defaultRoleId,
-        scopeType: isGlobal ? 'global' : 'outlet',
-        outletId,
-        outletDepartmentId: null,
-      }),
-    );
+    const outletIds = isGlobal ? [null] : await this.getOutletIds(employee.id);
+    for (const outletId of outletIds) {
+      const existing = await this.userRoleAssignmentRepo.findOne({ where: { userId: employee.userId, roleId: position.defaultRoleId, scopeType: isGlobal ? 'global' : 'outlet', outletId: outletId ?? IsNull(), outletDepartmentId: IsNull(), warehouseId: IsNull() } });
+      if (!existing) await this.userRoleAssignmentRepo.save(this.userRoleAssignmentRepo.create({ userId: employee.userId, roleId: position.defaultRoleId, scopeType: isGlobal ? 'global' : 'outlet', outletId, outletDepartmentId: null }));
+    }
   }
 
   // ---- Employees ----
@@ -109,35 +94,18 @@ export class EmployeesService {
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<EmployeeResponseDto>> {
     const { page, limit, search, outletId, positionId, employmentStatus } = query;
-    const where: FindOptionsWhere<Employee> = {};
-    if (outletId) where.outletId = outletId;
-    else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
-    if (positionId) where.positionId = positionId;
-    if (employmentStatus) where.employmentStatus = employmentStatus;
-    if (search) {
-      const [data, total] = await this.employeeRepo.findAndCount({
-        where: [
-          { ...where, name: ILike(`%${search}%`) },
-          { ...where, employeeCode: ILike(`%${search}%`) },
-          { ...where, email: ILike(`%${search}%`) },
-        ],
-        relations: ['position', 'user'],
-        order: { createdAt: 'DESC' }, skip: (page - 1) * limit, take: limit,
-      });
-      return {
-        data: data.map((e) => this.toResponse(e)),
-        meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
-      };
-    }
-    const [data, total] = await this.employeeRepo.findAndCount({
-      where,
-      relations: ['position', 'user'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.employeeRepo.createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.position', 'position')
+      .leftJoinAndSelect('employee.user', 'user');
+    if (outletId !== undefined) qb.innerJoin('employee_outlet_assignments', 'employee_filter_outlet', 'employee_filter_outlet.employee_id = employee.id AND employee_filter_outlet.outlet_id = :outletId AND employee_filter_outlet.is_active = true', { outletId });
+    else if (accessibleOutletIds !== 'ALL') qb.innerJoin('employee_outlet_assignments', 'employee_filter_outlet', 'employee_filter_outlet.employee_id = employee.id AND employee_filter_outlet.outlet_id IN (:...accessibleOutletIds) AND employee_filter_outlet.is_active = true', { accessibleOutletIds: accessibleOutletIds.length ? accessibleOutletIds : [0] });
+    if (positionId) qb.andWhere('employee.position_id = :positionId', { positionId });
+    if (employmentStatus) qb.andWhere('employee.employment_status = :employmentStatus', { employmentStatus });
+    if (search) qb.andWhere('(employee.name ILIKE :search OR employee.employee_code ILIKE :search OR employee.email ILIKE :search)', { search: `%${search}%` });
+    qb.orderBy('employee.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    const [data, total] = await qb.getManyAndCount();
     return {
-      data: data.map((e) => this.toResponse(e)),
+      data: await Promise.all(data.map((e) => this.toResponse(e))),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -155,21 +123,22 @@ export class EmployeesService {
   async create(dto: CreateEmployeeDto, createdBy: number): Promise<EmployeeResponseDto> {
     await this.syncUserTenantToOutlet(dto.userId, dto.outletId);
     await this.syncIdentityToUser(dto.userId, dto.name, dto.email, dto.phone);
+    const { outletId, ...employeeInput } = dto;
     const employee = await this.employeeRepo.save(this.employeeRepo.create({
-      ...dto, employeeCode: generateDocumentNumber('EMP', dto.outletId), createdBy,
+      ...employeeInput, employeeCode: generateDocumentNumber('EMP', outletId), createdBy,
     }));
+    await this.assignOutlet(employee.id, outletId, createdBy);
     return this.toResponse(await this.findOne(employee.id));
   }
 
   async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponseDto> {
     const e = await this.findOne(id);
-    await this.syncUserTenantToOutlet(
-      dto.userId !== undefined ? dto.userId : e.userId,
-      dto.outletId !== undefined ? dto.outletId : e.outletId,
-    );
+    if (dto.outletId !== undefined) await this.syncUserTenantToOutlet(dto.userId !== undefined ? dto.userId : e.userId, dto.outletId);
     await this.syncIdentityToUser(dto.userId !== undefined ? dto.userId : e.userId, dto.name, dto.email, dto.phone);
-    Object.assign(e, dto);
+    const { outletId, ...employeeInput } = dto;
+    Object.assign(e, employeeInput);
     const saved = await this.employeeRepo.save(e);
+    if (outletId !== undefined) await this.assignOutlet(saved.id, outletId, 0);
     return this.toResponse(await this.findOne(saved.id));
   }
 
@@ -177,15 +146,41 @@ export class EmployeesService {
     const e = await this.findOne(id); await this.employeeRepo.remove(e);
   }
 
-  private toResponse(employee: Employee): EmployeeResponseDto {
+  async listOutlets(employeeId: number) {
+    await this.findOne(employeeId);
+    return this.outletAssignments.find({ where: { employeeId, isActive: true }, relations: { outlet: true }, order: { createdAt: 'ASC' } });
+  }
+
+  async assignOutlet(employeeId: number, outletId: number, assignedBy: number) {
+    const employee = await this.findOne(employeeId);
+    const outlet = await this.employeeRepo.manager.getRepository(Outlet).findOne({ where: { id: outletId, tenantId: employee.user?.tenantId ?? undefined } });
+    if (!outlet) throw new NotFoundException(`Outlet ${outletId} not found in the employee's tenant`);
+    const existing = await this.outletAssignments.findOne({ where: { employeeId, outletId } });
+    if (existing) { existing.isActive = true; existing.assignedBy = assignedBy; return this.outletAssignments.save(existing); }
+    return this.outletAssignments.save(this.outletAssignments.create({ employeeId, outletId, assignedBy, isActive: true }));
+  }
+
+  async removeOutlet(employeeId: number, outletId: number) {
+    const employee = await this.findOne(employeeId);
+    if ((await this.getOutletIds(employeeId)).length <= 1) throw new ConflictException('An employee must retain at least one outlet');
+    await this.outletAssignments.update({ employeeId, outletId }, { isActive: false });
+  }
+
+  async getOutletIds(employeeId: number): Promise<number[]> {
+    const rows = await this.outletAssignments.find({ where: { employeeId, isActive: true }, select: { outletId: true }, order: { createdAt: 'ASC' } });
+    return rows.map((row) => row.outletId);
+  }
+
+  private async toResponse(employee: Employee): Promise<EmployeeResponseDto> {
     const identity = employee.user ?? employee;
+    const outletIds = await this.getOutletIds(employee.id);
     return {
       id: employee.id,
       employeeCode: employee.employeeCode,
       userId: employee.userId,
       positionId: employee.positionId,
       positionName: employee.position?.name ?? null,
-      outletId: employee.outletId,
+      outletIds,
       name: identity.name,
       email: identity.email,
       phone: identity.phone,
@@ -217,7 +212,7 @@ export class EmployeesService {
     }) as { id: number; outlet_id?: number; outletId?: number } | null;
     if (!department) throw new NotFoundException(`Department ${departmentId} not found`);
     const departmentOutletId = Number(department.outletId ?? department.outlet_id);
-    if (departmentOutletId !== employee.outletId) {
+    if (!(await this.getOutletIds(employeeId)).includes(departmentOutletId)) {
       throw new NotFoundException('Department does not belong to this employee\'s outlet');
     }
     const existing = await this.departmentAssignments.findOne({ where: { employeeId, departmentId } });
