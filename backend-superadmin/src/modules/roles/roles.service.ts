@@ -166,31 +166,39 @@ export class RolesService {
     });
     const imported: string[] = [];
     for (const template of templates) {
-      let role = await this.rolesRepository.findOne({ where: { tenantId, slug: template.slug } });
-      if (!role) {
-        role = await this.rolesRepository.save(this.rolesRepository.create({
-          name: template.name,
-          slug: template.slug,
-          tenantId,
-          level: template.level,
-          rank: template.rank,
-          portal: template.portal,
-          isAssignable: template.isAssignable,
-          isSystem: false,
-          isActive: template.isActive,
-          description: template.description,
-        }));
-        imported.push(role.slug);
+      const existingRole = await this.rolesRepository.manager.query(
+        'SELECT id FROM roles WHERE tenant_id = $1 AND slug = $2 LIMIT 1',
+        [tenantId, template.slug],
+      ) as Array<{ id: string }>;
+      let roleId = existingRole[0]?.id ? Number(existingRole[0].id) : undefined;
+      if (!roleId) {
+        const insertedRole = await this.rolesRepository.manager.query(
+          `INSERT INTO roles (name, slug, tenant_id, level, rank, portal, is_assignable, is_system, is_active, description, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, now(), now())
+           ON CONFLICT (tenant_id, slug) DO NOTHING
+           RETURNING id`,
+          [template.name, template.slug, tenantId, template.level, template.rank, template.portal, template.isAssignable, template.isActive, template.description],
+        ) as Array<{ id: string }>;
+        roleId = insertedRole[0]?.id ? Number(insertedRole[0].id) : undefined;
+        if (!roleId) {
+          const conflictedRole = await this.rolesRepository.manager.query(
+            'SELECT id FROM roles WHERE tenant_id = $1 AND slug = $2 LIMIT 1',
+            [tenantId, template.slug],
+          ) as Array<{ id: string }>;
+          roleId = conflictedRole[0]?.id ? Number(conflictedRole[0].id) : undefined;
+        }
+        if (insertedRole[0]?.id) imported.push(template.slug);
       }
+      if (!roleId) throw new ConflictException(`Unable to create or find tenant role "${template.slug}"`);
 
       const templatePermissions = await this.rolePermissionsRepository.find({ where: { roleId: template.id } });
       for (const templatePermission of templatePermissions) {
         const existing = await this.rolePermissionsRepository.findOne({
-          where: { roleId: role.id, permissionId: templatePermission.permissionId },
+          where: { roleId, permissionId: templatePermission.permissionId },
         });
         if (!existing) {
           await this.rolePermissionsRepository.save(this.rolePermissionsRepository.create({
-            roleId: role.id,
+            roleId,
             permissionId: templatePermission.permissionId,
           }));
         }
@@ -237,18 +245,18 @@ export class RolesService {
     for (const sourceRole of sourceRoles) {
       let template = await this.rolesRepository.findOne({ where: { tenantId: IsNull(), slug: sourceRole.slug } });
       if (!template) {
-        template = await this.rolesRepository.save(this.rolesRepository.create({
-          name: sourceRole.name,
-          slug: sourceRole.slug,
-          tenantId: null,
-          level: sourceRole.level,
-          rank: sourceRole.rank,
-          portal: sourceRole.portal,
-          isAssignable: sourceRole.isAssignable,
-          isSystem: false,
-          isActive: sourceRole.isActive,
-          description: sourceRole.description,
-        }));
+        const insertedTemplate = await this.rolesRepository.manager.query(
+          `INSERT INTO roles (name, slug, tenant_id, level, rank, portal, is_assignable, is_system, is_active, description, created_at, updated_at)
+           VALUES ($1, $2, NULL, $3, $4, $5, $6, false, $7, $8, now(), now())
+           ON CONFLICT DO NOTHING
+           RETURNING id`,
+          [sourceRole.name, sourceRole.slug, sourceRole.level, sourceRole.rank, sourceRole.portal, sourceRole.isAssignable, sourceRole.isActive, sourceRole.description],
+        ) as Array<{ id: string }>;
+        const templateId = insertedTemplate[0]?.id
+          ? Number(insertedTemplate[0].id)
+          : Number((await this.rolesRepository.manager.query('SELECT id FROM roles WHERE tenant_id IS NULL AND slug = $1 LIMIT 1', [sourceRole.slug]) as Array<{ id: string }>)[0]?.id);
+        template = await this.rolesRepository.findOne({ where: { id: templateId } });
+        if (!template) throw new ConflictException(`Unable to create reusable role template "${sourceRole.slug}"`);
       }
 
       const permissions = await this.rolePermissionsRepository.find({ where: { roleId: sourceRole.id } });
