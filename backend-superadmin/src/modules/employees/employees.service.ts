@@ -158,7 +158,6 @@ export class EmployeesService {
     const employee = await this.employeeRepo.save(this.employeeRepo.create({
       ...dto, employeeCode: generateDocumentNumber('EMP', dto.outletId), createdBy,
     }));
-    await this.syncRoleFromPosition(employee);
     return this.toResponse(await this.findOne(employee.id));
   }
 
@@ -171,7 +170,6 @@ export class EmployeesService {
     await this.syncIdentityToUser(dto.userId !== undefined ? dto.userId : e.userId, dto.name, dto.email, dto.phone);
     Object.assign(e, dto);
     const saved = await this.employeeRepo.save(e);
-    await this.syncRoleFromPosition(saved);
     return this.toResponse(await this.findOne(saved.id));
   }
 

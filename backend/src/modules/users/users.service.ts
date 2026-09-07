@@ -278,12 +278,14 @@ export class UsersService {
 
     const rows = await this.assignmentsRepository.manager
       .createQueryBuilder()
-      .select('DISTINCT ura.user_id', 'userId')
-      .from('user_role_assignments', 'ura')
-      .where('ura.user_id IN (:...userIds)', { userIds })
-      .andWhere('ura.is_active = true')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
+      .select('DISTINCT employee.user_id', 'userId')
+      .from('employees', 'employee')
+      .innerJoin('positions', 'position', 'position.id = employee.position_id AND position.is_active = true')
+      .innerJoin('roles', 'role', 'role.id = position.default_role_id AND role.is_active = true')
+      .where('employee.user_id IN (:...userIds)', { userIds })
+      .andWhere('employee.is_active = true')
+      .andWhere('employee.employment_status = :employmentStatus', { employmentStatus: 'active' })
+      .andWhere('position.default_role_id IS NOT NULL')
       .getRawMany<{ userId: string }>();
 
     return new Set(rows.map((row) => parseInt(row.userId, 10)));
@@ -301,7 +303,7 @@ export class UsersService {
       // field null until clients consume employee department assignments.
       departmentId: null,
       isSuperadmin: user.isSuperadmin,
-      isActive,
+      isActive: user.isSuperadmin || isActive,
       createdAt: user.createdAt,
     };
   }

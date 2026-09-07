@@ -24,6 +24,8 @@ async function main(): Promise<void> {
       DROP INDEX IF EXISTS roles_slug_unique;
       ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_slug_key;
       DROP INDEX IF EXISTS roles_slug_key;
+      UPDATE roles SET is_assignable = false;
+      DELETE FROM user_role_assignments;
     `);
   } finally {
     await client.end();

@@ -50,22 +50,23 @@ export class PermissionsService {
       .createQueryBuilder()
       .select('permissions.slug', 'slug')
       .addSelect('roles.portal', 'portal')
-      .addSelect('ura.outlet_id', 'outletId')
-      .addSelect('ura.outlet_department_id', 'outletDepartmentId')
+      .addSelect(`CASE WHEN roles.level = 'global' THEN NULL ELSE employee.outlet_id END`, 'outletId')
+      .addSelect('NULL', 'outletDepartmentId')
       .addSelect('roles.slug', 'roleSlug')
       .addSelect('assigned_user.tenant_id', 'tenantId')
       .addSelect('assigned_outlet.tenant_id', 'outletTenantId')
-      .from('user_role_assignments', 'ura')
-      .innerJoin('users', 'assigned_user', 'assigned_user.id = ura.user_id')
+      .from('employees', 'employee')
+      .innerJoin('users', 'assigned_user', 'assigned_user.id = employee.user_id')
+      .innerJoin('positions', 'position', 'position.id = employee.position_id AND position.is_active = true')
       .innerJoin(
         'roles',
         'roles',
-        'roles.id = ura.role_id AND roles.is_active = true',
+        'roles.id = position.default_role_id AND roles.is_active = true AND (roles.tenant_id = assigned_user.tenant_id OR roles.tenant_id IS NULL)',
       )
       .leftJoin(
         'role_permissions',
         'role_permissions',
-        'role_permissions.role_id = ura.role_id',
+        'role_permissions.role_id = roles.id',
       )
       .leftJoin(
         'permissions',
@@ -75,12 +76,11 @@ export class PermissionsService {
       .leftJoin(
         'outlets',
         'assigned_outlet',
-        'assigned_outlet.id = ura.outlet_id',
+        'assigned_outlet.id = employee.outlet_id',
       )
-      .where('ura.user_id = :userId', { userId })
-      .andWhere('ura.is_active = true')
-      .andWhere('(ura.starts_at IS NULL OR ura.starts_at <= now())')
-      .andWhere('(ura.ends_at IS NULL OR ura.ends_at > now())')
+      .where('employee.user_id = :userId', { userId })
+      .andWhere('employee.is_active = true')
+      .andWhere('employee.employment_status = :employmentStatus', { employmentStatus: 'active' })
       .getRawMany<ActiveAssignmentRow>();
     const dbDurationMs = Math.round((this.nowMicros() - dbStartUs) / 1000);
 
@@ -238,17 +238,7 @@ export class PermissionsService {
        LEFT JOIN positions p ON p.id = e.position_id
        WHERE e.user_id = $1
          AND e.is_active = true
-         AND (
-           LOWER(COALESCE(p.slug, '')) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff', 'dishwasher')
-           OR EXISTS (
-             SELECT 1
-             FROM user_role_assignments kitchen_ura
-             INNER JOIN roles kitchen_role ON kitchen_role.id = kitchen_ura.role_id
-             WHERE kitchen_ura.user_id = e.user_id
-               AND kitchen_ura.is_active = true
-               AND LOWER(kitchen_role.slug) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff')
-           )
-         )
+         AND LOWER(COALESCE(p.slug, '')) IN ('cook', 'chef', 'kitchen-helper', 'kitchen-staff', 'dishwasher')
        LIMIT 1`,
       [userId],
     );
@@ -269,17 +259,7 @@ export class PermissionsService {
            AND d.outlet_id = e.outlet_id
            AND d.is_active = true
 
-         UNION
-
-         SELECT ura.outlet_department_id AS department_id
-         FROM user_role_assignments ura
-         INNER JOIN outlet_departments d ON d.id = ura.outlet_department_id
-         WHERE ura.user_id = $1
-           AND ura.is_active = true
-           AND ura.outlet_department_id IS NOT NULL
-           AND d.outlet_id = $2
-           AND d.is_active = true
-       ) assigned_departments`,
+      ) assigned_departments`,
       [userId, outletId],
     );
     return rows.map((row: { departmentId: string | number }) => Number(row.departmentId));
