@@ -223,6 +223,21 @@ export class RolesService {
        ON CONFLICT (tenant_id, slug) DO NOTHING`,
       [tenantId],
     );
+
+    // A tenant may already have positions created before its role templates
+    // were imported. ON CONFLICT above preserves those rows, but their
+    // default_role_id can still point at a template or another tenant's role
+    // (the exact failure that makes employee access disappear). Rebind every
+    // tenant position to the copied role with the same slug.
+    await this.rolesRepository.manager.query(
+      `UPDATE positions p
+       SET default_role_id = target.id
+       FROM roles target
+       WHERE p.tenant_id = $1
+         AND target.tenant_id = $1
+         AND target.slug = p.slug`,
+      [tenantId],
+    );
     return { imported };
   }
 
