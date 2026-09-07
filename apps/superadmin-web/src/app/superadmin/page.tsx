@@ -95,6 +95,13 @@ export default function SuperadminPage() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete tenant") }
   }
 
+  async function importRoleTemplates(tenant: Tenant) {
+    try {
+      const result = await api(`/roles/templates/import/${tenant.id}`, { method: "POST" })
+      toast.success(result?.imported?.length ? `Imported ${result.imported.length} role templates` : "Role templates already imported")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to import role templates") }
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <div><h1 className="text-2xl font-semibold">Tenant Management</h1><p className="text-sm text-muted-foreground">Manage tenant ownership. Moving an outlet also moves the tenant ownership of its ingredients, inventory, purchase orders, and related records.</p></div>
@@ -118,6 +125,7 @@ export default function SuperadminPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">Tenant #{tenant.id}</span>
+              <Button size="sm" variant="outline" onClick={() => void importRoleTemplates(tenant)}>Import roles</Button>
               <Button size="sm" variant="outline" onClick={() => beginEdit(tenant)}>Edit</Button>
               <Button size="sm" variant="outline" onClick={() => void toggleTenant(tenant)} disabled={updateTenant.isPending}>{tenant.isActive ? "Deactivate" : "Activate"}</Button>
               <Button size="sm" variant="destructive" onClick={() => void deleteTenantRecord(tenant)} disabled={deleteTenant.isPending}>Delete</Button>

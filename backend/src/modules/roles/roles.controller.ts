@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -18,6 +19,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { ListRolesQueryDto } from './dto/list-roles-query.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
+import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
 
 @ApiTags('roles')
 @ApiBearerAuth()
@@ -28,8 +30,8 @@ export class RolesController {
   @Get()
   @RequirePermissions('roles.view')
   @ApiOperation({ summary: 'Lists roles (paginated, optional search)' })
-  findAll(@Query() query: ListRolesQueryDto) {
-    return this.rolesService.findAll(query);
+  findAll(@Query() query: ListRolesQueryDto, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.rolesService.findAll(query, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 
   @Get(':id')
@@ -37,8 +39,8 @@ export class RolesController {
   @ApiOperation({
     summary: 'Gets a role including its assigned permission slugs',
   })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.rolesService.findOneWithPermissions(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.rolesService.findOneWithPermissions(id, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 
   @Post()
@@ -50,9 +52,9 @@ export class RolesController {
 
   @Patch(':id')
   @RequirePermissions('roles.manage')
-  @ApiOperation({ summary: 'Updates a role (blocked for system roles)' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRoleDto) {
-    return this.rolesService.update(id, dto);
+  @ApiOperation({ summary: 'Updates a tenant role' })
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRoleDto, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.rolesService.update(id, dto, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 
   @Delete(':id')
@@ -60,35 +62,37 @@ export class RolesController {
   @RequirePermissions('roles.manage')
   @ApiOperation({
     summary:
-      'Deletes a role (blocked for system roles; cascades role_permissions/assignments)',
+      'Deletes a tenant role and its assignments',
   })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.rolesService.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.rolesService.remove(id, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 
   @Post(':id/permissions')
   @RequirePermissions('roles.manage')
   @ApiOperation({
     summary:
-      'Assigns a permission to a role (idempotent, blocked for system roles)',
+      'Assigns a permission to a tenant role',
   })
   assignPermission(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignPermissionDto,
+    @Req() request: AuthenticatedRequest & { tenantId?: number },
   ) {
-    return this.rolesService.assignPermission(id, dto);
+    return this.rolesService.assignPermission(id, dto, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 
   @Delete(':id/permissions/:permissionId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('roles.manage')
   @ApiOperation({
-    summary: 'Unassigns a permission from a role (blocked for system roles)',
+    summary: 'Unassigns a permission from a tenant role',
   })
   unassignPermission(
     @Param('id', ParseIntPipe) id: number,
     @Param('permissionId', ParseIntPipe) permissionId: number,
+    @Req() request: AuthenticatedRequest & { tenantId?: number },
   ) {
-    return this.rolesService.unassignPermission(id, permissionId);
+    return this.rolesService.unassignPermission(id, permissionId, request.tenantId ?? request.user?.tenantId ?? undefined);
   }
 }

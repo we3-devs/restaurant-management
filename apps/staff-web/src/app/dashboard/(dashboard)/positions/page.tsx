@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { BriefcaseIcon } from "lucide-react"
+import { BriefcaseIcon, ShieldCheckIcon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -34,7 +34,8 @@ import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useCreatePosition, useDeletePosition, usePositions } from "@/hooks/use-employees"
-import { useRoles } from "@/hooks/use-roles"
+import { useAssignPermission, useRole, useRoles, useUnassignPermission } from "@/hooks/use-roles"
+import { usePermissions, type Permission } from "@/hooks/use-permissions"
 import { createPositionSchema, type CreatePositionInput } from "@/lib/validators/employees"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
@@ -105,6 +106,12 @@ export default function PositionsPage() {
                 </TableCell>
                 {canManage && (
                   <TableCell>
+                    {position.defaultRole && (
+                      <PositionPermissionsDialog
+                        roleId={position.defaultRole.id}
+                        positionName={position.name}
+                      />
+                    )}
                     <AlertDialog>
                       <AlertDialogTrigger render={<Button variant="ghost" size="sm">Delete</Button>} />
                       <AlertDialogContent>
@@ -128,6 +135,96 @@ export default function PositionsPage() {
         </Table>
       )}
     </div>
+  )
+}
+
+function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; positionName: string }) {
+  const [open, setOpen] = useState(false)
+  const { data: role } = useRole(open ? roleId : 0)
+  const { data: permissions } = usePermissions()
+  const assignPermission = useAssignPermission(roleId)
+  const unassignPermission = useUnassignPermission(roleId)
+
+  const permissionsByModule = useMemo(() => {
+    const groups = new Map<string, Permission[]>()
+    for (const permission of permissions ?? []) {
+      const list = groups.get(permission.module) ?? []
+      list.push(permission)
+      groups.set(permission.module, list)
+    }
+    return groups
+  }, [permissions])
+
+  type AccessLevel = "none" | "view" | "full"
+
+  function moduleAccessLevel(modulePermissions: Permission[]): AccessLevel {
+    const granted = new Set(role?.permissions ?? [])
+    const managePermission = modulePermissions.find((permission) => permission.action === "manage")
+    const viewPermission = modulePermissions.find((permission) => permission.action === "view")
+    if (managePermission && granted.has(managePermission.slug)) return "full"
+    if (viewPermission && granted.has(viewPermission.slug)) return "view"
+    return "none"
+  }
+
+  async function handleModuleAccessChange(modulePermissions: Permission[], level: AccessLevel) {
+    if (!role) return
+    const granted = new Set(role.permissions ?? [])
+    const viewPermission = modulePermissions.find((permission) => permission.action === "view")
+    const managePermission = modulePermissions.find((permission) => permission.action === "manage")
+    const wantView = level === "view" || level === "full"
+    const wantManage = level === "full"
+
+    try {
+      if (viewPermission) {
+        const has = granted.has(viewPermission.slug)
+        if (wantView && !has) await assignPermission.mutateAsync(viewPermission.id)
+        if (!wantView && has) await unassignPermission.mutateAsync(viewPermission.id)
+      }
+      if (managePermission) {
+        const has = granted.has(managePermission.slug)
+        if (wantManage && !has) await assignPermission.mutateAsync(managePermission.id)
+        if (!wantManage && has) await unassignPermission.mutateAsync(managePermission.id)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update permissions")
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="outline" size="sm"><ShieldCheckIcon className="size-4" />Permissions</Button>} />
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{positionName} permissions</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Choose what people assigned to this position can do. Full access includes viewing.
+        </p>
+        <div className="space-y-3">
+          {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
+            const hasView = modulePermissions.some((permission) => permission.action === "view")
+            const hasManage = modulePermissions.some((permission) => permission.action === "manage")
+            return (
+              <div key={module} className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0">
+                <span className="text-sm font-medium capitalize">{module.replace(/-/g, " ")}</span>
+                <Select
+                  value={moduleAccessLevel(modulePermissions)}
+                  onValueChange={(value) => void handleModuleAccessChange(modulePermissions, value as AccessLevel)}
+                  disabled={!role || assignPermission.isPending || unassignPermission.isPending}
+                >
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No access</SelectItem>
+                    {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
+                    {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

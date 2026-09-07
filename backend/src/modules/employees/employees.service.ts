@@ -30,8 +30,8 @@ export class EmployeesService {
   ) {}
 
   // ---- Positions ----
-  async findAllPositions(): Promise<PositionResponseDto[]> {
-    const positions = await this.positionRepo.find({ where: { isActive: true }, order: { name: 'ASC' }, relations: ['defaultRole'] });
+  async findAllPositions(tenantId?: number): Promise<PositionResponseDto[]> {
+    const positions = await this.positionRepo.find({ where: { isActive: true, tenantId: tenantId ?? IsNull() }, order: { name: 'ASC' }, relations: ['defaultRole'] });
     return positions.map((p) => this.toPositionResponse(p));
   }
   async findPosition(id: number): Promise<Position> {
@@ -40,8 +40,8 @@ export class EmployeesService {
   async findPositionResponse(id: number): Promise<PositionResponseDto> {
     return this.toPositionResponse(await this.findPosition(id));
   }
-  async createPosition(dto: CreatePositionDto): Promise<PositionResponseDto> {
-    const saved = await this.positionRepo.save(this.positionRepo.create(dto));
+  async createPosition(dto: CreatePositionDto, tenantId?: number): Promise<PositionResponseDto> {
+    const saved = await this.positionRepo.save(this.positionRepo.create({ ...dto, tenantId: tenantId ?? null }));
     return this.toPositionResponse(saved);
   }
   async updatePosition(id: number, dto: UpdatePositionDto): Promise<PositionResponseDto> {

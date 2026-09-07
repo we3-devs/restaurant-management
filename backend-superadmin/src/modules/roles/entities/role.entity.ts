@@ -21,8 +21,12 @@ export class Role {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   slug: string;
+
+  /** Null means this row is a reusable superadmin-managed template. */
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
 
   @Column({ type: 'varchar', length: 255, default: 'outlet' })
   level: ScopeLevel;

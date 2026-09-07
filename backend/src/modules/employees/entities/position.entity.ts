@@ -8,8 +8,10 @@ export class Position {
   id: number;
   @Column({ type: 'varchar', length: 255 })
   name: string;
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   slug: string;
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
   @Column({ type: 'text', nullable: true })
   description: string | null;
   /** Role auto-granted to a user's account when they're staffed into this position. */

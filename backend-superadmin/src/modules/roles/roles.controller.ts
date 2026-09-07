@@ -48,9 +48,16 @@ export class RolesController {
     return this.rolesService.create(dto);
   }
 
+  @Post('templates/import/:tenantId')
+  @RequirePermissions('roles.manage')
+  @ApiOperation({ summary: 'Imports reusable role templates into a tenant' })
+  importTemplates(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.rolesService.importTemplates(tenantId);
+  }
+
   @Patch(':id')
   @RequirePermissions('roles.manage')
-  @ApiOperation({ summary: 'Updates a role (blocked for system roles)' })
+  @ApiOperation({ summary: 'Updates a role template or tenant role' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRoleDto) {
     return this.rolesService.update(id, dto);
   }
@@ -60,7 +67,7 @@ export class RolesController {
   @RequirePermissions('roles.manage')
   @ApiOperation({
     summary:
-      'Deletes a role (blocked for system roles; cascades role_permissions/assignments)',
+      'Deletes a role and its assignments',
   })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.rolesService.remove(id);
@@ -70,7 +77,7 @@ export class RolesController {
   @RequirePermissions('roles.manage')
   @ApiOperation({
     summary:
-      'Assigns a permission to a role (idempotent, blocked for system roles)',
+      'Assigns a permission to a role',
   })
   assignPermission(
     @Param('id', ParseIntPipe) id: number,
@@ -83,7 +90,7 @@ export class RolesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('roles.manage')
   @ApiOperation({
-    summary: 'Unassigns a permission from a role (blocked for system roles)',
+    summary: 'Unassigns a permission from a role',
   })
   unassignPermission(
     @Param('id', ParseIntPipe) id: number,

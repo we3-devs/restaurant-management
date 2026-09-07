@@ -107,7 +107,6 @@ export const navGroupDefs: NavGroupDef[] = [
     icon: Building2,
     links: [
       { href: "/dashboard/users", label: "Users", permission: "users.view" },
-      { href: "/dashboard/roles", label: "Roles", permission: "roles.view" },
       { href: "/dashboard/outlet-departments", label: "Departments", permission: "outlet-departments.view" },
       { href: "/dashboard/warehouses", label: "Warehouses", permission: "warehouses.view" },
       { href: "/dashboard/customers", label: "Customers", permission: "customers.view" },

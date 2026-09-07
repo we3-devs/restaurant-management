@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, QueryFailedError, Repository } from 'typeorm';
+import { ILike, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AssignPermissionDto } from './dto/assign-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -26,14 +26,17 @@ export class RolesService {
     private readonly rolePermissionsRepository: Repository<RolePermission>,
   ) {}
 
-  async findAll(
-    query: ListRolesQueryDto,
-  ): Promise<PaginatedResponse<RoleResponseDto>> {
+  async findAll(query: ListRolesQueryDto, tenantId?: number): Promise<PaginatedResponse<RoleResponseDto>> {
     const { page, limit, search } = query;
+    const tenantWhere = tenantId === undefined ? IsNull() : tenantId;
+    const where = search
+      ? [
+          { name: ILike(`%${search}%`), tenantId: tenantWhere },
+          { slug: ILike(`%${search}%`), tenantId: tenantWhere },
+        ]
+      : { tenantId: tenantWhere };
     const [roles, total] = await this.rolesRepository.findAndCount({
-      where: search
-        ? [{ name: ILike(`%${search}%`) }, { slug: ILike(`%${search}%`) }]
-        : {},
+      where,
       order: { rank: 'ASC', name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -54,8 +57,9 @@ export class RolesService {
     return role;
   }
 
-  async findOneWithPermissions(id: number): Promise<RoleResponseDto> {
+  async findOneWithPermissions(id: number, tenantId?: number): Promise<RoleResponseDto> {
     const role = await this.findOne(id);
+    this.assertTenant(role, tenantId);
     const permissions = await this.getPermissionSlugs(id);
     return { ...role, permissions };
   }
@@ -88,9 +92,9 @@ export class RolesService {
     }
   }
 
-  async update(id: number, dto: UpdateRoleDto): Promise<Role> {
+  async update(id: number, dto: UpdateRoleDto, tenantId?: number): Promise<Role> {
     const role = await this.findOne(id);
-    this.assertNotSystem(role, 'update');
+    this.assertTenant(role, tenantId);
 
     Object.assign(role, {
       ...(dto.name !== undefined && { name: dto.name }),
@@ -104,9 +108,9 @@ export class RolesService {
     return this.rolesRepository.save(role);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, tenantId?: number): Promise<void> {
     const role = await this.findOne(id);
-    this.assertNotSystem(role, 'delete');
+    this.assertTenant(role, tenantId);
     // role_permissions and user_role_assignments both ON DELETE CASCADE —
     // this silently revokes the role from every currently-assigned user.
     await this.rolesRepository.remove(role);
@@ -115,9 +119,10 @@ export class RolesService {
   async assignPermission(
     roleId: number,
     dto: AssignPermissionDto,
+    tenantId?: number,
   ): Promise<void> {
     const role = await this.findOne(roleId);
-    this.assertNotSystem(role, 'assign a permission to');
+    this.assertTenant(role, tenantId);
 
     const permission = await this.permissionsRepository.findOne({
       where: { id: dto.permissionId },
@@ -144,9 +149,10 @@ export class RolesService {
   async unassignPermission(
     roleId: number,
     permissionId: number,
+    tenantId?: number,
   ): Promise<void> {
     const role = await this.findOne(roleId);
-    this.assertNotSystem(role, 'unassign a permission from');
+    this.assertTenant(role, tenantId);
     await this.rolePermissionsRepository.delete({ roleId, permissionId });
   }
 
@@ -164,11 +170,10 @@ export class RolesService {
     return rows.map((row) => row.permission.slug);
   }
 
-  private assertNotSystem(role: Role, action: string): void {
-    if (role.isSystem) {
-      throw new ForbiddenException(
-        `Cannot ${action} the system role "${role.slug}"`,
-      );
+  private assertTenant(role: Role, tenantId?: number): void {
+    if (tenantId !== undefined && role.tenantId !== tenantId) {
+      throw new NotFoundException(`Role ${role.id} not found`);
     }
   }
+
 }

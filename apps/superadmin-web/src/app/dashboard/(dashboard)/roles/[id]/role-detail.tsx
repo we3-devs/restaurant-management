@@ -135,8 +135,8 @@ export function RoleDetail({ roleId }: { roleId: number }) {
   if (!isLoading && !role) return <NotFoundCard resource="Role" />
   if (!role) return null
 
-  const readOnly = role.isSystem || !canManage
-  const canDelete = canManage && !role.isSystem
+  const readOnly = !canManage
+  const canDelete = canManage
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -166,12 +166,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
         )}
       </div>
 
-      {role.isSystem && (
-        <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-          This is a system role — it cannot be edited or deleted.
-        </p>
-      )}
-      {!role.isSystem && !canManage && (
+      {!canManage && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
           You don&apos;t have permission to edit this role.
         </p>

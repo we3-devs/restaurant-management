@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, QueryFailedError, Repository } from 'typeorm';
+import { ILike, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AssignPermissionDto } from './dto/assign-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -90,7 +90,6 @@ export class RolesService {
 
   async update(id: number, dto: UpdateRoleDto): Promise<Role> {
     const role = await this.findOne(id);
-    this.assertNotSystem(role, 'update');
 
     Object.assign(role, {
       ...(dto.name !== undefined && { name: dto.name }),
@@ -106,7 +105,6 @@ export class RolesService {
 
   async remove(id: number): Promise<void> {
     const role = await this.findOne(id);
-    this.assertNotSystem(role, 'delete');
     // role_permissions and user_role_assignments both ON DELETE CASCADE —
     // this silently revokes the role from every currently-assigned user.
     await this.rolesRepository.remove(role);
@@ -117,7 +115,6 @@ export class RolesService {
     dto: AssignPermissionDto,
   ): Promise<void> {
     const role = await this.findOne(roleId);
-    this.assertNotSystem(role, 'assign a permission to');
 
     const permission = await this.permissionsRepository.findOne({
       where: { id: dto.permissionId },
@@ -146,7 +143,6 @@ export class RolesService {
     permissionId: number,
   ): Promise<void> {
     const role = await this.findOne(roleId);
-    this.assertNotSystem(role, 'unassign a permission from');
     await this.rolePermissionsRepository.delete({ roleId, permissionId });
   }
 
@@ -154,6 +150,62 @@ export class RolesService {
     return this.permissionsRepository.find({
       order: { module: 'ASC', action: 'ASC' },
     });
+  }
+
+  async importTemplates(tenantId: number): Promise<{ imported: string[] }> {
+    const tenant = await this.rolesRepository.manager.query(
+      'SELECT id FROM tenants WHERE id = $1 AND is_active = true',
+      [tenantId],
+    );
+    if (!tenant[0]) throw new NotFoundException(`Tenant ${tenantId} not found`);
+
+    const templates = await this.rolesRepository.find({
+      where: { tenantId: IsNull() },
+      order: { rank: 'ASC', name: 'ASC' },
+    });
+    const imported: string[] = [];
+    for (const template of templates) {
+      let role = await this.rolesRepository.findOne({ where: { tenantId, slug: template.slug } });
+      if (!role) {
+        role = await this.rolesRepository.save(this.rolesRepository.create({
+          name: template.name,
+          slug: template.slug,
+          tenantId,
+          level: template.level,
+          rank: template.rank,
+          portal: template.portal,
+          isAssignable: template.isAssignable,
+          isSystem: false,
+          isActive: template.isActive,
+          description: template.description,
+        }));
+        imported.push(role.slug);
+      }
+
+      const templatePermissions = await this.rolePermissionsRepository.find({ where: { roleId: template.id } });
+      for (const templatePermission of templatePermissions) {
+        const existing = await this.rolePermissionsRepository.findOne({
+          where: { roleId: role.id, permissionId: templatePermission.permissionId },
+        });
+        if (!existing) {
+          await this.rolePermissionsRepository.save(this.rolePermissionsRepository.create({
+            roleId: role.id,
+            permissionId: templatePermission.permissionId,
+          }));
+        }
+      }
+    }
+    await this.rolesRepository.manager.query(
+      `INSERT INTO positions (name, slug, description, default_role_id, tenant_id, is_active, created_at, updated_at)
+       SELECT p.name, p.slug, p.description, target.id, $1, p.is_active, now(), now()
+       FROM positions p
+       INNER JOIN roles source ON source.id = p.default_role_id AND source.tenant_id IS NULL
+       INNER JOIN roles target ON target.slug = source.slug AND target.tenant_id = $1
+       WHERE p.tenant_id IS NULL
+       ON CONFLICT (tenant_id, slug) DO NOTHING`,
+      [tenantId],
+    );
+    return { imported };
   }
 
   private async getPermissionSlugs(roleId: number): Promise<string[]> {
@@ -164,11 +216,4 @@ export class RolesService {
     return rows.map((row) => row.permission.slug);
   }
 
-  private assertNotSystem(role: Role, action: string): void {
-    if (role.isSystem) {
-      throw new ForbiddenException(
-        `Cannot ${action} the system role "${role.slug}"`,
-      );
-    }
-  }
 }

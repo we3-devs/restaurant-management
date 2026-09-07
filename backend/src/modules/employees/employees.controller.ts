@@ -22,11 +22,11 @@ export class EmployeesController {
   // ---- Positions ----
   @Get('positions') @RequirePermissions('employees.view')
   @ApiOperation({ summary: 'Lists all positions' })
-  findAllPositions() { return this.employeesService.findAllPositions(); }
+  findAllPositions(@CurrentUser() user: User) { return this.employeesService.findAllPositions(user.tenantId ?? undefined); }
 
   @Post('positions') @RequirePermissions('employees.manage')
   @ApiOperation({ summary: 'Creates a position' })
-  createPosition(@Body() dto: CreatePositionDto) { return this.employeesService.createPosition(dto); }
+  createPosition(@Body() dto: CreatePositionDto, @CurrentUser() user: User) { return this.employeesService.createPosition(dto, user.tenantId ?? undefined); }
 
   @Patch('positions/:id') @RequirePermissions('employees.manage')
   @ApiOperation({ summary: 'Updates a position' })
