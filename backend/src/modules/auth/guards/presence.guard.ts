@@ -6,12 +6,14 @@ import { Attendance } from '../../attendance/entities/attendance.entity';
 import { ALLOW_WITHOUT_PRESENCE } from '../decorators/allow-without-presence.decorator';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { AuthenticatedRequest } from '../types/authenticated-request';
+import { PermissionsService } from '../permissions.service';
 
 @Injectable()
 export class PresenceGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @InjectRepository(Attendance) private readonly attendanceRepo: Repository<Attendance>,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -19,6 +21,7 @@ export class PresenceGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
     if (!user || user.isSuperadmin) return true;
+    if ((await this.permissionsService.getRoleSlugs(user.id)).includes('admin')) return true;
     if (!this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [context.getHandler(), context.getClass()])?.length) return true;
     const present = await this.attendanceRepo.createQueryBuilder('attendance')
       .innerJoin('attendance.employee', 'employee')
