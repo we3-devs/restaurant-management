@@ -7,7 +7,6 @@ import { User } from '../users/entities/user.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { EmailService } from './channels/email.service';
 import { PushService } from './channels/push.service';
-import { SmsService } from './channels/sms.service';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { NotificationPreference } from './entities/notification-preference.entity';
 import { Notification } from './entities/notification.entity';
@@ -35,7 +34,6 @@ export class NotificationsService {
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
     private readonly emailService: EmailService,
-    private readonly smsService: SmsService,
     private readonly pushService: PushService,
   ) {}
 
@@ -194,7 +192,7 @@ export class NotificationsService {
   }
 
   /**
-   * Fans a notification out to email/SMS/push for every user with a role
+   * Fans a notification out to email/push for every user with a role
    * assignment on the notification's outlet (or, if `recipientUserIds` is
    * given, only those users), filtered by their preferences. In-app (feed +
    * websocket) delivery is unaffected by this — it always happens regardless
@@ -207,7 +205,7 @@ export class NotificationsService {
     // Web Push is reserved for urgent operational alerts. Normal/high events
     // remain available through the realtime toast and notification bell.
     const pushEnabledForEvent = notification.priority === 'urgent';
-    if (!this.emailService.isConfigured && !this.smsService.isConfigured && !this.pushService.isConfigured) {
+    if (!this.emailService.isConfigured && !this.pushService.isConfigured) {
       return;
     }
 
@@ -239,9 +237,6 @@ export class NotificationsService {
         const body = notification.body ?? notification.title;
         if (preference.emailEnabled && user.email) {
           await this.emailService.send(user.email, notification.title, body);
-        }
-        if (preference.smsEnabled && user.phone) {
-          await this.smsService.send(user.phone, `${notification.title}: ${body}`);
         }
         if (pushEnabledForEvent && preference.pushEnabled) {
           await this.pushService.sendToUser(user.id, notification.title, body, {

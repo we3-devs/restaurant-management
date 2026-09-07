@@ -6,7 +6,6 @@ import { User } from '../users/entities/user.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { EmailService } from './channels/email.service';
 import { PushService } from './channels/push.service';
-import { SmsService } from './channels/sms.service';
 import { Notification } from './entities/notification.entity';
 import { NotificationIssue } from './entities/notification-issue.entity';
 import { NotificationPreference } from './entities/notification-preference.entity';
@@ -27,7 +26,6 @@ import { NotificationsService } from './notifications.service';
     NotificationsService,
     NotificationPreferencesService,
     EmailService,
-    SmsService,
     PushService,
   ],
   exports: [NotificationsService],

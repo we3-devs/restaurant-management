@@ -16,7 +16,6 @@ import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { Customer } from '../customers/entities/customer.entity';
-import { SmsService } from '../notifications/channels/sms.service';
 import { CustomerRefreshToken } from './entities/customer-refresh-token.entity';
 import { CustomerJwtPayload } from './types/customer-jwt-payload';
 
@@ -50,7 +49,6 @@ export class CustomerAuthService {
     private readonly configService: ConfigService<AppConfig>,
     private readonly auditLogsService: AuditLogsService,
     private readonly diningTablesService: DiningTablesService,
-    private readonly smsService: SmsService,
   ) {}
 
   @Interval(OTP_CLEANUP_INTERVAL_MS)
@@ -127,18 +125,14 @@ export class CustomerAuthService {
       );
     }
 
-    if (phone && this.smsService.isConfigured) {
-      await this.smsService.send(phone, `Your verification code is ${code}`);
-    } else {
-      // Email OTP and any environment without Twilio configured falls back
-      // to server logs so the flow stays testable everywhere.
-      this.logger.log(`OTP for ${identifier}: ${code}`);
-    }
+    // SMS delivery is intentionally disabled. Keep the development fallback
+    // so local customer-auth flows remain testable without an external service.
+    this.logger.log(`OTP for ${identifier}: ${code}`);
 
     // TEMPORARY: surfaces the code straight in the API response (including
     // production) so the frontend can show it without depending on SMS
-    // actually being deliverable — see SmsService.isConfigured above. This
-    // is a real security tradeoff: anyone who can reach the API sees the
+    // actually being deliverable. This is a real security tradeoff: anyone
+    // who can reach the API sees the
     // code without touching the phone, which defeats the "verified phone
     // number ties an order to a real person" anti-abuse purpose the OTP
     // otherwise serves (see GuestAuthGate's comment). Remove once real SMS

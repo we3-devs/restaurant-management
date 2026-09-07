@@ -7,7 +7,6 @@ import { AppConfig } from '../../config/configuration';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { Customer } from '../customers/entities/customer.entity';
-import { SmsService } from '../notifications/channels/sms.service';
 import { CustomerRefreshToken } from './entities/customer-refresh-token.entity';
 import { CustomerAuthController } from './customer-auth.controller';
 import { CustomerAuthService } from './customer-auth.service';
@@ -29,11 +28,7 @@ import { JwtCustomerStrategy } from './strategies/jwt-customer.strategy';
     }),
   ],
   controllers: [CustomerAuthController],
-  // SmsService has no dependencies of its own (reads TWILIO_* straight from
-  // process.env), so it's provided directly here rather than importing the
-  // whole NotificationsModule (which only exports NotificationsService, and
-  // additionally pulls in AuthModule/RolesModule for no benefit here).
-  providers: [CustomerAuthService, JwtCustomerStrategy, SmsService],
+  providers: [CustomerAuthService, JwtCustomerStrategy],
   exports: [],
 })
 export class CustomerAuthModule {}
