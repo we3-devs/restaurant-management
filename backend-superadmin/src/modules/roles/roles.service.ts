@@ -170,11 +170,7 @@ export class RolesService {
     );
     if (!tenant[0]) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
-    await this.ensureReusableTemplates();
-    const templates = await this.rolesRepository.find({
-      where: { tenantId: IsNull() },
-      order: { rank: 'ASC', name: 'ASC' },
-    });
+    const templates = await this.getReusableRoles();
     const imported: string[] = [];
     for (const template of templates) {
       const existingRole = await this.rolesRepository.manager.query(
@@ -228,6 +224,32 @@ export class RolesService {
     return { imported };
   }
 
+  private async getReusableRoles(): Promise<Role[]> {
+    await this.ensureReusableTemplates();
+    const templates = await this.rolesRepository.find({
+      where: { tenantId: IsNull() },
+      order: { rank: 'ASC', name: 'ASC' },
+    });
+    if (templates.length > 0) return templates;
+
+    // Compatibility fallback for deployments where the old global slug index
+    // still exists: use the most complete tenant role set as the source
+    // without converting a missing template ID into NaN.
+    const [source] = await this.rolesRepository.manager.query(
+      `SELECT tenant_id
+       FROM roles
+       WHERE tenant_id IS NOT NULL
+       GROUP BY tenant_id
+       ORDER BY COUNT(*) DESC, tenant_id ASC
+       LIMIT 1`,
+    ) as Array<{ tenant_id: string }>;
+    if (!source) return [];
+    return this.rolesRepository.find({
+      where: { tenantId: Number(source.tenant_id) },
+      order: { rank: 'ASC', name: 'ASC' },
+    });
+  }
+
   /**
    * Older databases have the default roles attached to the first tenant
    * instead of storing them as reusable control-plane templates. Promote the
@@ -266,8 +288,10 @@ export class RolesService {
         const templateId = insertedTemplate[0]?.id
           ? Number(insertedTemplate[0].id)
           : Number((await this.rolesRepository.manager.query('SELECT id FROM roles WHERE tenant_id IS NULL AND slug = $1 LIMIT 1', [sourceRole.slug]) as Array<{ id: string }>)[0]?.id);
-        template = await this.rolesRepository.findOne({ where: { id: templateId } });
-        if (!template) throw new ConflictException(`Unable to create reusable role template "${sourceRole.slug}"`);
+        if (Number.isFinite(templateId)) {
+          template = await this.rolesRepository.findOne({ where: { id: templateId } });
+        }
+        if (!template) continue;
       }
 
       const permissions = await this.rolePermissionsRepository.find({ where: { roleId: sourceRole.id } });
