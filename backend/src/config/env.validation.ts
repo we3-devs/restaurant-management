@@ -56,13 +56,6 @@ class EnvironmentVariables {
   @Max(15)
   BCRYPT_SALT_ROUNDS: number;
 
-  @IsString()
-  @IsNotEmpty()
-  SEED_ADMIN_EMAIL: string;
-
-  @IsString()
-  @IsNotEmpty()
-  SEED_ADMIN_PASSWORD: string;
 }
 
 export function validate(config: Record<string, unknown>) {

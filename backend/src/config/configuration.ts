@@ -30,10 +30,6 @@ export interface AppConfig {
   bcrypt: {
     saltRounds: number;
   };
-  seed: {
-    adminEmail: string;
-    adminPassword: string;
-  };
 }
 
 export default (): AppConfig => ({
@@ -83,9 +79,5 @@ export default (): AppConfig => ({
   },
   bcrypt: {
     saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '10', 10),
-  },
-  seed: {
-    adminEmail: process.env.SEED_ADMIN_EMAIL ?? 'admin@rms.local',
-    adminPassword: process.env.SEED_ADMIN_PASSWORD ?? '',
   },
 });

@@ -1,18 +1,13 @@
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
-import { IsNull, Repository } from 'typeorm';
-import { AppConfig } from '../../config/configuration';
+import { Repository } from 'typeorm';
 import { Position } from '../../modules/employees/entities/position.entity';
 import { Permission } from '../../modules/roles/entities/permission.entity';
 import { RolePermission } from '../../modules/roles/entities/role-permission.entity';
 import type { PortalAccess } from '../../modules/roles/entities/portal-access';
 import { Role } from '../../modules/roles/entities/role.entity';
 import type { ScopeLevel } from '../../modules/roles/entities/scope-level';
-import { UserRoleAssignment } from '../../modules/roles/entities/user-role-assignment.entity';
-import { User } from '../../modules/users/entities/user.entity';
 import { SeedModule } from './seed.module';
 
 const logger = new Logger('Seed');
@@ -391,57 +386,8 @@ async function seedOperationalRolesAndPositions(
   }
 }
 
-async function upsertUser(
-  repo: Repository<User>,
-  email: string,
-  rawPassword: string,
-  saltRounds: number,
-): Promise<User> {
-  let user = await repo.findOne({ where: { email } });
-  if (!user) {
-    const password = await bcrypt.hash(rawPassword, saltRounds);
-    user = repo.create({
-      name: process.env.SEED_ADMIN_NAME ?? 'Super Admin',
-      email,
-      password,
-      isSuperadmin: true,
-    });
-    user = await repo.save(user);
-    logger.log(`Created user "${user.email}"`);
-  } else {
-    logger.log(`User "${user.email}" already exists, skipping`);
-  }
-  return user;
-}
-
-async function upsertGlobalAssignment(
-  repo: Repository<UserRoleAssignment>,
-  userId: number,
-  roleId: number,
-): Promise<void> {
-  const existing = await repo.findOne({
-    where: {
-      userId,
-      roleId,
-      scopeType: 'global',
-      outletId: IsNull(),
-      outletDepartmentId: IsNull(),
-      warehouseId: IsNull(),
-    },
-  });
-  if (!existing) {
-    await repo.save(
-      repo.create({ userId, roleId, scopeType: 'global', isActive: true }),
-    );
-    logger.log(`Assigned role ${roleId} to user ${userId} at global scope`);
-  }
-}
-
 async function run() {
   const app = await NestFactory.createApplicationContext(SeedModule);
-  const configService = app.get(ConfigService<AppConfig>);
-  const seedConfig = configService.get('seed', { infer: true })!;
-  const bcryptConfig = configService.get('bcrypt', { infer: true })!;
 
   const roleRepo = app.get<Repository<Role>>(getRepositoryToken(Role));
   const permissionRepo = app.get<Repository<Permission>>(
@@ -449,10 +395,6 @@ async function run() {
   );
   const rolePermissionRepo = app.get<Repository<RolePermission>>(
     getRepositoryToken(RolePermission),
-  );
-  const userRepo = app.get<Repository<User>>(getRepositoryToken(User));
-  const assignmentRepo = app.get<Repository<UserRoleAssignment>>(
-    getRepositoryToken(UserRoleAssignment),
   );
   const positionRepo = app.get<Repository<Position>>(getRepositoryToken(Position));
 
@@ -860,14 +802,6 @@ async function run() {
     'customer-credit',
     'Customer Credit',
   );
-
-  const user = await upsertUser(
-    userRepo,
-    seedConfig.adminEmail,
-    seedConfig.adminPassword,
-    bcryptConfig.saltRounds,
-  );
-  await upsertGlobalAssignment(assignmentRepo, user.id, role.id);
 
   await seedOperationalRolesAndPositions(roleRepo, permissionRepo, rolePermissionRepo, positionRepo);
 
