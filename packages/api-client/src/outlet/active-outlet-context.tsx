@@ -102,7 +102,9 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     () => (isSuperadmin ? (allOutletsQuery.data?.data ?? []) : (assignedOutletsQuery.data ?? [])),
     [isSuperadmin, allOutletsQuery.data, assignedOutletsQuery.data],
   )
-  const isLoadingOutlets = isSuperadmin ? allOutletsQuery.isLoading : assignedOutletsQuery.isLoading
+  const outletQuery = isSuperadmin ? allOutletsQuery : assignedOutletsQuery
+  const isLoadingOutlets = outletQuery.isLoading
+  const outletQueryFailed = outletQuery.isError
   // Regular users select among their assigned outlets from Profile. The
   // shared header never exposes an "all" or null option for them.
   const showOutletPicker = isSuperadmin
@@ -190,6 +192,39 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     }
   }, [departmentId])
 
+  const outletAccessState = isLoadingOutlets
+    ? (
+        <div className="flex min-h-dvh items-center justify-center p-6 text-sm text-muted-foreground">
+          Loading your outlet access…
+        </div>
+      )
+    : outletQueryFailed
+      ? (
+          <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm font-medium">Unable to load your outlet access.</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              The session is valid, but the staff permissions service could not load your assigned outlets.
+            </p>
+            <button
+              type="button"
+              className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+              onClick={() => void outletQuery.refetch()}
+            >
+              Try again
+            </button>
+          </div>
+        )
+      : !isSuperadmin && outlets.length === 0
+        ? (
+            <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm font-medium">No outlet is assigned to this employee.</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Ask an administrator to assign at least one outlet, then refresh this page.
+              </p>
+            </div>
+          )
+        : null
+
   return (
     <ActiveOutletContext.Provider
       value={{
@@ -210,7 +245,7 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
         showDepartmentPicker,
       }}
     >
-      {regularUserHasValidOutlet ? children : null}
+      {outletAccessState ?? (regularUserHasValidOutlet ? children : null)}
     </ActiveOutletContext.Provider>
   )
 }
