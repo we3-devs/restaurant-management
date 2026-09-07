@@ -76,11 +76,11 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { TenantContext } from './common/tenant/tenant-context';
+import { TenantModule } from './common/tenant/tenant.module';
 import { TenantRlsMiddleware } from './common/tenant/tenant-rls.middleware';
 
 @Module({
   providers: [
-    TenantContext,
     {
       provide: APP_INTERCEPTOR,
       useClass: TimingInterceptor,
@@ -91,6 +91,7 @@ import { TenantRlsMiddleware } from './common/tenant/tenant-rls.middleware';
     },
   ],
   imports: [
+    TenantModule,
     InstrumentationModule,
     ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
     LoggerModule.forRoot({
