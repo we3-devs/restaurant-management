@@ -10,6 +10,7 @@ export class Tenant {
   @Column({ type: 'varchar', length: 255 }) name: string;
   @Column({ type: 'varchar', length: 255, unique: true }) slug: string;
   @Column({ name: 'is_active', type: 'boolean', default: true }) isActive: boolean;
+  @Column({ name: 'attendance_required', type: 'boolean', default: false }) attendanceRequired: boolean;
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' }) createdAt: Date;
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' }) updatedAt: Date;
   @OneToMany(() => User, (user) => user.tenant) users: User[];

@@ -19,4 +19,8 @@ export class UpdateTenantDto {
   @ApiProperty({ required: false })
   @IsOptional() @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional() @IsBoolean()
+  attendanceRequired?: boolean;
 }

@@ -23,6 +23,12 @@ export class PresenceGuard implements CanActivate {
     if (!user || user.isSuperadmin) return true;
     if ((await this.permissionsService.getRoleSlugs(user.id)).includes('admin')) return true;
     if (!this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [context.getHandler(), context.getClass()])?.length) return true;
+    if (!user.tenantId) return true;
+    const [tenant] = await this.attendanceRepo.manager.query(
+      'SELECT attendance_required FROM tenants WHERE id = $1',
+      [user.tenantId],
+    ) as Array<{ attendance_required: boolean }>;
+    if (!tenant?.attendance_required) return true;
     const present = await this.attendanceRepo.createQueryBuilder('attendance')
       .innerJoin('attendance.employee', 'employee')
       .where('employee.user_id = :userId', { userId: user.id })

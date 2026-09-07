@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/query-keys"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 type Outlet = { id: number; name: string; slug: string; tenantId: number }
-type Tenant = { id: number; name: string; slug: string; isActive: boolean; outlets?: Outlet[] }
+type Tenant = { id: number; name: string; slug: string; isActive: boolean; attendanceRequired: boolean; outlets?: Outlet[] }
 
 async function api(path: string, init?: RequestInit) {
   const response = await fetch(`/api/backend${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } })
@@ -86,6 +86,14 @@ export default function SuperadminPage() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to update tenant status") }
   }
 
+  async function toggleAttendance(tenant: Tenant) {
+    try {
+      await updateTenant.mutateAsync({ id: tenant.id, attendanceRequired: !tenant.attendanceRequired })
+      toast.success(tenant.attendanceRequired ? "Attendance requirement disabled" : "Attendance requirement enabled")
+      await load()
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to update attendance setting") }
+  }
+
   async function deleteTenantRecord(tenant: Tenant) {
     if (!window.confirm(`Delete tenant "${tenant.name}"? This is only allowed when no users, outlets, or related records reference it.`)) return
     try {
@@ -126,6 +134,9 @@ export default function SuperadminPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">Tenant #{tenant.id}</span>
               <Button size="sm" variant="outline" onClick={() => void importRoleTemplates(tenant)}>Import roles</Button>
+              <Button size="sm" variant="outline" onClick={() => void toggleAttendance(tenant)} disabled={updateTenant.isPending}>
+                {tenant.attendanceRequired ? "Attendance required" : "Attendance not required"}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => beginEdit(tenant)}>Edit</Button>
               <Button size="sm" variant="outline" onClick={() => void toggleTenant(tenant)} disabled={updateTenant.isPending}>{tenant.isActive ? "Deactivate" : "Activate"}</Button>
               <Button size="sm" variant="destructive" onClick={() => void deleteTenantRecord(tenant)} disabled={deleteTenant.isPending}>Delete</Button>

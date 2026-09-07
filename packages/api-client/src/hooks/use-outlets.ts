@@ -19,6 +19,7 @@ export interface SuperadminTenant {
   name: string
   slug: string
   isActive: boolean
+  attendanceRequired: boolean
   outlets?: Outlet[]
 }
 
@@ -43,7 +44,7 @@ export function useSuperadminTenants(options: { enabled?: boolean } = {}) {
 export function useUpdateSuperadminTenant() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: number; name?: string; isActive?: boolean }) =>
+    mutationFn: ({ id, ...input }: { id: number; name?: string; isActive?: boolean; attendanceRequired?: boolean }) =>
       apiClient<SuperadminTenant>(`/tenants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
   })
