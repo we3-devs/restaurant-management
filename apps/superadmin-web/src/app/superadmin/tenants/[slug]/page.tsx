@@ -11,6 +11,7 @@ import { usePageTitle } from "@rms/ui/use-page-title"
 type Outlet = { id: number; name: string; slug: string; tenantId: number }
 type Tenant = { id: number; name: string; slug: string; isActive: boolean; attendanceRequired: boolean; outlets?: Outlet[] }
 type ModuleSummary = { key: string; label: string; count: number; scope: "tenant" | "outlet" }
+type TenantRole = { id: number; name: string; slug: string; portal: string; isActive: boolean; permissions?: string[] }
 
 async function api(path: string, init?: RequestInit) {
   const response = await fetch(`/api/backend${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } })
@@ -24,6 +25,7 @@ export default function TenantDetailPage() {
   const router = useRouter()
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [modules, setModules] = useState<ModuleSummary[]>([])
+  const [roles, setRoles] = useState<TenantRole[]>([])
   const [outletName, setOutletName] = useState("")
   const [loading, setLoading] = useState(true)
   const updateTenant = useUpdateSuperadminTenant()
@@ -39,6 +41,7 @@ export default function TenantDetailPage() {
       setTenant(found)
       const summary = await api(`/tenants/${found.id}/summary`)
       setModules(summary.modules ?? [])
+      setRoles(await api(`/tenants/${found.id}/roles`))
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to load tenant"); setTenant(null) }
     finally { setLoading(false) }
   }
@@ -81,5 +84,6 @@ export default function TenantDetailPage() {
     <div className="flex flex-wrap items-start justify-between gap-3"><div><Button variant="ghost" size="sm" render={<Link href="/superadmin/tenants" />}>← Tenants</Button><h1 className="mt-2 text-2xl font-semibold">{tenant.name}</h1><p className="text-sm text-muted-foreground">{tenant.slug} · Tenant #{tenant.id} · {tenant.isActive ? "Active" : "Inactive"}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { window.localStorage.setItem("active-tenant-slug", tenant.slug); window.location.assign("/dashboard") }}>Open workspace</Button><Button variant="outline" onClick={() => void importRoles()}>Import roles</Button><Button variant="outline" onClick={() => void toggleAttendance()} disabled={updateTenant.isPending}>{tenant.attendanceRequired ? "Attendance required" : "Attendance not required"}</Button><Button variant="outline" onClick={() => void toggleStatus()} disabled={updateTenant.isPending}>{tenant.isActive ? "Deactivate" : "Activate"}</Button><Button variant="destructive" onClick={() => void removeTenant()} disabled={deleteTenant.isPending}>Delete</Button></div></div>
     <section className="rounded-xl border p-4"><h2 className="font-semibold">Outlets</h2><div className="mt-3 flex flex-wrap gap-2"><input className="h-9 min-w-64 rounded-md border bg-background px-3 text-sm" placeholder="New outlet name" value={outletName} onChange={(event) => setOutletName(event.target.value)} /><Button onClick={() => void createOutlet()}>Add outlet</Button></div><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{(tenant.outlets ?? []).map((outlet) => <div key={outlet.id} className="rounded-md bg-muted/40 px-3 py-3"><div className="font-medium">{outlet.name}</div><div className="text-xs text-muted-foreground">{outlet.slug} · Outlet #{outlet.id}</div></div>)}{(tenant.outlets ?? []).length === 0 && <p className="text-sm text-muted-foreground">No outlets assigned.</p>}</div></section>
     <section className="rounded-xl border p-4"><h2 className="font-semibold">Tenant modules</h2><p className="mt-1 text-sm text-muted-foreground">Records owned directly by this tenant or through its outlets.</p><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{modules.map((module) => <div key={module.key} className="rounded-md border bg-muted/20 px-3 py-3"><div className="font-medium">{module.label}</div><div className="text-xs text-muted-foreground">{module.count} records · {module.scope} scoped</div></div>)}</div></section>
+    <section className="rounded-xl border p-4"><h2 className="font-semibold">Tenant roles</h2><p className="mt-1 text-sm text-muted-foreground">Roles currently available to this tenant and their permissions.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{roles.map((role) => <div key={role.id} className="rounded-md border bg-muted/20 px-3 py-3"><div className="flex items-center justify-between gap-2"><div><div className="font-medium">{role.name}</div><div className="text-xs text-muted-foreground">{role.slug} · {role.portal}</div></div>{!role.isActive && <span className="text-xs text-destructive">Inactive</span>}</div><div className="mt-2 flex flex-wrap gap-1">{(role.permissions ?? []).map((permission) => <span key={permission} className="rounded-full bg-background px-2 py-0.5 text-[11px] text-muted-foreground">{permission}</span>)}{!(role.permissions ?? []).length && <span className="text-xs text-muted-foreground">No permissions assigned</span>}</div></div>)}{roles.length === 0 && <p className="text-sm text-muted-foreground">No tenant roles found. Import reusable roles first.</p>}</div></section>
   </div>
 }

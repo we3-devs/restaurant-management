@@ -152,6 +152,17 @@ export class RolesService {
     });
   }
 
+  async findForTenant(tenantId: number): Promise<RoleResponseDto[]> {
+    const roles = await this.rolesRepository.find({
+      where: { tenantId },
+      order: { rank: 'ASC', name: 'ASC' },
+    });
+    return Promise.all(roles.map(async (role) => ({
+      ...role,
+      permissions: await this.getPermissionSlugs(role.id),
+    })));
+  }
+
   async importTemplates(tenantId: number): Promise<{ imported: string[] }> {
     const tenant = await this.rolesRepository.manager.query(
       'SELECT id FROM tenants WHERE id = $1 AND is_active = true',

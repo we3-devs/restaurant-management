@@ -19,6 +19,7 @@ export class TenantsController {
   @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTenantDto) { return this.service.update(id, dto); }
   @Delete(':id') @HttpCode(HttpStatus.NO_CONTENT) remove(@Param('id', ParseIntPipe) id: number) { return this.service.remove(id); }
   @Get(':id/outlets') outlets(@Param('id', ParseIntPipe) id: number) { return this.service.outletsForTenant(id); }
+  @Get(':id/roles') roles(@Param('id', ParseIntPipe) id: number) { return this.service.rolesForTenant(id); }
   @Post(':id/outlets') createOutlet(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateOutletDto) { return this.service.createOutlet(id, dto); }
   @Get(':id/summary') summary(@Param('id', ParseIntPipe) id: number) { return this.service.summary(id); }
   @Patch('outlets/:id/tenant') assign(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignOutletDto) { return this.service.assignOutlet(id, dto.tenantId); }

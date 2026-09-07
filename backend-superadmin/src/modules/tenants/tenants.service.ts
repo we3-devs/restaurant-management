@@ -5,12 +5,14 @@ import { Outlet } from '../outlets/entities/outlet.entity';
 import { CreateOutletDto } from '../outlets/dto/create-outlet.dto';
 import { CreateTenantDto, UpdateTenantDto } from './dto/create-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
+import { RolesService } from '../roles/roles.service';
 
 @Injectable()
 export class TenantsService {
   constructor(
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
     @InjectRepository(Outlet) private readonly outlets: Repository<Outlet>,
+    private readonly rolesService: RolesService,
   ) {}
 
   list() {
@@ -51,6 +53,11 @@ export class TenantsService {
   async outletsForTenant(tenantId: number) {
     await this.requireTenant(tenantId);
     return this.outlets.find({ where: { tenantId }, order: { name: 'ASC' } });
+  }
+
+  async rolesForTenant(tenantId: number) {
+    await this.requireTenant(tenantId);
+    return this.rolesService.findForTenant(tenantId);
   }
 
   async createOutlet(tenantId: number, dto: CreateOutletDto) {
