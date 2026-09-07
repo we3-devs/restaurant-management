@@ -24,65 +24,51 @@ export class TenantGuard implements CanActivate {
     // Public guest routes still need a resolved tenant. Previously the early
     // @Public() return meant branding, table lookup, and menu requests were
     // always read from the shared/global dataset.
-    if (slug) {
-      const rows = await this.dataSource.query(
-        `SELECT t.id FROM tenants t
-         WHERE LOWER(t.slug) = $1 AND t.is_active = true
-         LIMIT 1`,
+    // Every request handled by the tenant backend must carry an explicit
+    // tenant context. Without this, public menu/branding calls could read the
+    // fallback/global dataset and authenticated APIs could query unscoped data.
+    // Superadmin control-plane calls are the only intentional exception.
+    const user = request.user;
+    if (!user) {
+      if (!isPublic || !slug) throw new ForbiddenException('Tenant context is required');
+      const publicTenant = await this.dataSource.query(
+        `SELECT id FROM tenants WHERE LOWER(slug) = $1 AND is_active = true LIMIT 1`,
         [slug],
       );
-      if (!rows[0]) throw new ForbiddenException('Unknown or inactive tenant');
-      request.tenantId = Number(rows[0].id);
+      if (!publicTenant[0]) throw new ForbiddenException('Unknown or inactive tenant');
+      request.tenantId = Number(publicTenant[0].id);
+      return true;
     }
 
-    if (isPublic) return true;
-    if (!slug) return true;
-
-    const user = request.user;
-    if (!user) throw new ForbiddenException('Tenant context requires authentication');
-
-    if (user.isSuperadmin) return true;
-
-    if (user.tenantId === null) {
-      throw new ForbiddenException('Invalid user tenant assignment');
+    if (user.isSuperadmin) {
+      if (slug) {
+        const selectedTenant = await this.dataSource.query(
+          `SELECT id FROM tenants WHERE LOWER(slug) = $1 AND is_active = true LIMIT 1`,
+          [slug],
+        );
+        if (!selectedTenant[0]) throw new ForbiddenException('Unknown or inactive tenant');
+        request.tenantId = Number(selectedTenant[0].id);
+      }
+      return true;
     }
 
-    const rows = await this.dataSource.query(
-      `SELECT t.id
-       FROM tenants t
-       WHERE LOWER(t.slug) = $1
-         AND t.is_active = true
-         AND ($2::bigint IS NULL OR t.id = $2)
-       LIMIT 1`,
-      [slug, user.isSuperadmin ? null : user.tenantId],
+    if (user.tenantId === null) throw new ForbiddenException('Invalid user tenant assignment');
+    const userTenant = await this.dataSource.query(
+      `SELECT id FROM tenants WHERE id = $1 AND is_active = true LIMIT 1`,
+      [user.tenantId],
     );
+    if (!userTenant[0]) throw new ForbiddenException('Invalid or inactive user tenant');
 
-    if (!rows[0]) {
-      throw new ForbiddenException(
-        user.isSuperadmin
-          ? 'Unknown or inactive tenant'
-          : 'You do not have access to this tenant',
+    if (slug) {
+      const selectedTenant = await this.dataSource.query(
+        `SELECT id FROM tenants WHERE LOWER(slug) = $1 AND is_active = true LIMIT 1`,
+        [slug],
       );
+      if (!selectedTenant[0] || Number(selectedTenant[0].id) !== Number(user.tenantId)) {
+        throw new ForbiddenException('You do not have access to this tenant');
+      }
     }
-    request.tenantId = Number(rows[0].id);
-
-    if (user.isSuperadmin) return true;
-
-    const invalidAssignments = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS count
-       FROM user_role_assignments ura
-       LEFT JOIN outlets o ON o.id = ura.outlet_id
-       WHERE ura.user_id = $1
-         AND ura.is_active = true
-         AND (ura.starts_at IS NULL OR ura.starts_at <= now())
-         AND (ura.ends_at IS NULL OR ura.ends_at > now())
-         AND ura.outlet_id IS NOT NULL
-         AND (o.id IS NULL OR o.tenant_id <> $2)`,
-      [user.id, user.tenantId],
-    );
-    if (Number(invalidAssignments[0]?.count ?? 0) > 0) {
-      throw new ForbiddenException('Invalid user tenant/outlet assignment');
-    }
+    request.tenantId = Number(user.tenantId);
     return true;
   }
 }
