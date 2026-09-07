@@ -235,10 +235,15 @@ export class AuthController {
       (user.isSuperadmin
         ? true
         : await this.permissionsService.hasBothPortals(user.id));
+    const employeeOutletIds = includeOutletIds && !user.isSuperadmin
+      ? await this.permissionsService.getEmployeeAssignedOutletIds(user.id)
+      : [];
     const outletIds = includeOutletIds
       ? (user.isSuperadmin
         ? []
-        : ((await this.permissionsService.getAccessibleOutletIds(user.id)) ?? []))
+        : (employeeOutletIds.length > 0
+          ? employeeOutletIds
+          : ((await this.permissionsService.getAccessibleOutletIds(user.id)) ?? [])))
       : [];
     return {
       id: user.id,

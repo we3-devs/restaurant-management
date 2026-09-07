@@ -163,6 +163,25 @@ export class PermissionsService {
   }
 
   /**
+   * Employee outlet membership is the source of truth for outlet selection.
+   * Keep this separate from role scopes: a role grants capabilities, while
+   * employee_outlet_assignments grants the employee's physical outlet access.
+   */
+  async getEmployeeAssignedOutletIds(userId: number): Promise<number[]> {
+    const rows = await this.assignmentsRepository.manager.query(
+      `SELECT DISTINCT eoa.outlet_id AS "outletId"
+       FROM employees e
+       INNER JOIN employee_outlet_assignments eoa
+         ON eoa.employee_id = e.id AND eoa.is_active = true
+       WHERE e.user_id = $1
+         AND e.is_active = true
+         AND e.employment_status = 'active'`,
+      [userId],
+    ) as Array<{ outletId: string | number }>;
+    return rows.map((row) => Number(row.outletId));
+  }
+
+  /**
    * Distinct outlet IDs the user has an active, in-window role assignment
    * scoped to. Read-only lookup for the frontend's outlet picker — does not
    * change how PermissionsGuard evaluates access (see class doc above).

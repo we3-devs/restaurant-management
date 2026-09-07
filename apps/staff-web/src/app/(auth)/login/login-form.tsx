@@ -34,8 +34,6 @@ export function LoginForm() {
     defaultValues: { email: "", password: "" },
   })
 
-  // Never leave credentials in a copied link, browser history, or referrer if
-  // an older/native form submission put them in the query string.
   useEffect(() => {
     const url = new URL(window.location.href)
     if (!url.searchParams.has("email") && !url.searchParams.has("password")) return
@@ -53,9 +51,6 @@ export function LoginForm() {
         body: JSON.stringify(values),
       })
 
-      // Proxies/load balancers can occasionally return an empty or non-JSON
-      // body. Never surface the parser's "Unexpected end of JSON input" to
-      // the user.
       const responseText = await response.text()
       let body: LoginResponse | null = null
       if (responseText.trim()) {
@@ -77,13 +72,6 @@ export function LoginForm() {
         return
       }
 
-      // The login response already tells us isSuperadmin + portal (same
-      // fields /auth/me resolves this from), so we can pick the final
-      // destination right here instead of bouncing through "/" → "/dashboard"
-      // → (cross-origin) "/" → "/staff" to work it out server-side one hop
-      // at a time. Server-side layouts still re-verify and bounce on
-      // mismatch (see (dashboard)/layout.tsx and staff/layout.tsx) — this is
-      // just choosing the right first stop, not replacing that check.
       if (getLandingPath(body.user) === "/staff") {
         router.push("/operational/staff")
         return

@@ -60,6 +60,10 @@ export class OutletsController {
     if (user.isSuperadmin) {
       return this.outletsService.findAllUnpaginated(tenantId);
     }
+    const employeeOutletIds = await this.permissionsService.getEmployeeAssignedOutletIds(user.id);
+    if (employeeOutletIds.length > 0) {
+      return this.outletsService.findByIds(employeeOutletIds, tenantId);
+    }
     const outletIds = await this.permissionsService.getAccessibleOutletIds(
       user.id,
     );

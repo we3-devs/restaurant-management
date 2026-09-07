@@ -167,8 +167,11 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   const isLoadingDepartments = departmentsQuery.isLoading
   const showDepartmentPicker = departments.length > 1
 
+  // Do not block the app shell while assigned outlets are loading. Pages can
+  // render immediately and the error/empty states below still take over once
+  // the request has settled.
   const regularUserHasValidOutlet =
-    isSuperadmin || (!isLoadingOutlets && outletId !== null && outlets.some((outlet) => outlet.id === outletId))
+    isSuperadmin || isLoadingOutlets || (!outletQueryFailed && outletId !== null && outlets.some((outlet) => outlet.id === outletId))
 
   const [departmentId, setDepartmentId] = useState<number | null>(() =>
     readStoredId(ACTIVE_DEPARTMENT_STORAGE_KEY),
@@ -192,13 +195,7 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
     }
   }, [departmentId])
 
-  const outletAccessState = isLoadingOutlets
-    ? (
-        <div className="flex min-h-dvh items-center justify-center p-6 text-sm text-muted-foreground">
-          Loading your outlet access…
-        </div>
-      )
-    : outletQueryFailed
+  const outletAccessState = outletQueryFailed
       ? (
           <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm font-medium">Unable to load your outlet access.</p>
