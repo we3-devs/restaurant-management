@@ -115,6 +115,10 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     faviconUrl: null,
     primaryColor: '#111827',
     receiptBrandingText: null,
+    qrTemplateUrl: null,
+    qrTemplateQrX: 300,
+    qrTemplateQrY: 515,
+    qrTemplateQrSize: 600,
   },
 };
 
@@ -282,6 +286,10 @@ export class SettingsService {
     logoUrl: string | null;
     faviconUrl: string | null;
     primaryColor: string | null;
+    qrTemplateUrl: string | null;
+    qrTemplateQrX: number | null;
+    qrTemplateQrY: number | null;
+    qrTemplateQrSize: number | null;
   }> {
     const [business, appearance] = await Promise.all([
       this.get('business'),
@@ -296,6 +304,10 @@ export class SettingsService {
       logoUrl: this.rehostUpload(pick(appearance.logoUrl)),
       faviconUrl: this.rehostUpload(pick(appearance.faviconUrl)),
       primaryColor: pick(appearance.primaryColor),
+      qrTemplateUrl: this.rehostUpload(pick(appearance.qrTemplateUrl)),
+      qrTemplateQrX: typeof appearance.qrTemplateQrX === 'number' ? appearance.qrTemplateQrX : null,
+      qrTemplateQrY: typeof appearance.qrTemplateQrY === 'number' ? appearance.qrTemplateQrY : null,
+      qrTemplateQrSize: typeof appearance.qrTemplateQrSize === 'number' ? appearance.qrTemplateQrSize : null,
     };
   }
 }

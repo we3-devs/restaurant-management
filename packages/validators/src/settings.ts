@@ -92,6 +92,10 @@ export const appearanceSettingsSchema = z.object({
   faviconUrl: z.string().optional(),
   primaryColor: z.string().optional(),
   receiptBrandingText: z.string().optional(),
+  qrTemplateUrl: z.string().optional(),
+  qrTemplateQrX: z.number().int().min(0).max(1200).optional(),
+  qrTemplateQrY: z.number().int().min(0).max(1600).optional(),
+  qrTemplateQrSize: z.number().int().min(128).max(900).optional(),
 })
 
 export type AppearanceSettingsInput = z.infer<typeof appearanceSettingsSchema>

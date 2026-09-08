@@ -4,6 +4,9 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
+  Max,
+  Min,
   IsNumber,
   IsOptional,
   IsString,
@@ -309,4 +312,30 @@ export class AppearanceSettingsDto {
   @IsOptional()
   @IsString()
   receiptBrandingText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  qrTemplateUrl?: string;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1200 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1200)
+  qrTemplateQrX?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1600 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1600)
+  qrTemplateQrY?: number;
+
+  @ApiPropertyOptional({ minimum: 128, maximum: 900 })
+  @IsOptional()
+  @IsInt()
+  @Min(128)
+  @Max(900)
+  qrTemplateQrSize?: number;
 }

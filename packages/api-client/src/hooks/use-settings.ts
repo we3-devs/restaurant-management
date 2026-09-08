@@ -86,6 +86,10 @@ export interface AppearanceSettings {
   faviconUrl?: string
   primaryColor?: string
   receiptBrandingText?: string
+  qrTemplateUrl?: string
+  qrTemplateQrX?: number
+  qrTemplateQrY?: number
+  qrTemplateQrSize?: number
 }
 
 export interface AllSettings {

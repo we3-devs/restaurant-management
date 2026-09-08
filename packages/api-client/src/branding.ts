@@ -3,6 +3,10 @@ export interface Branding {
   logoUrl: string | null
   faviconUrl: string | null
   primaryColor: string | null
+  qrTemplateUrl: string | null
+  qrTemplateQrX: number | null
+  qrTemplateQrY: number | null
+  qrTemplateQrSize: number | null
 }
 
 export const EMPTY_BRANDING: Branding = {
@@ -10,6 +14,10 @@ export const EMPTY_BRANDING: Branding = {
   logoUrl: null,
   faviconUrl: null,
   primaryColor: null,
+  qrTemplateUrl: null,
+  qrTemplateQrX: null,
+  qrTemplateQrY: null,
+  qrTemplateQrSize: null,
 }
 
 /**

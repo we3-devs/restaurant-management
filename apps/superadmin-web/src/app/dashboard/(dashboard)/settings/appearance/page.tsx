@@ -10,18 +10,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { ColorPickerField } from "@/components/ui/color-picker-field"
 import { ImageUploadField } from "@/components/ui/image-upload-field"
+import { Input } from "@/components/ui/input"
 import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { useSettingsCategory, useUpdateSettings, type AppearanceSettings } from "@/hooks/use-settings"
 import { appearanceSettingsSchema, type AppearanceSettingsInput } from "@/lib/validators/settings"
 import { usePageTitle } from "@rms/ui/use-page-title"
+import { QrTemplatePreview } from "@rms/ui/qr-template-preview"
 
 const defaultValues: AppearanceSettingsInput = {
   logoUrl: "",
   faviconUrl: "",
   primaryColor: "",
   receiptBrandingText: "",
+  qrTemplateUrl: "",
+  qrTemplateQrX: 300,
+  qrTemplateQrY: 515,
+  qrTemplateQrSize: 600,
 }
 
 export default function AppearanceSettingsPage() {
@@ -37,6 +43,10 @@ export default function AppearanceSettingsPage() {
     resolver: zodResolver(appearanceSettingsSchema),
     defaultValues,
   })
+  const qrTemplateUrl = form.watch("qrTemplateUrl")
+  const qrTemplateQrX = form.watch("qrTemplateQrX")
+  const qrTemplateQrY = form.watch("qrTemplateQrY")
+  const qrTemplateQrSize = form.watch("qrTemplateQrSize")
 
   useEffect(() => {
     if (data) {
@@ -131,6 +141,59 @@ export default function AppearanceSettingsPage() {
                     </FormItem>
                   )}
                 />
+                <div className="col-span-2 border-t pt-3">
+                  <p className="text-sm font-semibold">QR poster template</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Upload a 1200×1600 PNG template. QR posters will not render until a template is configured.
+                  </p>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="qrTemplateUrl"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>QR template</FormLabel>
+                      <ImageUploadField
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={!canManage}
+                        hint="Use a 1200×1600 PNG and leave a clear white area for the QR code."
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {(["qrTemplateQrX", "qrTemplateQrY", "qrTemplateQrSize"] as const).map((fieldName) => (
+                  <FormField
+                    key={fieldName}
+                    control={form.control}
+                    name={fieldName}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{fieldName === "qrTemplateQrX" ? "QR X position" : fieldName === "qrTemplateQrY" ? "QR Y position" : "QR size"}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={fieldName === "qrTemplateQrSize" ? 128 : 0}
+                            max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : 900}
+                            disabled={!canManage}
+                            value={field.value ?? ""}
+                            onChange={(event) => field.onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+                <div className="col-span-2 border-t pt-3">
+                  <QrTemplatePreview
+                    templateUrl={qrTemplateUrl}
+                    qrX={qrTemplateQrX}
+                    qrY={qrTemplateQrY}
+                    qrSize={qrTemplateQrSize}
+                  />
+                </div>
                 {canManage && (
                   <div className="col-span-2">
                     <Button type="submit" disabled={updateSettings.isPending}>
