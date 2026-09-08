@@ -90,6 +90,9 @@ export interface AppearanceSettings {
   qrTemplateQrX?: number
   qrTemplateQrY?: number
   qrTemplateQrSize?: number
+  qrTemplateTableWidth?: number
+  qrTemplateTableHeight?: number
+  qrTemplateTableFontSize?: number
 }
 
 export interface AllSettings {

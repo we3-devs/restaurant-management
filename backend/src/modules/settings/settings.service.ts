@@ -119,6 +119,9 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     qrTemplateQrX: 300,
     qrTemplateQrY: 515,
     qrTemplateQrSize: 600,
+    qrTemplateTableWidth: 260,
+    qrTemplateTableHeight: 80,
+    qrTemplateTableFontSize: 34,
   },
 };
 
@@ -290,6 +293,9 @@ export class SettingsService {
     qrTemplateQrX: number | null;
     qrTemplateQrY: number | null;
     qrTemplateQrSize: number | null;
+    qrTemplateTableWidth: number | null;
+    qrTemplateTableHeight: number | null;
+    qrTemplateTableFontSize: number | null;
   }> {
     const [business, appearance] = await Promise.all([
       this.get('business'),
@@ -308,6 +314,9 @@ export class SettingsService {
       qrTemplateQrX: typeof appearance.qrTemplateQrX === 'number' ? appearance.qrTemplateQrX : null,
       qrTemplateQrY: typeof appearance.qrTemplateQrY === 'number' ? appearance.qrTemplateQrY : null,
       qrTemplateQrSize: typeof appearance.qrTemplateQrSize === 'number' ? appearance.qrTemplateQrSize : null,
+      qrTemplateTableWidth: typeof appearance.qrTemplateTableWidth === 'number' ? appearance.qrTemplateTableWidth : null,
+      qrTemplateTableHeight: typeof appearance.qrTemplateTableHeight === 'number' ? appearance.qrTemplateTableHeight : null,
+      qrTemplateTableFontSize: typeof appearance.qrTemplateTableFontSize === 'number' ? appearance.qrTemplateTableFontSize : null,
     };
   }
 }

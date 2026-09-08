@@ -338,4 +338,25 @@ export class AppearanceSettingsDto {
   @Min(128)
   @Max(900)
   qrTemplateQrSize?: number;
+
+  @ApiPropertyOptional({ minimum: 120, maximum: 600 })
+  @IsOptional()
+  @IsInt()
+  @Min(120)
+  @Max(600)
+  qrTemplateTableWidth?: number;
+
+  @ApiPropertyOptional({ minimum: 40, maximum: 200 })
+  @IsOptional()
+  @IsInt()
+  @Min(40)
+  @Max(200)
+  qrTemplateTableHeight?: number;
+
+  @ApiPropertyOptional({ minimum: 16, maximum: 120 })
+  @IsOptional()
+  @IsInt()
+  @Min(16)
+  @Max(120)
+  qrTemplateTableFontSize?: number;
 }

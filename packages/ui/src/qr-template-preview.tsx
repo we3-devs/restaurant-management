@@ -7,12 +7,19 @@ type QrTemplatePreviewProps = {
   qrX?: number
   qrY?: number
   qrSize?: number
+  tableWidth?: number
+  tableHeight?: number
+  tableFontSize?: number
 }
 
 const WIDTH = 1200
 const HEIGHT = 1600
 
-function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number) {
+function formatTableLabel() {
+  return "TABLE 1"
+}
+
+function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number, tableWidth: number, tableHeight: number, tableFontSize: number) {
   const canvas = document.createElement("canvas")
   canvas.width = WIDTH
   canvas.height = HEIGHT
@@ -20,8 +27,8 @@ function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number) {
   if (!ctx) return
 
   const quietZone = Math.max(20, Math.round(qrSize * 0.05))
-  const labelWidth = Math.min(360, Math.max(220, qrSize * 0.45))
-  const labelHeight = Math.max(64, Math.round(labelWidth * 0.3))
+  const labelWidth = tableWidth
+  const labelHeight = tableHeight
   const labelX = qrX + (qrSize - labelWidth) / 2
   const labelY = qrY + qrSize + quietZone + 20
 
@@ -52,8 +59,8 @@ function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number) {
   ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
   ctx.fill()
   ctx.fillStyle = "#fff"
-  ctx.font = "700 30px Arial"
-  ctx.fillText("TABLE NAME", WIDTH / 2, labelY + labelHeight / 2 + 10)
+  ctx.font = `700 ${tableFontSize}px Arial`
+  ctx.fillText(formatTableLabel(), WIDTH / 2, labelY + labelHeight / 2)
 
   const link = document.createElement("a")
   link.href = canvas.toDataURL("image/png")
@@ -66,11 +73,14 @@ export function QrTemplatePreview({
   qrX = 300,
   qrY = 515,
   qrSize = 600,
+  tableWidth = 260,
+  tableHeight = 80,
+  tableFontSize = 34,
 }: QrTemplatePreviewProps) {
   const scale = 300 / WIDTH
   const quietZone = Math.max(20, Math.round(qrSize * 0.05))
-  const labelWidth = Math.min(360, Math.max(220, qrSize * 0.45))
-  const labelHeight = Math.max(64, Math.round(labelWidth * 0.3))
+  const labelWidth = tableWidth
+  const labelHeight = tableHeight
 
   return (
     <div className="space-y-2">
@@ -106,9 +116,10 @@ export function QrTemplatePreview({
             top: (qrY + qrSize + quietZone + 20) * scale,
             width: labelWidth * scale,
             height: labelHeight * scale,
+            fontSize: tableFontSize * scale,
           }}
         >
-          Table name
+          {formatTableLabel()}
         </div>
       </div>
       <p className="text-center text-xs text-muted-foreground">
@@ -116,7 +127,7 @@ export function QrTemplatePreview({
       </p>
       <button
         type="button"
-        onClick={() => downloadBlankTemplate(qrX, qrY, qrSize)}
+        onClick={() => downloadBlankTemplate(qrX, qrY, qrSize, tableWidth, tableHeight, tableFontSize)}
         className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
       >
         Download blank template

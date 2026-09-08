@@ -10,6 +10,9 @@ type PosterBranding = {
   qrTemplateQrX: number | null
   qrTemplateQrY: number | null
   qrTemplateQrSize: number | null
+  qrTemplateTableWidth: number | null
+  qrTemplateTableHeight: number | null
+  qrTemplateTableFontSize: number | null
 }
 
 type BrandedQrPosterProps = {
@@ -25,6 +28,14 @@ const TEMPLATE_HEIGHT = 1600
 const DEFAULT_QR_X = 300
 const DEFAULT_QR_Y = 515
 const DEFAULT_QR_SIZE = 600
+const DEFAULT_TABLE_WIDTH = 260
+const DEFAULT_TABLE_HEIGHT = 80
+const DEFAULT_TABLE_FONT_SIZE = 34
+
+function formatTableLabel(tableLabel: string) {
+  const value = tableLabel.trim().replace(/^table\s*/i, "")
+  return `TABLE ${value || ""}`.trim()
+}
 
 function loadImage(src: string, crossOrigin = false): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -67,6 +78,9 @@ export function BrandedQrPoster({
         const qrX = branding.qrTemplateQrX ?? DEFAULT_QR_X
         const qrY = branding.qrTemplateQrY ?? DEFAULT_QR_Y
         const qrSize = branding.qrTemplateQrSize ?? DEFAULT_QR_SIZE
+        const tableWidth = branding.qrTemplateTableWidth ?? DEFAULT_TABLE_WIDTH
+        const tableHeight = branding.qrTemplateTableHeight ?? DEFAULT_TABLE_HEIGHT
+        const tableFontSize = branding.qrTemplateTableFontSize ?? DEFAULT_TABLE_FONT_SIZE
         const quietZone = Math.max(20, Math.round(qrSize * 0.05))
 
         ctx.drawImage(template, 0, 0, TEMPLATE_WIDTH, TEMPLATE_HEIGHT)
@@ -74,8 +88,8 @@ export function BrandedQrPoster({
         ctx.fillRect(qrX - quietZone, qrY - quietZone, qrSize + quietZone * 2, qrSize + quietZone * 2)
         ctx.drawImage(qr, qrX, qrY, qrSize, qrSize)
 
-        const labelWidth = Math.min(360, Math.max(220, qrSize * 0.45))
-        const labelHeight = Math.max(64, Math.round(labelWidth * 0.3))
+        const labelWidth = tableWidth
+        const labelHeight = tableHeight
         const labelX = qrX + (qrSize - labelWidth) / 2
         const labelY = qrY + qrSize + quietZone + 20
         ctx.fillStyle = "#202126"
@@ -83,10 +97,10 @@ export function BrandedQrPoster({
         ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
         ctx.fill()
         ctx.fillStyle = "#fff"
-        ctx.font = `700 ${Math.max(24, Math.round(labelHeight * 0.42))}px Arial`
+        ctx.font = `700 ${tableFontSize}px Arial`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        ctx.fillText(tableLabel, qrX + qrSize / 2, labelY + labelHeight / 2)
+        ctx.fillText(formatTableLabel(tableLabel), qrX + qrSize / 2, labelY + labelHeight / 2)
 
         if (!cancelled) setDownloadUrl(canvas.toDataURL("image/png"))
       })
@@ -97,7 +111,7 @@ export function BrandedQrPoster({
     return () => {
       cancelled = true
     }
-  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateUrl, qrDataUrl, tableLabel])
+  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateTableFontSize, branding.qrTemplateTableHeight, branding.qrTemplateTableWidth, branding.qrTemplateUrl, qrDataUrl, tableLabel])
 
   return (
     <div className="flex flex-col items-center gap-3">

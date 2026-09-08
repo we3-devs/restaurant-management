@@ -27,6 +27,9 @@ const defaultValues: AppearanceSettingsInput = {
   qrTemplateQrX: 300,
   qrTemplateQrY: 515,
   qrTemplateQrSize: 600,
+  qrTemplateTableWidth: 260,
+  qrTemplateTableHeight: 80,
+  qrTemplateTableFontSize: 34,
 }
 
 export default function AppearanceSettingsPage() {
@@ -46,6 +49,9 @@ export default function AppearanceSettingsPage() {
   const qrTemplateQrX = form.watch("qrTemplateQrX")
   const qrTemplateQrY = form.watch("qrTemplateQrY")
   const qrTemplateQrSize = form.watch("qrTemplateQrSize")
+  const qrTemplateTableWidth = form.watch("qrTemplateTableWidth")
+  const qrTemplateTableHeight = form.watch("qrTemplateTableHeight")
+  const qrTemplateTableFontSize = form.watch("qrTemplateTableFontSize")
 
   useEffect(() => {
     if (data) {
@@ -162,18 +168,18 @@ export default function AppearanceSettingsPage() {
                     </FormItem>
                   )}
                 />
-                {(["qrTemplateQrX", "qrTemplateQrY", "qrTemplateQrSize"] as const).map((fieldName) => (
+                {(["qrTemplateQrX", "qrTemplateQrY", "qrTemplateQrSize", "qrTemplateTableWidth", "qrTemplateTableHeight", "qrTemplateTableFontSize"] as const).map((fieldName) => (
                   <FormField
                     key={fieldName}
                     control={form.control}
                     name={fieldName}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{fieldName === "qrTemplateQrX" ? "QR X position" : fieldName === "qrTemplateQrY" ? "QR Y position" : "QR size"}</FormLabel>
+                        <FormLabel>{fieldName === "qrTemplateQrX" ? "QR X position" : fieldName === "qrTemplateQrY" ? "QR Y position" : fieldName === "qrTemplateQrSize" ? "QR size" : fieldName === "qrTemplateTableWidth" ? "Table label width" : fieldName === "qrTemplateTableHeight" ? "Table label height" : "Table label font size"}</FormLabel>
                         <FormControl
                           type="number"
-                          min={fieldName === "qrTemplateQrSize" ? 128 : 0}
-                          max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : 900}
+                          min={fieldName === "qrTemplateQrSize" ? 128 : fieldName === "qrTemplateTableWidth" ? 120 : fieldName === "qrTemplateTableHeight" ? 40 : fieldName === "qrTemplateTableFontSize" ? 16 : 0}
+                          max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : fieldName === "qrTemplateQrSize" ? 900 : fieldName === "qrTemplateTableWidth" ? 600 : fieldName === "qrTemplateTableHeight" ? 200 : 120}
                           disabled={!canManage}
                           value={field.value ?? ""}
                           onChange={(event) => field.onChange(event.target.value === "" ? undefined : Number(event.target.value))}
@@ -189,6 +195,9 @@ export default function AppearanceSettingsPage() {
                     qrX={qrTemplateQrX}
                     qrY={qrTemplateQrY}
                     qrSize={qrTemplateQrSize}
+                    tableWidth={qrTemplateTableWidth}
+                    tableHeight={qrTemplateTableHeight}
+                    tableFontSize={qrTemplateTableFontSize}
                   />
                 </div>
                 {canManage && (
