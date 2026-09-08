@@ -4,10 +4,13 @@ import { useEffect, useState } from "react"
 import QRCode from "qrcode"
 
 import { Skeleton } from "@rms/ui/skeleton"
+import { BrandedQrPoster } from "@rms/ui/branded-qr-poster"
+import { useBranding } from "@rms/api-client/hooks/use-branding"
 
 /** Renders the guest self-ordering QR for a table, linking into this app's own /guest?table= page. */
-export function TableQrCode({ value, size = 176 }: { value: string; size?: number }) {
+export function TableQrCode({ value, tableLabel, size = 176 }: { value: string; tableLabel: string; size?: number }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const branding = useBranding()
 
   useEffect(() => {
     let cancelled = false
@@ -27,5 +30,5 @@ export function TableQrCode({ value, size = 176 }: { value: string; size?: numbe
     return <Skeleton style={{ width: size, height: size }} className="rounded-lg" />
   }
 
-  return <img src={dataUrl} width={size} height={size} alt={`QR code: ${value}`} className="rounded-lg border" />
+  return <BrandedQrPoster qrDataUrl={dataUrl} tableLabel={tableLabel} branding={branding} />
 }

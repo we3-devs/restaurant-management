@@ -61,7 +61,7 @@ export function TableDetailDialog({
 					<div className="space-y-2">
 						<p className="text-xs font-medium text-muted-foreground">Guest ordering QR</p>
 						{guestUrl ? (
-							<DownloadableQrCode value={guestUrl} fileName={`table-${table.code}-qr`} />
+							<DownloadableQrCode value={guestUrl} fileName={`table-${table.code}-qr`} tableLabel={table.name} />
 						) : (
 							<p className="text-sm text-muted-foreground">
 								This table has no code set, so it can&apos;t have a guest ordering QR yet.

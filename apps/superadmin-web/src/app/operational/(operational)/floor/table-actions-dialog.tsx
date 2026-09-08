@@ -386,7 +386,7 @@ export function TableActionsDialog({
             {isCashier && showQr && (
               <div className="flex justify-center pt-1">
                 {guestUrl ? (
-                  <TableQrCode value={guestUrl} />
+                  <TableQrCode value={guestUrl} tableLabel={table.name} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     This table has no code set, so it can&apos;t have a guest ordering QR yet.
