@@ -155,14 +155,16 @@ function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; p
     return groups
   }, [permissions])
 
-  type AccessLevel = "none" | "view" | "full"
+  type AccessLevel = "none" | "view" | "full" | "enabled"
 
   function moduleAccessLevel(modulePermissions: Permission[]): AccessLevel {
     const granted = new Set(role?.permissions ?? [])
     const managePermission = modulePermissions.find((permission) => permission.action === "manage")
     const viewPermission = modulePermissions.find((permission) => permission.action === "view")
+    const singlePermission = modulePermissions.find((permission) => permission.action !== "view" && permission.action !== "manage")
     if (managePermission && granted.has(managePermission.slug)) return "full"
     if (viewPermission && granted.has(viewPermission.slug)) return "view"
+    if (singlePermission && granted.has(singlePermission.slug)) return "enabled"
     return "none"
   }
 
@@ -171,6 +173,7 @@ function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; p
     const granted = new Set(role.permissions ?? [])
     const viewPermission = modulePermissions.find((permission) => permission.action === "view")
     const managePermission = modulePermissions.find((permission) => permission.action === "manage")
+    const singlePermission = modulePermissions.find((permission) => permission.action !== "view" && permission.action !== "manage")
     const wantView = level === "view" || level === "full"
     const wantManage = level === "full"
 
@@ -184,6 +187,11 @@ function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; p
         const has = granted.has(managePermission.slug)
         if (wantManage && !has) await assignPermission.mutateAsync(managePermission.id)
         if (!wantManage && has) await unassignPermission.mutateAsync(managePermission.id)
+      }
+      if (singlePermission) {
+        const has = granted.has(singlePermission.slug)
+        if (level === "enabled" && !has) await assignPermission.mutateAsync(singlePermission.id)
+        if (level === "none" && has) await unassignPermission.mutateAsync(singlePermission.id)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update permissions")
@@ -204,6 +212,7 @@ function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; p
           {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
             const hasView = modulePermissions.some((permission) => permission.action === "view")
             const hasManage = modulePermissions.some((permission) => permission.action === "manage")
+            const hasSingle = modulePermissions.some((permission) => permission.action !== "view" && permission.action !== "manage")
             return (
               <div key={module} className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0">
                 <span className="text-sm font-medium capitalize">{module.replace(/-/g, " ")}</span>
@@ -217,6 +226,7 @@ function PositionPermissionsDialog({ roleId, positionName }: { roleId: number; p
                     <SelectItem value="none">No access</SelectItem>
                     {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
                     {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
+                    {hasSingle && <SelectItem value="enabled">Enabled</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>

@@ -85,14 +85,16 @@ export function RoleDetail({ roleId }: { roleId: number }) {
    * both, since view and manage are checked independently by the API (manage
    * alone wouldn't unlock read-only screens gated on `.view`).
    */
-  type AccessLevel = "none" | "view" | "full"
+  type AccessLevel = "none" | "view" | "full" | "enabled"
 
   function moduleAccessLevel(modulePermissions: Permission[]): AccessLevel {
     const granted = new Set(role?.permissions ?? [])
     const managePerm = modulePermissions.find((p) => p.action === "manage")
     const viewPerm = modulePermissions.find((p) => p.action === "view")
+    const singlePerm = modulePermissions.find((p) => p.action !== "view" && p.action !== "manage")
     if (managePerm && granted.has(managePerm.slug)) return "full"
     if (viewPerm && granted.has(viewPerm.slug)) return "view"
+    if (singlePerm && granted.has(singlePerm.slug)) return "enabled"
     return "none"
   }
 
@@ -100,6 +102,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
     const granted = new Set(role?.permissions ?? [])
     const viewPerm = modulePermissions.find((p) => p.action === "view")
     const managePerm = modulePermissions.find((p) => p.action === "manage")
+    const singlePerm = modulePermissions.find((p) => p.action !== "view" && p.action !== "manage")
     const wantView = level === "view" || level === "full"
     const wantManage = level === "full"
 
@@ -113,6 +116,11 @@ export function RoleDetail({ roleId }: { roleId: number }) {
         const has = granted.has(managePerm.slug)
         if (wantManage && !has) await assignPermission.mutateAsync(managePerm.id)
         if (!wantManage && has) await unassignPermission.mutateAsync(managePerm.id)
+      }
+      if (singlePerm) {
+        const has = granted.has(singlePerm.slug)
+        if (level === "enabled" && !has) await assignPermission.mutateAsync(singlePerm.id)
+        if (level === "none" && has) await unassignPermission.mutateAsync(singlePerm.id)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update access")
@@ -243,6 +251,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
           {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
             const hasView = modulePermissions.some((p) => p.action === "view")
             const hasManage = modulePermissions.some((p) => p.action === "manage")
+            const hasSingle = modulePermissions.some((p) => p.action !== "view" && p.action !== "manage")
             const level = moduleAccessLevel(modulePermissions)
             return (
               <div key={module} className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0">
@@ -259,6 +268,7 @@ export function RoleDetail({ roleId }: { roleId: number }) {
                     <SelectItem value="none">No access</SelectItem>
                     {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
                     {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
+                    {hasSingle && <SelectItem value="enabled">Enabled</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
