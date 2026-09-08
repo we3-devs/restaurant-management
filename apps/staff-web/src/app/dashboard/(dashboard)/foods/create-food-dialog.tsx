@@ -40,7 +40,6 @@ export function CreateFoodDialog() {
       foodCategoryId: undefined,
       name: "",
       slug: "",
-      sku: "",
       skuSegment: "",
       imageUrl: "",
       itemType: "ready_made",
@@ -58,7 +57,7 @@ export function CreateFoodDialog() {
         foodCategoryId: undefined,
         name: "",
         slug: "",
-        sku: "",
+        skuSegment: "",
         imageUrl: "",
         itemType: "ready_made",
         inventoryIngredientId: null,
@@ -74,7 +73,7 @@ export function CreateFoodDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button>Create food</Button>} />
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create food</DialogTitle>
         </DialogHeader>
@@ -130,17 +129,6 @@ export function CreateFoodDialog() {
             />
             <FormField
               control={form.control}
-              name="sku"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SKU (optional)</FormLabel>
-                  <FormControl {...field} />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="skuSegment"
               render={({ field }) => (
                 <FormItem>
@@ -169,22 +157,6 @@ export function CreateFoodDialog() {
                     value={field.value ?? ""}
                     onChange={field.onChange}
                     hint="Shown on the guest menu. Variants of this item share it."
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="basePrice"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Base price</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    value={field.value}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
                   />
                   <FormMessage />
                 </FormItem>

@@ -221,6 +221,10 @@ function PurchaseOrderItemsSection({
   const addItem = useAddPurchaseOrderItem(purchaseOrderId)
   const removeItem = useRemovePurchaseOrderItem(purchaseOrderId)
   const [showForm, setShowForm] = useState(false)
+  const form = useForm<AddPurchaseOrderItemInput>({
+    resolver: zodResolver(addPurchaseOrderItemSchema),
+    defaultValues: { ingredientId: 0, quantity: 0, unit: "", unitCost: 0, discount: 0, tax: 0 },
+  })
 
   const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
   const stockByIngredient = new Map((stocks?.data ?? []).map((stock) => [stock.ingredientId, stock]))
@@ -230,11 +234,6 @@ function PurchaseOrderItemsSection({
     .map((id) => units?.data.find((unit) => unit.id === id))
     .filter((unit): unit is NonNullable<typeof unit> => Boolean(unit))
   const canEditItems = canManage && status === "draft"
-
-  const form = useForm<AddPurchaseOrderItemInput>({
-    resolver: zodResolver(addPurchaseOrderItemSchema),
-    defaultValues: { ingredientId: 0, quantity: 0, unit: "", unitCost: 0, discount: 0, tax: 0 },
-  })
   const watchedQuantity = form.watch("quantity") ?? 0
   const watchedUnitCost = form.watch("unitCost") ?? 0
   const watchedDiscount = form.watch("discount") ?? 0

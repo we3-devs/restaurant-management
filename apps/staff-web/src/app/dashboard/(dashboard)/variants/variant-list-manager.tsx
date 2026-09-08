@@ -33,14 +33,7 @@ import {
   type VariantListValue,
 } from "@/hooks/use-variant-lists"
 
-/**
- * Editor for one of the two global option lists.
- *
- * Both lists have an identical shape and identical rules, so one component
- * drives both — the only difference is which endpoint it talks to and the
- * wording. Values here are shared by every food, so an edit made once applies
- * across the whole menu.
- */
+
 export function VariantListManager({
   list,
   title,
@@ -91,10 +84,6 @@ export function VariantListManager({
     <div className="max-w-3xl space-y-4">
       <div>
         <h1 className="text-lg font-semibold">{title}</h1>
-        <p className="text-sm text-muted-foreground">
-          Shared across every food — add {example} once and it is available to all
-          of them. Prices live on the food item, not here.
-        </p>
       </div>
 
       {canManage && (

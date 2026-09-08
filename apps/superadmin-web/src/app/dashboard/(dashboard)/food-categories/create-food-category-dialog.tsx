@@ -19,6 +19,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateFoodCategory, useFoodCategories } from "@/hooks/use-food-categories"
 import { createFoodCategorySchema, type CreateFoodCategoryInput } from "@/lib/validators/food-categories"
 
+function slugifyCategoryName(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 export function CreateFoodCategoryDialog() {
   const [open, setOpen] = useState(false)
   const { data: categories, isLoading: categoriesLoading } = useFoodCategories({ limit: 100 })
@@ -55,7 +65,14 @@ export function CreateFoodCategoryDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  <FormControl placeholder="Starters" {...field} />
+                  <FormControl
+                    placeholder="Starters"
+                    {...field}
+                    onChange={(event) => {
+                      field.onChange(event)
+                      form.setValue("slug", slugifyCategoryName(event.target.value), { shouldValidate: true })
+                    }}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -66,7 +83,7 @@ export function CreateFoodCategoryDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Slug</FormLabel>
-                  <FormControl placeholder="starters" {...field} />
+                  <FormControl placeholder="starters" readOnly {...field} />
                   <FormMessage />
                 </FormItem>
               )}
