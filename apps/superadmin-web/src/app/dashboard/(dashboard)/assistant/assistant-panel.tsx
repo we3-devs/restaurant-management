@@ -5,7 +5,6 @@ import { Button } from "@rms/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@rms/ui/card";
 import { Input } from "@rms/ui/input";
 import { apiClient } from "@rms/api-client/client";
-import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context";
 import { BotIcon, SendIcon, Trash2Icon, UserIcon } from "lucide-react";
 import { AssistantMessage } from "../assistant-message";
 
@@ -19,7 +18,6 @@ const starterQuestions = [
 ];
 
 export function AssistantPanel() {
-	const { outletId } = useActiveOutlet();
 	const [question, setQuestion] = useState("");
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [message, setMessage] = useState("");
@@ -40,7 +38,7 @@ export function AssistantPanel() {
 		try {
 			const result = await apiClient<ChatResult>("/assistant/chat", {
 				method: "POST",
-				body: JSON.stringify({ question: trimmed, outletId: outletId ?? undefined }),
+				body: JSON.stringify({ question: trimmed }),
 			});
 			setMessages((current) => [...current, { id: Date.now() + 1, role: "assistant", text: result.answer, route: result.route }]);
 		} catch (error) {
@@ -61,7 +59,7 @@ export function AssistantPanel() {
 					<div className="flex items-center justify-between gap-3">
 						<div>
 							<CardTitle>Ask a question</CardTitle>
-							<CardDescription>{outletId ? `Using outlet #${outletId}` : "Using all accessible outlets"}</CardDescription>
+							<CardDescription>Using all tenants and outlets</CardDescription>
 						</div>
 						{messages.length > 0 && <Button variant="ghost" size="sm" onClick={() => { setMessages([]); setMessage(""); }}><Trash2Icon /> Clear</Button>}
 					</div>

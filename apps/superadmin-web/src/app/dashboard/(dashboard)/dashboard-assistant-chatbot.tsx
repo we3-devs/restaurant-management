@@ -7,14 +7,12 @@ import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
 import { apiClient } from "@rms/api-client/client"
-import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { AssistantMessage } from "./assistant-message"
 
 type ChatResult = { route: string; answer: string }
 type ChatMessage = { id: number; role: "user" | "assistant"; text: string; route?: string }
 
 export function DashboardAssistantChatbot() {
-  const { outletId } = useActiveOutlet()
   const [open, setOpen] = useState(false)
   const [question, setQuestion] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -45,7 +43,7 @@ export function DashboardAssistantChatbot() {
     try {
       const result = await apiClient<ChatResult>("/assistant/chat", {
         method: "POST",
-        body: JSON.stringify({ question: trimmed, outletId: outletId ?? undefined }),
+        body: JSON.stringify({ question: trimmed }),
       })
       setMessages((current) => [...current, { id: Date.now() + 1, role: "assistant", text: result.answer, route: result.route }])
     } catch (error) {

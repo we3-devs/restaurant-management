@@ -199,7 +199,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
       'loyalty', 'customer-credit', 'settings',
     ],
     singlePermissions: [
-      'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view',
+      'dashboard.view', 'reports.view', 'inventory-stock.view', 'audit-logs.view', 'assistant.use',
       'outlets.view', 'warehouses.view', 'outlet-departments.view', 'kitchen-tickets.manage',
       // Finer-grained than orders.manage/order-payments.manage (which every
       // waiter/cashier/bartender also holds) — these gate the genuinely

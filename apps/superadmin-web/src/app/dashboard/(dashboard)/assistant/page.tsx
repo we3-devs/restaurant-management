@@ -4,6 +4,6 @@ import { AssistantPanel } from "./assistant-panel"
 
 export default async function AssistantPage() {
   const user = await getCurrentUser()
-  if (!user.isSuperadmin && !user.roleSlugs.includes("admin")) redirect("/dashboard")
+  if (!user.isSuperadmin && !user.permissions.includes("assistant.use")) redirect("/dashboard")
   return <AssistantPanel />
 }

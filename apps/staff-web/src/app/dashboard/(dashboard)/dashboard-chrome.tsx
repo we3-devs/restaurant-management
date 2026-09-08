@@ -61,7 +61,7 @@ export function DashboardChrome({
           </div>
         </AppSidebarShell>
       </div>
-      {(isSuperadmin || roleSlugs.includes("admin")) && <DashboardAssistantChatbot />}
+      {(isSuperadmin || permissions.includes("assistant.use")) && <DashboardAssistantChatbot />}
     </>
   )
 }
