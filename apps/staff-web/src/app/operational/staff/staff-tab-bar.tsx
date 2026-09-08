@@ -25,7 +25,7 @@ export function StaffTabBar() {
             key={tab.href}
             href={tab.href}
             className={cn(
-              "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition-colors",
+              "flex min-h-16 flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
               active ? "text-primary" : "text-muted-foreground",
             )}
             aria-current={active ? "page" : undefined}
