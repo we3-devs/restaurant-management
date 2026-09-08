@@ -12,6 +12,55 @@ type QrTemplatePreviewProps = {
 const WIDTH = 1200
 const HEIGHT = 1600
 
+function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number) {
+  const canvas = document.createElement("canvas")
+  canvas.width = WIDTH
+  canvas.height = HEIGHT
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+
+  const quietZone = Math.max(20, Math.round(qrSize * 0.05))
+  const labelWidth = Math.min(360, Math.max(220, qrSize * 0.45))
+  const labelHeight = Math.max(64, Math.round(labelWidth * 0.3))
+  const labelX = qrX + (qrSize - labelWidth) / 2
+  const labelY = qrY + qrSize + quietZone + 20
+
+  ctx.fillStyle = "#f7c500"
+  ctx.fillRect(0, 0, WIDTH, HEIGHT)
+  ctx.fillStyle = "#202126"
+  ctx.textAlign = "center"
+  ctx.font = "700 38px Arial"
+  ctx.fillText("YOUR QR POSTER TEMPLATE", WIDTH / 2, 100)
+  ctx.font = "400 24px Arial"
+  ctx.fillText("Design around the reserved QR area", WIDTH / 2, 145)
+
+  ctx.fillStyle = "#fff"
+  ctx.fillRect(qrX - quietZone, qrY - quietZone, qrSize + quietZone * 2, qrSize + quietZone * 2)
+  ctx.strokeStyle = "#64748b"
+  ctx.setLineDash([14, 12])
+  ctx.lineWidth = 4
+  ctx.strokeRect(qrX - quietZone, qrY - quietZone, qrSize + quietZone * 2, qrSize + quietZone * 2)
+  ctx.setLineDash([])
+  ctx.fillStyle = "#64748b"
+  ctx.font = "700 32px Arial"
+  ctx.fillText("QR CODE GOES HERE", WIDTH / 2, qrY + qrSize / 2)
+  ctx.font = "400 24px Arial"
+  ctx.fillText(`${qrSize} × ${qrSize}px`, WIDTH / 2, qrY + qrSize / 2 + 42)
+
+  ctx.fillStyle = "#202126"
+  ctx.beginPath()
+  ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
+  ctx.fill()
+  ctx.fillStyle = "#fff"
+  ctx.font = "700 30px Arial"
+  ctx.fillText("TABLE NAME", WIDTH / 2, labelY + labelHeight / 2 + 10)
+
+  const link = document.createElement("a")
+  link.href = canvas.toDataURL("image/png")
+  link.download = "qr-template-1200x1600.png"
+  link.click()
+}
+
 export function QrTemplatePreview({
   templateUrl,
   qrX = 300,
@@ -65,6 +114,13 @@ export function QrTemplatePreview({
       <p className="text-center text-xs text-muted-foreground">
         Canvas: 1200 × 1600px · QR: X {qrX}, Y {qrY}, Size {qrSize}px
       </p>
+      <button
+        type="button"
+        onClick={() => downloadBlankTemplate(qrX, qrY, qrSize)}
+        className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
+      >
+        Download blank template
+      </button>
     </div>
   )
 }
