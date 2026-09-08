@@ -110,10 +110,8 @@ export class AuthController {
     const meStartUs = this.nowMicros();
     const phases: Record<string, number> = {};
 
-    // Only fetch critical data for initial render:
-    // - permissions: needed for UI visibility decisions
-    // - portal: needed for routing decision
-    // Defer outlet/department IDs until outlet picker loads (separate API call)
+    // Fetch the user's outlet IDs with the initial authenticated user payload so
+    // the client can select an outlet before the outlet details query finishes.
 
     // Measure permission fetch
     const permStartUs = this.nowMicros();
@@ -146,9 +144,8 @@ export class AuthController {
     );
 
     return {
-      ...(await this.toAuthUser(user, portal, hasBothPortals)),
+      ...(await this.toAuthUser(user, portal, hasBothPortals, true)),
       permissions: Array.from(permissions),
-      outletIds: [], // Defer to outlet picker fetch
       departmentIds: [], // Defer to department select fetch
       roleSlugs,
     };

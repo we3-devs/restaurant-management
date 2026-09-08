@@ -61,7 +61,7 @@ const ActiveOutletContext = createContext<ActiveOutletContextValue | null>(null)
  * applies one level down to departments once an outlet is chosen.
  */
 export function ActiveOutletProvider({ children }: { children: React.ReactNode }) {
-  const { isSuperadmin } = useCurrentUser()
+  const { isSuperadmin, outletIds: userOutletIds } = useCurrentUser()
   const queryClient = useQueryClient()
   const tenantsQuery = useSuperadminTenants({ enabled: isSuperadmin })
   const tenants = tenantsQuery.data ?? []
@@ -109,7 +109,9 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
   // shared header never exposes an "all" or null option for them.
   const showOutletPicker = isSuperadmin
 
-  const [outletId, setOutletIdState] = useState<number | null>(() => readStoredId(ACTIVE_OUTLET_STORAGE_KEY))
+  const [outletId, setOutletIdState] = useState<number | null>(
+    () => readStoredId(ACTIVE_OUTLET_STORAGE_KEY) ?? userOutletIds[0] ?? null,
+  )
   // Tracks an explicit "All Outlets" pick separately from outletId, since
   // both are represented as `null` — without this, the auto-select effect
   // below couldn't tell "never chosen yet" from "chose All on purpose" and
