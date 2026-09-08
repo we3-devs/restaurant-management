@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -8,26 +7,12 @@ import { RouteProgress } from "@rms/ui/route-progress";
 import { fetchBranding } from "@rms/api-client/branding";
 import { StaticBrandColor } from "@rms/api-client/brand-color";
 import { BACKEND_API_BASE } from "@/lib/server/backend-client";
-import { resolveTenantHost } from "@rms/auth/tenant";
+import { brandingHeaders, currentTenantName } from "@/lib/tenant";
 import { RegisterStaffServiceWorker } from "./operational/staff/register-sw";
-
-function tenantDisplayName(slug: string | undefined): string {
-  if (!slug) return "Restra";
-  return slug
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-async function brandingHeaders(): Promise<HeadersInit | undefined> {
-  const tenant = resolveTenantHost((await headers()).get("host"));
-  return tenant ? { "X-Tenant-Slug": tenant.slug } : undefined;
-}
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE, await brandingHeaders());
-  const tenant = resolveTenantHost((await headers()).get("host"));
-  const name = tenantDisplayName(tenant?.slug);
+  const name = await currentTenantName();
   const staffName = `${name} Staff`;
   const appIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
 

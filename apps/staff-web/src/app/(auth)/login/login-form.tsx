@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,8 @@ export function LoginForm() {
     defaultValues: { email: "", password: "" },
   })
 
+  // Never leave credentials in a copied link, browser history, or referrer if
+  // an older/native form submission put them in the query string.
   useEffect(() => {
     const url = new URL(window.location.href)
     if (!url.searchParams.has("email") && !url.searchParams.has("password")) return
@@ -51,6 +53,9 @@ export function LoginForm() {
         body: JSON.stringify(values),
       })
 
+      // Proxies/load balancers can occasionally return an empty or non-JSON
+      // body. Never surface the parser's "Unexpected end of JSON input" to
+      // the user.
       const responseText = await response.text()
       let body: LoginResponse | null = null
       if (responseText.trim()) {
@@ -72,6 +77,13 @@ export function LoginForm() {
         return
       }
 
+      // The login response already tells us isSuperadmin + portal (same
+      // fields /auth/me resolves this from), so we can pick the final
+      // destination right here instead of bouncing through "/" → "/dashboard"
+      // → (cross-origin) "/" → "/staff" to work it out server-side one hop
+      // at a time. Server-side layouts still re-verify and bounce on
+      // mismatch (see (dashboard)/layout.tsx and staff/layout.tsx) — this is
+      // just choosing the right first stop, not replacing that check.
       if (getLandingPath(body.user) === "/staff") {
         router.push("/operational/staff")
         return
@@ -88,14 +100,21 @@ export function LoginForm() {
 
   return (
     <Form {...form}>
-      <form method="post" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Email</FormLabel>
-              <FormControl type="email" autoComplete="username" placeholder="admin@rms.local" {...field} />
+              <FormControl
+                type="email"
+                autoComplete="username"
+                autoFocus
+                placeholder="admin@rms.local"
+                className="h-10"
+                {...field}
+              />
               <FormMessage />
             </FormItem>
           )}
@@ -111,13 +130,14 @@ export function LoginForm() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="pr-9"
+                  className="h-10 pr-10"
                   {...field}
                 />
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground"
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
@@ -127,8 +147,15 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? "Signing in..." : "Sign in"}
+        <Button type="submit" disabled={isSubmitting} className="h-10 w-full text-sm font-semibold shadow-sm">
+          {isSubmitting ? (
+            <>
+              <Loader2Icon className="animate-spin" aria-hidden />
+              Signing in…
+            </>
+          ) : (
+            "Sign in"
+          )}
         </Button>
       </form>
     </Form>
