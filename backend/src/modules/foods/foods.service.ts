@@ -43,7 +43,6 @@ export interface PublicFood {
   name: string;
   shortDescription: string | null;
   imageUrl: string | null;
-  basePrice: number;
   hasVariants: boolean;
   hasAddons: boolean;
 }
@@ -134,7 +133,6 @@ export class FoodsService {
         name: food.name,
         shortDescription: food.shortDescription,
         imageUrl: food.imageUrl,
-        basePrice: food.basePrice,
         hasVariants: food.hasVariants,
         hasAddons: food.hasAddons,
       })),
@@ -163,17 +161,14 @@ export class FoodsService {
       foodCategoryId: dto.foodCategoryId ?? null,
       name: dto.name,
       slug: dto.slug,
-      sku: dto.sku ?? null,
       shortDescription: dto.shortDescription ?? null,
       description: dto.description ?? null,
       skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
       imageUrl: dto.imageUrl ?? null,
-      foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'ready_made',
       departmentType:
         dto.departmentType ?? (dto.itemType === 'kitchen' ? 'kitchen' : null),
       inventoryIngredientId: dto.inventoryIngredientId ?? null,
-      basePrice: dto.basePrice ?? 0,
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
       isFeatured: dto.isFeatured ?? false,
@@ -197,7 +192,7 @@ export class FoodsService {
       );
       return this.findOne(id);
     } catch (error) {
-      throw this.mapUniqueViolation(error, dto.slug, dto.sku);
+      throw this.mapUniqueViolation(error, dto.slug);
     }
   }
 
@@ -222,7 +217,6 @@ export class FoodsService {
 
     Object.assign(food, {
       ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.sku !== undefined && { sku: dto.sku }),
       ...(dto.shortDescription !== undefined && {
         shortDescription: dto.shortDescription,
       }),
@@ -231,13 +225,11 @@ export class FoodsService {
       ...(dto.skuSegment !== undefined && {
         skuSegment: dto.skuSegment ? normaliseSkuSegment(dto.skuSegment) : null,
       }),
-      ...(dto.foodType !== undefined && { foodType: dto.foodType }),
       ...(dto.itemType !== undefined && { itemType: dto.itemType }),
       ...(dto.departmentType !== undefined && {
         departmentType: dto.departmentType,
       }),
       ...(dto.inventoryIngredientId !== undefined && { inventoryIngredientId: dto.inventoryIngredientId ?? null }),
-      ...(dto.basePrice !== undefined && { basePrice: dto.basePrice }),
       ...(dto.isTaxable !== undefined && { isTaxable: dto.isTaxable }),
       ...(dto.isDiscountable !== undefined && {
         isDiscountable: dto.isDiscountable,
@@ -258,7 +250,7 @@ export class FoodsService {
       }
       return saved;
     } catch (error) {
-      throw this.mapUniqueViolation(error, undefined, dto.sku);
+      throw this.mapUniqueViolation(error);
     }
   }
 
@@ -354,7 +346,7 @@ export class FoodsService {
 
   /**
    * Resolves the price to charge for this food at a given outlet, checking
-   * the Phase 4 per-outlet override first and falling back to base price.
+   * the Phase 4 per-outlet override first and falling back to the default food item.
    * Used by OrdersService to snapshot order_items.unit_price at add-time.
    */
   async resolvePriceForOutlet(
@@ -372,7 +364,14 @@ export class FoodsService {
       );
     }
 
-    return { food, price: override?.price ?? food.basePrice };
+    const defaultItem = await this.foodVariantsRepository.findOne({
+      where: scopedWhere(this.tenantContext, { foodId, isDefault: true, isActive: true }),
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
+    if (!defaultItem) {
+      throw new BadRequestException(`Food ${foodId} has no active food item`);
+    }
+    return { food, price: override?.price ?? defaultItem.price };
   }
 
   // ------------------------------------------------------------------ recipes
@@ -522,16 +521,13 @@ export class FoodsService {
       foodCategoryId: food.foodCategoryId,
       name: food.name,
       slug: food.slug,
-      sku: food.sku,
       skuSegment: food.skuSegment,
       imageUrl: food.imageUrl,
       shortDescription: food.shortDescription,
       description: food.description,
-      foodType: food.foodType,
       itemType: food.itemType,
       departmentType: food.departmentType,
       inventoryIngredientId: food.inventoryIngredientId,
-      basePrice: food.basePrice,
       hasVariants: food.hasVariants,
       hasAddons: food.hasAddons,
       isTaxable: food.isTaxable,

@@ -11,13 +11,12 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import type { FoodItemType, FoodType } from '../entities/food.entity';
+import type { FoodItemType } from '../entities/food.entity';
 import {
   OUTLET_DEPARTMENT_TYPES,
   type OutletDepartmentType,
 } from '../../outlet-departments/entities/outlet-department.entity';
 
-const FOOD_TYPES: FoodType[] = ['veg', 'non_veg', 'egg', 'vegan'];
 const FOOD_ITEM_TYPES: FoodItemType[] = ['kitchen', 'ready_made'];
 
 export class CreateFoodDto {
@@ -39,12 +38,6 @@ export class CreateFoodDto {
   })
   @MaxLength(255)
   slug: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  sku?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -73,11 +66,6 @@ export class CreateFoodDto {
   @MaxLength(1024)
   imageUrl?: string;
 
-  @ApiPropertyOptional({ enum: FOOD_TYPES })
-  @IsOptional()
-  @IsIn(FOOD_TYPES)
-  foodType?: FoodType;
-
   @ApiPropertyOptional({ enum: FOOD_ITEM_TYPES, default: 'ready_made' })
   @IsOptional()
   @IsIn(FOOD_ITEM_TYPES)
@@ -96,12 +84,6 @@ export class CreateFoodDto {
   @IsOptional()
   @IsInt()
   inventoryIngredientId?: number;
-
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  basePrice?: number = 0;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

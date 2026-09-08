@@ -49,7 +49,7 @@ export class AssistantService {
     if (intent === 'inventory') {
       metrics = await this.db.query(`SELECT i.name, i.code, SUM(s.quantity)::numeric AS quantity, SUM(s.reserved_quantity)::numeric AS "reservedQuantity", GREATEST(SUM(s.quantity) - SUM(s.reserved_quantity), 0)::numeric AS "availableQuantity", MAX(i.reorder_level)::numeric AS "reorderLevel", MAX(i.minimum_stock)::numeric AS "minimumStock", CASE WHEN SUM(s.quantity) <= 0 THEN 'out_of_stock' WHEN SUM(s.quantity) - SUM(s.reserved_quantity) <= GREATEST(MAX(i.reorder_level), MAX(i.minimum_stock)) THEN 'low_stock' ELSE 'in_stock' END AS status FROM warehouse_ingredient_stocks s JOIN ingredients i ON i.id = s.ingredient_id JOIN warehouses w ON w.id = s.warehouse_id WHERE i.is_active = true${ids ? ' AND w.outlet_id = ANY($1::bigint[])' : ''} GROUP BY i.id, i.name, i.code ORDER BY "availableQuantity" ASC LIMIT 100`, params);
     } else if (intent === 'menu') {
-      metrics = await this.db.query(`SELECT name, item_type AS type, food_type AS "foodType", is_active AS "isActive" FROM foods WHERE is_active = true ORDER BY name LIMIT 200`);
+      metrics = await this.db.query(`SELECT name, item_type AS type, is_active AS "isActive" FROM foods WHERE is_active = true ORDER BY name LIMIT 200`);
     } else if (intent === 'staffSummary') {
       metrics = await this.db.query(`SELECT employment_status AS status, COUNT(*)::int AS count FROM employees WHERE is_active = true${ids ? ' AND EXISTS (SELECT 1 FROM employee_outlet_assignments eoa WHERE eoa.employee_id = employees.id AND eoa.is_active = true AND eoa.outlet_id = ANY($1::bigint[]))' : ''} GROUP BY employment_status ORDER BY employment_status`, params);
     } else if (intent === 'payments') {

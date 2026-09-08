@@ -36,7 +36,7 @@ export class SkuCompositionService {
   ) {}
 
   /**
-   * Rewrites `sku` for a food and all of its items.
+   * Rewrites the SKU for every sellable item under a food.
    *
    * Pass `existing` to join the caller's transaction. Callers that create a food
    * and then recompose must do so, otherwise a failure here (a colliding code,
@@ -89,11 +89,6 @@ export class SkuCompositionService {
 
     try {
       const run = async (manager: EntityManager) => {
-        await manager.query(
-          `UPDATE foods f SET sku = ${part('f')} WHERE ${scopedFoodWhere}`,
-          scopedParams,
-        );
-
         // A food item's code is exactly food-variant-subvariant. Both dimension
         // parts are read via correlated subqueries rather than joins: Postgres
         // does not allow the UPDATE target ("v") in a FROM-clause join

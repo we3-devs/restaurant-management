@@ -22,7 +22,6 @@ import { useIngredients } from "@/hooks/use-ingredients"
 import { useCreateFood } from "@/hooks/use-foods"
 import {
   FOOD_ITEM_TYPES,
-  FOOD_TYPES,
   OUTLET_DEPARTMENT_TYPES,
   createFoodSchema,
   type CreateFoodInput,
@@ -54,7 +53,6 @@ export function CreateFoodDialog() {
       imageUrl: "",
       itemType: "ready_made",
       inventoryIngredientId: null,
-      basePrice: 0,
     },
   })
 
@@ -70,7 +68,6 @@ export function CreateFoodDialog() {
         imageUrl: "",
         itemType: "ready_made",
         inventoryIngredientId: null,
-        basePrice: 0,
       })
       setOpen(false)
     } catch (error) {
@@ -234,32 +231,6 @@ export function CreateFoodDialog() {
                     <SelectContent>
                       <SelectItem value="none">None — ready-made</SelectItem>
                       {OUTLET_DEPARTMENT_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="foodType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Food type (optional)</FormLabel>
-                  <Select
-                    value={field.value ?? "none"}
-                    onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Not specified" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Not specified</SelectItem>
-                      {FOOD_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>

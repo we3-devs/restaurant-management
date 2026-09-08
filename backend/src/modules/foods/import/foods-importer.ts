@@ -10,16 +10,15 @@ import {
   OUTLET_DEPARTMENT_TYPES,
   type OutletDepartmentType,
 } from '../../outlet-departments/entities/outlet-department.entity';
-import type { FoodItemType, FoodType } from '../entities/food.entity';
+import type { FoodItemType } from '../entities/food.entity';
 import { Food } from '../entities/food.entity';
 import { SkuCompositionService } from '../sku-composition.service';
 
-const FOOD_TYPES: FoodType[] = ['veg', 'non_veg', 'egg', 'vegan'];
 const FOOD_ITEM_TYPES: FoodItemType[] = ['kitchen', 'ready_made'];
 
 /**
  * Header aliases -> the logical column key. Covers both a plain
- * "name,slug,sku,basePrice,..." sheet and a WordPress/WooCommerce post
+ * "name,slug,sku,..." sheet and a WordPress/WooCommerce post
  * export ("post_title", "post_name", "regular_price", "tax:product_cat",
  * ...), since that's what most menu migrations bring in. postStatus/
  * postParent aren't Food fields — they're read only by rowFilter, to drop
@@ -31,7 +30,8 @@ const HEADER_ALIASES: Record<string, string> = {
   posttitle: 'name',
   slug: 'slug',
   postname: 'slug',
-  sku: 'sku',
+  sku: 'skuSegment',
+  skusegment: 'skuSegment',
   shortdescription: 'shortDescription',
   description: 'shortDescription',
   postexcerpt: 'shortDescription',
@@ -42,10 +42,6 @@ const HEADER_ALIASES: Record<string, string> = {
   itemtype: 'itemType',
   departmenttype: 'departmentType',
   department: 'departmentType',
-  foodtype: 'foodType',
-  price: 'basePrice',
-  baseprice: 'basePrice',
-  regularprice: 'basePrice',
   images: 'imageUrl',
   image: 'imageUrl',
   poststatus: 'postStatus',
@@ -67,19 +63,17 @@ function firstImageUrl(raw: string): string {
 interface FoodImportRow extends ImportValidatedRow {
   name: string;
   slug: string;
-  sku: string | null;
+  skuSegment: string | null;
   shortDescription: string | null;
   imageUrl: string | null;
   foodCategory: string | null;
   foodCategoryId: number | null;
   itemType: FoodItemType;
   departmentType: OutletDepartmentType | null;
-  foodType: FoodType | null;
-  basePrice: number;
 }
 
 /**
- * Foods — identity: slug (and sku, if given). Create only, same as the
+ * Foods — identity: slug. Create only, same as the
  * pre-migration Foods importer this replaces: a row whose slug or sku
  * collides with an existing food is a validation error, not an update
  * (unlike Ingredients/Customers/Suppliers, which upsert — Foods' prior
@@ -115,15 +109,13 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<FoodImportRow[]> {
     const [existingFoods, categories] = await Promise.all([
-      this.foodsRepository.find({ select: { slug: true, sku: true } }),
+      this.foodsRepository.find({ select: { slug: true } }),
       this.foodCategoriesRepository.find({ select: { id: true, name: true } }),
     ]);
     const existingSlugs = new Set(existingFoods.map((f) => f.slug));
-    const existingSkus = new Set(existingFoods.map((f) => f.sku).filter((sku): sku is string => !!sku));
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
 
     const seenSlugs = new Set<string>();
-    const seenSkus = new Set<string>();
 
     return rows.map(({ rowNumber, raw }) => {
       const errors: string[] = [];
@@ -143,14 +135,7 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         seenSlugs.add(slug);
       }
 
-      const sku = raw.sku?.trim() || null;
-      if (sku) {
-        if (existingSkus.has(sku) || seenSkus.has(sku)) {
-          errors.push(`SKU "${sku}" is already in use`);
-        } else {
-          seenSkus.add(sku);
-        }
-      }
+      const skuSegment = raw.skuSegment?.trim() || null;
 
       // WooCommerce exports can list a category path/multiple terms
       // ("Drinks > Cold Drinks", "Drinks, Soft Drinks") — only the first is
@@ -173,38 +158,17 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         }
       }
 
-      const foodTypeRaw = raw.foodType?.trim().toLowerCase() || null;
-      let foodType: FoodType | null = null;
-      if (foodTypeRaw) {
-        if (!FOOD_TYPES.includes(foodTypeRaw as FoodType)) {
-          errors.push(`Food type must be one of: ${FOOD_TYPES.join(', ')}`);
-        } else {
-          foodType = foodTypeRaw as FoodType;
-        }
-      }
-
-      const basePriceRaw = raw.basePrice?.trim() ?? '';
-      let basePrice = 0;
-      if (basePriceRaw !== '') {
-        basePrice = Number(basePriceRaw);
-        if (Number.isNaN(basePrice) || basePrice < 0) {
-          errors.push('Base price must be a non-negative number');
-        }
-      }
-
       return {
         rowNumber,
         name,
         slug,
-        sku,
+        skuSegment,
         shortDescription: raw.shortDescription?.trim() || null,
         imageUrl: raw.imageUrl ? firstImageUrl(raw.imageUrl.trim()) || null : null,
         foodCategory: foodCategoryRaw,
         foodCategoryId,
         itemType: FOOD_ITEM_TYPES.includes(itemTypeRaw) ? itemTypeRaw : 'ready_made',
         departmentType,
-        foodType,
-        basePrice: Number.isNaN(basePrice) ? 0 : basePrice,
         errors,
       };
     });
@@ -222,13 +186,11 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
             foodCategoryId: row.foodCategoryId,
             name: row.name,
             slug: row.slug,
-            sku: row.sku,
+            skuSegment: row.skuSegment,
             shortDescription: row.shortDescription,
             imageUrl: row.imageUrl,
-            foodType: row.foodType,
             itemType: row.itemType,
             departmentType: row.departmentType,
-            basePrice: row.basePrice,
           }),
         );
         // Every food needs a composed SKU even with no segment configured —
@@ -247,8 +209,8 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
   async buildTemplate(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Foods');
-    sheet.addRow(['name', 'slug', 'sku', 'category', 'itemType', 'basePrice']);
-    sheet.addRow(['Margherita Pizza', 'margherita-pizza', 'PIZZA-001', 'Pizza', 'food', '450']);
+    sheet.addRow(['name', 'slug', 'skuSegment', 'category', 'itemType']);
+    sheet.addRow(['Margherita Pizza', 'margherita-pizza', 'PIZZA', 'Pizza', 'ready_made']);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
@@ -261,15 +223,14 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Foods');
-    sheet.addRow(['name', 'slug', 'sku', 'category', 'itemType', 'basePrice']);
+    sheet.addRow(['name', 'slug', 'skuSegment', 'category', 'itemType']);
     for (const food of foods) {
       sheet.addRow([
         food.name,
         food.slug,
-        food.sku ?? '',
+        food.skuSegment ?? '',
         food.foodCategoryId ? (categoryById.get(food.foodCategoryId) ?? '') : '',
         food.itemType,
-        food.basePrice,
       ]);
     }
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;

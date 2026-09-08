@@ -75,12 +75,18 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       setVariantFood(food)
       return
     }
+    const item = menu?.foodVariants.find((variant) => variant.foodId === food.id && variant.isDefault)
+      ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)
+    if (!item) {
+      toast.error(`${food.name} has no active food item`)
+      return
+    }
     localCart.addItem({
       foodId: food.id,
       foodName: food.name,
       foodVariantId: null,
       variantName: null,
-      unitPrice: food.basePrice,
+      unitPrice: item.price,
     })
     toast.success(`${food.name} added to cart`, { duration: 1200 })
   }
@@ -134,7 +140,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                         {food.hasVariants ? (
                           <span className="text-xs text-muted-foreground">Choose variant</span>
                         ) : (
-                          <span className="text-sm font-medium">{food.basePrice}</span>
+                          <span className="text-sm font-medium">{menu?.foodVariants.find((variant) => variant.foodId === food.id && variant.isDefault)?.price ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)?.price ?? "—"}</span>
                         )}
                         <div className="flex gap-1">
                           {food.inventoryAvailable === false && <Badge variant="destructive" className="text-xs">out of stock</Badge>}

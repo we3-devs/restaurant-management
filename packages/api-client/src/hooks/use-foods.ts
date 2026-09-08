@@ -10,16 +10,13 @@ export interface Food {
   foodCategoryId: number | null
   name: string
   slug: string
-  sku: string | null
   skuSegment: string | null
   imageUrl: string | null
   shortDescription: string | null
   description: string | null
-  foodType: string | null
   itemType: string
   departmentType: string | null
   inventoryIngredientId: number | null
-  basePrice: number
   hasVariants: boolean
   hasAddons: boolean
   isTaxable: boolean

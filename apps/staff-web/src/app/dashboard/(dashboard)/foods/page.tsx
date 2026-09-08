@@ -22,9 +22,7 @@ type FoodRow = Food & { categoryName: string; popularity: number; periodRevenue:
 const columns: ColumnDef<FoodRow>[] = [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "categoryName", header: "Category" },
-  { accessorKey: "foodType", header: "Food type", cell: ({ row }) => <Badge variant="secondary">{row.original.foodType ?? "—"}</Badge> },
-  { accessorKey: "sku", header: "SKU" },
-  { accessorKey: "basePrice", header: "Base price", cell: ({ row }) => `NPR ${row.original.basePrice.toLocaleString()}` },
+  { accessorKey: "skuSegment", header: "SKU" },
   { accessorKey: "popularity", header: "Sold", cell: ({ row }) => row.original.popularity.toLocaleString() },
   { accessorKey: "periodRevenue", header: "Revenue", cell: ({ row }) => `NPR ${Math.round(row.original.periodRevenue).toLocaleString()}` },
   {
@@ -46,7 +44,6 @@ export default function FoodsPage() {
 
 export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const [foodTypeFilter, setFoodTypeFilter] = useState<string>("all")
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("all")
   const { data: categories } = useFoodCategories({ limit: 100 })
   const { data, isLoading } = useFoods({
@@ -60,13 +57,13 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
     return (data?.data ?? []).map((food) => {
       const result = performanceByFood.get(food.id)
       return { ...food, categoryName: categoryById.get(food.foodCategoryId ?? 0) ?? "Uncategorized", popularity: result?.quantity ?? 0, periodRevenue: result?.revenue ?? 0 }
-    }).filter((food) => (foodTypeFilter === "all" || food.foodType === foodTypeFilter) && (availabilityFilter === "all" || (availabilityFilter === "available" ? food.isActive : !food.isActive)))
-  }, [categories, data, performance, foodTypeFilter, availabilityFilter])
+    }).filter((food) => availabilityFilter === "all" || (availabilityFilter === "available" ? food.isActive : !food.isActive))
+  }, [categories, data, performance, availabilityFilter])
   const showSkeleton = useDelayedLoading(isLoading || performanceLoading)
 
   function handleExport() {
-    const header = ["Name", "Category", "Food type", "SKU", "Base price", "Sold", "Revenue", "Availability"]
-    const values = rows.map((food) => [food.name, food.categoryName, food.foodType ?? "", food.sku ?? "", food.basePrice, food.popularity, food.periodRevenue, food.isActive ? "Available" : "Unavailable"])
+    const header = ["Name", "Category", "SKU", "Sold", "Revenue", "Availability"]
+    const values = rows.map((food) => [food.name, food.categoryName, food.skuSegment ?? "", food.popularity, food.periodRevenue, food.isActive ? "Available" : "Unavailable"])
     const csv = [header, ...values].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\r\n")
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }))
     const link = document.createElement("a")
@@ -91,7 +88,6 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
         <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{readOnly ? "Foods Overview" : "Manage Foods"}</h1></div>
         <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm">
           <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value ?? "all")}><SelectTrigger className="h-9 w-40 rounded-xl text-xs"><SelectValue placeholder="All categories" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{categories?.data.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select>
-          <Select value={foodTypeFilter} onValueChange={(value) => setFoodTypeFilter(value ?? "all")}><SelectTrigger className="h-9 w-32 rounded-xl text-xs"><SelectValue placeholder="All types" /></SelectTrigger><SelectContent><SelectItem value="all">All types</SelectItem><SelectItem value="veg">Vegetarian</SelectItem><SelectItem value="non_veg">Non-veg</SelectItem><SelectItem value="egg">Egg</SelectItem><SelectItem value="vegan">Vegan</SelectItem></SelectContent></Select>
           <Select value={availabilityFilter} onValueChange={(value) => setAvailabilityFilter(value ?? "all")}><SelectTrigger className="h-9 w-32 rounded-xl text-xs"><SelectValue placeholder="Availability" /></SelectTrigger><SelectContent><SelectItem value="all">Availability</SelectItem><SelectItem value="available">Available</SelectItem><SelectItem value="unavailable">Unavailable</SelectItem></SelectContent></Select>
           <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}><DownloadIcon /> Export CSV</Button>
           {readOnly ? <Button variant="outline" size="sm" render={<Link href="/dashboard/foods" />}>Manage Foods</Button> : <CreateFoodDialog />}

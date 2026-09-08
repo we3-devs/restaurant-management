@@ -52,7 +52,6 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
   FOOD_ITEM_TYPES,
-  FOOD_TYPES,
   OUTLET_DEPARTMENT_TYPES,
   updateFoodSchema,
   type UpdateFoodInput,
@@ -72,7 +71,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
     defaultValues: {
       foodCategoryId: undefined,
       name: "",
-      sku: "",
       skuSegment: "",
       shortDescription: "",
       description: "",
@@ -80,7 +78,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       itemType: "ready_made",
       inventoryIngredientId: null,
       departmentType: undefined,
-      basePrice: 0,
       isTaxable: true,
       isDiscountable: true,
       isFeatured: false,
@@ -93,16 +90,13 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       form.reset({
         foodCategoryId: food.foodCategoryId ?? undefined,
         name: food.name,
-        sku: food.sku ?? "",
         skuSegment: food.skuSegment ?? "",
         shortDescription: food.shortDescription ?? "",
         description: food.description ?? "",
         imageUrl: food.imageUrl ?? "",
-        foodType: (food.foodType as UpdateFoodInput["foodType"]) ?? undefined,
         itemType: food.itemType as UpdateFoodInput["itemType"],
         inventoryIngredientId: food.inventoryIngredientId,
         departmentType: (food.departmentType as UpdateFoodInput["departmentType"]) ?? undefined,
-        basePrice: food.basePrice,
         isTaxable: food.isTaxable,
         isDiscountable: food.isDiscountable,
         isFeatured: food.isFeatured,
@@ -206,17 +200,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
               />
               <FormField
                 control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU</FormLabel>
-                    <FormControl {...field} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="skuSegment"
                 render={({ field }) => (
                   <FormItem>
@@ -227,8 +210,8 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       {...field}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Setting this rewrites the SKU above, and every variant&apos;s,
-                      as e.g. MOMO-CHI-FULL. Leave blank to keep SKUs manual.
+                      This food&apos;s SKU segment is combined with variant segments,
+                      for example MOMO-CHI-FULL.
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -245,22 +228,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       value={field.value ?? ""}
                       onChange={field.onChange}
                       hint="Shown on the guest menu. Variants share this image."
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="basePrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Base price</FormLabel>
-                    <FormControl
-                      type="number"
-                      step="0.01"
-                      value={field.value}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                     <FormMessage />
                   </FormItem>
@@ -328,32 +295,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Use for beverages, consumables, or other direct-sale items. Kitchen foods should use Recipe below.</p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="foodType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Food type</FormLabel>
-                    <Select
-                      value={field.value ?? "none"}
-                      onValueChange={(value) => field.onChange(value === "none" ? undefined : value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Not specified" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Not specified</SelectItem>
-                        {FOOD_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

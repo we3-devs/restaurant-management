@@ -104,7 +104,7 @@ export default function MenuContent() {
 
   // /food-variants/public takes one foodId at a time, so variant-bearing foods
   // are fetched in parallel. Prefetching (rather than loading on tap) is what
-  // lets the cards show a truthful "from" price — a food's basePrice is not
+  // lets the cards show a truthful "from" price from the sellable food items
   // reliably its cheapest variant.
   const variantFoods = useMemo(
     () => foods.filter((f) => f.hasVariants),
@@ -137,8 +137,7 @@ export default function MenuContent() {
   const priceOf = useCallback(
     (food: Food) => {
       const leaves = leavesOf(food.id);
-      if (!leaves.length) return food.basePrice;
-      return Math.min(...leaves.map((leaf) => leaf.price));
+      return leaves.length ? Math.min(...leaves.map((leaf) => leaf.price)) : 0;
     },
     [leavesOf]
   );
@@ -188,7 +187,7 @@ export default function MenuContent() {
         ? categories.find((item) => item.id === category.parentId)
         : null;
       const variants = variantsByFood[food.id] ?? [];
-      const prices = [food.basePrice, ...variants.map((variant) => variant.price)];
+      const prices = variants.map((variant) => variant.price);
       const searchableText = [
         food.name,
         category?.name,
@@ -215,7 +214,7 @@ export default function MenuContent() {
   const addItem = useCallback(
     (food: Food, variant: Variant | null, variantLabel: string | null) => {
       const key = cartKey(food.id, variant?.id);
-      const unitPrice = variant ? variant.price : food.basePrice;
+      const unitPrice = variant?.price ?? variantsByFood[food.id]?.[0]?.price ?? 0;
       setCart((prev) => {
         const existing = prev.find((i) => i.key === key);
         if (existing) {
@@ -230,7 +229,7 @@ export default function MenuContent() {
       });
       toast.success(variantLabel ? `${food.name} · ${variantLabel}` : food.name);
     },
-    []
+    [variantsByFood]
   );
 
   const handleAdd = useCallback(

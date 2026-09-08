@@ -1,8 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type {
-  FoodItemType,
-  FoodType,
-} from '../entities/food.entity';
+import type { FoodItemType } from '../entities/food.entity';
 import type { OutletDepartmentType } from '../../outlet-departments/entities/outlet-department.entity';
 
 export class FoodResponseDto {
@@ -19,9 +16,6 @@ export class FoodResponseDto {
   slug: string;
 
   @ApiProperty({ required: false, nullable: true })
-  sku: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
   skuSegment: string | null;
 
   @ApiProperty({ required: false, nullable: true })
@@ -33,9 +27,6 @@ export class FoodResponseDto {
   @ApiProperty({ required: false, nullable: true })
   description: string | null;
 
-  @ApiProperty({ required: false, nullable: true })
-  foodType: FoodType | null;
-
   @ApiProperty()
   itemType: FoodItemType;
 
@@ -44,9 +35,6 @@ export class FoodResponseDto {
 
   @ApiProperty({ required: false, nullable: true })
   inventoryIngredientId: number | null;
-
-  @ApiProperty()
-  basePrice: number;
 
   @ApiProperty()
   hasVariants: boolean;

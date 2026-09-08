@@ -9,11 +9,9 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
-import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 import { FoodCategory } from '../../food-categories/entities/food-category.entity';
 import type { OutletDepartmentType } from '../../outlet-departments/entities/outlet-department.entity';
 
-export type FoodType = 'veg' | 'non_veg' | 'egg' | 'vegan';
 export type FoodItemType = 'kitchen' | 'ready_made';
 
 @Entity({ name: 'foods' })
@@ -46,12 +44,9 @@ export class Food {
   @Column({ type: 'varchar', length: 255, unique: true })
   slug: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
-  sku: string | null;
-
   /**
-   * This item's piece of the SKU path, e.g. MOMO. When set, `sku` is composed
-   * from it and from any variant segments beneath. NULL leaves `sku` manual.
+   * This item's piece of the SKU path, e.g. MOMO. It is combined with variant
+   * segments to produce each sellable food item's SKU.
    */
   @Column({ name: 'sku_segment', type: 'varchar', length: 32, nullable: true })
   skuSegment: string | null;
@@ -71,9 +66,6 @@ export class Food {
   @Column({ name: 'image_url', type: 'varchar', length: 1024, nullable: true })
   imageUrl: string | null;
 
-  @Column({ name: 'food_type', type: 'varchar', length: 255, nullable: true })
-  foodType: FoodType | null;
-
   @Column({ name: 'item_type', type: 'varchar', length: 255, default: 'food' })
   itemType: FoodItemType;
 
@@ -84,16 +76,6 @@ export class Food {
   /** Direct-sale stock item (beverages/consumables); kitchen foods use recipes instead. */
   @Column({ name: 'inventory_ingredient_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
   inventoryIngredientId: number | null;
-
-  @Column({
-    name: 'base_price',
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  basePrice: number;
 
   @Column({ name: 'has_variants', type: 'boolean', default: false })
   hasVariants: boolean;

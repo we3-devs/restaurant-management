@@ -9,7 +9,7 @@ function wrap(raws: Record<string, string>[], startAt = 2) {
 }
 
 function buildRepos(opts: {
-  existingFoods?: { slug: string; sku: string | null }[];
+  existingFoods?: { slug: string }[];
   categories?: { id: number; name: string }[];
 } = {}) {
   let nextId = 1;
@@ -44,7 +44,7 @@ describe('FoodsImporter', () => {
   describe('validateRows', () => {
     it('rejects a slug that already exists — create only, never treated as an update', async () => {
       const { foodsRepository, categoriesRepository, skuCompositionService } = buildRepos({
-        existingFoods: [{ slug: 'margherita-pizza', sku: null }],
+        existingFoods: [{ slug: 'margherita-pizza' }],
       });
       const importer = new FoodsImporter(foodsRepository, categoriesRepository, skuCompositionService);
 
@@ -116,15 +116,13 @@ describe('FoodsImporter', () => {
             rowNumber: 2,
             name: 'Margherita Pizza',
             slug: 'margherita-pizza',
-            sku: null,
+            skuSegment: null,
             shortDescription: null,
             imageUrl: null,
             foodCategory: null,
             foodCategoryId: null,
-            itemType: 'food',
+            itemType: 'ready_made',
             departmentType: null,
-            foodType: null,
-            basePrice: 450,
             errors: [],
           },
         ],

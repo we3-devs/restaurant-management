@@ -5,7 +5,6 @@ export interface PublicFood {
   name: string
   shortDescription?: string | null
   imageUrl: string | null
-  basePrice: number
   hasVariants: boolean
   hasAddons: boolean
 }
