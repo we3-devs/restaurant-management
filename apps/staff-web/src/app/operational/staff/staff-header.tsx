@@ -15,14 +15,14 @@ export function StaffHeader() {
 
   return (
     <header
-      className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/75"
-      style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(4rem + env(safe-area-inset-top))" }}
+      className="sticky top-0 z-20 flex h-20 shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75"
+      style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(5rem + env(safe-area-inset-top))" }}
     >
       <div className="min-w-0 flex-1">
         {isLoadingOutlets ? (
           <Skeleton className="h-4 w-32" />
         ) : (
-          <p className="truncate text-sm font-semibold leading-tight">{outletName ?? "Staff"}</p>
+          <p className="truncate text-base font-semibold leading-tight">{outletName ?? "Staff"}</p>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">

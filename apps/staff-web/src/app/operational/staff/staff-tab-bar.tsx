@@ -25,12 +25,12 @@ export function StaffTabBar() {
             key={tab.href}
             href={tab.href}
             className={cn(
-              "flex min-h-16 flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
+              "flex min-h-20 flex-1 flex-col items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors",
               active ? "text-primary" : "text-muted-foreground",
             )}
             aria-current={active ? "page" : undefined}
           >
-            <Icon className="size-5" />
+            <Icon className="size-6" />
             {tab.label}
           </Link>
         )
