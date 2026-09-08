@@ -7,6 +7,8 @@ import type { ImportCommitResult } from '../../data-import/interfaces/import-res
 import type { ImportValidatedRow } from '../../data-import/interfaces/import-row.interface';
 import { Supplier } from '../entities/supplier.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
+import { TenantContext } from '../../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../../common/tenant/tenant-scope';
 
 interface SupplierImportRow extends ImportValidatedRow {
   supplierNo: string;
@@ -50,12 +52,13 @@ export class SuppliersImporter implements ImportDomainConfig<Record<string, stri
     private readonly suppliersRepository: Repository<Supplier>,
     @InjectRepository(Outlet)
     private readonly outletsRepository: Repository<Outlet>,
+    private readonly tenantContext: TenantContext = new TenantContext(),
   ) {}
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<SupplierImportRow[]> {
     const [existing, outlets] = await Promise.all([
-      this.suppliersRepository.find({ select: { id: true, companyName: true, contactPerson: true, supplierNo: true } }),
-      this.outletsRepository.find({ select: { id: true, name: true } }),
+      this.suppliersRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, companyName: true, contactPerson: true, supplierNo: true } }),
+      this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
     ]);
     const identityKey = (companyName: string, contactPerson: string | null) =>
       `${companyName.trim().toLowerCase()}|${(contactPerson ?? '').trim().toLowerCase()}`;
@@ -114,7 +117,7 @@ export class SuppliersImporter implements ImportDomainConfig<Record<string, stri
     for (const row of rows) {
       try {
         if (row.existingId) {
-          await repo.update(row.existingId, { phone: row.phone, email: row.email });
+          await repo.update(scopedWhere(this.tenantContext, { id: row.existingId }), { phone: row.phone, email: row.email });
           succeeded.push({ rowNumber: row.rowNumber, entityId: row.existingId });
         } else {
           const created = await repo.save(
@@ -125,6 +128,7 @@ export class SuppliersImporter implements ImportDomainConfig<Record<string, stri
               outletId: row.outletId!,
               phone: row.phone,
               email: row.email,
+              ...tenantFields(this.tenantContext),
             }),
           );
           succeeded.push({ rowNumber: row.rowNumber, entityId: created.id });
@@ -147,8 +151,8 @@ export class SuppliersImporter implements ImportDomainConfig<Record<string, stri
 
   async buildExport(): Promise<Buffer> {
     const [suppliers, outlets] = await Promise.all([
-      this.suppliersRepository.find({ order: { id: 'ASC' } }),
-      this.outletsRepository.find({ select: { id: true, name: true } }),
+      this.suppliersRepository.find({ where: scopedWhere(this.tenantContext, {}), order: { id: 'ASC' } }),
+      this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
     ]);
     const outletById = new Map(outlets.map((o) => [o.id, o.name]));
 

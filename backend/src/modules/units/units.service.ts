@@ -219,9 +219,11 @@ export class UnitsService {
       throw new NotFoundException(`Unit conversion ${id} not found`);
     }
     await this.unitConversionsRepository.delete(id);
-    await this.unitConversionsRepository.delete({
-      fromUnitId: conversion.toUnitId,
-      toUnitId: conversion.fromUnitId,
-    });
+    await this.unitConversionsRepository.delete(
+      scopedWhere(this.tenantContext, {
+        fromUnitId: conversion.toUnitId,
+        toUnitId: conversion.fromUnitId,
+      }),
+    );
   }
 }

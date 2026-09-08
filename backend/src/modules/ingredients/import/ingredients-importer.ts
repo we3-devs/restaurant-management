@@ -9,6 +9,8 @@ import { Ingredient } from '../entities/ingredient.entity';
 import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
 import { Unit } from '../../units/entities/unit.entity';
+import { TenantContext } from '../../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../../common/tenant/tenant-scope';
 
 function slugify(name: string): string {
   return name
@@ -68,14 +70,15 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     private readonly unitsRepository: Repository<Unit>,
     @InjectRepository(Outlet)
     private readonly outletsRepository: Repository<Outlet>,
+    private readonly tenantContext: TenantContext = new TenantContext(),
   ) {}
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<IngredientImportRow[]> {
     const [existingIngredients, categories, units, outlets] = await Promise.all([
-      this.ingredientsRepository.find({ select: { id: true, code: true, outletId: true } }),
-      this.categoriesRepository.find({ select: { id: true, name: true } }),
-      this.unitsRepository.find({ select: { id: true, name: true } }),
-      this.outletsRepository.find({ select: { id: true, name: true } }),
+      this.ingredientsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, code: true, outletId: true } }),
+      this.categoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.unitsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
     ]);
     const existingByOutletAndCode = new Map(
       existingIngredients.map((i) => [`${i.outletId}::${i.code.trim().toLowerCase()}`, i.id]),
@@ -158,7 +161,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     for (const row of rows) {
       try {
         if (row.existingId) {
-          await repo.update(row.existingId, {
+          await repo.update(scopedWhere(this.tenantContext, { id: row.existingId }), {
             name: row.name,
             ingredientCategoryId: row.categoryId!,
             baseUnitId: row.unitId!,
@@ -173,6 +176,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
               outletId: row.outletId!,
               ingredientCategoryId: row.categoryId!,
               baseUnitId: row.unitId!,
+              ...tenantFields(this.tenantContext),
             }),
           );
           succeeded.push({ rowNumber: row.rowNumber, entityId: created.id });
@@ -195,10 +199,10 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
 
   async buildExport(): Promise<Buffer> {
     const [ingredients, categories, units, outlets] = await Promise.all([
-      this.ingredientsRepository.find({ order: { id: 'ASC' } }),
-      this.categoriesRepository.find({ select: { id: true, name: true } }),
-      this.unitsRepository.find({ select: { id: true, name: true } }),
-      this.outletsRepository.find({ select: { id: true, name: true } }),
+      this.ingredientsRepository.find({ where: scopedWhere(this.tenantContext, {}), order: { id: 'ASC' } }),
+      this.categoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.unitsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
     ]);
     const categoryById = new Map(categories.map((c) => [c.id, c.name]));
     const unitById = new Map(units.map((u) => [u.id, u.name]));

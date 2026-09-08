@@ -16,6 +16,8 @@ import {
   UpdateSupplierDto,
 } from './dto/create-supplier.dto';
 import { ListSuppliersQueryDto } from './dto/list-suppliers-query.dto';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class SuppliersService {
@@ -26,6 +28,7 @@ export class SuppliersService {
     private readonly categoriesRepository: Repository<SupplierCategory>,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /**
@@ -48,9 +51,13 @@ export class SuppliersService {
         outstandingBalance: () => `GREATEST(0, outstanding_balance + ${delta})`,
       })
       .where('id = :id', { id })
+      .andWhere(
+        this.tenantContext.getTenantId() === null ? '1 = 1' : 'tenant_id = :tenantId',
+        { tenantId: this.tenantContext.getTenantId() },
+      )
       .execute();
 
-    const supplier = await repo.findOne({ where: { id } });
+    const supplier = await repo.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (
       supplier &&
       supplier.creditLimit > 0 &&
@@ -76,6 +83,12 @@ export class SuppliersService {
     return this.suppliersRepository
       .createQueryBuilder('supplier')
       .where('supplier.status = :status', { status: 'active' })
+      .andWhere(
+        this.tenantContext.getTenantId() === null
+          ? '1 = 1'
+          : 'supplier.tenant_id = :tenantId',
+        { tenantId: this.tenantContext.getTenantId() },
+      )
       .andWhere('supplier.credit_limit > 0')
       .andWhere('supplier.outstanding_balance > supplier.credit_limit')
       .getMany();
@@ -85,13 +98,13 @@ export class SuppliersService {
 
   async findAllCategories(): Promise<SupplierCategory[]> {
     return this.categoriesRepository.find({
-      where: { isActive: true },
+      where: scopedWhere(this.tenantContext, { isActive: true }),
       order: { name: 'ASC' },
     });
   }
 
   async findCategory(id: number): Promise<SupplierCategory> {
-    const cat = await this.categoriesRepository.findOne({ where: { id } });
+    const cat = await this.categoriesRepository.findOne({ where: scopedWhere(this.tenantContext, { id }) });
     if (!cat) throw new NotFoundException(`Supplier category ${id} not found`);
     return cat;
   }
@@ -100,7 +113,7 @@ export class SuppliersService {
     dto: CreateSupplierCategoryDto,
   ): Promise<SupplierCategory> {
     return this.categoriesRepository.save(
-      this.categoriesRepository.create(dto),
+      this.categoriesRepository.create({ ...dto, ...tenantFields(this.tenantContext) }),
     );
   }
 
@@ -124,10 +137,11 @@ export class SuppliersService {
     query: ListSuppliersQueryDto,
   ): Promise<PaginatedResponse<Supplier>> {
     const { page, limit, search, status, categoryId, outletId } = query;
-    const where: FindOptionsWhere<Supplier> = {};
+    let where: FindOptionsWhere<Supplier> = {};
     if (status) where.status = status;
     if (categoryId) where.categoryId = categoryId;
     if (outletId) where.outletId = outletId;
+    where = scopedWhere(this.tenantContext, where);
     if (search) {
       const [data, total] = await this.suppliersRepository.findAndCount({
         where: [
@@ -159,7 +173,7 @@ export class SuppliersService {
 
   async findOne(id: number): Promise<Supplier> {
     const supplier = await this.suppliersRepository.findOne({
-      where: { id },
+      where: scopedWhere(this.tenantContext, { id }),
       relations: ['category'],
     });
     if (!supplier) throw new NotFoundException(`Supplier ${id} not found`);
@@ -171,6 +185,7 @@ export class SuppliersService {
     return this.suppliersRepository.save(
       this.suppliersRepository.create({
         ...dto,
+        ...tenantFields(this.tenantContext),
         supplierNo: generateDocumentNumber('SUP', dto.outletId),
         createdBy,
       }),

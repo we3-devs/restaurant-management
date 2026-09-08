@@ -103,7 +103,7 @@ describe('SuppliersImporter', () => {
         manager,
       );
 
-      expect(managerRepo.update).toHaveBeenCalledWith(3, { phone: '123', email: 'a@b.com' });
+      expect(managerRepo.update).toHaveBeenCalledWith({ id: 3 }, { phone: '123', email: 'a@b.com' });
       expect(managerRepo.save).not.toHaveBeenCalled();
     });
   });

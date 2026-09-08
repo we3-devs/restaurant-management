@@ -23,7 +23,10 @@ export class Supplier {
   })
   id: number;
 
-  @Column({ name: 'supplier_no', type: 'varchar', length: 255, unique: true })
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  tenantId: number | null;
+
+  @Column({ name: 'supplier_no', type: 'varchar', length: 255 })
   supplierNo: string;
 
   @Column({ name: 'company_name', type: 'varchar', length: 500 })

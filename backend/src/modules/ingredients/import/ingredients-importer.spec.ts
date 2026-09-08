@@ -140,7 +140,7 @@ describe('IngredientsImporter', () => {
 
       expect(result.committedCount).toBe(1);
       expect(result.succeeded).toEqual([{ rowNumber: 2, entityId: 42 }]);
-      expect(managerRepo.update).toHaveBeenCalledWith(42, expect.objectContaining({ name: 'Tomato v2' }));
+      expect(managerRepo.update).toHaveBeenCalledWith({ id: 42 }, expect.objectContaining({ name: 'Tomato v2' }));
       expect(managerRepo.save).not.toHaveBeenCalled();
     });
   });
