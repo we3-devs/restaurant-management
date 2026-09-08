@@ -102,8 +102,15 @@ export class CustomersService {
     return this.toResponse(await this.findOne(id));
   }
 
-  async create(dto: CreateCustomerDto): Promise<CustomerResponseDto> {
+  async create(dto: CreateCustomerDto, outletId?: number): Promise<CustomerResponseDto> {
     const phone = normalizeNepalPhone(dto.phone);
+    const existing = await this.customersRepository.findOne({
+      where: phone ? { phone } : { email: dto.email },
+    });
+    if (existing) {
+      if (outletId !== undefined) await this.upsertVisit(existing.id, outletId);
+      return this.toResponse(existing);
+    }
     const customer = this.customersRepository.create({
       name: dto.name,
       phone,
@@ -118,6 +125,8 @@ export class CustomersService {
     } catch (error) {
       throw this.mapUniqueViolation(error);
     }
+
+    if (outletId !== undefined) await this.upsertVisit(saved.id, outletId);
 
     try {
       const loyaltySettings = await this.settingsService.getLoyaltySettings();

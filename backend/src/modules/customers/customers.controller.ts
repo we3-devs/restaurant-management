@@ -78,8 +78,13 @@ export class CustomersController {
   @Post()
   @RequirePermissions('customers.manage')
   @ApiOperation({ summary: 'Creates a customer' })
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customersService.create(dto);
+  async create(@Body() dto: CreateCustomerDto, @CurrentUser() user: User) {
+    const accessible = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const outletId = dto.outletId ?? (accessible !== 'ALL' && accessible.length === 1 ? accessible[0] : undefined);
+    if (outletId !== undefined) {
+      await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, outletId);
+    }
+    return this.customersService.create(dto, outletId);
   }
 
   @Patch(':id')

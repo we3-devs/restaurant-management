@@ -367,6 +367,15 @@ export default function MenuContent() {
               Party
             </a>
           )}
+          {isAuthenticated && (
+            <a
+              href="/profile"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+            >
+              <User size={14} />
+              Profile
+            </a>
+          )}
           {!isAuthenticated && (
             <button
               onClick={() => setAuthIntent("login")}

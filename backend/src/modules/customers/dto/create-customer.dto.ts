@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
@@ -11,6 +12,10 @@ import {
 import { NEPAL_PHONE_PATTERN } from '../../../common/phone';
 
 export class CreateCustomerDto {
+  @ApiPropertyOptional({ description: 'Outlet where this customer is being registered' })
+  @IsOptional()
+  @IsInt()
+  outletId?: number;
   @ApiProperty({ example: 'Jane Doe' })
   @IsString()
   @MinLength(2)

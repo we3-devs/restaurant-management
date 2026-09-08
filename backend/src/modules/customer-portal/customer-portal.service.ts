@@ -63,7 +63,6 @@ export class CustomerPortalService {
 
     Object.assign(customer, {
       ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.phone !== undefined && { phone: dto.phone }),
       ...(dto.email !== undefined && { email: dto.email }),
       ...(dto.address !== undefined && { address: dto.address }),
       ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),

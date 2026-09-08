@@ -2,6 +2,7 @@ import { z } from "zod"
 import { toTitleCase } from "./helpers"
 
 export const createCustomerSchema = z.object({
+  outletId: z.number().int().positive().optional(),
   name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   phone: z.string().optional(),
   email: z.string().email("Enter a valid email address").optional().or(z.literal("")),

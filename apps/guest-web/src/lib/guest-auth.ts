@@ -41,6 +41,12 @@ export function getCustomerName(): string | null {
   return localStorage.getItem(NAME_KEY);
 }
 
+export function setCustomerName(name: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(NAME_KEY, name);
+  notify();
+}
+
 export function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(REFRESH_TOKEN_KEY);

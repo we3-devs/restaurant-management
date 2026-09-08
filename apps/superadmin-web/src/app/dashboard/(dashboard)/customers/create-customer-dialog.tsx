@@ -17,10 +17,12 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useCreateCustomer } from "@/hooks/use-customers"
 import { createCustomerSchema, type CreateCustomerInput } from "@/lib/validators/customers"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 
 export function CreateCustomerDialog() {
   const [open, setOpen] = useState(false)
   const createCustomer = useCreateCustomer()
+  const { outletId } = useActiveOutlet()
 
   const form = useForm<CreateCustomerInput>({
     resolver: zodResolver(createCustomerSchema),
@@ -29,7 +31,7 @@ export function CreateCustomerDialog() {
 
   async function onSubmit(values: CreateCustomerInput) {
     try {
-      await createCustomer.mutateAsync(values)
+      await createCustomer.mutateAsync({ ...values, outletId: outletId ?? undefined })
       toast.success(`Customer "${values.name}" created`)
       form.reset()
       setOpen(false)

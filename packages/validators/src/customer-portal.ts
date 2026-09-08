@@ -27,7 +27,6 @@ export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>
 
 export const updateProfileSchema = z.object({
   name: z.string().min(2).transform(toTitleCase).optional(),
-  phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
   dateOfBirth: z.string().optional(),
