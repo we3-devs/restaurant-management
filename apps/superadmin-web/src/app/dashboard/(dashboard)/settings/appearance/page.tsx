@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { ColorPickerField } from "@/components/ui/color-picker-field"
 import { ImageUploadField } from "@/components/ui/image-upload-field"
-import { Input } from "@/components/ui/input"
 import { FormSkeleton } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
@@ -171,16 +170,14 @@ export default function AppearanceSettingsPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{fieldName === "qrTemplateQrX" ? "QR X position" : fieldName === "qrTemplateQrY" ? "QR Y position" : "QR size"}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={fieldName === "qrTemplateQrSize" ? 128 : 0}
-                            max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : 900}
-                            disabled={!canManage}
-                            value={field.value ?? ""}
-                            onChange={(event) => field.onChange(event.target.value === "" ? undefined : Number(event.target.value))}
-                          />
-                        </FormControl>
+                        <FormControl
+                          type="number"
+                          min={fieldName === "qrTemplateQrSize" ? 128 : 0}
+                          max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : 900}
+                          disabled={!canManage}
+                          value={field.value ?? ""}
+                          onChange={(event) => field.onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+                        />
                         <FormMessage />
                       </FormItem>
                     )}
