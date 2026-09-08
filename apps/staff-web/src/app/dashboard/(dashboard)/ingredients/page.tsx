@@ -106,16 +106,12 @@ export default function IngredientsPage() {
   usePageTitle("Ingredients")
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Ingredients</h1>
-        <CreateIngredientDialog />
-      </div>
-
-      <div className="w-64 space-y-1.5">
-        <label className="text-sm font-medium">Filter by category</label>
+    <div className="page-shell space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Ingredients</h1>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm">
         <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value ?? "all")}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="h-8 w-44 text-xs">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
           <SelectContent>
@@ -127,6 +123,8 @@ export default function IngredientsPage() {
             ))}
           </SelectContent>
         </Select>
+          <CreateIngredientDialog />
+        </div>
       </div>
 
       {showSkeleton ? (
