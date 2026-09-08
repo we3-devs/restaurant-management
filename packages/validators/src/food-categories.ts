@@ -5,7 +5,7 @@ export const createFoodCategorySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").transform(toTitleCase),
   slug: z
     .string()
-    .min(2)
+    .min(2, "Slug must be at least 2 characters")
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lowercase, alphanumeric, hyphen-separated"),
   parentId: z.number().optional(),
   description: z.string().optional(),

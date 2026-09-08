@@ -28,6 +28,16 @@ import {
   type CreateFoodInput,
 } from "@/lib/validators/foods"
 
+function slugifyFoodName(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 export function CreateFoodDialog() {
   const [open, setOpen] = useState(false)
   const { data: categories, isLoading: categoriesLoading } = useFoodCategories({ limit: 100 })
@@ -44,7 +54,6 @@ export function CreateFoodDialog() {
       imageUrl: "",
       itemType: "ready_made",
       inventoryIngredientId: null,
-      departmentType: undefined,
       basePrice: 0,
     },
   })
@@ -61,7 +70,6 @@ export function CreateFoodDialog() {
         imageUrl: "",
         itemType: "ready_made",
         inventoryIngredientId: null,
-        departmentType: undefined,
         basePrice: 0,
       })
       setOpen(false)
@@ -111,7 +119,14 @@ export function CreateFoodDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  <FormControl placeholder="Margherita Pizza" {...field} />
+                  <FormControl
+                    placeholder="Margherita Pizza"
+                    {...field}
+                    onChange={(event) => {
+                      field.onChange(event)
+                      form.setValue("slug", slugifyFoodName(event.target.value))
+                    }}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -122,7 +137,7 @@ export function CreateFoodDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Slug</FormLabel>
-                  <FormControl placeholder="margherita-pizza" {...field} />
+                  <FormControl placeholder="margherita-pizza" readOnly {...field} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -202,6 +217,7 @@ export function CreateFoodDialog() {
                 </FormItem>
               )}
             />
+            {false && <>
             <FormField
               control={form.control}
               name="departmentType"
@@ -254,6 +270,7 @@ export function CreateFoodDialog() {
                 </FormItem>
               )}
             />
+            </>}
             <DialogFooter>
               <Button type="submit" disabled={createFood.isPending}>
                 {createFood.isPending ? "Creating..." : "Create food"}

@@ -70,7 +70,9 @@ export function CreateFoodCategoryDialog() {
                     {...field}
                     onChange={(event) => {
                       field.onChange(event)
-                      form.setValue("slug", slugifyCategoryName(event.target.value), { shouldValidate: true })
+                      // Keep the generated slug in sync without validating on every keystroke.
+                      // The slug requirement should be shown when the user submits the form.
+                      form.setValue("slug", slugifyCategoryName(event.target.value))
                     }}
                   />
                   <FormMessage />

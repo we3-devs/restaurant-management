@@ -170,7 +170,8 @@ export class FoodsService {
       imageUrl: dto.imageUrl ?? null,
       foodType: dto.foodType ?? null,
       itemType: dto.itemType ?? 'ready_made',
-      departmentType: dto.departmentType ?? null,
+      departmentType:
+        dto.departmentType ?? (dto.itemType === 'kitchen' ? 'kitchen' : null),
       inventoryIngredientId: dto.inventoryIngredientId ?? null,
       basePrice: dto.basePrice ?? 0,
       isTaxable: dto.isTaxable ?? true,

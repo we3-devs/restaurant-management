@@ -76,6 +76,14 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
   if (!po) return null
 
   const canCancel = canManage && !["completed", "cancelled"].includes(po.status)
+  const itemDiscountAmount = (items ?? []).reduce((total, item) => total + Number(item.discount ?? 0), 0)
+  const itemTaxAmount = (items ?? []).reduce((total, item) => {
+    const base = Number(item.quantity) * Number(item.unitCost ?? 0)
+    const afterDiscount = Math.max(0, base - Number(item.discount ?? 0))
+    return total + afterDiscount * (Number(item.tax ?? 0) / 100)
+  }, 0)
+  const discountAmount = Number(po.discountAmount ?? 0) + itemDiscountAmount
+  const taxAmount = Number(po.taxAmount ?? 0) + itemTaxAmount
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -159,7 +167,7 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
             <CardTitle className="text-sm font-medium text-muted-foreground">Discount</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-semibold">{po.discountAmount.toFixed(2)}</p>
+            <p className="text-lg font-semibold">{discountAmount.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -167,7 +175,7 @@ export function PurchaseOrderDetail({ purchaseOrderId }: { purchaseOrderId: numb
             <CardTitle className="text-sm font-medium text-muted-foreground">Tax</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-semibold">{po.taxAmount.toFixed(2)}</p>
+            <p className="text-lg font-semibold">{taxAmount.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
