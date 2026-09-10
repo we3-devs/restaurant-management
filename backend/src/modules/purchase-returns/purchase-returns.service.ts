@@ -61,7 +61,6 @@ export class PurchaseReturnsService {
       if (dto.items?.length) {
         for (const item of dto.items) {
           const ingredient = await this.ingredientsService.findOne(item.ingredientId);
-          this.ingredientsService.assertTrackable(ingredient);
 
           const unitCost = item.unitCost ?? Number((ingredient as any).buyingPrice ?? 0);
           const totalCost = unitCost * item.quantity;

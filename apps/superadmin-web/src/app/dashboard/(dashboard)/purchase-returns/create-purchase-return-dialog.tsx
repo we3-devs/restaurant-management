@@ -42,7 +42,7 @@ export function CreatePurchaseReturnDialog() {
   const { data: suppliers } = useSuppliers({ limit: 100 })
   const { data: po } = usePurchaseOrder(poId ? Number(poId) : 0)
   const { data: items } = usePurchaseOrderItems(poId ? Number(poId) : 0)
-  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: ingredients } = useIngredients({ limit: 200 })
   const { data: warehouses } = useWarehouses({ limit: 100 })
   const createReturn = useCreatePurchaseReturn()
 

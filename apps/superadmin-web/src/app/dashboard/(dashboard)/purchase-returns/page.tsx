@@ -253,7 +253,7 @@ export default function PurchaseReturnsPage() {
 
 function PurchaseReturnItemsList({ returnId }: { returnId: number }) {
   const { data: items, isLoading } = usePurchaseReturnItems(returnId)
-  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  const { data: ingredients } = useIngredients({ limit: 200 })
   const ingredientName = (id: number) => ingredients?.data.find((i) => i.id === id)?.name ?? "Loading…"
 
   if (isLoading) return <TableSkeleton rows={4} columns={5} />

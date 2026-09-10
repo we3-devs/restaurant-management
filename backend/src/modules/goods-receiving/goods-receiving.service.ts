@@ -86,7 +86,6 @@ export class GoodsReceivingService {
           }
 
           const ingredient = await this.ingredientsService.findOne(item.ingredientId);
-          this.ingredientsService.assertTrackable(ingredient);
 
           const unitCost = item.unitCost ?? (poItem ? Number(poItem.unitCost) : Number((ingredient as any).buyingPrice ?? 0));
           const itemTotalCost = round2(unitCost * item.quantityReceived);

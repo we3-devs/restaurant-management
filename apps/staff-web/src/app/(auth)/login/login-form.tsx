@@ -111,7 +111,7 @@ export function LoginForm() {
                 type="email"
                 autoComplete="username"
                 autoFocus
-                placeholder="admin@rms.local"
+                placeholder="staff@rms.local"
                 className="h-10"
                 {...field}
               />

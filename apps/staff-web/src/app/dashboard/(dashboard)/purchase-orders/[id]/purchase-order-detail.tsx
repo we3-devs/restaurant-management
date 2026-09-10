@@ -223,7 +223,9 @@ function PurchaseOrderItemsSection({
   warehouseId: number
   items: { id: number; ingredientId: number; quantity: number; unit: string | null; unitCost: number; discount: number; tax: number; total: number; receivedQuantity: number; remainingQuantity: number }[]
 }) {
-  const { data: ingredients } = useIngredients({ limit: 200, trackableOnly: true })
+  // Purchasing is available for every inventory item, including items that
+  // are not used in stock movement screens.
+  const { data: ingredients } = useIngredients({ limit: 200 })
   const { data: units } = useUnits({ limit: 200 })
   const { data: stocks } = useWarehouseIngredientStocks({ warehouseId })
   const addItem = useAddPurchaseOrderItem(purchaseOrderId)
