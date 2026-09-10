@@ -14,6 +14,10 @@ export interface AppConfig {
     secretAccessKey: string;
     /** Public base for reading objects — on R2 this is the pub-*.r2.dev or custom domain, not the API endpoint. */
     publicUrl: string;
+    supabaseUrl: string;
+    supabaseServiceRoleKey: string;
+    supabaseBucket: string;
+    supabasePublicUrl: string;
   };
   database: {
     host: string;
@@ -68,6 +72,10 @@ export default (): AppConfig => ({
     accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
     publicUrl: (process.env.S3_PUBLIC_URL ?? '').replace(/\/$/, ''),
+    supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/$/, ''),
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    supabaseBucket: process.env.SUPABASE_STORAGE_BUCKET ?? '',
+    supabasePublicUrl: (process.env.SUPABASE_STORAGE_PUBLIC_URL ?? '').replace(/\/$/, ''),
   },
   database: {
     host: process.env.DB_HOST ?? '127.0.0.1',

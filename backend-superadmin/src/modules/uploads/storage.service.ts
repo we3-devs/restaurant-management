@@ -32,10 +32,21 @@ export class StorageService {
   private readonly client: S3Client | null = null;
   private readonly bucket: string;
   private readonly objectPublicUrl: string;
+  private readonly supabaseUrl: string;
+  private readonly supabaseServiceRoleKey: string;
+  private readonly supabaseBucket: string;
+  private readonly supabasePublicUrl: string;
 
   constructor(private readonly configService: ConfigService<AppConfig>) {
     const storage = this.configService.get('storage', { infer: true })!;
     this.bucket = storage.bucket;
+    this.supabaseUrl = storage.supabaseUrl;
+    this.supabaseServiceRoleKey = storage.supabaseServiceRoleKey;
+    this.supabaseBucket = storage.supabaseBucket;
+    this.supabasePublicUrl = storage.supabasePublicUrl ||
+      (storage.supabaseUrl && storage.supabaseBucket
+        ? `${storage.supabaseUrl}/storage/v1/object/public/${storage.supabaseBucket}`
+        : '');
     // R2 serves reads from a different host than the S3 API endpoint, so the
     // public base is configured separately rather than derived.
     this.objectPublicUrl = storage.publicUrl || storage.endpoint;
@@ -89,14 +100,17 @@ export class StorageService {
     purpose: UploadPurpose,
   ): Promise<string> {
     const filename = `${randomUUID()}${extension}`;
+    const key = `${purpose}/${filename}`;
 
     if (!this.client) {
+      if (this.supabaseUrl && this.supabaseServiceRoleKey && this.supabaseBucket) {
+        return this.saveToSupabase(buffer, mimetype, key);
+      }
       // Disk keeps a flat layout: main.ts serves one directory, and the
       // filename is already a UUID so there's nothing to collide.
       return this.saveToDisk(buffer, filename);
     }
 
-    const key = `${purpose}/${filename}`;
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -108,6 +122,27 @@ export class StorageService {
     );
 
     return `${this.objectPublicUrl}/${key}`;
+  }
+
+  private async saveToSupabase(buffer: Buffer, mimetype: string, key: string): Promise<string> {
+    const path = key.split('/').map(encodeURIComponent).join('/');
+    const response = await fetch(
+      `${this.supabaseUrl}/storage/v1/object/${encodeURIComponent(this.supabaseBucket)}/${path}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+          apikey: this.supabaseServiceRoleKey,
+          'Content-Type': mimetype,
+          'Cache-Control': CACHE_CONTROL,
+        },
+        body: buffer,
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Supabase Storage upload failed (${response.status}): ${await response.text()}`);
+    }
+    return `${this.supabasePublicUrl}/${key}`;
   }
 
   private async saveToDisk(buffer: Buffer, filename: string): Promise<string> {
