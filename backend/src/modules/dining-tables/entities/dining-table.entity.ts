@@ -53,7 +53,7 @@ export class DiningTable {
   @Column({ type: 'varchar', length: 50, nullable: true })
   code: string | null;
 
-  @Column({ type: 'int', default: 1 })
+  @Column({ type: 'int', default: 2 })
   capacity: number;
 
   @Column({ type: 'varchar', length: 255, default: 'available' })

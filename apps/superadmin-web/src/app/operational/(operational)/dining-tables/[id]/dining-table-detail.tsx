@@ -39,7 +39,7 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
 
   const form = useForm<UpdateDiningTableInput>({
     resolver: zodResolver(updateDiningTableSchema),
-    defaultValues: { name: "", code: "", capacity: 1, status: "available", isActive: true },
+    defaultValues: { name: "", code: "", capacity: 2, status: "available", isActive: true },
   })
 
   useEffect(() => {

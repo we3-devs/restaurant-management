@@ -14,13 +14,17 @@ export function useGuestSession() {
   useEffect(() => {
     // Extract table from URL on mount
     const params = new URLSearchParams(window.location.search);
-    const urlTableCode = params.get("table");
+    // QR codes are case-insensitive at the edge; the backend stores/looks up
+    // normalized codes. Keep the locked client value normalized too so a
+    // manually-lowercased QR URL still starts the same table session.
+    const urlTableCode = params.get("table")?.trim().toUpperCase() || null;
 
     // Check sessionStorage for locked table
-    const storedTable = sessionStorage.getItem("guest_table");
+    const storedTable = sessionStorage.getItem("guest_table")?.trim().toUpperCase() || null;
 
     if (storedTable) {
       // Table already locked from QR scan
+      sessionStorage.setItem("guest_table", storedTable);
       setTableCode(storedTable);
       setIsLocked(true);
 

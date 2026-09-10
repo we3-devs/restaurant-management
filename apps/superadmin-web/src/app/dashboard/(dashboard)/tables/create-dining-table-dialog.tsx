@@ -29,7 +29,7 @@ export function CreateDiningTableDialog() {
 
   const form = useForm<CreateDiningTableInput>({
     resolver: zodResolver(createDiningTableSchema),
-    defaultValues: { outletId: 0, diningAreaId: 0, name: "", code: "", capacity: 1 },
+    defaultValues: { outletId: 0, diningAreaId: 0, name: "", code: "", capacity: 2 },
   })
 
   const selectedOutletId = form.watch("outletId")
@@ -42,7 +42,7 @@ export function CreateDiningTableDialog() {
     try {
       await createDiningTable.mutateAsync({ ...values, code: values.code || undefined })
       toast.success(`Table "${values.name}" created`)
-      form.reset({ outletId: 0, diningAreaId: 0, name: "", code: "", capacity: 1 })
+      form.reset({ outletId: 0, diningAreaId: 0, name: "", code: "", capacity: 2 })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create table")

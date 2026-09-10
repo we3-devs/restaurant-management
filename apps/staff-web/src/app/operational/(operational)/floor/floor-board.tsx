@@ -118,7 +118,13 @@ function AreaSection({
         <h2 className="text-sm font-semibold">{areaName}</h2>
         <span className="text-xs text-muted-foreground">{tables?.data.length ?? 0} tables</span>
       </div>
-      <div className="relative h-[420px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:h-[340px]">
+      <div className="grid grid-cols-2 gap-3 sm:hidden">
+        {(tables?.data ?? []).map((table) => (
+          <TableCard key={table.id} table={table} arrivingAt={arrivingSoonByTable.get(table.id)} basePath={basePath} />
+        ))}
+        {(tables?.data.length ?? 0) === 0 && <p className="col-span-2 py-8 text-center text-sm text-muted-foreground">No tables in this area yet.</p>}
+      </div>
+      <div className="relative hidden h-[340px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:block">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-amber-500/[0.04]" />
         {(tables?.data ?? []).map((table, index) => (
           <MapTable key={table.id} table={table} index={index} arrivingAt={arrivingSoonByTable.get(table.id)} basePath={basePath} />

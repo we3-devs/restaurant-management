@@ -264,7 +264,7 @@ const OPERATIONAL_ROLES: RoleSeed[] = [
     rank: 50,
     description: 'Bar orders and drink service.',
     portal: 'staff',
-    fullModules: ['orders', 'order-payments'],
+    fullModules: ['orders', 'order-payments', 'table-sessions'],
     // dining-areas/table-sessions/foods/food-categories/food-variants.view —
     // same order-taking flow as cashier/waiter above (FloorBoard, FoodGrid,
     // CategoryTabs, VariantPickerDialog, StartSaleDialog).

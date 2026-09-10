@@ -45,11 +45,11 @@ export class CreateDiningTableDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   code?: string;
 
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 2 })
   @IsOptional()
   @IsInt()
   @Min(1)
-  capacity?: number = 1;
+  capacity?: number = 2;
 
   @ApiPropertyOptional({ enum: DINING_TABLE_SHAPES, default: 'rectangle' })
   @IsOptional()
