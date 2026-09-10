@@ -125,11 +125,6 @@ export function CreateFoodVariantDialog() {
                 )}
               />
             ))}
-            <p className="text-xs text-muted-foreground">
-              This food item is the pairing of the two above, and the price below
-              belongs to that pairing alone. Both lists are shared across every
-              food — add a value once and it is available everywhere.
-            </p>
             <FormField
               control={form.control}
               name="name"
