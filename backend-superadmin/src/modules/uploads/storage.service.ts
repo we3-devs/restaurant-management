@@ -136,7 +136,7 @@ export class StorageService {
           'Content-Type': mimetype,
           'Cache-Control': CACHE_CONTROL,
         },
-        body: buffer,
+        body: buffer as unknown as BodyInit,
       },
     );
     if (!response.ok) {
