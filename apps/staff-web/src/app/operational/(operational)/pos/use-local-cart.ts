@@ -50,10 +50,24 @@ export function useLocalCart(orderId: number) {
 
   const addItem = useCallback(
     (item: Omit<LocalCartItem, "localId" | "quantity" | "note" | "packagingType">) => {
-      setItems((prev) => [
-        ...prev,
-        { ...item, localId: crypto.randomUUID(), quantity: 1, note: "", packagingType: "plating" },
-      ])
+      setItems((prev) => {
+        const existing = prev.find(
+          (current) =>
+            current.foodId === item.foodId &&
+            current.foodVariantId === item.foodVariantId,
+        )
+        if (existing) {
+          return prev.map((current) =>
+            current.localId === existing.localId
+              ? { ...current, quantity: current.quantity + 1 }
+              : current,
+          )
+        }
+        return [
+          ...prev,
+          { ...item, localId: crypto.randomUUID(), quantity: 1, note: "", packagingType: "plating" },
+        ]
+      })
     },
     [],
   )

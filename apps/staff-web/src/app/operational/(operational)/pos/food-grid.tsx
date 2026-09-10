@@ -91,6 +91,30 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
     toast.success(`${food.name} added to cart`, { duration: 1200 })
   }
 
+  function foodCartItems(food: Food) {
+    return localCart.items.filter((item) => item.foodId === food.id)
+  }
+
+  function foodQuantity(food: Food) {
+    return foodCartItems(food).reduce((sum, item) => sum + item.quantity, 0)
+  }
+
+  function handleRepeat(food: Food) {
+    const lastItem = foodCartItems(food).at(-1)
+    if (lastItem) {
+      localCart.updateQuantity(lastItem.localId, lastItem.quantity + 1)
+      return
+    }
+    handleAdd(food)
+  }
+
+  function handleDecrease(food: Food) {
+    const lastItem = foodCartItems(food).at(-1)
+    if (!lastItem) return
+    if (lastItem.quantity === 1) localCart.removeItem(lastItem.localId)
+    else localCart.updateQuantity(lastItem.localId, lastItem.quantity - 1)
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
       <div className="relative">
@@ -123,7 +147,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
-                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${food.inventoryAvailable === false ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"}`}
+                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${food.inventoryAvailable === false ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
                     onClick={() => handleAdd(food)}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
@@ -142,15 +166,32 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                         ) : (
                           <span className="text-sm font-medium">{menu?.foodVariants.find((variant) => variant.foodId === food.id && variant.isDefault)?.price ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)?.price ?? "—"}</span>
                         )}
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1">
                           {food.inventoryAvailable === false && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
-                          {food.hasVariants && (
-                            <Badge variant="secondary" className="text-xs">
-                              variants
-                            </Badge>
-                          )}
+                          {foodQuantity(food) > 0 ? (
+                            <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5" onClick={(event) => event.stopPropagation()}>
+                              <button type="button" onClick={() => handleDecrease(food)} className="rounded p-1 hover:bg-muted" aria-label={`Decrease ${food.name}`}>
+                                −
+                              </button>
+                              <span className="min-w-5 text-center text-xs font-semibold tabular-nums">{foodQuantity(food)}</span>
+                              <button type="button" onClick={() => handleRepeat(food)} className="rounded bg-primary px-1.5 py-1 text-primary-foreground hover:bg-primary/90" aria-label={`Add same ${food.name}`}>
+                                +
+                              </button>
+                            </div>
+                          ) : food.hasVariants ? (
+                            <Badge variant="secondary" className="text-xs">variants</Badge>
+                          ) : null}
                         </div>
                       </div>
+                      {food.hasVariants && foodQuantity(food) > 0 && (
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); setVariantFood(food) }}
+                          className="mt-1 text-left text-xs font-medium text-primary hover:underline"
+                        >
+                          + Add other variant
+                        </button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

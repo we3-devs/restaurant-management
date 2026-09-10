@@ -253,6 +253,42 @@ export default function MenuContent() {
     );
   }, []);
 
+  // Menu cards own quantity changes. For foods with variants, decrement the
+  // most recently added option; adding still opens the option picker so the
+  // guest never changes a size/protein combination by accident.
+  const itemsForFood = useCallback(
+    (foodId: number) => cart.filter((item) => item.food.id === foodId),
+    [cart]
+  );
+
+  const quantityForFood = useCallback(
+    (foodId: number) =>
+      itemsForFood(foodId).reduce((sum, item) => sum + item.quantity, 0),
+    [itemsForFood]
+  );
+
+  const decrementFood = useCallback(
+    (food: Food) => {
+      const matchingItems = itemsForFood(food.id);
+      const lastItem = matchingItems[matchingItems.length - 1];
+      if (lastItem) updateQuantity(lastItem.key, lastItem.quantity - 1);
+    },
+    [itemsForFood, updateQuantity]
+  );
+
+  const repeatFood = useCallback(
+    (food: Food) => {
+      const matchingItems = itemsForFood(food.id);
+      const lastItem = matchingItems[matchingItems.length - 1];
+      if (lastItem) {
+        addItem(food, lastItem.variant, lastItem.variantLabel);
+      } else {
+        handleAdd(food);
+      }
+    },
+    [itemsForFood, addItem, handleAdd]
+  );
+
   const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
   const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -514,10 +550,16 @@ export default function MenuContent() {
               // one group is "3 options", not 4.
               const leaves = leavesOf(food.id);
               const showsRange = food.hasVariants && leaves.length > 1;
+              const quantity = quantityForFood(food.id);
+              const isSelected = quantity > 0;
               return (
                 <article
                   key={food.id}
-                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
+                  className={`flex flex-col overflow-hidden rounded-xl border bg-white transition hover:shadow-sm ${
+                    isSelected
+                      ? "border-brand-600 bg-brand-50/40 ring-1 ring-brand-600/20"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
                 >
                   {food.imageUrl && (
                     <img
@@ -552,13 +594,45 @@ export default function MenuContent() {
                         )}
                         {money(priceOf(food))}
                       </p>
-                      <button
-                        onClick={() => handleAdd(food)}
-                        className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95"
-                      >
-                        {showsRange ? "Choose" : "Add"}
-                      </button>
+                      {isSelected ? (
+                        <div className="flex items-center gap-1 rounded-lg border border-brand-200 bg-white p-1 shadow-sm">
+                          <button
+                            onClick={() => decrementFood(food)}
+                            aria-label={`Decrease ${food.name}`}
+                            className="rounded-md p-1.5 text-brand-700 transition hover:bg-brand-50 active:scale-95"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="min-w-7 text-center text-sm font-bold tabular-nums text-brand-700">
+                            {quantity}
+                          </span>
+                          <button
+                            onClick={() => repeatFood(food)}
+                            aria-label={`Increase ${food.name}`}
+                            className="rounded-md bg-brand-600 p-1.5 text-white transition hover:bg-brand-700 active:scale-95"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleAdd(food)}
+                          className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95"
+                        >
+                          {showsRange ? "Choose" : "Add"}
+                        </button>
+                      )}
                     </div>
+                    {food.hasVariants && isSelected && (
+                      <button
+                        type="button"
+                        onClick={() => handleAdd(food)}
+                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white py-2 text-xs font-semibold text-brand-700 transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                      >
+                        <Plus size={14} />
+                        Add another variant
+                      </button>
+                    )}
                   </div>
                 </article>
               );
@@ -845,24 +919,11 @@ export default function MenuContent() {
                       {money(item.unitPrice * item.quantity)}
                     </p>
                   </div>
-                  <div className="mt-3 flex items-center gap-1">
-                    <button
-                      onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                      aria-label={`Decrease ${item.food.name}`}
-                      className="rounded-lg border border-slate-200 p-1.5 text-slate-600 transition hover:bg-slate-50 active:scale-95"
-                    >
-                      <Minus size={15} />
-                    </button>
-                    <span className="w-10 text-center text-sm font-semibold tabular-nums text-slate-900">
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                    <span className="text-xs text-slate-500">Quantity</span>
+                    <span className="rounded-md bg-brand-50 px-2.5 py-1 text-sm font-bold tabular-nums text-brand-700">
                       {item.quantity}
                     </span>
-                    <button
-                      onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                      aria-label={`Increase ${item.food.name}`}
-                      className="rounded-lg border border-slate-200 p-1.5 text-slate-600 transition hover:bg-slate-50 active:scale-95"
-                    >
-                      <Plus size={15} />
-                    </button>
                   </div>
                 </li>
               ))}
