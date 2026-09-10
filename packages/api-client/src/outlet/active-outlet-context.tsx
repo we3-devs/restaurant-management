@@ -213,7 +213,7 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
             </button>
           </div>
         )
-      : !isSuperadmin && outlets.length === 0
+      : !isSuperadmin && !isLoadingOutlets && outlets.length === 0
         ? (
             <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
               <p className="text-sm font-medium">No outlet is assigned to this employee.</p>

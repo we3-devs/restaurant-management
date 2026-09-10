@@ -15,6 +15,16 @@ import { useUnits } from "@/hooks/use-units"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { createIngredientSchema, type CreateIngredientInput } from "@/lib/validators/ingredients"
 
+function slugifyIngredientName(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 export function CreateIngredientDialog() {
   const [open, setOpen] = useState(false)
   const { outletId: activeOutletId } = useActiveOutlet()
@@ -80,7 +90,14 @@ export function CreateIngredientDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  <FormControl placeholder="Chicken Breast" {...field} />
+                  <FormControl
+                    placeholder="Chicken Breast"
+                    {...field}
+                    onChange={(event) => {
+                      field.onChange(event)
+                      form.setValue("slug", slugifyIngredientName(event.target.value))
+                    }}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -91,7 +108,7 @@ export function CreateIngredientDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Slug</FormLabel>
-                  <FormControl placeholder="chicken-breast" {...field} />
+                  <FormControl placeholder="chicken-breast" readOnly {...field} />
                   <FormMessage />
                 </FormItem>
               )}
