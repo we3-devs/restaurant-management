@@ -10,6 +10,8 @@
 .dash-skeleton-stat i { float:left; width:34px; height:34px; margin:18px 12px 0 0; border-radius:10px; }.dash-skeleton-stat span { width:60%; height:12px; margin-top:14px; }.dash-skeleton-stat b { width:35%; height:22px; margin-top:9px; }.dash-skeleton-stat small { width:42%; height:10px; margin-top:8px; }
 .dash-skeleton-chart,.dash-skeleton-orders { height:250px; }.dash-skeleton-items { height:76px; }.dash-skeleton-lower { height:220px; }.dash-skeleton-activity { height:78px; }
 .dash-empty-row { min-height: 92px; display:grid; place-items:center; color:var(--muted-foreground); font-size:12px; }
+.dash-inline-retry { border:0; background:none; color:var(--primary); cursor:pointer; text-decoration:underline; }
+.dash-skeleton-queue { min-height:148px; width:100%; }
 .dash-empty-chart { position:absolute; inset:50% 0 auto; transform:translateY(-50%); text-align:center; color:var(--muted-foreground); font-size:12px; }
 @keyframes dash-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -20% 0; } }
 .light .dashboard-page { color: var(--foreground); }
