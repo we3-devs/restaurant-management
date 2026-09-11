@@ -70,7 +70,7 @@ export interface OrderItemWithRelations extends OrderItem {
   reservations: OrderItemIngredientReservation[];
 }
 
-export type OrderListResponse = Omit<Order, 'tableSession'> & {
+export type OrderListResponse = Omit<Order, 'tableSession' | 'customer'> & {
   tableName: string | null;
   customerName: string | null;
 };
