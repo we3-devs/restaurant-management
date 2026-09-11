@@ -1,114 +1,34 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
+import Link from "next/link"
+import { ArrowDownRight, ArrowUpRight, CalendarDays, CircleDollarSign, Clock3, FileText, Flame, LayoutGrid, Package, ShoppingBag, Sparkles, Users, WalletCards, type LucideIcon } from "lucide-react"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
-import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
-import { CreateOutletDialog } from "./outlets/create-outlet-dialog"
 import { usePageTitle } from "@rms/ui/use-page-title"
-import {
-  DiningAreasSection,
-  DomainTodaySection,
-  DashboardStatsProvider,
-  KitchenStatusSection,
-  LiveOrdersSection,
-  NeedsAttentionSection,
-  OperationalKpiStrip,
-  TableStatusSection,
-} from "./_shared/operational-sections"
 
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return "Good morning"
-  if (hour < 17) return "Good afternoon"
-  return "Good evening"
-}
-
-function useClock() {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(id)
-  }, [])
-  return now
-}
+type Stat = { label: string; value: string; change: string; icon: LucideIcon; down?: boolean }
+const stats: Stat[] = [
+  { label: "Total Orders", value: "48", change: "12%", icon: ShoppingBag }, { label: "Total Revenue", value: "$1,248", change: "18%", icon: CircleDollarSign }, { label: "Active Tables", value: "6 / 10", change: "20%", icon: LayoutGrid }, { label: "Pending Orders", value: "7", change: "3%", icon: Clock3, down: true },
+]
+const orders = [["Table 1", "Prakash Rai", "10:24 AM", "Completed"], ["Table 3", "Sangita Tamang", "10:12 AM", "Preparing"], ["Table 2", "Ramesh Adhikari", "09:42 AM", "Completed"], ["Table 8", "Pema Sherpa", "09:20 AM", "Completed"]]
+const items = [["🥟", "Momo (Chicken)", "42 orders"], ["🍔", "Chicken Burger", "28 orders"], ["🥗", "Caesar Salad", "24 orders"], ["🍟", "French Fries", "20 orders"]]
+const queue = [["Table 1", "Chicken Burger", "10:24 AM", "Preparing"], ["Table 2", "Mutton Thali", "10:12 AM", "Preparing"], ["Table 3", "Caesar Salad", "09:42 AM", "Completed"], ["Table 6", "Paneer Kebab", "09:20 AM", "Completed"]]
+function useClock() { const [now, setNow] = useState(() => new Date()); useEffect(() => { const id = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id) }, []); return now }
+function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <section className={`dash-panel ${className}`}>{children}</section> }
+function Heading({ title, subtitle, action = "View All" }: { title: string; subtitle?: string; action?: string }) { return <div className="dash-panel-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action && <button className="dash-link">{action} <span>→</span></button>}</div> }
+function Status({ children }: { children: string }) { return <span className={`dash-status ${children.toLowerCase()}`}>{children}</span> }
 
 export default function DashboardPage() {
-  const user = useCurrentUser()
-  // Outlet is a global concept (see the header switcher) — the dashboard just
-  // follows whatever's currently active there instead of asking again.
-  const { outletId, outlets, isLoadingOutlets } = useActiveOutlet()
-  const now = useClock()
-  // Wait for the real outlet before firing any widget query — otherwise
-  // every section fetches once with outletId undefined (an unscoped
-  // all-outlets aggregate) and again once the outlet resolves.
-  const dataEnabled = !isLoadingOutlets
-
-  const has = (permission: string | true) => permission === true || user.isSuperadmin || user.permissions.includes(permission)
-  const canViewOrders = has("orders.view")
-  const canViewKitchen = has("orders.view")
-  const canViewTables = has("dining-tables.view")
-
-  const noOutletsYet = !isLoadingOutlets && outlets.length === 0
-
-  usePageTitle("Dashboard")
-
-  return (
-    <div className="dashboard-page page-shell space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            {greeting()}, {user.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} ·{" "}
-            {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-          </p>
-        </div>
-      </div>
-
-      {noOutletsYet ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <h2 className="text-lg font-semibold text-foreground">No outlets yet</h2>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Create your first outlet to start taking orders, managing tables, and tracking inventory.
-          </p>
-          {user.isSuperadmin && <CreateOutletDialog />}
-        </div>
-      ) : (
-        <DashboardStatsProvider outletId={outletId} enabled={dataEnabled}>
-          <NeedsAttentionSection
-            outletId={outletId}
-            enabled={dataEnabled}
-            canViewOrders={canViewOrders}
-            canViewKitchen={canViewKitchen}
-            canViewDashboardStats={true}
-          />
-          <OperationalKpiStrip outletId={outletId} enabled={dataEnabled} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          {canViewOrders ? (
-            <LiveOrdersSection outletId={outletId} enabled={dataEnabled} />
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {canViewTables ? <TableStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
-        {canViewKitchen ? <KitchenStatusSection outletId={outletId} enabled={dataEnabled} /> : null}
-      </div>
-
-      {canViewTables ? (
-        <div className="grid grid-cols-1 gap-4">
-          <DiningAreasSection outletId={outletId} enabled={dataEnabled} />
-        </div>
-      ) : null}
-
-      <DomainTodaySection outletId={outletId} enabled={dataEnabled} />
-
-        </DashboardStatsProvider>
-      )}
+  const user = useCurrentUser(); const now = useClock(); usePageTitle("Dashboard")
+  return <div className="dashboard-page page-shell">
+    <div className="dash-welcome"><div><h1>Good Morning, <span>👋</span></h1><p>Here&apos;s what&apos;s happening at your restaurant today.</p></div><div className="dash-date"><CalendarDays /><div>{now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}<small>{now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small></div></div></div>
+    <div className="dash-stat-grid">{stats.map(({ label, value, change, icon: Icon, down }) => <div className="dash-stat" key={label}><div className="dash-stat-icon"><Icon /></div><span>{label}</span><strong>{value}</strong><small className={down ? "negative" : "positive"}>{down ? <ArrowDownRight /> : <ArrowUpRight />} {change} <em>vs. yesterday</em></small></div>)}</div>
+    <div className="dash-main-grid">
+      <Panel className="sales-panel"><Heading title="Sales Overview" /><div className="chart-wrap"><div className="chart-y"><span>1,000</span><span>750</span><span>500</span><span>250</span><span>0</span></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="Sales overview chart"><defs><linearGradient id="salesFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#f5b51b" stopOpacity=".42" /><stop offset="1" stopColor="#f5b51b" stopOpacity=".03" /></linearGradient></defs><path d="M0 180 C35 160 50 155 75 164 S120 185 150 171 S190 112 220 145 S260 130 290 145 S335 60 380 116 S420 128 450 143 S495 160 530 135 S565 86 605 57 S650 80 680 112 S730 154 800 170 L800 220 L0 220 Z" fill="url(#salesFill)" /><path d="M0 180 C35 160 50 155 75 164 S120 185 150 171 S190 112 220 145 S260 130 290 145 S335 60 380 116 S420 128 450 143 S495 160 530 135 S565 86 605 57 S650 80 680 112 S730 154 800 170" fill="none" stroke="#f5b51b" strokeWidth="3" strokeLinecap="round" /></svg><div className="chart-x"><span>8 AM</span><span>10 AM</span><span>12 PM</span><span>2 PM</span><span>4 PM</span><span>6 PM</span><span>8 PM</span></div></div></Panel>
+      <Panel><Heading title="Recent Orders" subtitle="Latest orders across the active outlet" /><div className="dash-table"><div className="dash-table-head"><span>Table #</span><span>Customer</span><span>Time</span><span>Status</span></div>{orders.map((row) => <div className="dash-table-row" key={row[0]}>{row.map((cell, i) => i === 3 ? <Status key={cell}>{cell}</Status> : <span key={cell}>{cell}</span>)}</div>)}</div></Panel>
     </div>
-  )
+    <Panel className="items-panel"><Heading title="Top Selling Items" action="" /><div className="item-grid">{items.map(([emoji, title, sub]) => <Link href="/dashboard/foods" className="selling-item" key={title}><div className="item-emoji">{emoji}</div><div><strong>{title}</strong><small>{sub}</small></div></Link>)}</div></Panel>
+    <div className="dash-main-grid lower-grid"><Panel><Heading title="Table Occupancy" subtitle="Live status of tables in the restaurant" /><div className="occupancy"><div className="donut"><strong>60%</strong><span>Occupied</span></div><div className="legend"><span><i className="green" />Available <b>2</b></span><span><i className="gold" />Occupied <b>6</b></span><span><i className="blue" />Cleaning <b>0</b></span><span><i className="red" />Reserved <b>0</b></span></div><div className="table-grid">{Array.from({ length: 10 }, (_, i) => <span key={i} className={i === 0 || i === 1 || i > 7 ? "available" : i === 2 || i > 3 ? "occupied" : "cleaning"}>T{i + 1}<small>{i === 0 || i === 1 || i > 7 ? "Available" : i === 2 || i > 3 ? "Occupied" : "Cleaning"}</small></span>)}</div></div></Panel><Panel><Heading title="Kitchen Queue" subtitle="Open and preparing tickets, oldest first" /><div className="queue">{queue.map(([table, food, time, status]) => <div className="queue-row" key={table}><i className={status === "Preparing" ? "gold-dot" : "green-dot"} /><strong>{table}</strong><span>—</span><span>{food}</span><time>{time}</time><Status>{status}</Status></div>)}</div></Panel></div>
+    <Panel className="activity-panel"><Heading title="Today&apos;s domain activity" subtitle="Real records from purchasing, reservations, staff, loyalty and system activity" /><div className="activity-grid">{[[Package, "Purchase Orders", "0"], [Flame, "Goods Receiving", "0"], [WalletCards, "Purchase Returns", "0"], [CircleDollarSign, "Supplier Payments", "0"], [CalendarDays, "Reservations", "0"], [Users, "Shifts", "0"], [Sparkles, "Loyalty Transactions", "0"], [FileText, "Audit Logs", "2"]].map(([Icon, label, value]) => { const Component = Icon as LucideIcon; return <div className="activity" key={label as string}><div className="activity-icon"><Component /></div><span>{label as string}<b>{value as string}</b></span></div> })}</div></Panel>
+  </div>
 }

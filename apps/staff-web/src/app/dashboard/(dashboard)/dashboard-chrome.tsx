@@ -40,7 +40,7 @@ export function DashboardChrome({
   return (
     <>
       <CommandPalette groups={groups} />
-      <div className="flex min-h-screen">
+      <div className="dashboard-shell flex min-h-screen">
         <AppSidebarShell groups={groups}>
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/75 sm:px-6">

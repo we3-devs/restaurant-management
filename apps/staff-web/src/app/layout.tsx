@@ -48,7 +48,7 @@ export default async function RootLayout({
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <RouteProgress />
           <StaticBrandColor primaryColor={branding.primaryColor} />
           <RegisterStaffServiceWorker />
