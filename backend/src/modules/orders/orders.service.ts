@@ -72,6 +72,7 @@ export interface OrderItemWithRelations extends OrderItem {
 
 export type OrderListResponse = Omit<Order, 'tableSession'> & {
   tableName: string | null;
+  customerName: string | null;
 };
 
 function round2(value: number): number {
@@ -190,44 +191,47 @@ export class OrdersService {
 
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
-      relations: { tableSession: { diningTable: true } },
-      select: [
-        'id',
-        'outletId',
-        'tableSessionId',
-        'customerId',
-        'orderNumber',
-        'orderType',
-        'source',
-        'orderSource',
-        'status',
-        'paymentStatus',
-        'approvalStatus',
-        'completedAt',
-        'cancelledAt',
-        'cancelReason',
-        'subtotal',
-        'discountType',
-        'discountValue',
-        'discountAmount',
-        'serviceChargeAmount',
-        'taxAmount',
-        'grandTotal',
-        'paidAmount',
-        'dueAmount',
-        'refundedAmount',
-        'createdAt',
-        'updatedAt',
-      ],
+      relations: { tableSession: { diningTable: true }, customer: true },
+      select: {
+        id: true,
+        outletId: true,
+        tableSessionId: true,
+        customerId: true,
+        orderNumber: true,
+        orderType: true,
+        source: true,
+        orderSource: true,
+        status: true,
+        paymentStatus: true,
+        approvalStatus: true,
+        completedAt: true,
+        cancelledAt: true,
+        cancelReason: true,
+        subtotal: true,
+        discountType: true,
+        discountValue: true,
+        discountAmount: true,
+        serviceChargeAmount: true,
+        taxAmount: true,
+        grandTotal: true,
+        paidAmount: true,
+        dueAmount: true,
+        refundedAmount: true,
+        createdAt: true,
+        updatedAt: true,
+        customer: { id: true, name: true },
+        tableSession: { id: true, diningTable: { id: true, name: true } },
+      },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
     return {
-      data: orders.map(({ tableSession, ...order }) => ({
+      data: orders.map(({ tableSession, customer, ...order }) => ({
         ...order,
         tableName: tableSession?.diningTable?.name ?? null,
+        customerName: customer?.name ?? null,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };

@@ -33,6 +33,7 @@ export interface Order {
   invoiceGeneratedAt: string | null
   orderType: string
   tableName?: string | null
+  customerName?: string | null
   /** Who placed it: walk_in/phone/online/staff/other. */
   source: string
   /** Which surface it came through: pos/qr/waiter/online. */
