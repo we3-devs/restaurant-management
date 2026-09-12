@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { BackendUnauthorizedError, backendFetch } from "@/lib/server/backend-client"
-import { tenantFromRequest } from "@rms/auth/tenant"
+import { tenantHeaders } from "@rms/auth/tenant"
 
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>): Promise<NextResponse> {
   const { path } = await params
@@ -28,13 +28,19 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   }
 
   try {
-    const tenant = tenantFromRequest(request)
+    // Resolve tenant context from the verified host at the proxy boundary.
+    // Do not rely only on headers rewritten by middleware: in some deployed
+    // Next runtimes those request-header overrides are not visible to the
+    // route handler, which makes the tenant backend reject valid requests
+    // with `Tenant context is required`.
+    const requestHeaders = tenantHeaders(request)
+    const tenantSlug = requestHeaders.get("x-tenant-slug")
     const response = await backendFetch(targetPath, {
       method: request.method,
       body,
       headers: {
         ...(isBinary ? { "Content-Type": contentType } : {}),
-        ...(tenant ? { "X-Tenant-Slug": tenant.slug } : {}),
+        ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
       },
     })
 
