@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { OutletAccessService, ALL_OUTLETS, AccessibleOutlets } from '../auth/outlet-access.service';
@@ -137,10 +137,22 @@ export class AnalyticsService {
     const firstDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(firstRow.firstOrder));
     const range = await this.snapshotRange({ ...query, from: query.from ?? firstDate });
     const result = await this.refreshDaily(user, { ...query, includeDomains: false, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
+    const persisted = query.tenantId !== undefined
+      ? await this.snapshots.manager.query(
+        `SELECT COUNT(*)::int AS count, MIN(tenant_id)::bigint AS "tenantId"
+         FROM analytics_daily_snapshots
+         WHERE tenant_id = $1 AND business_date BETWEEN $2 AND $3`,
+        [query.tenantId, result.range.from, result.range.to],
+      ) as Array<{ count: number; tenantId: string | null }>
+      : [];
+    if (query.tenantId !== undefined && Number(persisted[0]?.count ?? 0) < result.refreshed.length) {
+      throw new InternalServerErrorException('Analytics snapshots were processed but tenant rows were not persisted');
+    }
     return {
       ...result,
       tenantId: query.tenantId ?? null,
       outletIds: outlets === ALL_OUTLETS ? [] : outlets,
+      persistedTenantId: query.tenantId !== undefined ? Number(persisted[0]?.tenantId ?? 0) || null : null,
     };
   }
 
