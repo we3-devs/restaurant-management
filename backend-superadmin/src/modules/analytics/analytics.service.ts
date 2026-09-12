@@ -139,14 +139,14 @@ export class AnalyticsService {
     const result = await this.refreshDaily(user, { ...query, includeDomains: false, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
     const persisted = query.tenantId !== undefined
       ? await this.snapshots.manager.query(
-        `SELECT COUNT(*)::int AS count, MIN(tenant_id)::bigint AS "tenantId"
+        `SELECT COUNT(DISTINCT business_date)::int AS count, MIN(tenant_id)::bigint AS "tenantId"
          FROM analytics_daily_snapshots
-         WHERE tenant_id = $1 AND business_date BETWEEN $2 AND $3`,
-        [query.tenantId, result.range.from, result.range.to],
+         WHERE tenant_id = $1 AND business_date = ANY($2::date[])`,
+        [query.tenantId, result.refreshed],
       ) as Array<{ count: number; tenantId: string | null }>
       : [];
     if (query.tenantId !== undefined && Number(persisted[0]?.count ?? 0) < result.refreshed.length) {
-      throw new InternalServerErrorException('Analytics snapshots were processed but tenant rows were not persisted');
+      throw new InternalServerErrorException(`Analytics snapshots were processed but tenant rows were not persisted (expected ${result.refreshed.length}, found ${Number(persisted[0]?.count ?? 0)})`);
     }
     return {
       ...result,
