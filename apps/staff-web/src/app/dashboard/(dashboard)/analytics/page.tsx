@@ -1,6 +1,6 @@
 "use client"
 
-import { Area, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts"
 import { useState } from "react"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,13 +16,10 @@ const money = (v: number) => "NPR " + Math.round(v).toLocaleString()
 const compactNumber = (v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : String(v))
 const axisTick = { fontSize: 11, fill: "hsl(var(--muted-foreground))" }
 const gridStroke = { stroke: "var(--border)", strokeDasharray: "3 3" }
-const barCursor = { fill: "hsl(var(--muted))", opacity: 0.6 }
-const domainLabels: Record<string, string> = { "purchase-orders": "Purchase orders", "goods-receiving": "Goods receiving", "purchase-returns": "Purchase returns", "supplier-payments": "Supplier payments", reservations: "Reservations", attendance: "Attendance", shifts: "Shifts", "loyalty-transactions": "Loyalty transactions", "audit-logs": "Audit events" }
 const revenueChartConfig = { revenue: { label: "Revenue", color: "hsl(var(--chart-1))" }, orders: { label: "Orders", color: "hsl(var(--chart-3))" } }
 const paymentChartConfig = { amount: { label: "Amount", color: "hsl(var(--chart-2))" } }
 const customerChartConfig = { newCount: { label: "New", color: "hsl(var(--chart-2))" }, returningCount: { label: "Returning", color: "hsl(var(--chart-3))" } }
 const inventoryChartConfig = { quantity: { label: "Quantity", color: "hsl(var(--chart-5))" } }
-const domainChartConfig = { records: { label: "Records", color: "hsl(var(--chart-1))" } }
 const mixChartConfig = { type0: { label: "Table", color: "hsl(var(--chart-1))" }, type1: { label: "Grab & go", color: "hsl(var(--chart-2))" }, type2: { label: "Delivery", color: "hsl(var(--chart-3))" }, type3: { label: "Stay", color: "hsl(var(--chart-4))" }, type4: { label: "Other", color: "hsl(var(--chart-5))" } }
 
 export default function AnalyticsPage() {
@@ -111,10 +108,6 @@ function AnalyticsContent({ data }: { data: NonNullable<ReturnType<typeof useAna
         <InventoryMovementCard rows={data.inventory.movement} />
       </div>
       <MixCard title="Sales by source" subtitle="Revenue and order volume by channel" rows={data.sales.orderMix.sources.map((r) => ({ name: r.name, value: money(r.revenue), detail: `${r.orders} orders` }))} />
-      <DomainActivityCard domains={data.domains} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        {Object.entries(data.domains).map(([key, value]) => <DomainTable key={key} title={domainLabels[key] ?? key} report={value} />)}
-      </div>
     </div>
   )
 }
@@ -245,13 +238,13 @@ function PaymentBreakdownCard({ rows }: { rows: { name: string; amount: number }
           <ChartEmpty label="No payments recorded for this range." />
         ) : (
           <ChartContainer id="payment-breakdown" config={paymentChartConfig}>
-            <BarChart data={rows} layout="vertical" margin={{ left: 12, right: 12, top: 4, bottom: 4 }} barSize={18}>
-              <CartesianGrid horizontal={false} {...gridStroke} />
-              <XAxis type="number" axisLine={false} tickLine={false} tick={axisTick} tickMargin={6} tickFormatter={compactNumber} />
-              <YAxis type="category" dataKey="name" width={84} axisLine={false} tickLine={false} tick={{ ...axisTick, fontSize: 12 }} />
-              <Tooltip content={<ChartTooltipContent />} cursor={barCursor} />
-              <Bar dataKey="amount" name="Amount" fill="var(--color-amount)" radius={[0, 6, 6, 0]} />
-            </BarChart>
+            <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} {...gridStroke} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTick} tickMargin={8} />
+              <YAxis axisLine={false} tickLine={false} width={52} tick={axisTick} tickMargin={4} tickFormatter={compactNumber} />
+              <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
+              <Line type="monotone" dataKey="amount" name="Amount" stroke="var(--color-amount)" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            </LineChart>
           </ChartContainer>
         )}
       </CardContent>
@@ -269,14 +262,14 @@ function CustomerTrendCard({ data }: { data: { date: string; newCount: number; r
           <ChartEmpty label="No customer activity for this range." />
         ) : (
           <ChartContainer id="customer-growth" config={customerChartConfig}>
-            <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }} barSize={14}>
+            <LineChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} {...gridStroke} />
               <XAxis dataKey="date" axisLine={false} tickLine={false} interval="equidistantPreserveStart" tick={axisTick} tickMargin={8} />
               <YAxis axisLine={false} tickLine={false} width={36} allowDecimals={false} tick={axisTick} tickMargin={4} />
-              <Tooltip content={<ChartTooltipContent />} cursor={barCursor} />
-              <Bar dataKey="newCount" name="New" stackId="customers" fill="var(--color-newCount)" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="returningCount" name="Returning" stackId="customers" fill="var(--color-returningCount)" radius={[3, 3, 0, 0]} />
-            </BarChart>
+              <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
+              <Line type="monotone" dataKey="newCount" name="New" stroke="var(--color-newCount)" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="returningCount" name="Returning" stroke="var(--color-returningCount)" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </LineChart>
           </ChartContainer>
         )}
       </CardContent>
@@ -294,37 +287,13 @@ function InventoryMovementCard({ rows }: { rows: { type: string; quantity: numbe
           <ChartEmpty label="No stock movement for this range." />
         ) : (
           <ChartContainer id="inventory-movement" config={inventoryChartConfig}>
-            <BarChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }} barSize={22}>
+            <LineChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} {...gridStroke} />
               <XAxis dataKey="type" axisLine={false} tickLine={false} tick={{ ...axisTick, fontSize: 12 }} tickMargin={8} />
               <YAxis axisLine={false} tickLine={false} width={36} allowDecimals={false} tick={axisTick} tickMargin={4} />
-              <Tooltip content={<ChartTooltipContent />} cursor={barCursor} />
-              <Bar dataKey="quantity" name="Quantity" fill="var(--color-quantity)" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ChartContainer>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function DomainActivityCard({ domains }: { domains: NonNullable<ReturnType<typeof useAnalyticsDashboard>["data"]>["domains"] }) {
-  const rows = Object.entries(domains).map(([key, report]) => ({ name: domainLabels[key] ?? key.replaceAll("-", " "), records: report.meta.total })).filter((row) => row.records > 0)
-  return (
-    <Card>
-      <CardHeader><CardTitle>Activity across every domain</CardTitle><CardDescription>Records available in the selected period</CardDescription></CardHeader>
-      <CardContent className="h-72">
-        {rows.length === 0 ? (
-          <ChartEmpty label="No domain activity for this range." />
-        ) : (
-          <ChartContainer id="domain-activity" config={domainChartConfig}>
-            <BarChart data={rows} layout="vertical" margin={{ left: 12, right: 12, top: 4, bottom: 4 }} barSize={16}>
-              <CartesianGrid horizontal={false} {...gridStroke} />
-              <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={axisTick} tickMargin={6} tickFormatter={compactNumber} />
-              <YAxis type="category" dataKey="name" width={140} axisLine={false} tickLine={false} tick={{ ...axisTick, fontSize: 12 }} />
-              <Tooltip content={<ChartTooltipContent />} cursor={barCursor} />
-              <Bar dataKey="records" name="Records" fill="var(--color-records)" radius={[0, 6, 6, 0]} />
-            </BarChart>
+              <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
+              <Line type="monotone" dataKey="quantity" name="Quantity" stroke="var(--color-quantity)" strokeWidth={2.5} dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            </LineChart>
           </ChartContainer>
         )}
       </CardContent>
