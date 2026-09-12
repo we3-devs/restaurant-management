@@ -33,8 +33,8 @@ export class EmployeesService {
   ) {}
 
   // ---- Positions ----
-  async findAllPositions(): Promise<PositionResponseDto[]> {
-    const positions = await this.positionRepo.find({ where: { isActive: true }, order: { name: 'ASC' }, relations: ['defaultRole'] });
+  async findAllPositions(tenantId?: number): Promise<PositionResponseDto[]> {
+    const positions = await this.positionRepo.find({ where: { isActive: true, ...(tenantId !== undefined ? { tenantId } : {}) }, order: { name: 'ASC' }, relations: ['defaultRole'] });
     return positions.map((p) => this.toPositionResponse(p));
   }
   async findPosition(id: number): Promise<Position> {
@@ -43,8 +43,8 @@ export class EmployeesService {
   async findPositionResponse(id: number): Promise<PositionResponseDto> {
     return this.toPositionResponse(await this.findPosition(id));
   }
-  async createPosition(dto: CreatePositionDto): Promise<PositionResponseDto> {
-    const saved = await this.positionRepo.save(this.positionRepo.create(dto));
+  async createPosition(dto: CreatePositionDto, tenantId?: number): Promise<PositionResponseDto> {
+    const saved = await this.positionRepo.save(this.positionRepo.create({ ...dto, tenantId: tenantId ?? null }));
     return this.toPositionResponse(saved);
   }
   async updatePosition(id: number, dto: UpdatePositionDto): Promise<PositionResponseDto> {
@@ -92,6 +92,7 @@ export class EmployeesService {
   async findAll(
     query: ListEmployeesQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
+    tenantId?: number,
   ): Promise<PaginatedResponse<EmployeeResponseDto>> {
     const { page, limit, search, outletId, positionId, employmentStatus } = query;
     const qb = this.employeeRepo.createQueryBuilder('employee')
@@ -99,6 +100,7 @@ export class EmployeesService {
       .leftJoinAndSelect('employee.user', 'user');
     if (outletId !== undefined) qb.innerJoin('employee_outlet_assignments', 'employee_filter_outlet', 'employee_filter_outlet.employee_id = employee.id AND employee_filter_outlet.outlet_id = :outletId AND employee_filter_outlet.is_active = true', { outletId });
     else if (accessibleOutletIds !== 'ALL') qb.innerJoin('employee_outlet_assignments', 'employee_filter_outlet', 'employee_filter_outlet.employee_id = employee.id AND employee_filter_outlet.outlet_id IN (:...accessibleOutletIds) AND employee_filter_outlet.is_active = true', { accessibleOutletIds: accessibleOutletIds.length ? accessibleOutletIds : [0] });
+    if (tenantId !== undefined) qb.andWhere('EXISTS (SELECT 1 FROM employee_outlet_assignments employee_tenant_assignment INNER JOIN outlets employee_tenant_outlet ON employee_tenant_outlet.id = employee_tenant_assignment.outlet_id WHERE employee_tenant_assignment.employee_id = employee.id AND employee_tenant_assignment.is_active = true AND employee_tenant_outlet.tenant_id = :employeeTenantId)', { employeeTenantId: tenantId });
     if (positionId) qb.andWhere('employee.position_id = :positionId', { positionId });
     if (employmentStatus) qb.andWhere('employee.employment_status = :employmentStatus', { employmentStatus });
     if (search) qb.andWhere('(employee.name ILIKE :search OR employee.employee_code ILIKE :search OR employee.email ILIKE :search)', { search: `%${search}%` });

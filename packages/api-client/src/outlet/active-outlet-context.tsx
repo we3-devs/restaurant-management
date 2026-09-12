@@ -77,8 +77,12 @@ export function ActiveOutletProvider({ children }: { children: React.ReactNode }
       localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, tenants[0].slug)
       setIsAllOutlets(true)
       setOutletIdState(null)
+      // Reference-data queries such as roles and positions can start before
+      // the first tenant is auto-selected. Refetch them with the tenant
+      // header instead of leaving the initial unscoped response in cache.
+      void queryClient.invalidateQueries()
     }
-  }, [activeTenantSlug, isSuperadmin, tenants, tenantsQuery.isLoading])
+  }, [activeTenantSlug, isSuperadmin, tenants, tenantsQuery.isLoading, queryClient])
 
   function setActiveTenantSlug(slug: string) {
     if (!tenants.some((tenant) => tenant.slug === slug)) return

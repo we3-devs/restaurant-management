@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -18,6 +19,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { ListRolesQueryDto } from './dto/list-roles-query.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
+import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
 
 @ApiTags('roles')
 @ApiBearerAuth()
@@ -28,8 +30,8 @@ export class RolesController {
   @Get()
   @RequirePermissions('roles.view')
   @ApiOperation({ summary: 'Lists roles (paginated, optional search)' })
-  findAll(@Query() query: ListRolesQueryDto) {
-    return this.rolesService.findAll(query);
+  findAll(@Query() query: ListRolesQueryDto, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
+    return this.rolesService.findAll(query, request.tenantId);
   }
 
   @Get(':id')

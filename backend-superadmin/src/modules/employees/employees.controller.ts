@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
@@ -10,6 +10,7 @@ import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { EmployeesService } from './employees.service';
 import { AssignDepartmentDto } from './dto/assign-department.dto';
 import { AssignOutletDto } from './dto/assign-outlet.dto';
+import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
 
 @ApiTags('employees')
 @ApiBearerAuth()
@@ -23,11 +24,11 @@ export class EmployeesController {
   // ---- Positions ----
   @Get('positions') @RequirePermissions('employees.view')
   @ApiOperation({ summary: 'Lists all positions' })
-  findAllPositions() { return this.employeesService.findAllPositions(); }
+  findAllPositions(@Req() request: AuthenticatedRequest & { tenantId?: number }) { return this.employeesService.findAllPositions(request.tenantId); }
 
   @Post('positions') @RequirePermissions('employees.manage')
   @ApiOperation({ summary: 'Creates a position' })
-  createPosition(@Body() dto: CreatePositionDto) { return this.employeesService.createPosition(dto); }
+  createPosition(@Body() dto: CreatePositionDto, @Req() request: AuthenticatedRequest & { tenantId?: number }) { return this.employeesService.createPosition(dto, request.tenantId); }
 
   @Patch('positions/:id') @RequirePermissions('employees.manage')
   @ApiOperation({ summary: 'Updates a position' })
@@ -40,12 +41,12 @@ export class EmployeesController {
   // ---- Employees ----
   @Get('employees') @RequirePermissions('employees.view')
   @ApiOperation({ summary: 'Lists employees (paginated, filterable)' })
-  async findAll(@Query() query: ListEmployeesQueryDto, @CurrentUser() user: User) {
+  async findAll(@Query() query: ListEmployeesQueryDto, @CurrentUser() user: User, @Req() request: AuthenticatedRequest & { tenantId?: number }) {
     const accessible = await this.outletAccess.getAccessibleOutletIds(user.id, user.isSuperadmin);
     if (accessible !== 'ALL' && query.outletId !== undefined) {
       await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, query.outletId);
     }
-    return this.employeesService.findAll(query, accessible);
+    return this.employeesService.findAll(query, accessible, request.tenantId);
   }
 
   @Get('employees/:id') @RequirePermissions('employees.view')

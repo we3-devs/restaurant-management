@@ -28,12 +28,14 @@ export class RolesService {
 
   async findAll(
     query: ListRolesQueryDto,
+    tenantId?: number,
   ): Promise<PaginatedResponse<RoleResponseDto>> {
     const { page, limit, search } = query;
+    const tenantWhere = tenantId === undefined ? IsNull() : tenantId;
     const [roles, total] = await this.rolesRepository.findAndCount({
       where: search
-        ? [{ name: ILike(`%${search}%`) }, { slug: ILike(`%${search}%`) }]
-        : {},
+        ? [{ name: ILike(`%${search}%`), tenantId: tenantWhere }, { slug: ILike(`%${search}%`), tenantId: tenantWhere }]
+        : { tenantId: tenantWhere },
       order: { rank: 'ASC', name: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
