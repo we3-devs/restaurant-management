@@ -92,14 +92,25 @@ export class AnalyticsService {
       // tenant_id column, even when an older compiled entity is still present
       // in a deployment.
       if (snapshot.tenantId !== null) {
+        // Remove only orphaned rows for this date. They have no outlet or
+        // tenant ownership and cannot be safely reused by analytics reads.
         await this.snapshots.manager.query(
+          `DELETE FROM analytics_daily_snapshots
+           WHERE tenant_id IS NULL AND outlet_id IS NULL AND business_date = $1`,
+          [businessDate],
+        );
+        const persisted = await this.snapshots.manager.query(
           `INSERT INTO analytics_daily_snapshots
              (outlet_id, tenant_id, business_date, version, payload, generated_at)
-           VALUES (NULL, $1, $2, 1, $3::jsonb, NOW())
+           VALUES (NULL, CAST($1 AS BIGINT), $2, 1, $3::jsonb, NOW())
            ON CONFLICT (tenant_id, business_date)
-           DO UPDATE SET outlet_id = NULL, version = 1, payload = EXCLUDED.payload, generated_at = NOW()`,
+           DO UPDATE SET tenant_id = EXCLUDED.tenant_id, outlet_id = NULL, version = 1, payload = EXCLUDED.payload, generated_at = NOW()
+           RETURNING tenant_id`,
           [snapshot.tenantId, businessDate, JSON.stringify(payload)],
-        );
+        ) as Array<{ tenant_id: string | number | null }>;
+        if (Number(persisted[0]?.tenant_id ?? 0) !== snapshot.tenantId) {
+          throw new InternalServerErrorException(`Failed to persist tenant analytics snapshot for ${businessDate}`);
+        }
       } else {
         await this.snapshots.manager.query(
           `INSERT INTO analytics_daily_snapshots
