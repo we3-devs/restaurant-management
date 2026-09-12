@@ -18,11 +18,11 @@ export class AnalyticsController {
     query: AnalyticsQueryDto,
     request: AuthenticatedRequest & { tenantId?: number },
   ): AnalyticsQueryDto {
-    // TenantGuard resolves X-Tenant-Slug to request.tenantId. Only a
-    // superadmin may use that selected tenant context; normal users retain
-    // their existing outlet/role scope.
+    // The superadmin host is tenant-neutral. The tenant detail page sends the
+    // selected tenantId explicitly. X-Tenant-Slug remains supported for
+    // workspace requests, but is not required here.
     return request.user.isSuperadmin
-      ? { ...query, tenantId: request.tenantId }
+      ? { ...query, tenantId: request.tenantId ?? query.tenantId }
       : { ...query, tenantId: undefined };
   }
 

@@ -68,6 +68,12 @@ export class AnalyticsService {
   }
 
   async refreshDaily(user: User, query: AnalyticsQueryDto) {
+    // A superadmin tenant snapshot is deliberately tenant-scoped. Never fall
+    // back to outlet 0 (or a null scope) when the tenant workspace header is
+    // missing.
+    if (query.tenantId === undefined && query.outletId === undefined) {
+      throw new ForbiddenException('Select a tenant before building analytics history');
+    }
     const range = await this.snapshotRange(query);
     const from = new Date(`${range.from}T00:00:00Z`);
     const to = new Date(`${range.to}T00:00:00Z`);
@@ -88,9 +94,12 @@ export class AnalyticsService {
   }
 
   async backfill(user: User, query: AnalyticsQueryDto) {
+    if (query.tenantId === undefined && query.outletId === undefined) {
+      throw new ForbiddenException('Select a tenant before building analytics history');
+    }
     const outlets = await this.resolveOutlets(user, query);
     if (outlets !== ALL_OUTLETS && outlets.length === 0) {
-      return { range: null, refreshed: [], message: 'This tenant has no outlets with historical orders.' };
+      return { tenantId: query.tenantId ?? null, outletIds: [], range: null, refreshed: [], message: 'This tenant has no outlets with historical orders.' };
     }
     const earliest = this.orders.createQueryBuilder('order').select('MIN(order.created_at)', 'firstOrder');
     if (query.outletId !== undefined) {
@@ -100,12 +109,17 @@ export class AnalyticsService {
       earliest.andWhere('order.outlet_id IN (:...outletIds)', { outletIds: outlets });
     }
     const firstRow = await earliest.getRawOne<{ firstOrder: Date | string | null }>();
-    if (!firstRow?.firstOrder) return { range: null, refreshed: [], message: 'No historical orders found.' };
+    if (!firstRow?.firstOrder) return { tenantId: query.tenantId ?? null, outletIds: outlets === ALL_OUTLETS ? [] : outlets, range: null, refreshed: [], message: 'No historical orders found.' };
     const business = await this.settings.getBusinessSettings();
     const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : 'Asia/Kathmandu';
     const firstDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(firstRow.firstOrder));
     const range = await this.snapshotRange({ ...query, from: query.from ?? firstDate });
-    return this.refreshDaily(user, { ...query, includeDomains: false, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
+    const result = await this.refreshDaily(user, { ...query, includeDomains: false, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
+    return {
+      ...result,
+      tenantId: query.tenantId ?? null,
+      outletIds: outlets === ALL_OUTLETS ? [] : outlets,
+    };
   }
 
   private async snapshotRange(query: AnalyticsQueryDto) {
