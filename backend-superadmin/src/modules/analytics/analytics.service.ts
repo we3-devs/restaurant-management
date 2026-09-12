@@ -58,9 +58,10 @@ export class AnalyticsService {
     if (query.outletId !== undefined) {
       if (outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
       qb.andWhere('snapshot.outlet_id = :outletId', { outletId: query.outletId });
+    } else if (query.tenantId !== undefined) {
+      qb.andWhere('snapshot.tenant_id = :tenantId', { tenantId: query.tenantId });
     } else if (outlets !== ALL_OUTLETS) {
-      // 0 is the persisted all-accessible-outlets aggregate.
-      qb.andWhere('snapshot.outlet_id IN (:...outletIds)', { outletIds: [...outlets, 0] });
+      qb.andWhere('snapshot.outlet_id IN (:...outletIds)', { outletIds: outlets });
     }
     const rows = await qb.getMany();
     return { range, rows: rows.map((row) => ({ businessDate: row.businessDate, outletId: row.outletId, version: row.version, generatedAt: row.generatedAt, payload: row.payload })) };
@@ -74,7 +75,13 @@ export class AnalyticsService {
     for (const cursor = new Date(from); cursor <= to; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
       const businessDate = cursor.toISOString().slice(0, 10);
       const payload = await this.dashboard(user, { ...query, from: businessDate, to: businessDate });
-      await this.snapshots.upsert({ outletId: query.outletId ?? 0, businessDate, version: 1, payload }, ['outletId', 'businessDate']);
+      const snapshot = query.tenantId !== undefined && query.outletId === undefined
+        ? { tenantId: query.tenantId, outletId: null }
+        : { tenantId: null, outletId: query.outletId };
+      if (snapshot.outletId === null && snapshot.tenantId === null) {
+        throw new ForbiddenException('A tenant or outlet scope is required to save analytics history');
+      }
+      await this.snapshots.upsert({ ...snapshot, businessDate, version: 1, payload }, snapshot.tenantId !== null ? ['tenantId', 'businessDate'] : ['outletId', 'businessDate']);
       refreshed.push(businessDate);
     }
     return { range, refreshed };
