@@ -70,7 +70,7 @@ export default function SummaryPage() {
 
   usePageTitle("Period Summary")
   return (
-    <div className="page-shell space-y-6">
+    <div className="page-shell period-summary-page space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Period Summary</h1></div>
         <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={setRange} /></div>
