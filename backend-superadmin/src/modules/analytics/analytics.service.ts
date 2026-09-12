@@ -87,7 +87,29 @@ export class AnalyticsService {
       if (snapshot.outletId === null && snapshot.tenantId === null) {
         throw new ForbiddenException('A tenant or outlet scope is required to save analytics history');
       }
-      await this.snapshots.upsert({ ...snapshot, businessDate, version: 1, payload }, snapshot.tenantId !== null ? ['tenantId', 'businessDate'] : ['outletId', 'businessDate']);
+      // Use an explicit SQL upsert here. This is intentionally not delegated
+      // to TypeORM metadata: tenant-level snapshots must always write the
+      // tenant_id column, even when an older compiled entity is still present
+      // in a deployment.
+      if (snapshot.tenantId !== null) {
+        await this.snapshots.manager.query(
+          `INSERT INTO analytics_daily_snapshots
+             (outlet_id, tenant_id, business_date, version, payload, generated_at)
+           VALUES (NULL, $1, $2, 1, $3::jsonb, NOW())
+           ON CONFLICT (tenant_id, business_date)
+           DO UPDATE SET outlet_id = NULL, version = 1, payload = EXCLUDED.payload, generated_at = NOW()`,
+          [snapshot.tenantId, businessDate, JSON.stringify(payload)],
+        );
+      } else {
+        await this.snapshots.manager.query(
+          `INSERT INTO analytics_daily_snapshots
+             (outlet_id, tenant_id, business_date, version, payload, generated_at)
+           VALUES ($1, NULL, $2, 1, $3::jsonb, NOW())
+           ON CONFLICT (outlet_id, business_date)
+           DO UPDATE SET tenant_id = NULL, version = 1, payload = EXCLUDED.payload, generated_at = NOW()`,
+          [snapshot.outletId, businessDate, JSON.stringify(payload)],
+        );
+      }
       refreshed.push(businessDate);
     }
     return { range, refreshed };
