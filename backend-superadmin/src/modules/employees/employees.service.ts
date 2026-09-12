@@ -104,7 +104,7 @@ export class EmployeesService {
     if (positionId) qb.andWhere('employee.position_id = :positionId', { positionId });
     if (employmentStatus) qb.andWhere('employee.employment_status = :employmentStatus', { employmentStatus });
     if (search) qb.andWhere('(employee.name ILIKE :search OR employee.employee_code ILIKE :search OR employee.email ILIKE :search)', { search: `%${search}%` });
-    qb.orderBy('employee.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    qb.orderBy('employee.createdAt', 'DESC').skip((page - 1) * limit).take(limit);
     const [data, total] = await qb.getManyAndCount();
     return {
       data: await Promise.all(data.map((e) => this.toResponse(e))),
