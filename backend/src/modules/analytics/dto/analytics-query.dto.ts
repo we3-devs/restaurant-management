@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class AnalyticsQueryDto {
@@ -36,4 +36,9 @@ export class AnalyticsQueryDto {
   @IsOptional()
   @IsString()
   orderType?: string;
+
+  @ApiPropertyOptional({ description: 'Include large cross-domain report payloads in dashboard response.' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  includeDomains?: boolean;
 }

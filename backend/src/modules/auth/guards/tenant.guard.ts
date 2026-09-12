@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { TENANT_EXEMPT_KEY } from '../decorators/tenant-exempt.decorator';
 import { AuthenticatedRequest } from '../types/authenticated-request';
 
 /**
@@ -20,6 +21,9 @@ export class TenantGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest & { tenantId?: number }>();
     const slug = String(request.headers['x-tenant-slug'] ?? '').trim().toLowerCase();
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
+    const isTenantExempt = this.reflector.getAllAndOverride<boolean>(TENANT_EXEMPT_KEY, [context.getHandler(), context.getClass()]);
+
+    if (isTenantExempt) return true;
 
     // Public guest routes still need a resolved tenant. Previously the early
     // @Public() return meant branding, table lookup, and menu requests were

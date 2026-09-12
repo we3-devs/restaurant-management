@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
 import { Public } from '../auth/decorators/public.decorator';
+import { TenantExempt } from '../auth/decorators/tenant-exempt.decorator';
 
 interface CheckResult {
   status: 'ok' | 'error';
@@ -15,6 +16,7 @@ export class HealthController {
   constructor(private readonly dataSource: DataSource) {}
 
   @Public()
+  @TenantExempt()
   @Get()
   @ApiOperation({ summary: 'Checks database connectivity and reports process uptime' })
   async check() {

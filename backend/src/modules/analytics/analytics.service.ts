@@ -31,17 +31,21 @@ export class AnalyticsService {
       this.inventory(user, query),
       this.customers(user, query),
     ]);
-    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
-    const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
-    const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
-    const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
+    let domains: Record<string, unknown> = {};
+    if (query.includeDomains !== false) {
+      const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+      const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
+      const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
+      const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
+      domains = Object.fromEntries(reports);
+    }
     return {
       range: overview.range,
       sales: overview,
       products,
       customers,
       inventory,
-      domains: Object.fromEntries(reports.map(([type, result]) => [type, result])),
+      domains,
     };
   }
 

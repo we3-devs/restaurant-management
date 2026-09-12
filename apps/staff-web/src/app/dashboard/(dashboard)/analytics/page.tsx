@@ -1,6 +1,6 @@
 "use client"
 
-import { Area, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts"
 import { useState } from "react"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,7 +27,7 @@ export default function AnalyticsPage() {
   const [range, setRange] = useState<DateRange>(initialRange)
   const [orderSource, setOrderSource] = useState("all")
   const [orderType, setOrderType] = useState("all")
-  const query = useAnalyticsDashboard({ outletId, departmentId, dateFrom: range.dateFrom, dateTo: range.dateTo, orderSource: orderSource === "all" ? undefined : orderSource, orderType: orderType === "all" ? undefined : orderType }, { enabled: !isLoadingOutlets })
+  const query = useAnalyticsDashboard({ outletId, departmentId, dateFrom: range.dateFrom, dateTo: range.dateTo, orderSource: orderSource === "all" ? undefined : orderSource, orderType: orderType === "all" ? undefined : orderType, includeDomains: false }, { enabled: !isLoadingOutlets })
   const data = query.data
   usePageTitle("Analytics")
 
@@ -63,7 +63,12 @@ export default function AnalyticsPage() {
         </div>
       </div>
       {query.isLoading ? (
+        <>
+        <AnalyticsSkeleton />
+        <div className="hidden">
         <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Loading all domain analytics…</CardContent></Card>
+        </div>
+        </>
       ) : query.isError ? (
         <Card><CardContent className="py-16 text-center text-sm text-destructive">Could not load analytics. <button className="ml-2 underline" onClick={() => void query.refetch()}>Retry</button></CardContent></Card>
       ) : data ? (
@@ -71,6 +76,27 @@ export default function AnalyticsPage() {
       ) : null}
     </div>
   )
+}
+
+function AnalyticsSkeleton() {
+  const shimmer = "animate-pulse rounded-lg bg-muted/70"
+  return <div className="space-y-5" aria-label="Loading analytics" role="status">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card key={index}><CardContent className="space-y-3 p-5"><div className={`${shimmer} h-4 w-24`} /><div className={`${shimmer} h-8 w-32`} /><div className={`${shimmer} h-3 w-28`} /></CardContent></Card>)}</div>
+    <Card><CardContent className="flex flex-wrap gap-3 p-4"><div className={`${shimmer} h-4 w-28`} /><div className={`${shimmer} h-4 w-64`} /><div className={`${shimmer} h-4 w-40`} /><div className={`${shimmer} h-4 w-48`} /></CardContent></Card>
+    <div className="grid gap-4 xl:grid-cols-[1.6fr_0.9fr]"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
+    <div className="grid gap-4 xl:grid-cols-2"><ListSkeleton /><ChartSkeleton className="h-80" /></div>
+    <div className="grid gap-4 lg:grid-cols-2"><ListSkeleton /><ListSkeleton /></div>
+    <div className="grid gap-4 lg:grid-cols-2"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
+    <ListSkeleton />
+  </div>
+}
+
+function ChartSkeleton({ className = "" }: { className?: string }) {
+  return <Card className={className}><CardHeader className="space-y-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-40" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></CardHeader><CardContent className="h-[calc(100%-88px)]"><div className="relative h-full overflow-hidden rounded-lg border border-dashed border-border/60 bg-muted/20"><div className="absolute inset-x-5 bottom-8 top-8 flex items-end justify-between gap-2 opacity-70">{[42, 60, 32, 72, 48, 80, 55, 66, 38, 58].map((height, index) => <div key={index} className="w-full rounded-t bg-muted/80" style={{ height: `${height}%` }} />)}</div><div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border/60" /></div></CardContent></Card>
+}
+
+function ListSkeleton() {
+  return <Card><CardHeader className="space-y-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-44" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></CardHeader><CardContent className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="flex items-center justify-between border-b pb-3 last:border-0"><div className="animate-pulse rounded-lg bg-muted/70 h-4" style={{ width: `${45 + index * 7}%` }} /><div className="animate-pulse rounded-lg bg-muted/70 h-4 w-20" /></div>)}</CardContent></Card>
 }
 
 function AnalyticsContent({ data }: { data: NonNullable<ReturnType<typeof useAnalyticsDashboard>["data"]> }) {
@@ -143,6 +169,7 @@ function ChartEmpty({ label }: { label: string }) {
 }
 
 function RevenueTrendCard({ data }: { data: { date: string; orders: number; revenue: number }[] }) {
+  const allZero = data.length > 0 && data.every((row) => row.revenue === 0 && row.orders === 0)
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
@@ -168,6 +195,7 @@ function RevenueTrendCard({ data }: { data: { date: string; orders: number; reve
                 </linearGradient>
               </defs>
               <CartesianGrid vertical={false} {...gridStroke} />
+              {allZero && <><ReferenceLine y={0} yAxisId="revenue" stroke="var(--color-revenue)" strokeWidth={2} /><ReferenceLine y={0} yAxisId="orders" stroke="var(--color-orders)" strokeWidth={2} /></>}
               <XAxis dataKey="date" axisLine={false} tickLine={false} interval="equidistantPreserveStart" tick={axisTick} tickMargin={8} />
               <YAxis yAxisId="revenue" axisLine={false} tickLine={false} width={52} tick={axisTick} tickMargin={4} tickFormatter={compactNumber} />
               <YAxis yAxisId="orders" orientation="right" axisLine={false} tickLine={false} width={32} allowDecimals={false} tick={axisTick} tickMargin={2} />
@@ -234,12 +262,13 @@ function PaymentBreakdownCard({ rows }: { rows: { name: string; amount: number }
     <Card>
       <CardHeader><CardTitle>Payment breakdown</CardTitle><CardDescription>Collected amount by method</CardDescription></CardHeader>
       <CardContent className="h-64">
-        {!hasData ? (
+        {!hasData && rows.length === 0 ? (
           <ChartEmpty label="No payments recorded for this range." />
         ) : (
           <ChartContainer id="payment-breakdown" config={paymentChartConfig}>
             <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} {...gridStroke} />
+              {!hasData && <ReferenceLine y={0} stroke="var(--color-amount)" strokeWidth={2} />}
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTick} tickMargin={8} />
               <YAxis axisLine={false} tickLine={false} width={52} tick={axisTick} tickMargin={4} tickFormatter={compactNumber} />
               <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
@@ -258,12 +287,13 @@ function CustomerTrendCard({ data }: { data: { date: string; newCount: number; r
     <Card>
       <CardHeader><CardTitle>Customer growth</CardTitle><CardDescription>New and returning customers by day</CardDescription></CardHeader>
       <CardContent className="h-64">
-        {!hasData ? (
+        {!hasData && data.length === 0 ? (
           <ChartEmpty label="No customer activity for this range." />
         ) : (
           <ChartContainer id="customer-growth" config={customerChartConfig}>
             <LineChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} {...gridStroke} />
+              {!hasData && <ReferenceLine y={0} stroke="var(--color-newCount)" strokeWidth={2} />}
               <XAxis dataKey="date" axisLine={false} tickLine={false} interval="equidistantPreserveStart" tick={axisTick} tickMargin={8} />
               <YAxis axisLine={false} tickLine={false} width={36} allowDecimals={false} tick={axisTick} tickMargin={4} />
               <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
@@ -283,12 +313,13 @@ function InventoryMovementCard({ rows }: { rows: { type: string; quantity: numbe
     <Card>
       <CardHeader><CardTitle>Inventory movement</CardTitle><CardDescription>Stock activity in the selected period</CardDescription></CardHeader>
       <CardContent className="h-64">
-        {!hasData ? (
+        {!hasData && rows.length === 0 ? (
           <ChartEmpty label="No stock movement for this range." />
         ) : (
           <ChartContainer id="inventory-movement" config={inventoryChartConfig}>
             <LineChart data={rows} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} {...gridStroke} />
+              {!hasData && <ReferenceLine y={0} stroke="var(--color-quantity)" strokeWidth={2} />}
               <XAxis dataKey="type" axisLine={false} tickLine={false} tick={{ ...axisTick, fontSize: 12 }} tickMargin={8} />
               <YAxis axisLine={false} tickLine={false} width={36} allowDecimals={false} tick={axisTick} tickMargin={4} />
               <Tooltip content={<ChartTooltipContent />} cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }} />
