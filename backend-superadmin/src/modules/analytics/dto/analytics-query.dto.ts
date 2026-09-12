@@ -3,6 +3,13 @@ import { Type } from 'class-transformer';
 import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class AnalyticsQueryDto {
+  /** Internal scope supplied by TenantGuard for superadmin tenant workspaces. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  tenantId?: number;
+
   @ApiPropertyOptional({ description: 'Optional requested outlet; access is always checked server-side.' })
   @IsOptional()
   @Type(() => Number)

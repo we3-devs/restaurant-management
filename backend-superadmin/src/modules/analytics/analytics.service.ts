@@ -31,7 +31,7 @@ export class AnalyticsService {
       this.inventory(user, query),
       this.customers(user, query),
     ]);
-    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const outlets = await this.resolveOutlets(user, query);
     const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
     const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
     const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
@@ -47,7 +47,7 @@ export class AnalyticsService {
 
   async daily(user: User, query: AnalyticsQueryDto) {
     const range = await this.snapshotRange(query);
-    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const outlets = await this.resolveOutlets(user, query);
     const qb = this.snapshots.createQueryBuilder('snapshot')
       .where('snapshot.business_date BETWEEN :from AND :to', { from: range.from, to: range.to })
       .orderBy('snapshot.business_date', 'ASC');
@@ -77,7 +77,7 @@ export class AnalyticsService {
   }
 
   async backfill(user: User, query: AnalyticsQueryDto) {
-    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const outlets = await this.resolveOutlets(user, query);
     const earliest = this.orders.createQueryBuilder('order').select('MIN(order.created_at)', 'firstOrder');
     if (query.outletId !== undefined) {
       if (outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
@@ -107,13 +107,31 @@ export class AnalyticsService {
   }
 
   private async scope(user: User, query: AnalyticsQueryDto): Promise<Scope> {
-    const outlets = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    const outlets = await this.resolveOutlets(user, query);
     if (query.outletId !== undefined && outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
     if (outlets.length === 0) throw new ForbiddenException('You do not have access to any outlet');
     const business = await this.settings.getBusinessSettings();
     const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
     const { from, to } = businessDateRange(query.from, query.to, timezone);
     return { from, to, outlets: query.outletId === undefined ? outlets : query.outletId, query };
+  }
+
+  /**
+   * Superadmins normally have ALL outlet access. When the control-plane UI is
+   * opened for one tenant, TenantGuard supplies query.tenantId and analytics
+   * must narrow ALL to that tenant's outlets before reading any data.
+   */
+  private async resolveOutlets(user: User, query: AnalyticsQueryDto): Promise<AccessibleOutlets> {
+    const accessible = await this.access.getAccessibleOutletIds(user.id, user.isSuperadmin);
+    if (query.tenantId === undefined) return accessible;
+
+    const rows = await this.orders.manager.query(
+      'SELECT id FROM outlets WHERE tenant_id = $1 ORDER BY id',
+      [query.tenantId],
+    ) as Array<{ id: string | number }>;
+    const tenantOutletIds = rows.map((row) => Number(row.id));
+    if (accessible === ALL_OUTLETS) return tenantOutletIds;
+    return tenantOutletIds.filter((id) => accessible.includes(id));
   }
 
   private apply(qb: SelectQueryBuilder<any>, alias: string, scope: Scope, outletColumn = 'outlet_id') {
