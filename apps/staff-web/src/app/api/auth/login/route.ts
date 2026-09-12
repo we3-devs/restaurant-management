@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { setAuthCookies } from "@/lib/auth/session"
 import { loginSchema } from "@/lib/validators/auth"
+import { tenantHeaders } from "@rms/auth/tenant"
 
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL
@@ -17,7 +18,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const tenantSlug = request.headers.get("x-tenant-slug")
+    // Bind login to the verified staff hostname. Middleware normally adds
+    // this header, but route handlers must not depend on that rewrite being
+    // visible in every deployed Next runtime.
+    const tenantSlug = tenantHeaders(request).get("x-tenant-slug")
 
     const backendResponse = await fetch(`${BACKEND_URL}/api/auth/login`, {
       method: "POST",
