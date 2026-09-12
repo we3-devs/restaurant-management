@@ -31,17 +31,21 @@ export class AnalyticsService {
       this.inventory(user, query),
       this.customers(user, query),
     ]);
-    const outlets = await this.resolveOutlets(user, query);
-    const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
-    const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
-    const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
+    let domains: Record<string, unknown> = {};
+    if (query.includeDomains !== false) {
+      const outlets = await this.resolveOutlets(user, query);
+      const reportQuery = { dateFrom: query.from, dateTo: query.to, outletId: query.outletId, page: 1, limit: 5000 };
+      const reportTypes: ReportType[] = ['purchase-orders', 'goods-receiving', 'purchase-returns', 'supplier-payments', 'reservations', 'attendance', 'shifts', 'loyalty-transactions', 'audit-logs'];
+      const reports = await Promise.all(reportTypes.map(async (type) => [type, await this.reports.getReport(type, reportQuery, outlets)] as const));
+      domains = Object.fromEntries(reports.map(([type, result]) => [type, result]));
+    }
     return {
       range: overview.range,
       sales: overview,
       products,
       customers,
       inventory,
-      domains: Object.fromEntries(reports.map(([type, result]) => [type, result])),
+      domains,
     };
   }
 
@@ -78,6 +82,9 @@ export class AnalyticsService {
 
   async backfill(user: User, query: AnalyticsQueryDto) {
     const outlets = await this.resolveOutlets(user, query);
+    if (outlets !== ALL_OUTLETS && outlets.length === 0) {
+      return { range: null, refreshed: [], message: 'This tenant has no outlets with historical orders.' };
+    }
     const earliest = this.orders.createQueryBuilder('order').select('MIN(order.created_at)', 'firstOrder');
     if (query.outletId !== undefined) {
       if (outlets !== ALL_OUTLETS && !outlets.includes(query.outletId)) throw new ForbiddenException('You do not have access to this outlet');
@@ -91,7 +98,7 @@ export class AnalyticsService {
     const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : 'Asia/Kathmandu';
     const firstDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(firstRow.firstOrder));
     const range = await this.snapshotRange({ ...query, from: query.from ?? firstDate });
-    return this.refreshDaily(user, { ...query, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
+    return this.refreshDaily(user, { ...query, includeDomains: false, from: range.from, to: query.to ?? new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()) });
   }
 
   private async snapshotRange(query: AnalyticsQueryDto) {
