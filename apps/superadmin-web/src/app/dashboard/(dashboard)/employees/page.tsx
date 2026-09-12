@@ -39,7 +39,7 @@ export default function EmployeesPage() {
 
   const { data: outlets } = useOutlets({ limit: 100 })
   const { data: positions } = usePositions()
-  const { data, isLoading, isPlaceholderData } = useEmployees({
+  const { data, isLoading, isError, error, refetch, isPlaceholderData } = useEmployees({
     page,
     limit: PAGE_SIZE,
     search: search || undefined,
@@ -171,6 +171,13 @@ export default function EmployeesPage() {
 
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />
+      ) : isError ? (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
+          <UsersIcon className="size-8 text-destructive" />
+          <p className="text-sm font-medium">Could not load employees</p>
+          <p className="max-w-md text-sm text-muted-foreground">{error instanceof Error ? error.message : "The employee service returned an error."}</p>
+          <button type="button" className="mt-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted" onClick={() => void refetch()}>Retry</button>
+        </div>
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <UsersIcon className="size-8 text-muted-foreground" />
