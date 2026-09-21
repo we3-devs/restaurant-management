@@ -10,5 +10,9 @@ describe('classifyAssistantIntent', () => {
     expect(classifyAssistantIntent('which orders did we have today')).toBe(
       'orderDetails',
     );
+    expect(classifyAssistantIntent("show me today's orders")).toBe(
+      'orderDetails',
+    );
+    expect(classifyAssistantIntent('order details')).toBe('orderDetails');
   });
 });

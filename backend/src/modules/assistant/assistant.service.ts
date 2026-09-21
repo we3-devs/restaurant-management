@@ -107,16 +107,22 @@ function formatOrderAnswer(
   if (orders.length === 0) return `There were no orders for ${period}.`;
 
   const lines = orders.map((order) => {
-    const orderNumber = order.orderNumber ?? order.billNumber ?? 'unnumbered';
+    const orderNumber = String(
+      order.orderNumber ?? order.billNumber ?? 'unnumbered',
+    );
     const items = Array.isArray(order.items)
       ? (order.items as Array<{ name?: unknown; quantity?: unknown }>)
-          .map((item) => `${item.name ?? 'Item'} x${item.quantity ?? 0}`)
+          .map(
+            (item) =>
+              `${String(item.name ?? 'Item')} x${String(item.quantity ?? 0)}`,
+          )
           .join(', ')
       : 'No item details';
-    const total = order.grandTotal === null || order.grandTotal === undefined
-      ? ''
-      : `, total Rs. ${order.grandTotal}`;
-    return `- Order ${orderNumber}: ${items}; status ${order.status ?? 'unknown'}${total}`;
+    const total =
+      order.grandTotal === null || order.grandTotal === undefined
+        ? ''
+        : `, total Rs. ${String(order.grandTotal)}`;
+    return `- Order ${orderNumber}: ${items}; status ${String(order.status ?? 'unknown')}${total}`;
   });
   return `${period[0].toUpperCase()}${period.slice(1)}'s orders (${orders.length}):\n${lines.join('\n')}`;
 }
