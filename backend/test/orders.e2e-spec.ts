@@ -284,6 +284,40 @@ describe('Orders (e2e)', () => {
     expect((order.body as OrderResponseBody).grandTotal).toBe(expectedSubtotal);
   });
 
+  it('POST /api/orders/:id/items/batch merges duplicate cart lines without duplicating rows', async () => {
+    const newOrder = await request(app.getHttpServer())
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ outletId, orderType: 'table' })
+      .expect(201);
+    const batchOrderId = (newOrder.body as OrderResponseBody).id;
+    createdOrderIds.push(batchOrderId);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/orders/${batchOrderId}/items/batch`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        items: [
+          { foodId: foodId, quantity: 2 },
+          { foodId: foodId, quantity: 2 },
+          { foodId: foodId, quantity: 1 },
+        ],
+      })
+      .expect(201);
+
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].quantity).toBe(5);
+    expect(response.body[0].unitPrice).toBe(overridePrice);
+    expect(response.body[0].totalAmount).toBe(overridePrice * 5);
+
+    const order = await request(app.getHttpServer())
+      .get(`/api/orders/${batchOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect((order.body as OrderResponseBody).subtotal).toBe(overridePrice * 5);
+  });
+
   it('PATCH /api/orders/:id/status transitions status and logs order_status_histories', async () => {
     await request(app.getHttpServer())
       .patch(`/api/orders/${orderId}/status`)

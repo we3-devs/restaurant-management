@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -26,6 +27,8 @@ function round4(value: number): number {
 
 @Injectable()
 export class StockAdjustmentsService {
+  private readonly logger = new Logger(StockAdjustmentsService.name);
+
   constructor(
     @InjectRepository(IngredientStockAdjustment)
     private readonly adjustmentsRepository: Repository<IngredientStockAdjustment>,
@@ -237,15 +240,21 @@ export class StockAdjustmentsService {
     const warehouse = await this.warehousesService.findOne(
       adjustment.warehouseId,
     );
-    const notification = await this.notificationsService.create({
-      outletId: warehouse.outletId,
-      type: 'stock_adjustment',
-      title: `Stock adjustment ${adjustment.adjustmentNo} approved`,
-      body: `${items.length} item(s) adjusted at ${warehouse.name}`,
-      actorUserId: approvedBy,
-      data: JSON.stringify({ adjustmentId: id }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the approval above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: warehouse.outletId,
+        type: 'stock_adjustment',
+        title: `Stock adjustment ${adjustment.adjustmentNo} approved`,
+        body: `${items.length} item(s) adjusted at ${warehouse.name}`,
+        actorUserId: approvedBy,
+        data: JSON.stringify({ adjustmentId: id }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create stock_adjustment notification for adjustment ${id}: ${error.message}`),
+      );
 
     return saved;
   }

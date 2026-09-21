@@ -358,6 +358,43 @@ export class FoodVariantsService {
     return { variant, price: override?.price ?? variant.price };
   }
 
+  /**
+   * Same resolution as resolvePriceForOutlet, batched for a whole cart —
+   * see FoodsService#resolvePricesForOutlet for why this exists.
+   */
+  async resolvePricesForOutlet(
+    variantIds: number[],
+    outletId: number,
+  ): Promise<Map<number, { variant: FoodVariant; price: number }>> {
+    const ids = [...new Set(variantIds)];
+    if (ids.length === 0) return new Map();
+
+    const [variants, overrides] = await Promise.all([
+      this.findByIds(ids),
+      this.variantOutletsRepository.find({
+        where: scopedWhere(this.tenantContext, { foodVariantId: In(ids), outletId }),
+      }),
+    ]);
+
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+    const overrideByVariantId = new Map(overrides.map((override) => [override.foodVariantId, override]));
+
+    const result = new Map<number, { variant: FoodVariant; price: number }>();
+    for (const variantId of ids) {
+      const variant = variantById.get(variantId);
+      if (!variant) throw new NotFoundException(`Food variant ${variantId} not found`);
+
+      const override = overrideByVariantId.get(variantId);
+      if (override && !override.isAvailable) {
+        throw new BadRequestException(
+          `Food variant ${variantId} is not available at outlet ${outletId}`,
+        );
+      }
+      result.set(variantId, { variant, price: override?.price ?? variant.price });
+    }
+    return result;
+  }
+
   toResponse(variant: FoodVariant): FoodVariantResponseDto {
     return {
       id: variant.id,

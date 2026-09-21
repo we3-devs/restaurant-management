@@ -1,18 +1,27 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
+  Post,
   Req,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import { AuthenticatedRequest } from '../auth/types/authenticated-request';
+import { CreateOutletDto } from './dto/create-outlet.dto';
 import { ListOutletsQueryDto } from './dto/list-outlets-query.dto';
+import { UpdateOutletDto } from './dto/update-outlet.dto';
 import { OutletsService } from './outlets.service';
 
 @ApiTags('outlets')
@@ -22,6 +31,7 @@ export class OutletsController {
   constructor(
     private readonly outletsService: OutletsService,
     private readonly permissionsService: PermissionsService,
+    private readonly outletAccess: OutletAccessService,
   ) {}
 
   @Get()
@@ -79,5 +89,40 @@ export class OutletsController {
   @ApiOperation({ summary: 'Gets an outlet' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.outletsService.findOne(id);
+  }
+
+  @Post()
+  @RequirePermissions('outlets.manage')
+  @ApiOperation({ summary: 'Creates an outlet' })
+  create(
+    @Body() dto: CreateOutletDto,
+    @CurrentUser() user: User,
+    @Req() request: AuthenticatedRequest & { tenantId?: number },
+  ) {
+    const tenantId = request.tenantId ?? user.tenantId;
+    return this.outletsService.create(dto, tenantId!);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('outlets.manage')
+  @ApiOperation({
+    summary: 'Updates an outlet, including its QR ordering mode and IP/geofence access config',
+  })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOutletDto,
+    @CurrentUser() user: User,
+  ) {
+    await this.outletAccess.assertOutletAccess(user.id, id);
+    return this.outletsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('outlets.manage')
+  @ApiOperation({ summary: 'Deletes an outlet (soft: slug is released, historical records preserved)' })
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(user.id, id);
+    return this.outletsService.remove(id);
   }
 }

@@ -43,6 +43,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OutletDepartmentsService } from '../outlet-departments/outlet-departments.service';
 import { OutletsService } from '../outlets/outlets.service';
+import {
+  deriveOrderStageFromCounts,
+  type NamedFoodStatusCount,
+} from './order-stage';
 import { OrderPayment } from '../order-payments/entities/order-payment.entity';
 import { calculatePaymentTotals } from '@rms/validators/payment-totals';
 import { ReservationsService } from '../reservations/reservations.service';
@@ -62,7 +66,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { WaiterOrderItemResponseDto } from './dto/waiter-order-item-response.dto';
 import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
-import { OrderItem } from './entities/order-item.entity';
+import { OrderItem, type OrderItemPackagingType } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Order } from './entities/order.entity';
 import type { OrderStatus } from './entities/order.entity';
@@ -297,24 +301,6 @@ export class OrdersService {
   }
 
   /**
-   * The happy-path stage the order's active (non-cancelled) items have
-   * collectively reached, or null if there's nothing to derive yet (every
-   * item is still 'stock_reserved' — not sent to kitchen). Item status
-   * itself is untouched here; this only reads it.
-   */
-  private deriveOrderStageFromItems(items: OrderItem[]): OrderStatus | null {
-    const statuses = new Set(items.map((item) => item.status));
-    if (statuses.size === 0) return null;
-    if (statuses.size === 1 && statuses.has('served')) return 'served';
-    if (statuses.has('served')) return 'partially_served';
-    if (statuses.size === 1 && statuses.has('ready')) return 'ready';
-    if (statuses.has('ready')) return 'partially_ready';
-    if (statuses.has('preparing')) return 'preparing';
-    if (statuses.has('sent_to_kitchen')) return 'accepted';
-    return null;
-  }
-
-  /**
    * Shortest path from `from` to `to` over the real ORDER_STATUS_TRANSITIONS
    * graph (BFS — the graph is small and every edge weight is equal).
    * Deliberately not a fixed "walk every intermediate stage" list:
@@ -342,19 +328,26 @@ export class OrdersService {
   }
 
   /**
-   * Called by KitchenTicketsService after any item-level change. Order.status
-   * only otherwise moves on an explicit staff PATCH or via
-   * maybeAdvanceToServed — nothing walks it through preparing/partially-ready/
-   * ready as tickets progress (see the ORDER_STATUS_TRANSITIONS comment).
-   * This closes that gap: sent (accepted) -> preparing -> (partially_ready
-   * or ready) -> (partially_served or served), taking only the direct hops
-   * the items actually support (via findStatusPath), each one going through
-   * the normal updateStatus() path so history/notifications/realtime push
-   * all fire exactly as they would for a staff-driven change. Deliberately
-   * never moves it backward (e.g. after a recalled item) — findStatusPath
-   * returns [] when `to` is behind `from`, since the graph has no backward
-   * edges — and never touches cancelled/completed orders or item status
-   * itself.
+   * Walks Order.status forward to wherever the order's kitchen counts say it
+   * has actually reached. Called after any item-level change; Order.status
+   * only otherwise moves on an explicit staff PATCH, so without this nothing
+   * would carry it through preparing/partially-ready/ready as tickets
+   * progress (see the ORDER_STATUS_TRANSITIONS comment).
+   *
+   * The target stage comes from table_session_food_status_counts via
+   * deriveOrderStageFromCounts — the single derivation — rather than this
+   * service re-aggregating order_items itself, which is what used to let
+   * Order.status drift from the rollup. Safe to read the counts here because
+   * the trigger that maintains them is row-level AFTER on order_items, so
+   * every caller's item writes have already landed by the time this runs.
+   *
+   * Each hop goes through the normal updateStatus() path so history/
+   * notifications/realtime push fire exactly as they would for a staff-driven
+   * change, and only the direct hops the counts support are taken (via
+   * findStatusPath). Deliberately never moves backward (e.g. after a recalled
+   * item) — findStatusPath returns [] when `to` is behind `from`, since the
+   * graph has no backward edges — and never touches cancelled/completed
+   * orders or item status itself.
    */
   async syncStatusFromItems(
     orderId: number,
@@ -363,9 +356,10 @@ export class OrdersService {
     const order = await this.findOne(orderId);
     if (order.status === 'cancelled' || order.status === 'completed') return;
 
-    const items = await this.orderItemsRepository.find({ where: { orderId } });
-    const active = items.filter((item) => item.status !== 'cancelled');
-    const target = this.deriveOrderStageFromItems(active);
+    const counts = await this.tableSessionFoodStatusCountsRepository.find({
+      where: { orderId },
+    });
+    const target = deriveOrderStageFromCounts(counts);
     if (!target) return;
 
     for (const status of this.findStatusPath(order.status, target)) {
@@ -612,7 +606,7 @@ export class OrdersService {
   async createFromGuest(
     outletId: number,
     tableSessionId: number,
-    customerId: number,
+    customerId: number | null,
     items: CreateOrderItemDto[],
     diningTableId: number,
     tableName: string,
@@ -668,16 +662,28 @@ export class OrdersService {
     // not just the first — new items always wait for staff to send them.
 
     */
-    const notification = await this.notificationsService.create({
-      outletId,
-      type: 'guest_order_placed',
-      title: existing ? 'Guest Order Updated' : 'New Guest Order',
-      body: `${tableName} ${existing ? 'added items to their order' : 'placed a new order'}`,
-      orderId: saved.id,
-      tableName,
-      data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the guest's own response doesn't depend on staff's
+    // notification row existing yet, and NotificationsService.create's own
+    // external dispatch is already fire-and-forget internally — no reason to
+    // make the guest wait on this DB write too.
+    this.notificationsService
+      .create({
+        outletId,
+        type: 'guest_order_placed',
+        // Urgent: this is the one event a staff member must not miss even
+        // with the app backgrounded — it's the only thing that unlocks push
+        // (see PushService#sendToUser's priority gate). A busy floor with
+        // the tab out of focus is exactly when a guest order is likely to
+        // sit unseen otherwise.
+        priority: 'urgent',
+        title: existing ? 'Guest Order Updated' : 'New Guest Order',
+        body: `${tableName} ${existing ? 'added items to their order' : 'placed a new order'}`,
+        orderId: saved.id,
+        tableName,
+        data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error) => this.logger.error(`Failed to create guest_order_placed notification: ${(error as Error).message}`));
 
     const full = await this.findOne(saved.id);
     this.gateway.notifyGuestOrderChanged(full);
@@ -696,7 +702,12 @@ export class OrdersService {
    */
   async findMineForCustomer(
     tableSessionId: number,
-  ): Promise<(Order & { items: OrderItemWithRelations[] })[]> {
+  ): Promise<
+    (Order & {
+      items: OrderItemWithRelations[];
+      foodStatusCounts: NamedFoodStatusCount[];
+    })[]
+  > {
     const orders = await this.ordersRepository.find({
       where: { tableSessionId },
       order: { createdAt: 'DESC' },
@@ -719,10 +730,33 @@ export class OrdersService {
       items.push(item);
       itemsByOrder.set(item.orderId, items);
     }
+
+    // Kitchen progress comes from the counts rollup, not from each item's own
+    // status column, so the guest tracker and every staff screen are reading
+    // the same source. The raw items stay for the bill lines (price, note,
+    // held flag) — what they no longer decide is how far along anything is.
+    const countRows = orders.length
+      ? await this.nameFoodStatusCounts(
+          await this.tableSessionFoodStatusCountsRepository.find({
+            where: { orderId: In(orders.map((order) => order.id)) },
+          }),
+        )
+      : [];
+    const countsByOrder = new Map<number, typeof countRows>();
+    for (const row of countRows) {
+      const rows = countsByOrder.get(row.orderId) ?? [];
+      rows.push(row);
+      countsByOrder.set(row.orderId, rows);
+    }
+
     return orders.map((order) => ({
       ...order,
       items: itemsByOrder.get(order.id) ?? [],
-    })) as (Order & { items: OrderItemWithRelations[] })[];
+      foodStatusCounts: countsByOrder.get(order.id) ?? [],
+    })) as (Order & {
+      items: OrderItemWithRelations[];
+      foodStatusCounts: NamedFoodStatusCount[];
+    })[];
   }
 
   async update(id: number, dto: UpdateOrderDto): Promise<Order> {
@@ -882,20 +916,31 @@ export class OrdersService {
     if (dto.status === 'completed') {
       await this.consumeReservationsForOrder(id, changedBy as number);
       await this.freeTableForCompletedOrder(saved, changedBy as number);
+      // See KitchenTicketsService#closeAllForOrder — without this, an order
+      // paid out while a ready item's "Deliver" tap never happened leaves
+      // that ticket permanently stuck open, since order_items are now
+      // frozen and can never reach 'served' to close it naturally.
+      await this.kitchenTicketsService.closeAllForOrder(id);
     } else if (dto.status === 'served' && fromStatus !== 'served') {
       // Closes the loop the waiter-facing push flow needs: placed
       // (order_sent) -> ready (kitchen_ready) -> served. Fires once, on the
       // actual transition into 'served' — both the explicit "Mark
       // Delivered" route and maybeAdvanceToServed's auto-advance land here,
       // and the fromStatus guard keeps a redundant same-status save quiet.
-      const notification = await this.notificationsService.create({
-        outletId: saved.outletId,
-        type: 'order_served',
-        title: `Order ${saved.orderNumber} served`,
-        orderId: saved.id,
-        actorUserId: changedBy,
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      // Fire-and-forget: the status change above is already committed, so a
+      // notification hiccup shouldn't fail this otherwise-successful request.
+      this.notificationsService
+        .create({
+          outletId: saved.outletId,
+          type: 'order_served',
+          title: `Order ${saved.orderNumber} served`,
+          orderId: saved.id,
+          actorUserId: changedBy,
+        })
+        .then((notification) => this.gateway.notifyNotificationCreated(notification))
+        .catch((error: Error) =>
+          this.logger.error(`Failed to create order_served notification for order ${saved.id}: ${error.message}`),
+        );
     } else if (dto.status === 'cancelled') {
       await this.releaseReservationsForOrder(id);
       await this.kitchenTicketsService.cancelAllForOrder(id);
@@ -916,16 +961,22 @@ export class OrdersService {
           `Failed to reverse customer credit charge for order ${saved.id}: ${(error as Error).message}`,
         );
       }
-      const notification = await this.notificationsService.create({
-        outletId: saved.outletId,
-        type: 'order_cancelled',
-        priority: 'high',
-        title: `Order ${saved.orderNumber} cancelled`,
-        body: dto.cancelReason ?? null,
-        orderId: saved.id,
-        actorUserId: changedBy,
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      // Fire-and-forget: the cancellation above is already committed, so a
+      // notification hiccup shouldn't fail this otherwise-successful request.
+      this.notificationsService
+        .create({
+          outletId: saved.outletId,
+          type: 'order_cancelled',
+          priority: 'high',
+          title: `Order ${saved.orderNumber} cancelled`,
+          body: dto.cancelReason ?? null,
+          orderId: saved.id,
+          actorUserId: changedBy,
+        })
+        .then((notification) => this.gateway.notifyNotificationCreated(notification))
+        .catch((error: Error) =>
+          this.logger.error(`Failed to create order_cancelled notification for order ${saved.id}: ${error.message}`),
+        );
     }
 
     return saved;
@@ -1080,7 +1131,6 @@ export class OrdersService {
             ticketItemRepo.create({
                 ticketId: ticket.id,
                 orderItemId: item.id,
-                status: 'ready',
                 startedAt: now,
                 readyAt: now,
               }),
@@ -1107,7 +1157,6 @@ export class OrdersService {
           ticketItemRepo.create({
               ticketId: ticket.id,
               orderItemId: item.id,
-              status: 'sent_to_kitchen',
             }),
         ));
         for (const item of groupItems) {
@@ -1134,44 +1183,67 @@ export class OrdersService {
     // KitchenTicketsService.startTicket -> syncStatusFromItems), not merely
     // because staff sent it to the kitchen queue.
     await this.maybeAdvanceToServed(order.id, changedBy);
+    // Fire-and-forget: both are pure broadcast — a relation-heavy refetch per
+    // ticket so the KDS gets a fully hydrated payload, then a notification
+    // per ready-made group. The tickets are already committed, and every
+    // listener also refetches on the push, so making the guest wait on this
+    // only added latency to "Place order" for no correctness gain.
+    void (async () => {
+      try {
+        if (kitchenBound.length > 0) {
+          await this.kitchenTicketsService.notifyTicketsCreated(kitchenBound);
+        }
+        for (const { ticketId, itemIds } of readyMade) {
+          await this.kitchenTicketsService.notifyItemsReady(ticketId, itemIds);
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to push kitchen updates for order ${order.id}: ${(error as Error).message}`,
+        );
+      }
+    })();
+    // Only announce "sent to kitchen" when something actually went to a
+    // kitchen station — a send that's entirely ready-made items never
+    // touches the kitchen, and notifyItemsReady above already alerts the
+    // waiter directly, so a redundant/misleading "sent to kitchen" here
+    // would just be noise (and a duplicate sound) on top of that.
     if (kitchenBound.length > 0) {
-      this.kitchenTicketsService.notifyTicketsCreated(kitchenBound);
+      // Fire-and-forget, same reasoning as createFromGuest's notification —
+      // sending to the kitchen shouldn't wait on this DB write.
+      this.notificationsService
+        .create({
+          outletId: order.outletId,
+          type: 'order_sent',
+          title: `Order ${order.orderNumber} sent to kitchen`,
+          orderId: order.id,
+          actorUserId: changedBy,
+          data: JSON.stringify({ ticketCount: tickets.length }),
+        })
+        .then((notification) => this.gateway.notifyNotificationCreated(notification))
+        .catch((error) => this.logger.error(`Failed to create order_sent notification: ${(error as Error).message}`));
     }
-    for (const { ticketId, itemIds } of readyMade) {
-      await this.kitchenTicketsService.notifyItemsReady(ticketId, itemIds);
-    }
-    const notification = await this.notificationsService.create({
-      outletId: order.outletId,
-      type: 'order_sent',
-      title: `Order ${order.orderNumber} sent to kitchen`,
-      orderId: order.id,
-      actorUserId: changedBy,
-      data: JSON.stringify({ ticketCount: tickets.length }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
     return tickets;
   }
 
   /**
-   * Every non-cancelled OrderItem on the order is 'served' → auto-advance
-   * Order.status to 'served' if it isn't already there or terminal. Called
-   * whenever an item transitions to 'served' via kitchen-ticket progress
-   * (including a waiter delivering a ready-made item off the ready queue).
+   * Auto-advance Order.status to 'served' once the counts say every
+   * remaining unit has been served. Called whenever an item transitions to
+   * 'served' via kitchen-ticket progress (including a waiter delivering a
+   * ready-made item off the ready queue).
+   *
+   * Deliberately narrower than syncStatusFromItems despite sharing its
+   * derivation: call sites that must not push a 'pending' order to
+   * 'accepted' — sending to the kitchen queue isn't the kitchen accepting
+   * it — still want this terminal hop when the last item is delivered.
    */
   async maybeAdvanceToServed(
     orderId: number,
     changedBy: number | null,
   ): Promise<void> {
-    const items = await this.orderItemsRepository.find({
+    const counts = await this.tableSessionFoodStatusCountsRepository.find({
       where: { orderId },
     });
-    const relevant = items.filter((item) => item.status !== 'cancelled');
-    if (
-      relevant.length === 0 ||
-      !relevant.every((item) => item.status === 'served')
-    ) {
-      return;
-    }
+    if (deriveOrderStageFromCounts(counts) !== 'served') return;
 
     const order = await this.findOne(orderId);
     if (
@@ -1255,29 +1327,85 @@ export class OrdersService {
   }
 
   /**
-   * Reads table_session_food_status_counts — a rollup kept in sync by a DB
-   * trigger on order_items (see migration 1781300000000), not written here.
-   * One row per food currently active in this table's kitchen pipeline,
-   * with how many units sit in each stage right now.
+   * Every (food, variant) line of one order, with how many units sit in each
+   * stage right now. Reads table_session_food_status_counts — kept in sync by
+   * a DB trigger on order_items (see migration 1781500000000), never written
+   * here — so this and Order.status can't disagree about the same order.
+   */
+  async listFoodStatusCountsForOrder(orderId: number) {
+    const rows = await this.tableSessionFoodStatusCountsRepository.find({
+      where: { orderId },
+    });
+    return this.nameFoodStatusCounts(rows);
+  }
+
+  /**
+   * The same counts rolled up across every order on a table's visit — a
+   * session can span several orders (new round, split bill), which the row
+   * grain deliberately keeps separate, so the rollup happens here rather
+   * than in the table.
    */
   async listFoodStatusCountsForTableSession(tableSessionId: number) {
     const rows = await this.tableSessionFoodStatusCountsRepository.find({
       where: { tableSessionId },
     });
-    const foods = await this.foodsService.findByIds(
-      rows.map((row) => row.foodId),
-    );
+
+    const merged = new Map<string, TableSessionFoodStatusCount>();
+    for (const row of rows) {
+      const key = `${row.foodId}:${row.foodVariantId ?? -1}`;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, { ...row });
+        continue;
+      }
+      existing.reservedCount += row.reservedCount;
+      existing.orderedCount += row.orderedCount;
+      existing.preparingCount += row.preparingCount;
+      existing.readyCount += row.readyCount;
+      existing.servedCount += row.servedCount;
+      existing.cancelledCount += row.cancelledCount;
+      if (row.createdAt < existing.createdAt) existing.createdAt = row.createdAt;
+      if (row.updatedAt > existing.updatedAt) existing.updatedAt = row.updatedAt;
+    }
+
+    return this.nameFoodStatusCounts([...merged.values()]);
+  }
+
+  /** Batches the food/variant name lookups both status-count reads need. */
+  private async nameFoodStatusCounts(
+    rows: TableSessionFoodStatusCount[],
+  ): Promise<NamedFoodStatusCount[]> {
+    const variantIds = rows
+      .map((row) => row.foodVariantId)
+      .filter((id): id is number => id !== null);
+    const [foods, variants] = await Promise.all([
+      this.foodsService.findByIds([...new Set(rows.map((row) => row.foodId))]),
+      variantIds.length
+        ? this.foodVariantsService.findByIds([...new Set(variantIds)])
+        : Promise.resolve([]),
+    ]);
     const foodNameById = new Map(foods.map((food) => [food.id, food.name]));
+    const variantNameById = new Map(
+      variants.map((variant) => [variant.id, variant.name]),
+    );
 
     return rows.map((row) => ({
+      orderId: row.orderId,
       foodId: row.foodId,
       foodName: foodNameById.get(row.foodId) ?? `Item #${row.foodId}`,
+      foodVariantId: row.foodVariantId,
+      foodVariantName:
+        row.foodVariantId === null
+          ? null
+          : (variantNameById.get(row.foodVariantId) ?? null),
       tableSessionId: row.tableSessionId,
+      reservedCount: row.reservedCount,
       orderedCount: row.orderedCount,
       preparingCount: row.preparingCount,
       readyCount: row.readyCount,
       servedCount: row.servedCount,
       cancelledCount: row.cancelledCount,
+      createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
   }
@@ -1449,6 +1577,8 @@ export class OrdersService {
       order?: Order;
       departments?: OutletDepartment[];
       deferTotals?: boolean;
+      /** Caller runs the recompute itself once the whole batch has landed. */
+      deferReservations?: boolean;
     } = {},
   ): Promise<OrderItem> {
     const order = options.order ?? await this.findOne(orderId);
@@ -1536,8 +1666,9 @@ export class OrdersService {
     const saved = await this.findItem(id);
 
     if (!options.deferTotals) await this.recalculateTotals(orderId);
+    if (options.deferReservations) return saved;
     try {
-      await this.recalculateReservations(saved.id);
+      await this.recalculateReservations(saved.id, order, food);
     } catch (error) {
       if (inserted) {
         // Fresh row — its ingredient requirement couldn't be reserved.
@@ -1555,13 +1686,21 @@ export class OrdersService {
   }
 
   /**
-   * POS "Place order" pushes the whole local cart in one request instead of
-   * one round-trip per tap — same per-item work as addItem/addItemAddon
-   * (price snapshot + ingredient reservation), just looped server-side so
-   * the client only waits on one request. Not wrapped in a single DB
-   * transaction: matches createFromGuest's existing item-loop behavior,
-   * where an item that fails to reserve stock is rolled back individually
-   * (addItem already does this) while items already added stay added.
+   * POS "Place order" / guest checkout pushes the whole cart in one request.
+   * Genuinely batched, not just looped: addItem()/addItemAddon() each cost
+   * several sequential round trips (price resolution, the merge-upsert, a
+   * refetch), and on this DB's remote pooler every round trip runs
+   * ~150-200ms even warm — calling them once per cart line was the actual
+   * source of "place order" taking seconds. This resolves prices for every
+   * distinct food/variant in the cart in a fixed handful of queries
+   * (regardless of cart size), then writes every item and every addon as one
+   * multi-row INSERT each.
+   *
+   * Not wrapped in a single all-or-nothing DB transaction: matches the old
+   * per-item behavior, where a line that fails validation (bad food id,
+   * variant/food mismatch, unavailable at this outlet) doesn't take lines
+   * that already resolved fine down with it — the reservation pass after
+   * this is the one place a real transaction (and full rollback) applies.
    */
   async addItemsBatch(
     orderId: number,
@@ -1578,14 +1717,263 @@ export class OrdersService {
       this.operatingHoursService.assertOperational(order.outletId),
       this.outletDepartmentsService.findByOutlet(order.outletId),
     ]);
-    const saved: OrderItem[] = [];
+
+    let saved: OrderItem[] = [];
     try {
-      for (const { addons, ...itemDto } of items) {
-      const item = await this.addItem(orderId, itemDto, { order, departments, deferTotals: true });
-      for (const addon of addons ?? []) {
-        await this.addItemAddon(item.id, addon);
+      if (items.length === 0) return saved;
+
+      // Merge cart lines that would collide on the same upsert key up front
+      // — a single multi-row INSERT can never target one row twice
+      // (Postgres rejects that outright: "ON CONFLICT DO UPDATE command
+      // cannot affect row a second time"), where two sequential addItem()
+      // calls for the same key simply converge on it one at a time. This is
+      // the same merge those sequential calls already perform on each
+      // other, just done once, in JS, up front.
+      interface MergedLine {
+        foodId: number;
+        foodVariantId: number | null;
+        note: string | null;
+        packagingType: OrderItemPackagingType;
+        quantity: number;
+        addons: CreateOrderItemAddonDto[];
       }
-      saved.push(item);
+      const mergedByKey = new Map<string, MergedLine>();
+      for (const { addons, ...itemDto } of items) {
+        const key = `${itemDto.foodId}:${itemDto.foodVariantId ?? -1}:${itemDto.note ?? ''}:${itemDto.packagingType ?? 'plating'}`;
+        const existing = mergedByKey.get(key);
+        if (existing) {
+          existing.quantity += itemDto.quantity ?? 1;
+          existing.addons.push(...(addons ?? []));
+          continue;
+        }
+        mergedByKey.set(key, {
+          foodId: itemDto.foodId,
+          foodVariantId: itemDto.foodVariantId ?? null,
+          note: itemDto.note ?? null,
+          packagingType: itemDto.packagingType ?? 'plating',
+          quantity: itemDto.quantity ?? 1,
+          addons: [...(addons ?? [])],
+        });
+      }
+      const lines = [...mergedByKey.values()];
+
+      const noVariantFoodIds = lines
+        .filter((line) => line.foodVariantId === null)
+        .map((line) => line.foodId);
+      const variantIds = lines
+        .filter((line): line is MergedLine & { foodVariantId: number } => line.foodVariantId !== null)
+        .map((line) => line.foodVariantId);
+
+      const [priceByFoodId, priceByVariantId] = await Promise.all([
+        this.foodsService.resolvePricesForOutlet(noVariantFoodIds, order.outletId),
+        this.foodVariantsService.resolvePricesForOutlet(variantIds, order.outletId),
+      ]);
+      // Variant lines still need their own Food row (department routing +
+      // the variant->food consistency check below) — resolvePricesForOutlet
+      // above only fetched foods for the no-variant lines, so batch whatever
+      // it didn't already cover instead of refetching everything.
+      const variantFoodIds = [
+        ...new Set(
+          lines
+            .filter((line) => line.foodVariantId !== null)
+            .map((line) => line.foodId),
+        ),
+      ];
+      const extraFoods = variantFoodIds.length
+        ? await this.foodsService.findByIds(variantFoodIds)
+        : [];
+      const foodById = new Map<number, Food>();
+      for (const { food } of priceByFoodId.values()) foodById.set(food.id, food);
+      for (const food of extraFoods) foodById.set(food.id, food);
+
+      const rows = lines.map((line) => {
+        const food = foodById.get(line.foodId);
+        if (!food) throw new NotFoundException(`Food ${line.foodId} not found`);
+
+        let unitPrice: number;
+        if (line.foodVariantId !== null) {
+          const resolved = priceByVariantId.get(line.foodVariantId);
+          if (!resolved) {
+            throw new NotFoundException(`Food variant ${line.foodVariantId} not found`);
+          }
+          if (resolved.variant.foodId !== line.foodId) {
+            throw new BadRequestException(
+              `Food variant ${line.foodVariantId} does not belong to food ${line.foodId}`,
+            );
+          }
+          unitPrice = resolved.price;
+        } else {
+          const resolved = priceByFoodId.get(line.foodId);
+          if (!resolved) throw new NotFoundException(`Food ${line.foodId} not found`);
+          unitPrice = resolved.price;
+        }
+
+        return {
+          line,
+          values: {
+            orderId,
+            tableSessionId: order.tableSessionId ?? null,
+            foodId: line.foodId,
+            foodVariantId: line.foodVariantId,
+            preparationDepartmentId: this.resolvePreparationDepartmentId(food, departments),
+            quantity: line.quantity,
+            unitPrice,
+            totalAmount: round2(line.quantity * unitPrice),
+            note: line.note,
+            packagingType: line.packagingType,
+          },
+        };
+      });
+
+      // One multi-row INSERT for every line in the cart, same merge-upsert
+      // semantics as addItem()'s single-row version (a re-add of an
+      // already-cart-staged line bumps its quantity instead of creating a
+      // second row) — see idx_order_items_merge_key.
+      const upsert = await this.orderItemsRepository
+        .createQueryBuilder()
+        .insert()
+        .into(OrderItem)
+        .values(rows.map((row) => row.values))
+        .onConflict(
+          `(order_id, food_id, (COALESCE(food_variant_id, -1)), (COALESCE(note, '')), packaging_type) ` +
+            `WHERE status = 'stock_reserved' AND is_held = false ` +
+            `DO UPDATE SET quantity = order_items.quantity + EXCLUDED.quantity, ` +
+            `total_amount = round((order_items.quantity + EXCLUDED.quantity) * order_items.unit_price, 2)`,
+        )
+        .returning('id, (xmax = 0) AS inserted')
+        .execute();
+      // Postgres preserves the VALUES-list order in RETURNING for a
+      // multi-row INSERT, ON CONFLICT included — each source row produces
+      // exactly one output row, in order — so this positional zip with
+      // `rows` is safe.
+      //
+      // `id` comes back as a string here — this is a raw driver result, not
+      // an entity, so none of OrderItem's column transformers ran. Every
+      // `bigint` column in this codebase comes back from `pg` as a string by
+      // default (see BigIntTransformer), and OrderItem.id normally goes
+      // through that transformer to become a plain number; parseInt matches
+      // it exactly so ids compare equal to the numbers `orderItemsRepository
+      // .find()` returns below, instead of silently missing every Map
+      // lookup keyed by them.
+      const upsertResults = (upsert.raw as { id: string; inserted: boolean }[]).map(
+        (row) => ({ id: parseInt(row.id, 10), inserted: row.inserted }),
+      );
+
+      // Every addon across every line, as one more multi-row INSERT.
+      // Deliberately not merged/deduped like the items above — two lines
+      // requesting the same addon on the same food always produced two
+      // separate order_item_addon rows before, and still do here.
+      const distinctAddonIds = [
+        ...new Set(rows.flatMap((row) => row.line.addons.map((addon) => addon.addonId))),
+      ];
+      const addonById = distinctAddonIds.length
+        ? new Map((await this.addonsService.findByIds(distinctAddonIds)).map((addon) => [addon.id, addon]))
+        : new Map();
+      const addonRows = rows.flatMap((row, index) => {
+        const orderItemId = upsertResults[index].id;
+        return row.line.addons.map((addonDto) => {
+          const addon = addonById.get(addonDto.addonId);
+          if (!addon) throw new NotFoundException(`Addon ${addonDto.addonId} not found`);
+          const quantity = addonDto.quantity ?? 1;
+          return {
+            orderItemId,
+            addonId: addon.id,
+            quantity,
+            unitPrice: addon.price,
+            totalAmount: round2(quantity * addon.price),
+          };
+        });
+      });
+      if (addonRows.length > 0) {
+        await this.orderItemAddonsRepository.insert(addonRows);
+      }
+
+      // One batched read back instead of addItem()'s per-row findItem() —
+      // the POS "add items" endpoint returns this array directly to the
+      // client, so it still needs full entities, just fetched once.
+      const itemIds = upsertResults.map((result) => result.id);
+      const itemById = new Map(
+        (await this.orderItemsRepository.find({ where: { id: In(itemIds) } })).map(
+          (item) => [item.id, item],
+        ),
+      );
+      saved = itemIds.map((id) => itemById.get(id)!);
+
+      // One transaction for the entire cart rather than one per item plus one
+      // per addon. Each of those took FOR UPDATE locks on the same stock rows
+      // and cost a full round trip to a remote pooler, which is what made
+      // placing a guest order take seconds. Deferred to here (rather than
+      // interleaved) so a cart that can't be stocked fails as a unit and
+      // rolls the whole reservation set back with it.
+      // rows/saved are already 1:1 with unique upsert keys (that's exactly
+      // what the merge step above guaranteed), so unlike the old per-item
+      // loop there's nothing left to dedupe here — each saved row's own
+      // line.quantity is exactly what this batch contributed to it.
+      const addedQuantities = new Map(
+        rows.map((row, index) => [saved[index].id, row.line.quantity]),
+      );
+      // Most menu items aren't recipe-tracked and most cart lines carry no
+      // addons — for those, the whole recalculateReservations call is just
+      // two empty lookups (its own addons, its own existing reservations)
+      // before it returns having done nothing. Batch those two lookups for
+      // the WHOLE cart in one query each instead of paying for them per
+      // item, and skip the real per-item pipeline entirely for anything
+      // that comes back with nothing on either side — a food that isn't
+      // recipe-enabled and has no addons and nothing already reserved has
+      // no possible reservation to make.
+      const savedItemIds = saved.map((item) => item.id);
+      const [allAddons, allExisting] = await Promise.all([
+        this.orderItemAddonsRepository.find({ where: { orderItemId: In(savedItemIds) } }),
+        this.reservationsRepository.find({ where: { orderItemId: In(savedItemIds), status: 'reserved' } }),
+      ]);
+      const itemIdsWithAddons = new Set(allAddons.map((addon) => addon.orderItemId));
+      const itemIdsWithExisting = new Set(allExisting.map((reservation) => reservation.orderItemId));
+      const itemsNeedingReservationWork = saved.filter((item) => {
+        const food = foodById.get(item.foodId);
+        return (
+          food?.itemType === 'kitchen' ||
+          itemIdsWithAddons.has(item.id) ||
+          itemIdsWithExisting.has(item.id)
+        );
+      });
+
+      try {
+        await this.dataSource.transaction(async (manager) => {
+          // For the common case (no recipe, no addon recipe, no existing
+          // reservation), the null-work short-circuit above already skipped
+          // the entire pipeline. For the remaining subset, take the diff as a
+          // batch across the whole cart instead of calling
+          // recalculateReservations() once per item inside the transaction —
+          // this keeps the correct inventory semantics while avoiding the
+          // N-item serial round-trip pattern that was still dominating a 30
+          // item cart.
+          if (itemsNeedingReservationWork.length > 0) {
+            await this.recalculateReservationsBatch(
+              order,
+              itemsNeedingReservationWork,
+              foodById,
+              manager,
+            );
+          }
+        });
+      } catch (error) {
+        // The transaction already rolled back every stock/reservation write,
+        // so only the item rows this batch added are left to undo. Subtract
+        // exactly what was added — the merge-on-add upsert means a row may
+        // predate this batch, and dropping it wholesale would take an
+        // earlier round's quantity with it.
+        for (const item of saved) {
+          const added = addedQuantities.get(item.id) ?? 0;
+          const remaining = round2(item.quantity - added);
+          if (remaining > 0) {
+            item.quantity = remaining;
+            item.totalAmount = round2(remaining * item.unitPrice);
+            await this.orderItemsRepository.save(item);
+          } else {
+            await this.orderItemsRepository.remove(item);
+          }
+        }
+        throw error;
       }
       await this.recalculateTotals(orderId);
       return saved;
@@ -1720,9 +2108,14 @@ export class OrdersService {
   async addItemAddon(
     orderItemId: number,
     dto: CreateOrderItemAddonDto,
+    options: {
+      order?: Order;
+      deferTotals?: boolean;
+      deferReservations?: boolean;
+    } = {},
   ): Promise<OrderItemAddon> {
     const item = await this.findItem(orderItemId);
-    const order = await this.findOne(item.orderId);
+    const order = options.order ?? (await this.findOne(item.orderId));
     await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
     const addon = await this.addonsService.findOne(dto.addonId);
@@ -1738,12 +2131,17 @@ export class OrdersService {
       }),
     );
 
-    await this.recalculateTotals(item.orderId);
+    if (!options.deferTotals) await this.recalculateTotals(item.orderId);
+    // recalculateReservations is a *full* recompute of the item, not a delta,
+    // so a batch caller adding several addons to the same item gets an
+    // identical result from one pass afterwards — the per-addon runs were
+    // pure duplicated work (a transaction and a row lock each).
+    if (options.deferReservations) return saved;
     try {
-      await this.recalculateReservations(orderItemId);
+      await this.recalculateReservations(orderItemId, order);
     } catch (error) {
       await this.orderItemAddonsRepository.remove(saved);
-      await this.recalculateTotals(item.orderId);
+      if (!options.deferTotals) await this.recalculateTotals(item.orderId);
       throw error;
     }
     return saved;
@@ -2080,73 +2478,288 @@ export class OrdersService {
     }[],
     quantityMultiplier: number,
     required: Map<number, number>,
+    ingredientById?: Map<number, any>,
+    conversionMultiplierByPair?: Map<string, number>,
   ): Promise<void> {
-    const contributions = await Promise.all(
-      recipes.map(async (recipe) => {
-        const ingredient = await this.ingredientsService.findOne(
-          recipe.ingredientId,
-        );
-        if (!isTrackableIngredientType(ingredient.category.type)) {
-          return null;
+    const ingredients =
+      ingredientById ??
+      new Map(
+        (await this.ingredientsService.findByIds(
+          [...new Set(recipes.map((recipe) => recipe.ingredientId))],
+        )).map((ingredient) => [ingredient.id, ingredient]),
+      );
+    const conversions =
+      conversionMultiplierByPair ??
+      await this.unitsService.findConversionMultipliers(
+        recipes
+          .map((recipe) => ({
+            fromUnitId: recipe.unitId,
+            toUnitId: ingredients.get(recipe.ingredientId)?.baseUnitId ?? 0,
+          }))
+          .filter((pair) => pair.toUnitId !== 0),
+      );
+
+    for (const recipe of recipes) {
+      const ingredient = ingredients.get(recipe.ingredientId);
+      if (!ingredient || !isTrackableIngredientType(ingredient.category.type)) {
+        continue;
+      }
+
+      const key = `${recipe.unitId}:${ingredient.baseUnitId}`;
+      const multiplier = conversions.get(key);
+      if (multiplier === undefined) {
+        if (recipe.unitId === ingredient.baseUnitId) {
+          // same-unit recipes are already normalized and still valid.
+        } else {
+          throw new BadRequestException(
+            `No unit conversion configured from unit ${recipe.unitId} to unit ${ingredient.baseUnitId}`,
+          );
         }
-        const multiplier = await this.unitsService.findConversionMultiplier(
-          recipe.unitId,
-          ingredient.baseUnitId,
-        );
-        const qty = round4(
-          (recipe.quantity + recipe.wastageQuantity) *
-            multiplier *
-            quantityMultiplier,
-        );
-        return { ingredientId: recipe.ingredientId, qty };
-      }),
-    );
-    for (const contribution of contributions) {
-      if (!contribution) continue;
+      }
+
+      const effectiveMultiplier = multiplier ?? 1;
+      const qty = round4(
+        (recipe.quantity + recipe.wastageQuantity) *
+          effectiveMultiplier *
+          quantityMultiplier,
+      );
       required.set(
-        contribution.ingredientId,
-        round4((required.get(contribution.ingredientId) ?? 0) + contribution.qty),
+        recipe.ingredientId,
+        round4((required.get(recipe.ingredientId) ?? 0) + qty),
       );
     }
   }
 
   private async resolveRequiredIngredients(
     item: OrderItem,
+    knownFood?: Food,
   ): Promise<Map<number, number>> {
     const required = new Map<number, number>();
 
     const [food, itemAddons] = await Promise.all([
-      this.foodsService.findOne(item.foodId),
+      knownFood && knownFood.id === item.foodId ? Promise.resolve(knownFood) : this.foodsService.findOne(item.foodId),
       this.orderItemAddonsRepository.find({ where: { orderItemId: item.id } }),
     ]);
 
+    const recipeGroups: Array<{
+      recipes: {
+        ingredientId: number;
+        unitId: number;
+        quantity: number;
+        wastageQuantity: number;
+      }[];
+      quantityMultiplier: number;
+    }> = [];
+
     if (food.itemType === 'kitchen') {
-      const recipes = await this.foodsService.resolveRecipes(
-        item.foodId,
-        item.foodVariantId,
-      );
-      await this.accumulateRecipeContributions(recipes, item.quantity, required);
+      recipeGroups.push({
+        recipes: await this.foodsService.resolveRecipes(item.foodId, item.foodVariantId),
+        quantityMultiplier: item.quantity,
+      });
     }
 
-    // Addon definitions + their recipes are resolved concurrently across
-    // addons (each addon's own recipe rows are independent of every other
-    // addon's), then merged into `required` one addon at a time.
     const addonRecipeGroups = await Promise.all(
       itemAddons.map(async (itemAddon) => {
         const addon = await this.addonsService.findOne(itemAddon.addonId);
         if (!addon.isRecipeEnabled) {
-          return { recipes: [], quantity: itemAddon.quantity };
+          return null;
         }
         const recipes = await this.addonsService.resolveRecipes(addon.id);
-        return { recipes, quantity: itemAddon.quantity };
+        return {
+          recipes: recipes.map((recipe) => ({
+            ingredientId: recipe.ingredientId,
+            unitId: recipe.unitId,
+            quantity: recipe.quantity * itemAddon.quantity,
+            wastageQuantity: recipe.wastageQuantity * itemAddon.quantity,
+          })),
+          quantityMultiplier: 1,
+        };
       }),
     );
-    for (const { recipes, quantity } of addonRecipeGroups) {
-      if (recipes.length === 0) continue;
-      await this.accumulateRecipeContributions(recipes, quantity, required);
+
+    for (const group of addonRecipeGroups) {
+      if (group) recipeGroups.push(group);
     }
 
+    if (recipeGroups.length === 0) {
+      return required;
+    }
+
+    const flattened = recipeGroups.flatMap((group) =>
+      group.recipes.map((recipe) => ({
+        ingredientId: recipe.ingredientId,
+        unitId: recipe.unitId,
+        quantity: recipe.quantity * group.quantityMultiplier,
+        wastageQuantity: recipe.wastageQuantity * group.quantityMultiplier,
+      })),
+    );
+
+    const ingredientIds = [...new Set(flattened.map((recipe) => recipe.ingredientId))];
+    const ingredients = await this.ingredientsService.findByIds(ingredientIds);
+    const ingredientById = new Map(
+      ingredients.map((ingredient) => [ingredient.id, ingredient]),
+    );
+    const conversions = await this.unitsService.findConversionMultipliers(
+      flattened.map((recipe) => ({
+        fromUnitId: recipe.unitId,
+        toUnitId: ingredientById.get(recipe.ingredientId)?.baseUnitId ?? 0,
+      })).filter((pair) => pair.toUnitId !== 0),
+    );
+
+    await this.accumulateRecipeContributions(
+      flattened,
+      1,
+      required,
+      ingredientById,
+      conversions,
+    );
+
     return required;
+  }
+
+  /**
+   * Batched version of recalculateReservations() for a whole cart.
+   * One transaction covers the whole set of newly-added items, and every
+   * stock delta is applied across the group instead of re-running the
+   * same per-item flow in a loop.
+   */
+  private async recalculateReservationsBatch(
+    order: Order,
+    items: OrderItem[],
+    foodById: Map<number, Food>,
+    sharedManager?: EntityManager,
+  ): Promise<void> {
+    if (items.length === 0) return;
+
+    const itemIds = items.map((item) => item.id);
+    const [allAddons, allExisting, warehouse] = await Promise.all([
+      this.orderItemAddonsRepository.find({
+        where: { orderItemId: In(itemIds) },
+      }),
+      this.reservationsRepository.find({
+        where: { orderItemId: In(itemIds), status: 'reserved' },
+      }),
+      this.warehousesService.findDefaultForOutlet(order.outletId),
+    ]);
+
+    const addonsByItemId = new Map<number, OrderItemAddon[]>();
+    for (const addon of allAddons) {
+      const existing = addonsByItemId.get(addon.orderItemId) ?? [];
+      existing.push(addon);
+      addonsByItemId.set(addon.orderItemId, existing);
+    }
+
+    const existingByItemId = new Map<number, OrderItemIngredientReservation[]>();
+    for (const reservation of allExisting) {
+      const existing = existingByItemId.get(reservation.orderItemId) ?? [];
+      existing.push(reservation);
+      existingByItemId.set(reservation.orderItemId, existing);
+    }
+
+    const requiredByItemId = new Map<number, Map<number, number>>();
+    await Promise.all(
+      items.map(async (item) => {
+        const required = new Map<number, number>();
+        const food = foodById.get(item.foodId);
+        if (food?.itemType === 'kitchen') {
+          const recipes = await this.foodsService.resolveRecipes(
+            item.foodId,
+            item.foodVariantId,
+          );
+          await this.accumulateRecipeContributions(
+            recipes,
+            item.quantity,
+            required,
+          );
+        }
+
+        const addonRecipeGroups = await Promise.all(
+          (addonsByItemId.get(item.id) ?? []).map(async (itemAddon) => {
+            const addon = await this.addonsService.findOne(itemAddon.addonId);
+            if (!addon.isRecipeEnabled) {
+              return { recipes: [], quantity: itemAddon.quantity };
+            }
+            const recipes = await this.addonsService.resolveRecipes(addon.id);
+            return { recipes, quantity: itemAddon.quantity };
+          }),
+        );
+
+        for (const { recipes, quantity } of addonRecipeGroups) {
+          if (recipes.length === 0) continue;
+          await this.accumulateRecipeContributions(
+            recipes,
+            quantity,
+            required,
+          );
+        }
+
+        requiredByItemId.set(item.id, required);
+      }),
+    );
+
+    const apply = async (manager: EntityManager) => {
+      const reservationRepo = manager.getRepository(
+        OrderItemIngredientReservation,
+      );
+
+      for (const item of items) {
+        const required = requiredByItemId.get(item.id) ?? new Map();
+        const existing = existingByItemId.get(item.id) ?? [];
+        const existingByIngredient = new Map(
+          existing.map((reservation) => [reservation.ingredientId, reservation]),
+        );
+
+        for (const reservation of existing) {
+          if (!required.has(reservation.ingredientId)) {
+            await this.warehouseIngredientStocksService.reserve(
+              reservation.warehouseId,
+              reservation.ingredientId,
+              -reservation.reservedQuantity,
+              manager,
+            );
+            await reservationRepo.remove(reservation);
+          }
+        }
+
+        for (const [ingredientId, requiredQty] of required) {
+          const existingReservation = existingByIngredient.get(ingredientId);
+          const currentReserved = existingReservation?.reservedQuantity ?? 0;
+          const delta = round4(requiredQty - currentReserved);
+
+          if (delta !== 0) {
+            await this.warehouseIngredientStocksService.reserve(
+              warehouse.id,
+              ingredientId,
+              delta,
+              manager,
+            );
+          }
+
+          if (existingReservation) {
+            existingReservation.reservedQuantity = requiredQty;
+            await reservationRepo.save(existingReservation);
+          } else if (requiredQty > 0) {
+            await reservationRepo.save(
+              reservationRepo.create({
+                orderItemId: item.id,
+                warehouseId: warehouse.id,
+                ingredientId,
+                reservedQuantity: requiredQty,
+                consumedQuantity: 0,
+                wastageQuantity: 0,
+                status: 'reserved',
+              }),
+            );
+          }
+        }
+      }
+    };
+
+    if (sharedManager) {
+      await apply(sharedManager);
+      return;
+    }
+    await this.dataSource.transaction(apply);
   }
 
   /**
@@ -2157,9 +2770,15 @@ export class OrdersService {
    * `reservedQuantity` by the delta per ingredient; a positive delta can
    * throw (insufficient available stock).
    */
-  private async recalculateReservations(orderItemId: number): Promise<void> {
-    const item = await this.findItem(orderItemId);
-    const required = await this.resolveRequiredIngredients(item);
+  private async recalculateReservations(
+    orderItemId: number,
+    knownOrder?: Order,
+    knownFood?: Food,
+    sharedManager?: EntityManager,
+    knownItem?: OrderItem,
+  ): Promise<void> {
+    const item = knownItem ?? (await this.findItem(orderItemId));
+    const required = await this.resolveRequiredIngredients(item, knownFood);
 
     const existing = await this.reservationsRepository.find({
       where: { orderItemId, status: 'reserved' },
@@ -2171,7 +2790,11 @@ export class OrdersService {
       return;
     }
 
-    const order = await this.findOne(item.orderId);
+    // Reuse the caller's already-loaded order when available (addItem always
+    // has one) instead of re-fetching the same row — one fewer round trip on
+    // this DB's remote pooler (~150-200ms even warm) per item added.
+    const order =
+      knownOrder && knownOrder.id === item.orderId ? knownOrder : await this.findOne(item.orderId);
     const warehouse = await this.warehousesService.findDefaultForOutlet(
       order.outletId,
     );
@@ -2179,7 +2802,11 @@ export class OrdersService {
       existing.map((reservation) => [reservation.ingredientId, reservation]),
     );
 
-    await this.dataSource.transaction(async (manager) => {
+    // A caller adding a whole cart passes its own manager so every item's
+    // diff lands in one transaction: each `reserve()` takes a FOR UPDATE row
+    // lock, and on this DB's remote pooler a transaction per item (plus one
+    // per addon) was the single largest cost in placing an order.
+    const apply = async (manager: EntityManager) => {
       const reservationRepo = manager.getRepository(
         OrderItemIngredientReservation,
       );
@@ -2227,7 +2854,13 @@ export class OrdersService {
           );
         }
       }
-    });
+    };
+
+    if (sharedManager) {
+      await apply(sharedManager);
+      return;
+    }
+    await this.dataSource.transaction(apply);
   }
 
   /**

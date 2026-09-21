@@ -167,17 +167,23 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<FoodImportRow[]> {
     const [existingFoods, categories, variants, subVariants] = await Promise.all([
-      this.foodsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { slug: true } }),
+      this.foodsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { slug: true, name: true } }),
       this.foodCategoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.variantsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.subVariantsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
     ]);
     const existingSlugs = new Set(existingFoods.map((f) => f.slug));
+    const existingNames = new Set(existingFoods.map((f) => f.name.trim().toLowerCase()));
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const variantByName = new Map(variants.map((v) => [v.name.trim().toLowerCase(), v.id]));
     const subVariantByName = new Map(subVariants.map((sv) => [sv.name.trim().toLowerCase(), sv.id]));
 
     const seenSlugs = new Set<string>();
+    // Rows repeating a food name (e.g. "Hukka" with a different variant on
+    // each row) are grouped into one food with several FoodVariants by
+    // commitRows — they don't get their own slug, so duplicate-slug errors
+    // don't apply past the row that actually creates the food.
+    const seenNames = new Set<string>();
 
     return rows.map(({ rowNumber, raw }) => {
       const errors: string[] = [];
@@ -187,14 +193,20 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         errors.push('Name is required (min 2 characters)');
       }
 
+      const nameKey = name.toLowerCase();
+      const isGroupedVariantRow = seenNames.has(nameKey) || existingNames.has(nameKey);
+      seenNames.add(nameKey);
+
       let slug = raw.slug?.trim().toLowerCase() ?? '';
       if (!slug) slug = slugify(name);
-      if (!FOOD_SLUG_PATTERN.test(slug)) {
-        errors.push('Slug must be lowercase, alphanumeric, dot or hyphen-separated');
-      } else if (existingSlugs.has(slug) || seenSlugs.has(slug)) {
-        errors.push(`Slug "${slug}" is already in use`);
-      } else {
-        seenSlugs.add(slug);
+      if (!isGroupedVariantRow) {
+        if (!FOOD_SLUG_PATTERN.test(slug)) {
+          errors.push('Slug must be lowercase, alphanumeric, dot or hyphen-separated');
+        } else if (existingSlugs.has(slug) || seenSlugs.has(slug)) {
+          errors.push(`Slug "${slug}" is already in use`);
+        } else {
+          seenSlugs.add(slug);
+        }
       }
 
       const skuSegment = raw.skuSegment?.trim() || null;
@@ -283,6 +295,9 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
     const variantIdCache = new Map<string, number>();
     const subVariantIdCache = new Map<string, number>();
     const categoryIdCache = new Map<string, number>();
+    // Repeated food names (e.g. "Hukka" with a different variant per row)
+    // share one Food row instead of each row creating its own.
+    const foodIdCache = new Map<string, number>();
 
     /**
      * Finds the category by name in this tenant, or creates it. Slug is
@@ -369,6 +384,45 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
       return created.id;
     };
 
+    /**
+     * Finds-or-creates the Food for this row's name. Rows sharing a name
+     * (e.g. "Hukka" with a different variant per row) share one Food instead
+     * of each row creating its own — food-level fields (slug, category, ...)
+     * come from whichever row creates it; later rows only add a FoodVariant.
+     */
+    const resolveFood = async (
+      row: FoodImportRow,
+      resolvedCategoryId: number | null,
+    ): Promise<{ id: number; created: boolean }> => {
+      const key = row.name.trim().toLowerCase();
+      const cached = foodIdCache.get(key);
+      if (cached !== undefined) return { id: cached, created: false };
+      const existing = await foodRepo.findOne({
+        where: scopedWhere(this.tenantContext, { name: row.name }),
+        select: { id: true },
+      });
+      if (existing) {
+        foodIdCache.set(key, existing.id);
+        return { id: existing.id, created: false };
+      }
+      const created = await foodRepo.save(
+        foodRepo.create({
+          ...tenantFields(this.tenantContext),
+          foodCategoryId: resolvedCategoryId,
+          name: row.name,
+          slug: row.slug,
+          skuSegment: row.skuSegment,
+          shortDescription: row.shortDescription,
+          imageUrl: row.imageUrl,
+          itemType: row.itemType,
+          departmentType: row.departmentType,
+          hasVariants: row.basePrice !== null,
+        }),
+      );
+      foodIdCache.set(key, created.id);
+      return { id: created.id, created: true };
+    };
+
     for (const row of rows) {
       // Each row gets its own SAVEPOINT — without this, one row's constraint
       // violation aborts the whole shared chunk transaction, and every row
@@ -383,24 +437,15 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
           ? (row.foodCategoryId ?? (await resolveCategory(row.foodCategoryName, row.rowNumber)))
           : null;
 
-        // 1. Create the Food record.
-        const saved = await foodRepo.save(
-          foodRepo.create({
-            ...tenantFields(this.tenantContext),
-            foodCategoryId: resolvedCategoryId,
-            name: row.name,
-            slug: row.slug,
-            skuSegment: row.skuSegment,
-            shortDescription: row.shortDescription,
-            imageUrl: row.imageUrl,
-            itemType: row.itemType,
-            departmentType: row.departmentType,
-            hasVariants: row.basePrice !== null,
-          }),
-        );
+        // 1. Find-or-create the Food record. Rows repeating a food name only
+        //    add a FoodVariant to the food the first matching row created.
+        const { id: foodId, created: foodCreated } = await resolveFood(row, resolvedCategoryId);
 
-        // 2. Compose the Food's own SKU (segment only, no variant yet).
-        await this.skuCompositionService.recomposeFoodTree(saved.id, manager);
+        // 2. Compose the Food's own SKU (segment only, no variant yet) —
+        //    only needed the first time the food is created.
+        if (foodCreated) {
+          await this.skuCompositionService.recomposeFoodTree(foodId, manager);
+        }
 
         // 3. If a price was provided, create the FoodVariant (sellable item).
         //    A FoodVariant is the only place price lives — without one the food
@@ -423,22 +468,30 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
           await foodVariantRepo.save(
             foodVariantRepo.create({
               ...tenantFields(this.tenantContext),
-              foodId: saved.id,
+              foodId,
               variantId: resolvedVariantId,
               subVariantId: resolvedSubVariantId,
               name: fvName,
               price: row.basePrice,
-              isDefault: true,
+              // Only the row that created the food gets the default item —
+              // otherwise every sibling variant row would claim isDefault.
+              isDefault: foodCreated,
               sortOrder: 0,
             }),
           );
 
           // Recompose so the FoodVariant gets its composed SKU too.
-          await this.skuCompositionService.recomposeFoodTree(saved.id, manager);
+          await this.skuCompositionService.recomposeFoodTree(foodId, manager);
+
+          if (!foodCreated) {
+            // An existing food that previously had no variants (hasVariants
+            // false) now sells through this new FoodVariant.
+            await foodRepo.update({ id: foodId }, { hasVariants: true });
+          }
         }
 
         await manager.query(`RELEASE SAVEPOINT "${savepoint}"`);
-        succeeded.push({ rowNumber: row.rowNumber, entityId: saved.id });
+        succeeded.push({ rowNumber: row.rowNumber, entityId: foodId });
       } catch (error) {
         await manager.query(`ROLLBACK TO SAVEPOINT "${savepoint}"`);
         failures.push({ rowNumber: row.rowNumber, error: error instanceof Error ? error.message : 'Failed to create food' });

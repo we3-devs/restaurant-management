@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -18,6 +18,8 @@ function round2(v: number): number { return Math.round(v * 100) / 100; }
 
 @Injectable()
 export class GoodsReceivingService {
+  private readonly logger = new Logger(GoodsReceivingService.name);
+
   constructor(
     @InjectRepository(GoodsReceiving) private readonly grnRepo: Repository<GoodsReceiving>,
     @InjectRepository(GoodsReceivingItem) private readonly itemsRepo: Repository<GoodsReceivingItem>,
@@ -60,7 +62,7 @@ export class GoodsReceivingService {
       throw new BadRequestException(`PO ${po.poNo} is ${po.status}, cannot receive`);
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const { grn, po: savedPo } = await this.dataSource.transaction(async (manager) => {
       const grnRepo = manager.getRepository(GoodsReceiving);
       const grn = await grnRepo.save(grnRepo.create({
         purchaseOrderId: dto.purchaseOrderId ?? null, supplierId: dto.supplierId,
@@ -131,16 +133,26 @@ export class GoodsReceivingService {
         await manager.getRepository('purchase_orders').update(po.id, { status: poStatus } as any);
       }
 
-      const notification = await this.notificationsService.create({
+      return { grn, po };
+    });
+
+    // Fire-and-forget, and outside the transaction: the GRN above is already
+    // committed, so a notification hiccup shouldn't fail this
+    // otherwise-successful request (or worse, roll back the receiving if it
+    // were still inside the transaction).
+    this.notificationsService
+      .create({
         outletId: dto.outletId, type: 'goods_received',
         title: `Goods Received - GRN #${grn.grnNo}`,
-        body: po ? `Goods received against PO #${po.poNo}` : 'Goods received without a purchase order',
-        data: JSON.stringify({ grnId: grn.id, ...(po ? { poId: po.id, poNo: po.poNo } : {}) }),
-      });
-      this.gateway.notifyNotificationCreated(notification);
+        body: savedPo ? `Goods received against PO #${savedPo.poNo}` : 'Goods received without a purchase order',
+        data: JSON.stringify({ grnId: grn.id, ...(savedPo ? { poId: savedPo.id, poNo: savedPo.poNo } : {}) }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create goods_received notification for GRN ${grn.id}: ${error.message}`),
+      );
 
-      return grn;
-    });
+    return grn;
   }
 
   async cancel(id: number): Promise<GoodsReceiving> {

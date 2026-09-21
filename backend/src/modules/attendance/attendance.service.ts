@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -34,6 +35,8 @@ function timeStringToMinutes(time: string): number {
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
+
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
@@ -226,19 +229,25 @@ export class AttendanceService {
       }),
     );
 
-    const notification = await this.notificationsService.create({
-      outletId: dto.outletId,
-      type: isLate ? 'employee_late' : 'employee_clock_in',
-      title: isLate ? 'Employee Late Arrival' : 'Employee Clocked In',
-      body: isLate
-        ? `Employee #${dto.employeeId} clocked in ${lateMinutes} minute(s) late`
-        : `Employee #${dto.employeeId} clocked in`,
-      data: JSON.stringify({
-        employeeId: dto.employeeId,
-        attendanceId: attendance.id,
-      }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the clock-in above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: dto.outletId,
+        type: isLate ? 'employee_late' : 'employee_clock_in',
+        title: isLate ? 'Employee Late Arrival' : 'Employee Clocked In',
+        body: isLate
+          ? `Employee #${dto.employeeId} clocked in ${lateMinutes} minute(s) late`
+          : `Employee #${dto.employeeId} clocked in`,
+        data: JSON.stringify({
+          employeeId: dto.employeeId,
+          attendanceId: attendance.id,
+        }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create clock-in notification for attendance ${attendance.id}: ${error.message}`),
+      );
 
     return attendance;
   }

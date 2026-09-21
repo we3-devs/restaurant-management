@@ -9,6 +9,7 @@ import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useBranding } from "@/hooks/use-branding";
 import { formatTableSessionTime, useTableSession } from "@/hooks/use-table-session";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { QuickOrderGate } from "@/components/quick-order-gate";
 import Skeleton from "@/components/skeleton";
 
 export default function TableContent() {
@@ -16,7 +17,7 @@ export default function TableContent() {
   const { tableCode, isReady } = useGuestSession();
 	const { isAuthenticated } = useGuestAuth();
 	const branding = useBranding();
-	const { session, members, isLoading, addCompanion, removeCompanion } = useTableSession(tableCode);
+	const { session, members, isLoading, addCompanion, removeCompanion, qrOrderingMode, qrAccessCheckMode } = useTableSession(tableCode);
 	const sessionTime = session ? formatTableSessionTime(session.startedAt) : null;
 
 	const [name, setName] = useState("");
@@ -60,6 +61,32 @@ export default function TableContent() {
 	}
 
 	if (!isAuthenticated) {
+		if (qrOrderingMode === null) {
+			return <div className="min-h-screen bg-slate-50" />;
+		}
+
+		if (qrOrderingMode === "quick_order") {
+			// No party-management step for anonymous guests — straight to the menu.
+			return (
+				<div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+					<div className="max-w-sm space-y-2">
+						{branding.logoUrl && (
+							<img src={branding.logoUrl} alt="" className="mx-auto size-12 rounded-xl object-contain" />
+						)}
+						<p className="text-lg font-semibold text-slate-900">
+							Welcome to <br /> <span className="text-brand-600">{branding.restaurantName}</span>
+						</p>
+					</div>
+					<QuickOrderGate
+						tableCode={tableCode}
+						qrAccessCheckMode={qrAccessCheckMode}
+						onClose={goToMenu}
+						onSuccess={goToMenu}
+					/>
+				</div>
+			);
+		}
+
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
 				<div className="max-w-sm space-y-2">

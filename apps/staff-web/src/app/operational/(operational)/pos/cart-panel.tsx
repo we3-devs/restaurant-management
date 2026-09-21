@@ -3,7 +3,18 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FlameIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, PrinterIcon, XIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  CircleDollarSignIcon,
+  FlameIcon,
+  MinusIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  PrinterIcon,
+  ReceiptIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
@@ -11,6 +22,7 @@ import { Badge } from "@rms/ui/badge"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
+import { Label } from "@rms/ui/label"
 import { OrderDiscountForm } from "@rms/ui/order-discount-form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
@@ -29,10 +41,12 @@ import {
   useOrderItems,
   useRemoveOrderItem,
   useSendOrderToKitchen,
+  useTableSessionFoodStatusCounts,
   useUpdateOrderItem,
   useUpdateOrderStatus,
   type Order,
   type OrderItem,
+  type FoodStatusCount,
 } from "@rms/api-client/hooks/use-orders"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { calculatePaymentTotals } from "@rms/validators/payment-totals"
@@ -45,6 +59,18 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
   ready: "Prepared",
   served: "Served",
   cancelled: "Cancelled",
+}
+
+/** Buckets already-sent order items by food+variant+status, preserving each bucket's insertion order. */
+function groupSentItems(items: OrderItem[]): OrderItem[][] {
+  const groups = new Map<string, OrderItem[]>()
+  for (const item of items) {
+    const key = `${item.foodId}:${item.foodVariantId ?? 0}:${item.status}`
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(item)
+    else groups.set(key, [item])
+  }
+  return [...groups.values()]
 }
 
 export function CartPanel({ orderId, basePath = "/operational/pos" }: { orderId: number; basePath?: string }) {
@@ -113,6 +139,16 @@ function EditableCart({
 }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: order } = useOrder(orderId)
+  // table_session_food_status_counts is the rollup every status display reads:
+  // one row per food+variant for this table's whole visit (across every
+  // round/order). It now also carries cart-stage units and keeps rows at zero,
+  // so the "Placed order" section below filters to rows with something
+  // actually in the kitchen — the cart itself renders from the live item list.
+  const { data: statusCounts, isLoading: statusCountsLoading } = useTableSessionFoodStatusCounts(
+    order?.tableSessionId ?? 0,
+  )
+  const kitchenCounts =
+    statusCounts?.filter((row) => STATUS_COUNT_STAGES.some((stage) => row[stage.key] > 0)) ?? []
   const { data: menu } = useMenu(order?.outletId ?? null)
   const { data: payments } = useOrderPayments(orderId)
   const createPayment = useCreateOrderPayment(orderId)
@@ -128,6 +164,11 @@ function EditableCart({
   // so a cashier-equivalent position with a different slug would otherwise
   // be denied the Pay UI despite holding the permission.
   const canRecordPayment = user.permissions.includes("order-payments.manage")
+  // Matches the backend gate in OrderItemsController#update — once an item
+  // is out of stock_reserved (sent to the kitchen) editing its
+  // quantity/note/packaging is cashier/admin-only; a waiter's view of it is
+  // read-only (see FoodStatusCountRow below).
+  const canEditSentItems = canRecordPayment || user.permissions.includes("orders.delete")
   const localCart = useLocalCartContext()
   const addItemsBatch = useAddOrderItemsBatch(orderId)
   const addItemsBatchOverride = useAddOrderItemsBatch(orderId, { closedHoursOverride: true })
@@ -203,6 +244,14 @@ function EditableCart({
   const variantName = (foodVariantId: number | null) =>
     foodVariantId ? (menu?.foodVariants.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
+  const sentItems = items?.data.filter((item) => item.status !== "stock_reserved") ?? []
+  // Same food/variant repeated across separate "add" actions lands as
+  // separate order_item rows (each its own bill line) — group same
+  // food+variant+status lines into one combined row for display so a
+  // cashier/admin isn't shown "hukka x1" twice instead of "hukka x2" once.
+  // Only same-status lines are combined (never mixing a served unit with a
+  // still-preparing one in the same row).
+  const sentGroups = groupSentItems(sentItems)
   const serverPendingCount = serverPendingItems.filter((item) => !item.isHeld).length
   const heldCount = serverPendingItems.filter((item) => item.isHeld).length
   const pendingCount = serverPendingCount + localCart.items.length
@@ -293,24 +342,70 @@ function EditableCart({
   return (
     <div className="flex w-full flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
-      <div className="max-h-[45vh] space-y-2 overflow-y-auto">
+      <div className="max-h-[45vh] space-y-3 overflow-y-auto">
         {isLoading && <ListSkeleton count={3} />}
-        {!isLoading && (items?.data.length ?? 0) === 0 && localCart.items.length === 0 && (
-          <p className="text-sm text-muted-foreground">No items yet — tap a food to add it.</p>
+        {!isLoading &&
+          pendingCount === 0 &&
+          (canEditSentItems ? sentItems.length === 0 : kitchenCounts.length === 0) && (
+            <p className="text-sm text-muted-foreground">No items yet — tap a food to add it.</p>
+          )}
+        {pendingCount > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase">
+              In cart — not sent yet ({pendingCount})
+            </h3>
+            {localCart.items.map((item) => (
+              <LocalCartItemRow key={item.localId} item={item} />
+            ))}
+            {serverPendingItems.map((item) => (
+              <CartItemRow
+                key={item.id}
+                orderId={orderId}
+                item={item}
+                foodName={foodName(item.foodId)}
+                variantName={variantName(item.foodVariantId)}
+                canCancelAfterServed={canRecordPayment}
+              />
+            ))}
+          </div>
         )}
-        {localCart.items.map((item) => (
-          <LocalCartItemRow key={item.localId} item={item} />
-        ))}
-        {items?.data.map((item) => (
-          <CartItemRow
-            key={item.id}
-            orderId={orderId}
-            item={item}
-            foodName={foodName(item.foodId)}
-            variantName={variantName(item.foodVariantId)}
-            canCancelAfterServed={canRecordPayment}
-          />
-        ))}
+        {/* Everything already sent to the kitchen, for this table's whole
+            visit. Immutable to a regular waiter — read-only, sourced from
+            table_session_food_status_counts (a rollup kept in sync by a DB
+            trigger) rather than the raw per-item list, since once an item is
+            in the kitchen pipeline staff act on it from the KDS/tickets, not
+            from here. A cashier/admin (matches the backend gate in
+            OrderItemsController#update) instead gets the editable per-item
+            rows, for correcting a mistake after the fact. */}
+        {canEditSentItems
+          ? sentItems.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase">
+                  Placed order ({sentItems.length})
+                </h3>
+                {sentGroups.map((group) => (
+                  <SentItemGroupRow
+                    key={`${group[0].foodId}:${group[0].foodVariantId ?? 0}:${group[0].status}`}
+                    orderId={orderId}
+                    items={group}
+                    foodName={foodName(group[0].foodId)}
+                    variantName={variantName(group[0].foodVariantId)}
+                    canCancelAfterServed={canRecordPayment}
+                  />
+                ))}
+              </div>
+            )
+          : kitchenCounts.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase">
+                  Placed order ({kitchenCounts.length})
+                </h3>
+                {statusCountsLoading && <ListSkeleton count={2} />}
+                {kitchenCounts.map((row) => (
+                  <FoodStatusCountRow key={`${row.foodId}:${row.foodVariantId ?? 0}`} row={row} />
+                ))}
+              </div>
+            )}
       </div>
       {heldCount > 0 && (
         <>
@@ -337,9 +432,12 @@ function EditableCart({
       {order && (
         <>
           <Separator />
-          <div className="space-y-1.5">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase">
+                <ReceiptIcon className="size-3.5" />
+                Payment
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
@@ -349,95 +447,137 @@ function EditableCart({
                 View / print bill
               </Button>
             </div>
-            <div className="grid grid-cols-2 gap-1 text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="text-right">{order.subtotal}</span>
-              <span className="text-muted-foreground">Discount</span>
-              <span className="text-right">{order.discountAmount}</span>
-              <span className="font-medium">Grand total</span>
-              <span className="text-right font-medium">{order.grandTotal}</span>
-              <span className="text-muted-foreground">Paid</span>
-              <span className="text-right">{cashPaidAmount}</span>
-              {creditAmount > 0 && (
-                <>
-                  <span className="text-muted-foreground">Credit</span>
-                  <span className="text-right">{creditAmount}</span>
-                </>
-              )}
-              <span className="font-medium">Due</span>
-              <span className="text-right font-medium">{displayedDueAmount}</span>
+
+            {/* Totals — Due is the one number that matters at a glance, so it's
+                the only row pulled out of the muted list and colored. */}
+            <div className="rounded-lg border border-input p-3">
+              <div className="grid grid-cols-2 gap-y-1 text-sm text-muted-foreground">
+                <span>Subtotal</span>
+                <span className="text-right tabular-nums">{order.subtotal}</span>
+                {order.discountAmount > 0 && (
+                  <>
+                    <span>Discount</span>
+                    <span className="text-right tabular-nums">-{order.discountAmount}</span>
+                  </>
+                )}
+                <span className="font-medium text-foreground">Grand total</span>
+                <span className="text-right font-medium text-foreground tabular-nums">{order.grandTotal}</span>
+                <span>Paid</span>
+                <span className="text-right tabular-nums">{cashPaidAmount}</span>
+                {creditAmount > 0 && (
+                  <>
+                    <span>On credit</span>
+                    <span className="text-right tabular-nums">{creditAmount}</span>
+                  </>
+                )}
+              </div>
+              <Separator className="my-2" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{displayedDueAmount > 0 ? "Due" : "Status"}</span>
+                {displayedDueAmount > 0 ? (
+                  <span className="text-lg font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                    {displayedDueAmount}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2Icon className="size-4" />
+                    Paid in full
+                  </span>
+                )}
+              </div>
             </div>
+
             {canRecordPayment && <OrderDiscountForm orderId={orderId} />}
+
             {(payments?.data.length ?? 0) > 0 && (
-              <div className="space-y-1 pt-1">
-                {payments?.data.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={payment.type === "refund" ? "destructive" : "secondary"}>{payment.type}</Badge>
-                      <span>{payment.method}</span>
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase">Payments</h4>
+                <div className="divide-y divide-border rounded-lg border border-input">
+                  {payments?.data.map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={payment.type === "refund" ? "destructive" : "secondary"}>{payment.type}</Badge>
+                        <span className="capitalize text-muted-foreground">{payment.method}</span>
+                      </div>
+                      <span className="font-medium tabular-nums">{payment.amount}</span>
                     </div>
-                    <span>{payment.amount}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
 
             {canRecordPayment && (
-              <>
-                <div className="grid grid-cols-2 gap-2 pt-2">
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(value) => {
-                      if (!value) return
-                      setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])
-                      if (value === "credit") setCreditCustomerId(order.customerId ?? undefined)
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORDER_PAYMENT_METHODS.map((method) => (
-                        <SelectItem key={method} value={method}>
-                          {method}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  />
+              <div className="space-y-2.5 rounded-lg border border-dashed border-input p-3">
+                <div className="flex items-center gap-1.5">
+                  <CircleDollarSignIcon className="size-4 text-primary" />
+                  <h4 className="text-sm font-medium">Record a payment</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="payment-method">Method</Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(value) => {
+                        if (!value) return
+                        setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])
+                        if (value === "credit") setCreditCustomerId(order.customerId ?? undefined)
+                      }}
+                    >
+                      <SelectTrigger id="payment-method" className="w-full capitalize">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ORDER_PAYMENT_METHODS.map((method) => (
+                          <SelectItem key={method} value={method} className="capitalize">
+                            {method}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="payment-amount">Amount</Label>
+                    <Input
+                      id="payment-amount"
+                      type="number"
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    />
+                  </div>
                 </div>
                 {paymentMethod === "credit" && (
-                  <Select
-                    value={creditCustomerId ? String(creditCustomerId) : ""}
-                    onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-                  >
-                    <SelectTrigger className="w-full" disabled={customersLoading}>
-                      <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers?.data.map((customer) => (
-                        <SelectItem key={customer.id} value={String(customer.id)}>
-                          {customer.name}
-                          {customer.phone ? ` (${customer.phone})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1">
+                    <Label htmlFor="payment-credit-customer">Charge to</Label>
+                    <Select
+                      value={creditCustomerId ? String(creditCustomerId) : ""}
+                      onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+                    >
+                      <SelectTrigger id="payment-credit-customer" className="w-full" disabled={customersLoading}>
+                        <SelectValue placeholder={customersLoading ? "Loading…" : "Select a customer's tab"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers?.data.map((customer) => (
+                          <SelectItem key={customer.id} value={String(customer.id)}>
+                            {customer.name}
+                            {customer.phone ? ` (${customer.phone})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
                 {paymentMethod === "credit" && creditCustomerId && creditAccount && (
-                  <div className="grid grid-cols-2 gap-1 rounded-md border border-input p-2 text-xs">
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/50 p-2 text-xs">
                     <span className="text-muted-foreground">Current credit owed</span>
-                    <span className="text-right">{creditAccount.outstandingBalance}</span>
+                    <span className="text-right tabular-nums">{creditAccount.outstandingBalance}</span>
                     <span className="text-muted-foreground">Credit limit</span>
-                    <span className="text-right">{creditAccount.creditLimit > 0 ? creditAccount.creditLimit : "None"}</span>
+                    <span className="text-right tabular-nums">
+                      {creditAccount.creditLimit > 0 ? creditAccount.creditLimit : "None"}
+                    </span>
                     <span className="font-medium">Remaining credit</span>
                     <span
-                      className={`text-right font-medium ${
+                      className={`text-right font-medium tabular-nums ${
                         remainingCredit !== null && remainingCredit < paymentAmount ? "text-destructive" : ""
                       }`}
                     >
@@ -461,18 +601,29 @@ function EditableCart({
                   {createPayment.isPending ? "Recording..." : "Add payment"}
                 </Button>
                 <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: paymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); toast.success("Payment recorded") }} />
+              </div>
+            )}
+
+            {canRecordPayment && (
+              <>
                 <Button
                   className="w-full"
+                  size="lg"
                   onClick={handleCompleteSale}
                   disabled={displayedDueAmount > 0 || serverPendingItems.length > 0 || updateStatus.isPending || !isOnline}
                 >
-                  {!isOnline
-                    ? "Offline"
-                    : displayedDueAmount > 0
-                      ? `Due ${displayedDueAmount}`
-                      : serverPendingItems.length > 0
-                        ? `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
-                        : "Complete sale"}
+                  {!isOnline ? (
+                    "Offline"
+                  ) : displayedDueAmount > 0 ? (
+                    `Due ${displayedDueAmount}`
+                  ) : serverPendingItems.length > 0 ? (
+                    `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
+                  ) : (
+                    <>
+                      <CheckCircle2Icon />
+                      Complete sale
+                    </>
+                  )}
                 </Button>
                 <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="complete sale" onConfirm={handleCompleteSaleOverride} />
               </>
@@ -640,6 +791,164 @@ function CartItemRow({
           />
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Combined view of every same-food/variant/status order_item line — cashier/
+ * admin's editable counterpart to FoodStatusCountRow's read-only rollup.
+ * Quantity/note/remove act on the most-recently-added line in the group
+ * (same "operate on the last match" rule the guest-web cart already uses for
+ * a repeated food), same as if the waiter had tapped it directly; the other
+ * lines in the group are left untouched.
+ */
+function SentItemGroupRow({
+  orderId,
+  items,
+  foodName,
+  variantName,
+  canCancelAfterServed,
+}: {
+  orderId: number
+  items: OrderItem[]
+  foodName: string
+  variantName: string | null
+  canCancelAfterServed: boolean
+}) {
+  const target = items[items.length - 1]
+  const combinedQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+  const combinedTotal = items.reduce((sum, item) => sum + item.totalAmount, 0)
+
+  const updateItem = useUpdateOrderItem(orderId, target.id)
+  const removeItem = useRemoveOrderItem(orderId)
+  const [note, setNote] = useState(target.note ?? "")
+
+  async function handleQuantity(delta: number) {
+    const quantity = Math.max(1, target.quantity + delta)
+    try {
+      await updateItem.mutateAsync({ quantity })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update quantity")
+    }
+  }
+
+  async function handleNoteBlur() {
+    if (note === (target.note ?? "")) return
+    try {
+      await updateItem.mutateAsync({ note })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save note")
+    }
+  }
+
+  async function handleRemove() {
+    try {
+      await removeItem.mutateAsync(target.id)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove item")
+    }
+  }
+
+  const isServed = target.status === "served"
+
+  return (
+    <div className="space-y-2 rounded-lg border border-input p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">
+              {foodName}
+              {variantName ? ` — ${variantName}` : ""}
+            </p>
+            <Badge variant="secondary" className="text-xs">
+              {ITEM_STATUS_LABELS[target.status] ?? target.status}
+            </Badge>
+            {items.length > 1 && (
+              <Badge variant="outline" className="text-xs" title={`${items.length} separate lines combined`}>
+                {items.length} lines
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {target.unitPrice} each &middot; total {combinedTotal}
+          </p>
+        </div>
+        {(!isServed || canCancelAfterServed) && (
+          <Button variant="ghost" size="icon-sm" onClick={handleRemove} aria-label="Remove item">
+            <XIcon />
+          </Button>
+        )}
+      </div>
+
+      {isServed ? (
+        target.note && (
+          <p className="text-xs text-muted-foreground">
+            Qty {combinedQuantity} &middot; {target.note}
+          </p>
+        )
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="icon-xs" onClick={() => handleQuantity(-1)} aria-label="Decrease quantity">
+              <MinusIcon />
+            </Button>
+            <span className="w-6 text-center text-sm">{combinedQuantity}</span>
+            <Button variant="outline" size="icon-xs" onClick={() => handleQuantity(1)} aria-label="Increase quantity">
+              <PlusIcon />
+            </Button>
+          </div>
+
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={handleNoteBlur}
+            placeholder="Special instructions..."
+            className="text-xs"
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+// Deliberately omits reservedCount: cart-stage units belong to the editable
+// "In cart" section above, not to this read-only kitchen rollup.
+const STATUS_COUNT_STAGES: {
+  key: keyof Pick<
+    FoodStatusCount,
+    "orderedCount" | "preparingCount" | "readyCount" | "servedCount" | "cancelledCount"
+  >
+  label: string
+  className: string
+}[] = [
+  { key: "orderedCount", label: "Sent", className: "" },
+  { key: "preparingCount", label: "Preparing", className: "border-amber-500/50 text-amber-700 dark:text-amber-400" },
+  { key: "readyCount", label: "Prepared", className: "border-emerald-500/50 text-emerald-700 dark:text-emerald-400" },
+  { key: "servedCount", label: "Served", className: "" },
+  { key: "cancelledCount", label: "Cancelled", className: "border-destructive/50 text-destructive" },
+]
+
+/**
+ * Read-only — once an item is in this rollup it's already in the kitchen
+ * pipeline, edited from the KDS/tickets screens, not from the cart. One row
+ * per food+variant, one badge per pipeline stage it currently has units in.
+ */
+function FoodStatusCountRow({ row }: { row: FoodStatusCount }) {
+  const stages = STATUS_COUNT_STAGES.filter((stage) => row[stage.key] > 0)
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-input p-2.5">
+      <p className="text-sm font-medium">
+        {row.foodName}
+        {row.foodVariantName ? ` — ${row.foodVariantName}` : ""}
+      </p>
+      <div className="flex shrink-0 flex-wrap justify-end gap-1">
+        {stages.map((stage) => (
+          <Badge key={stage.key} variant="outline" className={`text-xs ${stage.className}`}>
+            {row[stage.key]} {stage.label}
+          </Badge>
+        ))}
+      </div>
     </div>
   )
 }

@@ -45,6 +45,27 @@ export interface ReportColumn {
   header: string;
 }
 
+/**
+ * Reports made from a date range (rather than one database record per row)
+ * still need an explicit timestamp. `generatedAt` identifies when that
+ * aggregate or snapshot was produced without falsely attributing one row to
+ * a particular transaction date.
+ */
+const RECORD_DATE_KEYS = new Set([
+  'createdAt',
+  'date',
+  'wastageDate',
+  'reservedAt',
+  'lastOrderAt',
+  'paidAt',
+  'expectedDeliveryDate',
+  'receivedDate',
+  'returnDate',
+  'joiningDate',
+  'clockIn',
+  'updatedAt',
+]);
+
 /** Single source of truth for column headers, used by both the on-screen table and the CSV/Excel/PDF exporters. */
 export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
   sales: [
@@ -266,3 +287,14 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     { key: 'source', header: 'Source' },
   ],
 };
+
+export function reportHasRecordDate(type: ReportType): boolean {
+  return REPORT_COLUMNS[type].some((column) => RECORD_DATE_KEYS.has(column.key));
+}
+
+export function getReportColumns(type: ReportType): ReportColumn[] {
+  const columns = REPORT_COLUMNS[type];
+  return reportHasRecordDate(type)
+    ? columns
+    : [...columns, { key: 'generatedAt', header: 'Generated At' }];
+}

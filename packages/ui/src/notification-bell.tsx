@@ -167,7 +167,7 @@ export function NotificationBell({ realtimeToast = true, enablePush = true, push
         </div>
         <DropdownMenuSeparator />
         <Link
-          href="/notifications"
+          href={`/${pushApp}/notifications`}
           className="block px-2 py-1.5 text-center text-xs font-medium text-primary hover:underline"
         >
           View all

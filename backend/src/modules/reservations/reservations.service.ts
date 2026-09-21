@@ -3,6 +3,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,6 +25,8 @@ import { Reservation } from './entities/reservation.entity';
 
 @Injectable()
 export class ReservationsService {
+  private readonly logger = new Logger(ReservationsService.name);
+
   constructor(
     @InjectRepository(Reservation)
     private readonly reservationsRepository: Repository<Reservation>,
@@ -119,15 +122,21 @@ export class ReservationsService {
 
     await this.customersService.upsertVisit(dto.customerId, dto.outletId);
 
-    const notification = await this.notificationsService.create({
-      outletId: saved.outletId,
-      type: 'reservation_created',
-      title: `New reservation for ${saved.guestCount} guest(s)`,
-      body: `Reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
-      actorUserId: createdBy,
-      data: JSON.stringify({ reservationId: saved.id }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the reservation above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: saved.outletId,
+        type: 'reservation_created',
+        title: `New reservation for ${saved.guestCount} guest(s)`,
+        body: `Reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
+        actorUserId: createdBy,
+        data: JSON.stringify({ reservationId: saved.id }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create reservation_created notification for reservation ${saved.id}: ${error.message}`),
+      );
 
     return saved;
   }
@@ -210,16 +219,22 @@ export class ReservationsService {
     // need a pre-arrival reminder — ReservationReminderScheduler's scan
     // filters on status='confirmed', so nothing further is needed here.
     if (dto.status === 'cancelled') {
-      const notification = await this.notificationsService.create({
-        outletId: saved.outletId,
-        type: 'reservation_cancelled',
-        priority: 'high',
-        title: `Reservation cancelled`,
-        body: `Was reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
-        actorUserId: changedBy,
-        data: JSON.stringify({ reservationId: saved.id }),
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      // Fire-and-forget: the status change above is already committed, so a
+      // notification hiccup shouldn't fail this otherwise-successful request.
+      this.notificationsService
+        .create({
+          outletId: saved.outletId,
+          type: 'reservation_cancelled',
+          priority: 'high',
+          title: `Reservation cancelled`,
+          body: `Was reserved for ${new Date(saved.reservedAt).toLocaleString()}`,
+          actorUserId: changedBy,
+          data: JSON.stringify({ reservationId: saved.id }),
+        })
+        .then((notification) => this.gateway.notifyNotificationCreated(notification))
+        .catch((error: Error) =>
+          this.logger.error(`Failed to create reservation_cancelled notification for reservation ${saved.id}: ${error.message}`),
+        );
     }
 
     return saved;

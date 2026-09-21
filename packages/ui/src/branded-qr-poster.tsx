@@ -33,8 +33,7 @@ const DEFAULT_TABLE_HEIGHT = 80
 const DEFAULT_TABLE_FONT_SIZE = 34
 
 function formatTableLabel(tableLabel: string) {
-  const value = tableLabel.trim().replace(/^table\s*/i, "")
-  return `TABLE ${value || ""}`.trim()
+  return tableLabel.trim().replace(/^table\s*/i, "")
 }
 
 function loadImage(src: string, crossOrigin = false): Promise<HTMLImageElement> {

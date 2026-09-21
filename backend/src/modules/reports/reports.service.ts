@@ -4,12 +4,13 @@ import { Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { Order } from '../orders/entities/order.entity';
 import { ListReportQueryDto } from './dto/list-report-query.dto';
-import { REPORT_TYPES, type ReportType } from './report-columns';
+import { REPORT_TYPES, reportHasRecordDate, type ReportType } from './report-columns';
 import { SettingsService } from '../settings/settings.service';
 import { businessDateRange } from '../../common/reporting/reporting-date.util';
 
 const DEFAULT_RANGE_DAYS = 30;
 const EXPORT_ROW_CAP = 5000;
+const DECIMAL_VALUE = /^-?\d+\.\d+$/;
 
 interface ResolvedQuery {
   /**
@@ -77,7 +78,10 @@ export class ReportsService {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
     const resolved = await this.resolve(query, accessibleOutletIds);
-    return this.run(type, resolved);
+    return this.withGeneratedAt(
+      type,
+      this.normalizeDecimals(await this.run(type, resolved)),
+    );
   }
 
   /** Uncapped-but-bounded row set for export — same filters, no UI pagination. */
@@ -90,8 +94,43 @@ export class ReportsService {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
     const resolved = await this.resolve(query, accessibleOutletIds, true);
-    const result = await this.run(type, resolved);
+    const result = this.withGeneratedAt(
+      type,
+      this.normalizeDecimals(await this.run(type, resolved)),
+    );
     return result.data;
+  }
+
+  /** PostgreSQL numeric values arrive as strings; present decimal values consistently to two places. */
+  private normalizeDecimals(
+    report: PaginatedResponse<Record<string, unknown>>,
+  ): PaginatedResponse<Record<string, unknown>> {
+    return {
+      ...report,
+      data: report.data.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [
+            key,
+            typeof value === 'string' && DECIMAL_VALUE.test(value)
+              ? Number(value).toFixed(2)
+              : value,
+          ]),
+        ),
+      ),
+    };
+  }
+
+  /** Aggregated/snapshot reports have no truthful per-row source date, so expose their generation time instead. */
+  private withGeneratedAt(
+    type: ReportType,
+    report: PaginatedResponse<Record<string, unknown>>,
+  ): PaginatedResponse<Record<string, unknown>> {
+    if (reportHasRecordDate(type)) return report;
+    const generatedAt = new Date().toISOString();
+    return {
+      ...report,
+      data: report.data.map((row) => ({ ...row, generatedAt })),
+    };
   }
 
   private async run(
@@ -183,7 +222,7 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
-      .addSelect(`TO_CHAR(order.created_at, 'YYYY-MM-DD"T"HH24:MI:SS')`, 'createdAt')
+      .addSelect('order.created_at', 'createdAt')
       .addSelect('order.subtotal', 'subtotal')
       .addSelect('order.discount_amount', 'discountAmount')
       .addSelect('order.tax_amount', 'taxAmount')

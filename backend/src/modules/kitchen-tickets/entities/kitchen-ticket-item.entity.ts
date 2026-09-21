@@ -41,12 +41,15 @@ export class KitchenTicketItem {
   })
   orderItemId: number;
 
+  /**
+   * Carries this item's status — there is no mirrored status column here.
+   * A ticket item is 1:1 with its order item, so duplicating the field only
+   * created two things to keep in step; load this relation and read
+   * orderItem.status instead (see migration 1781600000000).
+   */
   @ManyToOne(() => OrderItem, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'order_item_id' })
   orderItem: OrderItem;
-
-  @Column({ type: 'varchar', length: 255, default: 'sent_to_kitchen' })
-  status: KitchenTicketItemStatus;
 
   @Column({ name: 'started_at', type: 'timestamp', nullable: true })
   startedAt: Date | null;

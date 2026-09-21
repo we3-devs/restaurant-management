@@ -272,30 +272,43 @@ export class AnalyticsService {
       'o',
       scope,
     ).andWhere("o.status != 'cancelled'");
-    const row = await base
-      .clone()
-      .select('COUNT(*)', 'orders')
-      .addSelect('COALESCE(SUM(o.grand_total),0)', 'grossSales')
-      .addSelect(
-        'COALESCE(SUM(o.subtotal - o.discount_amount + o.service_charge_amount + o.tax_amount - o.refunded_amount),0)',
-        'netSales',
-      )
-      .addSelect('COALESCE(SUM(o.discount_amount),0)', 'discounts')
-      .addSelect('COALESCE(SUM(o.tax_amount),0)', 'tax')
-      .addSelect('COALESCE(SUM(o.service_charge_amount),0)', 'serviceCharge')
-      .addSelect('COALESCE(SUM(o.refunded_amount),0)', 'refunds')
-      .addSelect('COALESCE(SUM(o.due_amount),0)', 'outstanding')
-      .addSelect(
-        'COALESCE(SUM(o.loyalty_discount_amount),0)',
-        'loyaltyDiscount',
-      )
-      .addSelect(
-        'COUNT(DISTINCT o.customer_id) FILTER (WHERE o.customer_id IS NOT NULL)',
-        'customers',
-      )
-      .getRawOne();
+    // Revenue must reflect money actually collected, not orders merely
+    // placed, so every monetary aggregate below is scoped to paid orders.
+    // `orders`, `outstanding` and `customers` intentionally stay on `base`
+    // (all non-cancelled orders) since those track order volume / amounts
+    // still owed rather than revenue.
+    const paidBase = base.clone().andWhere("o.payment_status = 'paid'");
+    const [row, salesRow] = await Promise.all([
+      base
+        .clone()
+        .select('COUNT(*)', 'orders')
+        .addSelect('COALESCE(SUM(o.due_amount),0)', 'outstanding')
+        .addSelect(
+          'COUNT(DISTINCT o.customer_id) FILTER (WHERE o.customer_id IS NOT NULL)',
+          'customers',
+        )
+        .getRawOne(),
+      paidBase
+        .clone()
+        .select('COUNT(*)', 'paidOrders')
+        .addSelect('COALESCE(SUM(o.grand_total),0)', 'grossSales')
+        .addSelect(
+          'COALESCE(SUM(o.subtotal - o.discount_amount + o.service_charge_amount + o.tax_amount - o.refunded_amount),0)',
+          'netSales',
+        )
+        .addSelect('COALESCE(SUM(o.discount_amount),0)', 'discounts')
+        .addSelect('COALESCE(SUM(o.tax_amount),0)', 'tax')
+        .addSelect('COALESCE(SUM(o.service_charge_amount),0)', 'serviceCharge')
+        .addSelect('COALESCE(SUM(o.refunded_amount),0)', 'refunds')
+        .addSelect(
+          'COALESCE(SUM(o.loyalty_discount_amount),0)',
+          'loyaltyDiscount',
+        )
+        .getRawOne(),
+    ]);
+    Object.assign(row, salesRow);
     const orders = n(row?.orders);
-    const trend = await base
+    const trend = await paidBase
       .clone()
       .select("TO_CHAR(o.created_at, 'YYYY-MM-DD')", 'date')
       .addSelect('COUNT(*)', 'orders')
@@ -304,7 +317,7 @@ export class AnalyticsService {
       .orderBy('date')
       .getRawMany();
     const [sources, types, payments, itemRow] = await Promise.all([
-      base
+      paidBase
         .clone()
         .select('o.order_source', 'name')
         .addSelect('COUNT(*)', 'orders')
@@ -348,7 +361,9 @@ export class AnalyticsService {
         grossSales: n(row?.grossSales),
         netSales: n(row?.netSales),
         orders,
-        averageOrderValue: orders ? n(row?.grossSales) / orders : 0,
+        averageOrderValue: n(row?.paidOrders)
+          ? n(row?.grossSales) / n(row?.paidOrders)
+          : 0,
         customers: n(row?.customers),
         itemsSold: n(itemRow?.itemsSold),
         discounts: n(row?.discounts),
@@ -386,7 +401,9 @@ export class AnalyticsService {
         .leftJoin('food_categories', 'c', 'c.id=f.food_category_id'),
       'o',
       scope,
-    ).andWhere("o.status != 'cancelled'");
+    )
+      .andWhere("o.status != 'cancelled'")
+      .andWhere("o.payment_status = 'paid'");
     const rows = await qb
       .select('f.id', 'foodId')
       .addSelect('f.name', 'food')
@@ -510,11 +527,15 @@ export class AnalyticsService {
         ? ''
         : 'AND prior.outlet_id IN (:...outletIds)';
     const prior = `EXISTS (SELECT 1 FROM orders prior WHERE prior.customer_id = o.customer_id AND prior.status != 'cancelled' AND prior.created_at < :from ${priorOutlet})`;
+    const spendRow = await base
+      .clone()
+      .andWhere("o.payment_status = 'paid'")
+      .select('COALESCE(SUM(o.grand_total),0)', 'spend')
+      .getRawOne<{ spend: string }>();
     const row = await base
       .clone()
       .select('COUNT(DISTINCT o.customer_id)', 'customers')
       .addSelect('COUNT(*)', 'orders')
-      .addSelect('SUM(o.grand_total)', 'spend')
       .addSelect(
         `COUNT(DISTINCT o.customer_id) FILTER (WHERE NOT ${prior})`,
         'newCustomers',
@@ -564,7 +585,9 @@ export class AnalyticsService {
         repeatRate: totalCustomers
           ? (returningCustomers / totalCustomers) * 100
           : 0,
-        averageSpend: totalCustomers ? n(row?.spend) / totalCustomers : 0,
+        averageSpend: totalCustomers
+          ? n(spendRow?.spend) / totalCustomers
+          : 0,
         averageVisits: totalCustomers ? orders / totalCustomers : 0,
       },
       trend: trendRows.map(

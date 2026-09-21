@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -21,6 +21,8 @@ import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
 @Injectable()
 export class SuppliersService {
+  private readonly logger = new Logger(SuppliersService.name);
+
   constructor(
     @InjectRepository(Supplier)
     private readonly suppliersRepository: Repository<Supplier>,
@@ -63,18 +65,25 @@ export class SuppliersService {
       supplier.creditLimit > 0 &&
       supplier.outstandingBalance > supplier.creditLimit
     ) {
-      const notification = await this.notificationsService.create({
-        outletId: supplier.outletId,
-        type: 'low_supplier_credit',
-        title: `Supplier Credit Limit Exceeded`,
-        body: `${supplier.companyName} owes ${supplier.outstandingBalance}, above the credit limit of ${supplier.creditLimit}`,
-        data: JSON.stringify({
-          supplierId: supplier.id,
-          outstandingBalance: supplier.outstandingBalance,
-          creditLimit: supplier.creditLimit,
-        }),
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      // Fire-and-forget: the balance update above is already committed (or,
+      // when called with a transaction manager, about to be — either way a
+      // notification hiccup must never fail or roll back the caller's write).
+      this.notificationsService
+        .create({
+          outletId: supplier.outletId,
+          type: 'low_supplier_credit',
+          title: `Supplier Credit Limit Exceeded`,
+          body: `${supplier.companyName} owes ${supplier.outstandingBalance}, above the credit limit of ${supplier.creditLimit}`,
+          data: JSON.stringify({
+            supplierId: supplier.id,
+            outstandingBalance: supplier.outstandingBalance,
+            creditLimit: supplier.creditLimit,
+          }),
+        })
+        .then((notification) => this.gateway.notifyNotificationCreated(notification))
+        .catch((error: Error) =>
+          this.logger.error(`Failed to create low_supplier_credit notification for supplier ${supplier.id}: ${error.message}`),
+        );
     }
   }
 

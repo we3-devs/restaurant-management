@@ -77,3 +77,60 @@ export const dotTone = (status: string) => {
 /** An order still needs watching until it's served, completed or cancelled. */
 export const isOpen = (status: string) =>
   !["served", "completed", "cancelled"].includes(status);
+
+/**
+ * A row of table_session_food_status_counts, as /orders/guest/mine returns it
+ * per order. This is where item progress comes from now — a diner's food can
+ * be split across several order_item lines, and the rollup is the one place
+ * that already adds them back up.
+ */
+export interface FoodStatusCount {
+  foodId: number;
+  foodVariantId: number | null;
+  reservedCount: number;
+  orderedCount: number;
+  preparingCount: number;
+  readyCount: number;
+  servedCount: number;
+  cancelledCount: number;
+}
+
+export const foodStatusKey = (
+  foodId: number,
+  foodVariantId: number | null,
+) => `${foodId}:${foodVariantId ?? -1}`;
+
+// Least-advanced first: a diner waiting on two burgers cares about the one
+// still in the pan, not the one already plated.
+const COUNT_STAGES: { key: keyof FoodStatusCount; status: string }[] = [
+  { key: "reservedCount", status: "stock_reserved" },
+  { key: "orderedCount", status: "sent_to_kitchen" },
+  { key: "preparingCount", status: "preparing" },
+  { key: "readyCount", status: "ready" },
+  { key: "servedCount", status: "served" },
+];
+
+/**
+ * How far a whole food+variant group has got, plus the per-stage split when
+ * its units aren't all at the same place (e.g. "1 ready · 1 preparing").
+ * Returns null when the group has nothing left to track.
+ */
+export function foodGroupProgress(row: FoodStatusCount): {
+  status: string;
+  breakdown: { status: string; count: number }[];
+} | null {
+  const present = COUNT_STAGES.map(({ key, status }) => ({
+    status,
+    count: Number(row[key]),
+  })).filter((stage) => stage.count > 0);
+
+  if (present.length === 0) {
+    return Number(row.cancelledCount) > 0
+      ? { status: "cancelled", breakdown: [] }
+      : null;
+  }
+  return {
+    status: present[0].status,
+    breakdown: present.length > 1 ? present : [],
+  };
+}

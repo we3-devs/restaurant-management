@@ -100,6 +100,11 @@ export class DashboardComputeService {
     };
   }
 
+  /**
+   * Revenue-bearing orders only: excludes cancelled orders AND orders that
+   * haven't been paid yet, since revenue should reflect money actually
+   * collected, not orders merely placed.
+   */
   private ordersInRange(range: ResolvedRange) {
     const qb = this.ordersRepository
       .createQueryBuilder('order')
@@ -107,7 +112,8 @@ export class DashboardComputeService {
         from: range.from,
         to: range.to,
       })
-      .andWhere("order.status != 'cancelled'");
+      .andWhere("order.status != 'cancelled'")
+      .andWhere("order.payment_status = 'paid'");
     if (range.outletId !== undefined) {
       qb.andWhere('order.outlet_id = :outletId', { outletId: range.outletId });
     }
@@ -398,6 +404,7 @@ export class DashboardComputeService {
       .innerJoin('orders', 'order', 'order.id = item.order_id')
       .innerJoin('foods', 'food', 'food.id = item.food_id')
       .where("order.status != 'cancelled'")
+      .andWhere("order.payment_status = 'paid'")
       .andWhere('order.created_at BETWEEN :from AND :to', {
         from: range.from,
         to: range.to,

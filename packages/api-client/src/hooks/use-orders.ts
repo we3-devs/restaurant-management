@@ -489,26 +489,55 @@ export function useTableSessionItems(tableSessionId: number) {
   })
 }
 
-export interface TableSessionFoodStatusCount {
+/**
+ * One row per (food, variant) of an order — or, on the table-session read,
+ * the same rolled up across every order of the visit. Read straight from
+ * table_session_food_status_counts, the DB-trigger-maintained rollup that
+ * every status display derives from, so nothing is aggregated client-side.
+ */
+export interface FoodStatusCount {
+  orderId: number
   foodId: number
   foodName: string
-  tableSessionId: number
+  foodVariantId: number | null
+  foodVariantName: string | null
+  /** Null for grab-and-go/takeaway, which has no table to roll up to. */
+  tableSessionId: number | null
+  /** Still in the cart — not yet sent to the kitchen. */
+  reservedCount: number
   orderedCount: number
   preparingCount: number
   readyCount: number
   servedCount: number
   cancelledCount: number
+  /** When the earliest line of this food+variant was added — use for KDS aging. */
+  createdAt: string
   updatedAt: string
 }
 
-/** Per-food kitchen-pipeline counts for a table's whole visit — a DB-trigger-maintained rollup, not computed client-side. */
+/** Kitchen-pipeline counts for one order — covers grab-and-go, which has no session. */
+export function useOrderFoodStatusCounts(orderId: number) {
+  const realtimeConnected = useKdsSocketConnected()
+
+  return useQuery({
+    queryKey: queryKeys.orders.statusCounts(orderId),
+    queryFn: () =>
+      apiClient<FoodStatusCount[]>(
+        `/order-items/status-counts${toQueryString({ orderId })}`,
+      ),
+    enabled: orderId > 0,
+    refetchInterval: realtimeConnected ? false : 30_000,
+  })
+}
+
+/** The same counts for a table's whole visit, rolled up across its orders. */
 export function useTableSessionFoodStatusCounts(tableSessionId: number) {
   const realtimeConnected = useKdsSocketConnected()
 
   return useQuery({
     queryKey: queryKeys.tableSessions.statusCounts(tableSessionId),
     queryFn: () =>
-      apiClient<TableSessionFoodStatusCount[]>(
+      apiClient<FoodStatusCount[]>(
         `/order-items/status-counts${toQueryString({ tableSessionId })}`,
       ),
     enabled: tableSessionId > 0,

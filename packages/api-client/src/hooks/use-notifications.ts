@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner"
 import { apiClient } from "../client"
 import { acquireKdsSocket, releaseKdsSocket, useKdsSocketConnected } from "../realtime/kds-socket"
-import { playNotificationChime } from "../realtime/notification-sound"
+import { playNewOrderSound, playNotificationChime } from "../realtime/notification-sound"
 import { queryKeys } from "../query-keys"
 import { toQueryString, type PaginatedResponse } from "../types"
 import {
@@ -12,6 +12,11 @@ import {
   type NotificationPriority,
   type NotificationType,
 } from "@rms/validators/notifications"
+
+// A distinct sound plays for these — a new order arriving is the one alert
+// staff need to notice over background noise, so it gets its own audio file
+// instead of the generic chime every other notification type shares.
+const NEW_ORDER_NOTIFICATION_TYPES: NotificationType[] = ["order_sent", "guest_order_placed"]
 
 export interface AppNotification {
   id: number
@@ -199,7 +204,11 @@ export function useNotificationsRealtime(
       if (!showToast || (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type))) {
         return
       }
-      playNotificationChime()
+      if (NEW_ORDER_NOTIFICATION_TYPES.includes(notification.type)) {
+        playNewOrderSound()
+      } else {
+        playNotificationChime()
+      }
       const variant = NOTIFICATION_TOAST_VARIANT[notification.type] ?? "info"
       toast[variant](notification.title, { description: notification.body ?? undefined })
     }

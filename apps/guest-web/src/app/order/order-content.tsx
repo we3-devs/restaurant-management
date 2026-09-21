@@ -15,6 +15,8 @@ import {
   ORDER_STAGES,
   ORDER_STAGE_INDEX,
   dotTone,
+  foodGroupProgress,
+  foodStatusKey,
   isOpen,
   tone,
 } from "@/lib/order-status";
@@ -167,6 +169,15 @@ export default function OrderContent() {
   const stageIndex = ORDER_STAGE_INDEX[current.status] ?? 0;
   const cancelled = current.status === "cancelled";
 
+  const countsByFood = new Map(
+    (current.foodStatusCounts ?? []).flatMap((row) => {
+      const progress = foodGroupProgress(row);
+      return progress
+        ? ([[foodStatusKey(row.foodId, row.foodVariantId), progress]] as const)
+        : [];
+    })
+  );
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
@@ -246,7 +257,14 @@ export default function OrderContent() {
           <ul className="divide-y divide-slate-100">
             {current.items?.map((item) => {
               const open = expanded.has(item.id);
-              const itemCancelled = item.status === "cancelled";
+              // Progress comes from the counts rollup for this food+variant,
+              // never from item.status — the same source staff and the KDS
+              // read, so the diner can't be shown a different answer.
+              const progress = countsByFood.get(
+                foodStatusKey(item.foodId, item.foodVariantId),
+              );
+              const itemStatus = progress?.status ?? "stock_reserved";
+              const itemCancelled = itemStatus === "cancelled";
               return (
                 <li key={item.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
@@ -265,10 +283,20 @@ export default function OrderContent() {
                           {item.quantity} × {money(item.unitPrice)}
                         </span>
                         <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${tone(item.status)}`}
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${tone(itemStatus)}`}
                         >
-                          {ITEM_LABEL[item.status] ?? item.status}
+                          {ITEM_LABEL[itemStatus] ?? itemStatus}
                         </span>
+                        {/* Units of the same food sitting at different
+                            stages — the rollup is what makes this visible. */}
+                        {progress?.breakdown.map((stage) => (
+                          <span
+                            key={stage.status}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${tone(stage.status)}`}
+                          >
+                            {stage.count} {ITEM_LABEL[stage.status] ?? stage.status}
+                          </span>
+                        ))}
                         {item.isHeld && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200">
                             <Pause size={9} /> held
@@ -299,7 +327,7 @@ export default function OrderContent() {
                     <div className="mt-3 rounded-lg bg-slate-50 p-3">
                       <StageTrack
                         stages={ITEM_STAGES}
-                        index={ITEM_STAGE_INDEX[item.status] ?? 0}
+                        index={ITEM_STAGE_INDEX[itemStatus] ?? 0}
                         cancelled={itemCancelled}
                       />
                       {itemCancelled && (

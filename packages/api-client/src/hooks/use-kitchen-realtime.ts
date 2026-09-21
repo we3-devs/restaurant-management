@@ -57,13 +57,28 @@ export function useKitchenRealtime(outletId: number | null): void {
       })
     }
 
-    // Kitchen item status changes mirror onto OrderItem.status, and finishing
-    // an order can auto-end its table session, so any open order/floor screens
-    // (POS cart, order detail, floor board) must refetch too.
+    // Kitchen item status changes land in table_session_food_status_counts,
+    // which every status display reads, and finishing an order can auto-end
+    // its table session — so any open order/floor screen (POS cart, order
+    // detail, guest tracker, floor board) must refetch too.
+    //
+    // tableSessions.all, not .lists(): the session status-counts key is a
+    // sibling of .lists(), so invalidating .lists() alone left the rollup
+    // stale indefinitely whenever the KDS socket was connected (its polling
+    // fallback is disabled in that case). The counts table can't announce
+    // itself either — it's written by a SQL trigger, which the TypeORM
+    // entity subscriber behind the generic resource.changed bus can't see.
     const invalidateOrders = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tableSessions.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.diningTables.lists() })
+    }
+    // The hand-merges above are an optimistic first paint, not the source of
+    // truth: nothing else invalidated the bootstrap, so anything they got
+    // wrong (or any event missed while the tab was backgrounded) stuck on the
+    // board until a remount. This is what makes the KDS self-correct.
+    const invalidateKds = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.kitchenTickets.all })
     }
     const invalidateService = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
@@ -74,19 +89,29 @@ export function useKitchenRealtime(outletId: number | null): void {
     const onTicketCreated = (ticket: KitchenTicket) => {
       patchTicket(ticket, true)
       invalidateOrders()
+      invalidateKds()
     }
     const onTicketUpdated = (ticket: KitchenTicket) => {
       patchTicket(ticket, false)
       invalidateOrders()
+      invalidateKds()
     }
     const onItemUpdated = (item: KitchenTicketItem) => {
       patchItem(item)
       invalidateOrders()
+      invalidateKds()
     }
     const onNotificationCreated = (notification: AppNotification) => {
       invalidateService()
       if (notification.type === "guest_order_placed" || notification.type === "order_sent") {
         invalidateOrders()
+      }
+      // Kitchen-side notifications announce work the board must already be
+      // showing — a ready/recall/cancel that arrives as a notification but
+      // whose ticket event was dropped would otherwise leave the two screens
+      // disagreeing.
+      if (notification.type?.startsWith("kitchen_")) {
+        invalidateKds()
       }
     }
     const onServiceRequestCreated = () => invalidateService()

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -18,6 +18,8 @@ import { calculatePaymentTotals } from '@rms/validators/payment-totals';
 
 @Injectable()
 export class OrderPaymentsService {
+  private readonly logger = new Logger(OrderPaymentsService.name);
+
   constructor(
     @InjectRepository(OrderPayment)
     private readonly orderPaymentsRepository: Repository<OrderPayment>,
@@ -205,11 +207,21 @@ export class OrderPaymentsService {
     }
 
     if (saved.method === 'credit' && saved.customerId) {
-      await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {
-        orderId,
-        userId: receivedBy,
-        notes: `Order ${order.orderNumber}`,
-      });
+      // The payment row is already committed above — a credit-ledger hiccup
+      // shouldn't fail this otherwise-successful request. Logged for
+      // reconciliation, same pattern as the loyalty/credit reversals in
+      // OrdersService#updateStatus.
+      try {
+        await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {
+          orderId,
+          userId: receivedBy,
+          notes: `Order ${order.orderNumber}`,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to charge customer credit for payment ${saved.id} (order ${orderId}): ${(error as Error).message}`,
+        );
+      }
     }
 
     if (saved.status === 'completed' && saved.type === 'payment') {
@@ -223,26 +235,35 @@ export class OrderPaymentsService {
         data: JSON.stringify({ paymentId: saved.id }),
       };
 
+      // Fire-and-forget: the payment is already committed, so a notification
+      // hiccup shouldn't fail this otherwise-successful request.
       if (saved.method === 'cash') {
         // Cash handling is sensitive (till counts, shortages) — scope
         // delivery to superadmins plus whichever roles are configured under
         // Settings > Notifications (default: manager, cashier).
-        const { cashNotificationRoles } = await this.settingsService.getNotificationSettings();
-        const positionSlugs = Array.isArray(cashNotificationRoles)
-          ? (cashNotificationRoles as string[])
-          : ['manager', 'cashier'];
-        const recipientUserIds = await this.notificationsService.getUserIdsByPosition(
-          order.outletId,
-          positionSlugs,
-        );
-        const notification = await this.notificationsService.create(
-          notificationInput,
-          recipientUserIds,
-        );
-        this.gateway.notifyUsersNotificationCreated(recipientUserIds, notification);
+        this.settingsService
+          .getNotificationSettings()
+          .then(({ cashNotificationRoles }) => {
+            const positionSlugs = Array.isArray(cashNotificationRoles)
+              ? (cashNotificationRoles as string[])
+              : ['manager', 'cashier'];
+            return this.notificationsService
+              .getUserIdsByPosition(order.outletId, positionSlugs)
+              .then(async (recipientUserIds) => {
+                const notification = await this.notificationsService.create(notificationInput, recipientUserIds);
+                this.gateway.notifyUsersNotificationCreated(recipientUserIds, notification);
+              });
+          })
+          .catch((error: Error) =>
+            this.logger.error(`Failed to create payment_received notification for payment ${saved.id}: ${error.message}`),
+          );
       } else {
-        const notification = await this.notificationsService.create(notificationInput);
-        this.gateway.notifyNotificationCreated(notification);
+        this.notificationsService
+          .create(notificationInput)
+          .then((notification) => this.gateway.notifyNotificationCreated(notification))
+          .catch((error: Error) =>
+            this.logger.error(`Failed to create payment_received notification for payment ${saved.id}: ${error.message}`),
+          );
       }
     }
 

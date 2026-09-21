@@ -125,6 +125,7 @@ export const queryKeys = {
     items: (id: number) => [...queryKeys.orders.all, "items", id] as const,
     payments: (id: number) => [...queryKeys.orders.all, "payments", id] as const,
     statusHistory: (id: number) => [...queryKeys.orders.all, "status-history", id] as const,
+    statusCounts: (id: number) => [...queryKeys.orders.all, "status-counts", id] as const,
   },
   orderItems: {
     all: ["order-items"] as const,

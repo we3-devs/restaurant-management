@@ -1,4 +1,24 @@
 let audioCtx: AudioContext | null = null
+let newOrderAudio: HTMLAudioElement | null = null
+
+/**
+ * New-order alert — a real audio file (served from the app's own /public),
+ * distinct from the synthesized chime used for every other notification
+ * type so staff can tell a new order apart by ear. Silently no-ops if the
+ * asset is missing (e.g. an app that doesn't ship this file) or the browser
+ * blocks autoplay before a user gesture.
+ */
+export function playNewOrderSound(): void {
+  if (typeof window === "undefined" || typeof Audio === "undefined") return
+  try {
+    newOrderAudio ??= new Audio("/koiroylers-shop-notification-355746.mp3")
+    newOrderAudio.currentTime = 0
+    void newOrderAudio.play().catch(() => {})
+  } catch {
+    // Missing asset or blocked autoplay — the toast still shows, so a silent
+    // failure here is harmless.
+  }
+}
 
 /**
  * Two-note chime (C6 -> E6) synthesized with Web Audio instead of shipping an

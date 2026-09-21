@@ -9,6 +9,17 @@ function normaliseHeader(raw: string): string {
 function cellText(cell: ExcelJS.Cell): string {
   const value = cell.value;
   if (value === null || value === undefined) return '';
+  // A cell Excel has formatted as a date (even accidentally — a SKU or code
+  // like "01-02" auto-detected as a date) comes back as a native Date, not a
+  // { text } / { result } rich-value object. Falling through to
+  // String(value) below would print either a full locale timestamp for a
+  // valid date, or the literal string "Invalid Date" for a malformed one —
+  // both leak into the parsed row as data. Render as plain YYYY-MM-DD, and
+  // an unparsable date as empty (same as a blank cell) rather than a string
+  // that reads as real data.
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+  }
   if (typeof value === 'object' && 'text' in (value as unknown as Record<string, unknown>)) {
     return String((value as unknown as { text: unknown }).text ?? '');
   }

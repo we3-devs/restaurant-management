@@ -76,9 +76,9 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
     return undefined as T
   }
 
+  // response.ok is already established above — an empty or non-JSON body on
+  // a successful response (e.g. a 200 with no content) is not an error, so
+  // it's returned as-is rather than thrown.
   const body = await readJson<T>(response)
-  if (body === null) {
-    throw new ApiError("The server returned an invalid response. Please try again.", response.status)
-  }
-  return body
+  return body as T
 }

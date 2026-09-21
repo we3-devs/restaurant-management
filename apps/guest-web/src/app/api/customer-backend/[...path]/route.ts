@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { resolveTenantHost } from "@rms/auth/tenant"
 import { customerBackendFetch, CustomerUnauthorizedError } from "@rms/auth/server/customer-backend-client"
 
+// This proxy fronts every guest API call (menu, orders, order tracking), so
+// its own region matters as much as the backend's does. Left unset, Vercel
+// picked Washington D.C. for a request that originated in Mumbai and was
+// headed to a backend that's nowhere near either — three long-haul hops
+// stacked on top of whatever the backend itself takes, on every request.
+// bom1 puts this function next to where guests actually are; if the
+// backend later moves to a different region, this should move with it.
+export const preferredRegion = ["bom1"]
+
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>) {
   const tenant = resolveTenantHost(request.headers.get("host"))
   if (!tenant || tenant.surface !== "guest") {

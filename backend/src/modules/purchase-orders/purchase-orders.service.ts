@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -35,6 +36,8 @@ function lineTotal(quantity: number, unitCost: number, discount = 0, taxPercent 
 
 @Injectable()
 export class PurchaseOrdersService {
+  private readonly logger = new Logger(PurchaseOrdersService.name);
+
   constructor(
     @InjectRepository(PurchaseOrder)
     private readonly poRepo: Repository<PurchaseOrder>,
@@ -163,27 +166,39 @@ export class PurchaseOrdersService {
     po.approvedBy = approvedBy;
     po.approvedAt = new Date();
     await this.poRepo.save(po);
-    const notification = await this.notificationsService.create({
-      outletId: po.outletId,
-      type: 'purchase_order_approved',
-      title: `Purchase Order ${po.poNo} Approved`,
-      body: `PO #${po.poNo} has been approved`,
-      data: JSON.stringify({ poId: po.id, poNo: po.poNo }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the approval above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: po.outletId,
+        type: 'purchase_order_approved',
+        title: `Purchase Order ${po.poNo} Approved`,
+        body: `PO #${po.poNo} has been approved`,
+        data: JSON.stringify({ poId: po.id, poNo: po.poNo }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create purchase_order_approved notification for PO ${po.id}: ${error.message}`),
+      );
     return po;
   }
 
   async reject(id: number): Promise<PurchaseOrder> {
     const po = await this.transition(id, 'cancelled');
-    const notification = await this.notificationsService.create({
-      outletId: po.outletId,
-      type: 'purchase_order_rejected',
-      title: `Purchase Order ${po.poNo} Rejected`,
-      body: `PO #${po.poNo} has been rejected`,
-      data: JSON.stringify({ poId: po.id, poNo: po.poNo }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the status change above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: po.outletId,
+        type: 'purchase_order_rejected',
+        title: `Purchase Order ${po.poNo} Rejected`,
+        body: `PO #${po.poNo} has been rejected`,
+        data: JSON.stringify({ poId: po.id, poNo: po.poNo }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create purchase_order_rejected notification for PO ${po.id}: ${error.message}`),
+      );
     return po;
   }
 

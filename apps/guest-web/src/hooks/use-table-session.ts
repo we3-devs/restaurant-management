@@ -5,6 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch, readError } from "@/lib/api";
 import { useGuestAuth } from "./use-guest-auth";
 
+export type QrOrderingMode = "login" | "quick_order";
+export type QrAccessCheckMode = "ip" | "geofence" | "either" | "both";
+
 export interface TablePartyMember {
   id: number;
   name: string;
@@ -36,11 +39,17 @@ export function useTableSession(tableCode: string | null) {
   // browser while staying on the table page.
   const key = ["table-session", tableCode, token];
   const [joinedToken, setJoinedToken] = useState<string | null>(null);
+  const [qrOrderingMode, setQrOrderingMode] = useState<QrOrderingMode | null>(null);
+  const [qrAccessCheckMode, setQrAccessCheckMode] = useState<QrAccessCheckMode | null>(null);
   const joiningRef = useRef(false);
+  const scannedRef = useRef(false);
   const joined = !!token && joinedToken === token;
 
   // One write on entry: attach this verified guest to the table's session
-  // (opening one if needed). Everything after is read-only polling.
+  // (opening one if needed). Everything after is read-only polling. Only
+  // used for login-mode outlets — quick_order outlets join anonymously via
+  // useQuickOrderSession instead, since this endpoint requires OTP-verified
+  // identity.
   const join = useMutation({
     mutationFn: async () => {
       const res = await authFetch(`/table-sessions/guest/join`, {
@@ -56,12 +65,36 @@ export function useTableSession(tableCode: string | null) {
     },
   });
 
+  // Occupy the table the moment the QR is scanned, before any sign-in — the
+  // join below needs a verified customer, which a diner doesn't have until
+  // checkout, so gating occupancy on it left tables reading 'available' to
+  // staff while people were sitting at them. Also reports the outlet's QR
+  // ordering mode so the caller knows whether to show the OTP sheet or the
+  // no-login quick-order gate.
+  useEffect(() => {
+    if (!tableCode || scannedRef.current) return;
+    scannedRef.current = true;
+    void authFetch(`/table-sessions/guest/scan`, {
+      method: "POST",
+      body: JSON.stringify({ tableCode }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.qrOrderingMode) setQrOrderingMode(data.qrOrderingMode);
+        if (data?.qrAccessCheckMode) setQrAccessCheckMode(data.qrAccessCheckMode);
+      })
+      .catch(() => undefined);
+  }, [tableCode]);
+
   useEffect(() => {
     if (!tableCode || !token || joined || joiningRef.current) return;
+    // quick_order outlets join through useQuickOrderSession's own endpoint —
+    // calling this one with a guest-typed token would just 401.
+    if (qrOrderingMode === "quick_order") return;
     joiningRef.current = true;
     join.mutate(undefined, { onSettled: () => (joiningRef.current = false) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableCode, token, joined]);
+  }, [tableCode, token, joined, qrOrderingMode]);
 
   const query = useQuery<TableSession | null>({
     queryKey: key,
@@ -108,5 +141,7 @@ export function useTableSession(tableCode: string | null) {
     error: (join.error ?? query.error) as Error | null,
     addCompanion,
     removeCompanion,
+    qrOrderingMode,
+    qrAccessCheckMode,
   };
 }

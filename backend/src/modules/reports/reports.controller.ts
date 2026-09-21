@@ -20,7 +20,7 @@ import { toCsv } from './export/csv.util';
 import { toExcelBuffer } from './export/excel.util';
 import { toPdfBuffer } from './export/pdf.util';
 import {
-  REPORT_COLUMNS,
+  getReportColumns,
   REPORT_TYPES,
   STAFF_REPORT_TYPES,
   type ReportType,
@@ -97,7 +97,7 @@ export class ReportsController {
     await this.assertStaffReportAccess(type, user);
     const accessible = await this.resolveReportOutletAccess(query, user);
     const report = await this.reportsService.getReport(type, query, accessible);
-    return { ...report, columns: REPORT_COLUMNS[type] };
+    return { ...report, columns: getReportColumns(type) };
   }
 
   @Get(':type/export')
@@ -128,7 +128,7 @@ export class ReportsController {
       query,
       accessible,
     );
-    const columns = REPORT_COLUMNS[type];
+    const columns = getReportColumns(type);
     const filename = `${type}-report-${new Date().toISOString().slice(0, 10)}`;
 
     if (exportFormat === 'csv') {

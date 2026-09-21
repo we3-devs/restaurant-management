@@ -71,6 +71,12 @@ export class KitchenTicketItemResponseDto {
   @ApiProperty()
   recallCount: number;
 
+  @ApiProperty({ description: 'When the item was sent to the kitchen.' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Last time anything about the item changed.' })
+  updatedAt: Date;
+
   @ApiProperty({ type: KitchenTicketOrderItemResponseDto, required: false })
   orderItem?: KitchenTicketOrderItemResponseDto;
 }

@@ -481,12 +481,12 @@ export class AssistantService {
       metrics =
         groupBy === 'day'
           ? await this.db.query(
-              `SELECT DATE_TRUNC('day', created_at)::date AS day, COUNT(*)::int AS orders, COALESCE(SUM(grand_total),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter} GROUP BY DATE_TRUNC('day', created_at) ORDER BY day`,
+              `SELECT DATE_TRUNC('day', created_at)::date AS day, COUNT(*)::int AS orders, COALESCE(SUM(grand_total) FILTER (WHERE payment_status = 'paid'),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter} GROUP BY DATE_TRUNC('day', created_at) ORDER BY day`,
               params,
             )
           : (
               await this.db.query(
-                `SELECT COUNT(*)::int AS orders, COALESCE(SUM(grand_total),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter}`,
+                `SELECT COUNT(*)::int AS orders, COALESCE(SUM(grand_total) FILTER (WHERE payment_status = 'paid'),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter}`,
                 params,
               )
             )[0];
@@ -494,7 +494,7 @@ export class AssistantService {
       assertAssistantDataAccess(intent, ['orders']);
       metrics = (
         await this.db.query(
-          `SELECT COUNT(*)::int AS orders, COALESCE(SUM(grand_total),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter}`,
+          `SELECT COUNT(*)::int AS orders, COALESCE(SUM(grand_total) FILTER (WHERE payment_status = 'paid'),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter}`,
           params,
         )
       )[0];
@@ -612,7 +612,7 @@ export class AssistantService {
         ).map((row) => Number(row.id));
         for (const outletId of outlets) {
           const [metrics] = (await this.db.query(
-            `SELECT COUNT(*) FILTER (WHERE status <> 'cancelled')::int AS bookings, COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancellations, COALESCE(SUM(grand_total) FILTER (WHERE status <> 'cancelled'),0)::numeric AS revenue FROM orders WHERE outlet_id=$1 AND created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + interval '1 day'`,
+            `SELECT COUNT(*) FILTER (WHERE status <> 'cancelled')::int AS bookings, COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancellations, COALESCE(SUM(grand_total) FILTER (WHERE status <> 'cancelled' AND payment_status = 'paid'),0)::numeric AS revenue FROM orders WHERE outlet_id=$1 AND created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + interval '1 day'`,
             [outletId],
           )) as Array<Record<string, unknown>>;
           const narrative = await this.llm(

@@ -78,6 +78,15 @@ export class IngredientsService {
     };
   }
 
+  /** Bulk lookup used by OrdersService reservation calculations to avoid one DB round trip per recipe row. */
+  async findByIds(ids: number[]): Promise<Ingredient[]> {
+    if (ids.length === 0) return [];
+    return this.ingredientsRepository.find({
+      where: scopedWhere(this.tenantContext, { id: In(ids) }),
+      relations: { category: true, outlet: { tenant: true } },
+    });
+  }
+
   /** Internal lookup used by the stock-movement document services. */
   async findOne(id: number): Promise<Ingredient> {
     const ingredient = await this.ingredientsRepository.findOne({

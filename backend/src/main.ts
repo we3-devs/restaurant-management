@@ -33,6 +33,13 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService<AppConfig>);
 
+  // req.ip / X-Forwarded-For are only trustworthy once Express is told exactly
+  // how many reverse proxies sit in front of it — used by the quick-order QR
+  // flow's IP-match access check (see qr-access.util.ts). A hop count of 0
+  // (the default) trusts nothing beyond the raw socket peer, matching prior
+  // behavior for every deployment that hasn't set TRUST_PROXY_HOPS.
+  app.set('trust proxy', configService.get('app', { infer: true })!.trustProxyHops);
+
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
   app.use(helmet());

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -92,6 +93,8 @@ export class OutletsService {
       slug,
       tenantId,
     });
+    this.applyQrOrderingFields(outlet, dto);
+    this.assertQrOrderingConfigured(outlet);
     try {
       return await this.outletsRepository.save(outlet);
     } catch (error) {
@@ -110,6 +113,8 @@ export class OutletsService {
     if (dto.name !== undefined) {
       outlet.name = dto.name;
     }
+    this.applyQrOrderingFields(outlet, dto);
+    this.assertQrOrderingConfigured(outlet);
 
     try {
       return await this.outletsRepository.save(outlet);
@@ -130,5 +135,51 @@ export class OutletsService {
     // Preserve historical outlet data and release the original slug for reuse.
     outlet.slug = `deleted-${randomUUID()}`;
     await this.outletsRepository.save(outlet);
+  }
+
+  private applyQrOrderingFields(
+    outlet: Outlet,
+    dto: CreateOutletDto | UpdateOutletDto,
+  ): void {
+    if (dto.qrOrderingMode !== undefined) outlet.qrOrderingMode = dto.qrOrderingMode;
+    if (dto.qrAccessCheckMode !== undefined) outlet.qrAccessCheckMode = dto.qrAccessCheckMode;
+    if (dto.qrAccessLatitude !== undefined) outlet.qrAccessLatitude = dto.qrAccessLatitude;
+    if (dto.qrAccessLongitude !== undefined) outlet.qrAccessLongitude = dto.qrAccessLongitude;
+    if (dto.qrAccessRadiusMeters !== undefined) outlet.qrAccessRadiusMeters = dto.qrAccessRadiusMeters;
+    if (dto.qrAccessAllowedIp !== undefined) outlet.qrAccessAllowedIp = dto.qrAccessAllowedIp;
+  }
+
+  /**
+   * Prevents an outlet being switched to quick_order without the fields its
+   * configured check mode actually needs — otherwise it would silently allow
+   * anonymous ordering with no real access gate at all.
+   */
+  private assertQrOrderingConfigured(outlet: Outlet): void {
+    if (outlet.qrOrderingMode !== 'quick_order') return;
+
+    const hasIp = !!outlet.qrAccessAllowedIp;
+    const hasGeofence =
+      outlet.qrAccessLatitude !== null &&
+      outlet.qrAccessLongitude !== null &&
+      outlet.qrAccessRadiusMeters !== null;
+
+    const required: Record<typeof outlet.qrAccessCheckMode, boolean> = {
+      ip: hasIp,
+      geofence: hasGeofence,
+      either: hasIp || hasGeofence,
+      both: hasIp && hasGeofence,
+    };
+
+    if (!required[outlet.qrAccessCheckMode]) {
+      throw new BadRequestException(
+        `qrAccessCheckMode "${outlet.qrAccessCheckMode}" requires ${
+          outlet.qrAccessCheckMode === 'ip'
+            ? 'qrAccessAllowedIp'
+            : outlet.qrAccessCheckMode === 'geofence'
+              ? 'qrAccessLatitude, qrAccessLongitude and qrAccessRadiusMeters'
+              : 'qrAccessAllowedIp, or all of qrAccessLatitude/qrAccessLongitude/qrAccessRadiusMeters'
+        } to be set before enabling quick_order`,
+      );
+    }
   }
 }

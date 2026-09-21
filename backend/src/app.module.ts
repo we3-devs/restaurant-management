@@ -145,47 +145,11 @@ import { AssetsModule } from './modules/assets/assets.module';
             RealtimeChangeSubscriber,
             DashboardCacheSubscriber,
           ],
-          // The DB is a remote pooler (Seoul) Ã¢â‚¬â€ profiling showed ~150-200ms
-          // per query even warm, but ~1.1-1.4s to establish a *new* pooled
-          // connection (TCP+TLS+auth). `min` does NOT proactively open
-          // connections in pg-pool (it only stops the pool from closing
-          // idle ones below that count once they exist) Ã¢â‚¬â€ actual proactive
-          // warm-up is AppModule.onApplicationBootstrap's repeating ping,
-          // which keeps 4 connections open (matching the dashboard's 4
-          // concurrent endpoint calls). `min` here just keeps those from
-          // being closed the moment they go idle.
-          //
-          // `max` MUST stay comfortably under Supabase's PgBouncer
-          // session-mode ceiling (pool_size: 15 on this project) Ã¢â‚¬â€ a higher
-          // `max` doesn't buy more real capacity, it just means the app asks
-          // PgBouncer for sessions it will refuse once traffic pushes past
-          // 15 concurrent, which surfaces as EMAXCONNSESSION errors (500s)
-          // rather than the app-side queuing pg-pool would otherwise do.
-          //
-          // Increased from 12/8 to 13/10 (Aug 12): Staff app bootstrap
-          // fires 6+ concurrent requests after login (auth/me, ws-ticket,
-          // dining-tables, customers, orders, notifications). With min=8,
-          // bootstrap burst exhausts the pool. Bumping to min=10 covers the
-          // burst without exceeding Supabase's 15-session limit. Leaves 2
-          // sessions headroom for concurrent migrations/restarts.
-          // Measured improvement: reduced cold-connection cost by ~40% (fewer
-          // new TLS handshakes during bootstrap).
           extra: {
             max: 13,
             min: 10,
             idleTimeoutMillis: 60_000,
-            // node-postgres uses this both to bound establishing a new
-            // physical connection AND how long a caller queues waiting for
-            // a client to free up Ã¢â‚¬â€ set comfortably above the ~1.1-1.4s
-            // cold-connect cost documented above so legitimate cold-starts
-            // still succeed, but a starved pool (e.g. a burst of order
-            // creations) fails fast with a clear error instead of hanging
-            // every request, including /health, until a manual restart.
             connectionTimeoutMillis: 5_000,
-            // Session-level query timeout (SET statement_timeout on each
-            // checked-out connection) Ã¢â‚¬â€ a backstop against a pathological
-            // query holding a connection indefinitely, well above the
-            // documented ~150-200ms warm-query baseline.
             statement_timeout: 15_000,
           },
         };
@@ -193,10 +157,6 @@ import { AssetsModule } from './modules/assets/assets.module';
     }),
     CacheModule.register({ isGlobal: true }),
     ScheduleModule.forRoot(),
-    // Not registered as a global APP_GUARD Ã¢â‚¬â€ applied via @UseGuards(ThrottlerGuard)
-    // only on the handful of public, unauthenticated guest-facing routes (see
-    // customer-auth/dining-tables/orders/service-requests controllers), so
-    // authenticated staff APIs are completely untouched by this.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 20 }]),
     WsTicketsModule,
     UsersModule,

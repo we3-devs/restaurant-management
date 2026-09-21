@@ -92,20 +92,45 @@ export class OrderItemsController {
     return this.ordersService.listItems(query);
   }
 
+  /**
+   * The canonical status read. Pass orderId for one order (works for
+   * grab-and-go too, which has no session) or tableSessionId for the whole
+   * visit rolled up across its orders.
+   */
   @Get('status-counts')
   @RequirePermissions('orders.view')
   @ApiOperation({
     summary:
-      "Per-food kitchen-pipeline counts (ordered/preparing/ready/served/cancelled) for a table session's whole visit — a rollup kept in sync by a DB trigger, not computed on request.",
+      'Per-food/variant kitchen-pipeline counts (reserved/ordered/preparing/ready/served/cancelled) for an order, or for a table session\'s whole visit — read from table_session_food_status_counts, a rollup kept in sync by a DB trigger rather than computed on request.',
   })
   async statusCounts(
-    @Query('tableSessionId', ParseIntPipe) tableSessionId: number,
     @CurrentUser() user: User,
+    @Query('orderId') orderId?: string,
+    @Query('tableSessionId') tableSessionId?: string,
   ) {
-    await this.assertTableSessionAccess(tableSessionId, user);
-    return this.ordersService.listFoodStatusCountsForTableSession(
-      tableSessionId,
-    );
+    if ((orderId === undefined) === (tableSessionId === undefined)) {
+      throw new BadRequestException(
+        'Pass exactly one of orderId or tableSessionId',
+      );
+    }
+
+    if (orderId !== undefined) {
+      const id = Number(orderId);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestException('orderId must be a positive integer');
+      }
+      await this.assertOrderAccess(id, user);
+      return this.ordersService.listFoodStatusCountsForOrder(id);
+    }
+
+    const sessionId = Number(tableSessionId);
+    if (!Number.isInteger(sessionId) || sessionId <= 0) {
+      throw new BadRequestException(
+        'tableSessionId must be a positive integer',
+      );
+    }
+    await this.assertTableSessionAccess(sessionId, user);
+    return this.ordersService.listFoodStatusCountsForTableSession(sessionId);
   }
 
   @Get(':id')
@@ -122,14 +147,29 @@ export class OrderItemsController {
   @RequirePermissions('orders.manage')
   @ApiOperation({
     summary:
-      'Updates an order item (foodId/foodVariantId/orderId/preparationDepartmentId are immutable; recalculates totals)',
+      'Updates an order item (foodId/foodVariantId/orderId/preparationDepartmentId are immutable; recalculates totals). ' +
+      'Once an item has left stock_reserved (sent to the kitchen), editing its quantity/note/packaging requires cashier ' +
+      '(order-payments.manage) or admin (orders.delete) tier — a waiter can still edit their own not-yet-sent cart lines.',
   })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderItemDto,
     @CurrentUser() user: User,
   ) {
-    await this.assertItemAccess(id, user);
+    const item = await this.assertItemAccess(id, user);
+    const editsContent =
+      dto.quantity !== undefined || dto.note !== undefined || dto.packagingType !== undefined;
+    if (item.status !== 'stock_reserved' && editsContent) {
+      const [isCashier, isAdmin] = await Promise.all([
+        this.permissionsService.hasPermission(user.id, 'order-payments.manage'),
+        this.permissionsService.hasPermission(user.id, 'orders.delete'),
+      ]);
+      if (!isCashier && !isAdmin) {
+        throw new ForbiddenException(
+          'This item has already been sent to the kitchen — only a cashier or admin can edit it now',
+        );
+      }
+    }
     return this.ordersService.updateItem(id, dto);
   }
 

@@ -430,6 +430,62 @@ export class FoodsService {
     return { food, price: override?.price ?? defaultItem.price };
   }
 
+  /**
+   * Same resolution as resolvePriceForOutlet, batched for a whole cart: 3
+   * queries total instead of 2 per food. Built for OrdersService#addItemsBatch,
+   * where placing an order with N no-variant items used to pay for this
+   * resolution N times over — on a remote pooler each round trip alone runs
+   * ~150-200ms, so that was the single largest cost in "place order" latency.
+   */
+  async resolvePricesForOutlet(
+    foodIds: number[],
+    outletId: number,
+  ): Promise<Map<number, { food: Food; price: number }>> {
+    const ids = [...new Set(foodIds)];
+    if (ids.length === 0) return new Map();
+
+    const [foods, overrides, defaultItems] = await Promise.all([
+      this.findByIds(ids),
+      this.foodOutletsRepository.find({
+        where: scopedWhere(this.tenantContext, { foodId: In(ids), outletId }),
+      }),
+      this.foodVariantsRepository.find({
+        where: scopedWhere(this.tenantContext, { foodId: In(ids), isDefault: true, isActive: true }),
+        order: { sortOrder: 'ASC', id: 'ASC' },
+      }),
+    ]);
+
+    const foodById = new Map(foods.map((food) => [food.id, food]));
+    const overrideByFoodId = new Map(overrides.map((override) => [override.foodId, override]));
+    // Several rows can match "default and active" per food in principle —
+    // resolvePriceForOutlet's own query picks the first by sortOrder/id, so
+    // this keeps only the first one seen per foodId to match it exactly.
+    const defaultByFoodId = new Map<number, FoodVariant>();
+    for (const item of defaultItems) {
+      if (!defaultByFoodId.has(item.foodId)) defaultByFoodId.set(item.foodId, item);
+    }
+
+    const result = new Map<number, { food: Food; price: number }>();
+    for (const foodId of ids) {
+      const food = foodById.get(foodId);
+      if (!food) throw new NotFoundException(`Food ${foodId} not found`);
+
+      const override = overrideByFoodId.get(foodId);
+      if (override && !override.isAvailable) {
+        throw new BadRequestException(
+          `Food ${foodId} is not available at outlet ${outletId}`,
+        );
+      }
+
+      const defaultItem = defaultByFoodId.get(foodId);
+      if (!defaultItem) {
+        throw new BadRequestException(`Food ${foodId} has no active food item`);
+      }
+      result.set(foodId, { food, price: override?.price ?? defaultItem.price });
+    }
+    return result;
+  }
+
   // ------------------------------------------------------------------ recipes
 
   async listRecipes(foodId: number): Promise<FoodRecipe[]> {

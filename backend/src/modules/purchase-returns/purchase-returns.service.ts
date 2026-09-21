@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -15,6 +15,8 @@ import { ListPurchaseReturnsQueryDto } from './dto/list-purchase-returns-query.d
 
 @Injectable()
 export class PurchaseReturnsService {
+  private readonly logger = new Logger(PurchaseReturnsService.name);
+
   constructor(
     @InjectRepository(PurchaseReturn) private readonly prRepo: Repository<PurchaseReturn>,
     @InjectRepository(PurchaseReturnItem) private readonly itemsRepo: Repository<PurchaseReturnItem>,
@@ -79,7 +81,7 @@ export class PurchaseReturnsService {
     const pr = await this.findOne(id);
     if (pr.status !== 'draft') throw new BadRequestException(`Purchase return ${id} is ${pr.status}, not draft`);
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const items = await manager.getRepository(PurchaseReturnItem).find({ where: { purchaseReturnId: id } });
       if (!items.length) throw new BadRequestException('Cannot process a return with no items');
 
@@ -103,16 +105,26 @@ export class PurchaseReturnsService {
         }
       }
 
-      const notification = await this.notificationsService.create({
+      return saved;
+    });
+
+    // Fire-and-forget, and outside the transaction: the return above is
+    // already committed, so a notification hiccup shouldn't fail this
+    // otherwise-successful request (or worse, roll back the return if it
+    // were still inside the transaction).
+    this.notificationsService
+      .create({
         outletId: pr.outletId, type: 'purchase_return',
         title: `Purchase Return #${pr.returnNo} Processed`,
         body: pr.purchaseOrderId ? `Return processed against PO, inventory updated` : 'Standalone return processed, inventory updated',
         data: JSON.stringify({ returnId: id, returnNo: pr.returnNo }),
-      });
-      this.gateway.notifyNotificationCreated(notification);
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create purchase_return notification for return ${id}: ${error.message}`),
+      );
 
-      return saved;
-    });
+    return saved;
   }
 
   async cancel(id: number): Promise<PurchaseReturn> {

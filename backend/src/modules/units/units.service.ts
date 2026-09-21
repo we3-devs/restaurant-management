@@ -189,6 +189,39 @@ export class UnitsService {
   }
 
   /**
+   * Batch version of findConversionMultiplier for reservation math across a whole item/addon recipe set.
+   */
+  async findConversionMultipliers(
+    pairs: { fromUnitId: number; toUnitId: number }[],
+  ): Promise<Map<string, number>> {
+    const uniquePairs = [...new Map(
+      pairs
+        .filter((pair) => pair.fromUnitId !== pair.toUnitId)
+        .map((pair) => [`${pair.fromUnitId}:${pair.toUnitId}`, pair]),
+    ).values()];
+
+    if (uniquePairs.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.unitConversionsRepository.find({
+      where: uniquePairs.map((pair) =>
+        scopedWhere(this.tenantContext, {
+          fromUnitId: pair.fromUnitId,
+          toUnitId: pair.toUnitId,
+          isActive: true,
+        }),
+      ),
+    });
+
+    const result = new Map<string, number>();
+    for (const row of rows) {
+      result.set(`${row.fromUnitId}:${row.toUnitId}`, row.multiplier);
+    }
+    return result;
+  }
+
+  /**
    * Used by OrdersService to convert a recipe's quantity (in the recipe's
    * own unit) into the ingredient's base unit before touching stock.
    */

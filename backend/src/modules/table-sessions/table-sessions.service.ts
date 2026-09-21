@@ -353,6 +353,15 @@ export class TableSessionsService {
     const members = await this.listCustomers(id);
     session.guestCount = Math.max(members.length, 1);
     saved = await this.tableSessionsRepository.save(session);
+    // A session being active should already imply the table is 'occupied',
+    // but staff can reset a table's status without ending its session
+    // (setStatus has no guard against that) — reconcile it here so a guest
+    // joining an already-open session doesn't get stuck seeing a stale
+    // 'available'/'cleaning'/'reserved' table.
+    const table = await this.diningTablesService.findOne(session.diningTableId);
+    if (table.status !== 'occupied') {
+      await this.diningTablesService.setStatus(session.diningTableId, 'occupied');
+    }
     // First time this session gets a customer of record — counts as one
     // dine-in visit. The no-op guard above means this only ever fires once
     // per session, even if more guests place orders on it afterwards.
@@ -367,6 +376,27 @@ export class TableSessionsService {
    * Guarantees a guest interacting with a table is always tied to a session,
    * and that session is always tied to a phone-verified customer.
    */
+  /**
+   * Scan-time occupancy: reuses the table's open session, or opens one with
+   * no customer of record yet. Deliberately does NOT require a verified
+   * customer — a diner who has just scanned the QR hasn't entered a phone
+   * number, and making the table wait until checkout meant it read as
+   * 'available' to staff while people were sitting at it.
+   *
+   * The customer is attached later by ensureActiveForGuest() via
+   * attachCustomerIfMissing() (ordering, calling staff), which is also what
+   * counts the dine-in visit — so nothing is double-counted by opening the
+   * session early.
+   */
+  async ensureActiveForScan(
+    diningTableId: number,
+    outletId: number,
+  ): Promise<TableSession> {
+    const existing = await this.findActiveForTable(diningTableId);
+    if (existing) return existing;
+    return this.create({ outletId, diningTableId, source: 'qr_order' }, null);
+  }
+
   async ensureActiveForGuest(
     diningTableId: number,
     outletId: number,
@@ -485,18 +515,28 @@ export class TableSessionsService {
             skipOutletValidation: true,
           })
         : Promise.resolve(null);
+    // The session insert is already committed by this point — a notification
+    // hiccup shouldn't fail this otherwise-successful request, so failures
+    // here are logged rather than thrown.
     const createNotification = () =>
-      this.notificationsService.create({
-        outletId: dto.outletId,
-        type: 'system',
-        title: `${diningTable.name} — guests checked in`,
-        body: `${saved.guestCount} guest(s)`,
-        tableName: diningTable.name,
-        actorUserId: startedBy,
-        data: JSON.stringify({ tableSessionId: saved.id }),
-      });
+      this.notificationsService
+        .create({
+          outletId: dto.outletId,
+          type: 'system',
+          title: `${diningTable.name} — guests checked in`,
+          body: `${saved.guestCount} guest(s)`,
+          tableName: diningTable.name,
+          actorUserId: startedBy,
+          data: JSON.stringify({ tableSessionId: saved.id }),
+        })
+        .catch((error: Error) => {
+          this.logger.error(
+            `Failed to create notification for table session ${saved.id}: ${error.message}`,
+          );
+          return null;
+        });
 
-    let notification: Notification;
+    let notification: Notification | null;
     if (options?.sequential) {
       await setStatus();
       await upsertVisit();
@@ -509,6 +549,7 @@ export class TableSessionsService {
       ]);
     }
 
+    if (!notification) return;
     try {
       this.gateway.notifyNotificationCreated(notification);
     } catch (error) {
@@ -551,15 +592,21 @@ export class TableSessionsService {
     );
 
     const table = await this.diningTablesService.findOne(session.diningTableId);
-    const notification = await this.notificationsService.create({
-      outletId: session.outletId,
-      type: 'system',
-      title: `${table.name} — session ended`,
-      tableName: table.name,
-      actorUserId: endedBy,
-      data: JSON.stringify({ tableSessionId: saved.id }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the session end above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: session.outletId,
+        type: 'system',
+        title: `${table.name} — session ended`,
+        tableName: table.name,
+        actorUserId: endedBy,
+        data: JSON.stringify({ tableSessionId: saved.id }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create session-ended notification for table session ${saved.id}: ${error.message}`),
+      );
 
     return saved;
   }

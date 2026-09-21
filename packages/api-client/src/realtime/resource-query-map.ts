@@ -28,7 +28,12 @@ export const RESOURCE_QUERY_MAP: Record<string, QueryKeyPrefix[]> = {
   dining_tables: [queryKeys.diningTables.all],
   table_sessions: [queryKeys.tableSessions.all],
   orders: [queryKeys.orders.all, queryKeys.dashboard.all],
-  order_items: [queryKeys.orders.all, queryKeys.orderItems.all],
+  // tableSessions.all too: an item change re-aggregates
+  // table_session_food_status_counts, which the per-session status-counts
+  // query reads. The counts table gets no resource.changed event of its own
+  // (a SQL trigger writes it, which the TypeORM entity subscriber can't
+  // observe), so this is what keeps the session rollup fresh.
+  order_items: [queryKeys.orders.all, queryKeys.orderItems.all, queryKeys.tableSessions.all],
   order_payments: [queryKeys.orders.all, queryKeys.dashboard.all],
   service_requests: [queryKeys.serviceRequests.all],
   units: [queryKeys.units.all],

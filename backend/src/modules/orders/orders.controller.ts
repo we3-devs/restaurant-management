@@ -12,9 +12,10 @@ import {
   Patch,
   Post,
   Query,
-  UnauthorizedException,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -25,10 +26,12 @@ import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { CurrentCustomer } from '../customer-auth/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer-auth/guards/customer-jwt-auth.guard';
-import { requireVerifiedCustomerId } from '../customer-auth/require-verified-customer.util';
+import { resolveOrderingIdentity } from '../customer-auth/require-verified-customer.util';
 import type { CustomerJwtPayload } from '../customer-auth/types/customer-jwt-payload';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import { OutletsService } from '../outlets/outlets.service';
+import { assertQrAccess } from '../outlets/qr-access.util';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
 import { CreateGuestOrderDto } from './dto/create-guest-order.dto';
@@ -57,6 +60,7 @@ export class OrdersController {
     private readonly tableSessionsService: TableSessionsService,
     private readonly outletAccess: OutletAccessService,
     private readonly permissionsService: PermissionsService,
+    private readonly outletsService: OutletsService,
   ) {}
 
   /**
@@ -83,15 +87,22 @@ export class OrdersController {
   async createGuestOrder(
     @Body() dto: CreateGuestOrderDto,
     @CurrentCustomer() customer: CustomerJwtPayload,
+    @Req() req: Request,
   ) {
-    const customerId = requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(dto.tableCode);
+    const outlet = await this.outletsService.findOne(table.outletId);
+    const customerId = resolveOrderingIdentity(customer, outlet, 'to order');
 
-    const session = await this.tableSessionsService.ensureActiveForGuest(
-      table.id,
-      table.outletId,
-      customerId,
-    );
+    if (outlet.qrOrderingMode === 'quick_order') {
+      // Per-order re-check, not just at join time: a guest may have left the
+      // geofence/network since joining, and the guest JWT stays valid for the
+      // rest of its lifetime otherwise. See qr-access.util.ts.
+      assertQrAccess(outlet, { ip: req.ip ?? '', lat: dto.latitude, lon: dto.longitude });
+    }
+
+    const session = customerId !== null
+      ? await this.tableSessionsService.ensureActiveForGuest(table.id, table.outletId, customerId)
+      : await this.tableSessionsService.ensureActiveForScan(table.id, table.outletId);
 
     return this.ordersService.createFromGuest(
       table.outletId,
@@ -124,8 +135,9 @@ export class OrdersController {
     // from a raw session/table id the client could just supply directly.
     // Without this, any verified guest could cancel any order at any table
     // by guessing/enumerating order ids.
-    requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(tableCode);
+    const outlet = await this.outletsService.findOne(table.outletId);
+    resolveOrderingIdentity(customer, outlet, 'to order');
     const session = await this.tableSessionsService.findLatestForTable(
       table.id,
     );
@@ -156,8 +168,9 @@ export class OrdersController {
     @Query('tableCode') tableCode: string,
     @CurrentCustomer() customer: CustomerJwtPayload,
   ) {
-    requireVerifiedCustomerId(customer, 'to order');
     const table = await this.diningTablesService.findByCode(tableCode);
+    const outlet = await this.outletsService.findOne(table.outletId);
+    resolveOrderingIdentity(customer, outlet, 'to order');
     // Scoped to this table's latest session, not just the outlet — a phone
     // number's orders from a previous, unrelated visit must never surface
     // (or be cancellable) from today's table session. See findMineForCustomer.

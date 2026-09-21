@@ -29,6 +29,6 @@ import { JwtCustomerStrategy } from './strategies/jwt-customer.strategy';
   ],
   controllers: [CustomerAuthController],
   providers: [CustomerAuthService, JwtCustomerStrategy],
-  exports: [],
+  exports: [CustomerAuthService],
 })
 export class CustomerAuthModule {}

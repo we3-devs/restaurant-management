@@ -16,7 +16,7 @@ const WIDTH = 1200
 const HEIGHT = 1600
 
 function formatTableLabel() {
-  return "TABLE 1"
+  return "1"
 }
 
 function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number, tableWidth: number, tableHeight: number, tableFontSize: number) {

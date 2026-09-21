@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -12,6 +12,8 @@ import { ListSupplierPaymentsQueryDto } from './dto/list-supplier-payments-query
 
 @Injectable()
 export class SupplierPaymentsService {
+  private readonly logger = new Logger(SupplierPaymentsService.name);
+
   constructor(
     @InjectRepository(SupplierPayment) private readonly paymentRepo: Repository<SupplierPayment>,
     private readonly notificationsService: NotificationsService,
@@ -47,13 +49,19 @@ export class SupplierPaymentsService {
 
     await this.suppliersService.adjustOutstandingBalance(dto.supplierId, -dto.amount);
 
-    const notification = await this.notificationsService.create({
-      outletId: dto.outletId, type: 'supplier_payment_recorded',
-      title: `Supplier Payment Recorded - #${payment.paymentNo}`,
-      body: `Payment of ${dto.amount} recorded for supplier #${dto.supplierId}`,
-      data: JSON.stringify({ paymentId: payment.id, supplierId: dto.supplierId }),
-    });
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the payment above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: dto.outletId, type: 'supplier_payment_recorded',
+        title: `Supplier Payment Recorded - #${payment.paymentNo}`,
+        body: `Payment of ${dto.amount} recorded for supplier #${dto.supplierId}`,
+        data: JSON.stringify({ paymentId: payment.id, supplierId: dto.supplierId }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create supplier_payment_recorded notification for payment ${payment.id}: ${error.message}`),
+      );
 
     return payment;
   }

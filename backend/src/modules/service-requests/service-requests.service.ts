@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -21,6 +21,8 @@ const SERVICE_LABELS: Record<ServiceRequest['type'], string> = {
 
 @Injectable()
 export class ServiceRequestsService {
+  private readonly logger = new Logger(ServiceRequestsService.name);
+
   constructor(
     @InjectRepository(ServiceRequest)
     private readonly serviceRequestsRepository: Repository<ServiceRequest>,
@@ -158,18 +160,24 @@ export class ServiceRequestsService {
   private async notifyRequestCreated(request: ServiceRequest): Promise<void> {
     const tableName =
       request.diningTable?.name ?? `Table ${request.diningTableId}`;
-    const notification = await this.notificationsService.create({
-      outletId: request.outletId,
-      type: 'service_request',
-      title: `${tableName} — needs ${SERVICE_LABELS[request.type]}`,
-      body: request.note ?? null,
-      tableName,
-      data: JSON.stringify({
-        serviceRequestId: request.id,
-        type: request.type,
-      }),
-    });
     this.gateway.notifyServiceRequestCreated(request);
-    this.gateway.notifyNotificationCreated(notification);
+    // Fire-and-forget: the service request above is already committed, so a
+    // notification hiccup shouldn't fail this otherwise-successful request.
+    this.notificationsService
+      .create({
+        outletId: request.outletId,
+        type: 'service_request',
+        title: `${tableName} — needs ${SERVICE_LABELS[request.type]}`,
+        body: request.note ?? null,
+        tableName,
+        data: JSON.stringify({
+          serviceRequestId: request.id,
+          type: request.type,
+        }),
+      })
+      .then((notification) => this.gateway.notifyNotificationCreated(notification))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to create service_request notification for request ${request.id}: ${error.message}`),
+      );
   }
 }

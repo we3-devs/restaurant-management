@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { CustomerAuthModule } from '../customer-auth/customer-auth.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
@@ -10,6 +11,8 @@ import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSession } from './entities/table-session.entity';
 import { TableSessionCustomer } from './entities/table-session-customer.entity';
+import { GuestQuickOrderSessionsController } from './guest-quick-order-sessions.controller';
+import { GuestTableScanController } from './guest-table-scan.controller';
 import { GuestTableSessionsController } from './guest-table-sessions.controller';
 import { TableSessionsController } from './table-sessions.controller';
 import { TableSessionsService } from './table-sessions.service';
@@ -21,6 +24,7 @@ import { TableSessionsService } from './table-sessions.service';
     DiningTablesModule,
     OutletsModule,
     CustomersModule,
+    CustomerAuthModule,
     forwardRef(() => ReservationsModule),
     NotificationsModule,
     // Circular: KitchenTicketsModule imports OrdersModule, which imports
@@ -28,7 +32,12 @@ import { TableSessionsService } from './table-sessions.service';
     // `undefined` mid-cycle at module-load time.
     forwardRef(() => KitchenTicketsModule),
   ],
-  controllers: [TableSessionsController, GuestTableSessionsController],
+  controllers: [
+    TableSessionsController,
+    GuestTableScanController,
+    GuestTableSessionsController,
+    GuestQuickOrderSessionsController,
+  ],
   providers: [TableSessionsService],
   exports: [TypeOrmModule, TableSessionsService],
 })

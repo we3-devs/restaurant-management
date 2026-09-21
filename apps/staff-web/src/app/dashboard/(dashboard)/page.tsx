@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
 	ArrowDownRight,
 	ArrowUpRight,
@@ -64,7 +65,16 @@ function time(value: string) {
 	return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-	return <section className={`dash-panel ${className}`}>{children}</section>;
+	return (
+		<motion.section
+			className={`dash-panel ${className}`}
+			initial={{ opacity: 0, y: 14 }}
+			animate={{ opacity: 1, y: 0 }}
+			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+		>
+			{children}
+		</motion.section>
+	);
 }
 function Heading({
 	title,
@@ -234,8 +244,14 @@ export default function DashboardPage() {
 						))
 					: stats.isError
 						? <ErrorState retry={retry} />
-						: statData.map(({ label, value, icon: Icon, direction }) => (
-								<div className="dash-stat" key={label}>
+						: statData.map(({ label, value, icon: Icon, direction }, index) => (
+								<motion.div
+									className="dash-stat"
+									key={label}
+									initial={{ opacity: 0, y: 12 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+								>
 									<div className="dash-stat-icon">
 										<Icon />
 									</div>
@@ -244,7 +260,7 @@ export default function DashboardPage() {
 									<small className={direction === "down" ? "negative" : "positive"}>
 										{direction === "down" ? <ArrowDownRight /> : <ArrowUpRight />} Today
 									</small>
-								</div>
+								</motion.div>
 							))}
 			</div>
 
@@ -277,8 +293,8 @@ export default function DashboardPage() {
 							<svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="Sales overview chart">
 								<defs>
 									<linearGradient id="salesFill" x1="0" x2="0" y1="0" y2="1">
-										<stop offset="0" stopColor="#f5b51b" stopOpacity=".42" />
-										<stop offset="1" stopColor="#f5b51b" stopOpacity=".03" />
+										<stop offset="0" style={{ stopColor: "var(--primary)" }} stopOpacity=".35" />
+										<stop offset="1" style={{ stopColor: "var(--primary)" }} stopOpacity=".02" />
 									</linearGradient>
 								</defs>
 								{points && (
@@ -287,8 +303,8 @@ export default function DashboardPage() {
 										<polyline
 											points={points}
 											fill="none"
-											stroke="#f5b51b"
-											strokeWidth="3"
+											style={{ stroke: "var(--primary)" }}
+											strokeWidth="2.5"
 											strokeLinecap="round"
 											strokeLinejoin="round"
 										/>
@@ -374,7 +390,7 @@ export default function DashboardPage() {
 							<div
 								className="donut"
 								style={{
-									background: `conic-gradient(#f5b51b 0 ${tableTotal ? (occupied / tableTotal) * 100 : 0}%,var(--donut-rest) 0)`,
+									background: `conic-gradient(var(--primary) 0 ${tableTotal ? (occupied / tableTotal) * 100 : 0}%,var(--muted) 0)`,
 								}}
 							>
 								<strong>{tableTotal ? Math.round((occupied / tableTotal) * 100) : 0}%</strong>

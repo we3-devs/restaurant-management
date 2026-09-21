@@ -5,6 +5,8 @@ export interface AppConfig {
     frontendUrls: string[];
     publicUrl: string;
     uploadDir: string;
+    /** Reverse-proxy hop count Express should trust for X-Forwarded-For (req.ip). 0 = no proxy in front, trust the raw socket peer. */
+    trustProxyHops: number;
   };
   storage: {
     endpoint: string;
@@ -57,6 +59,7 @@ export default (): AppConfig => ({
       process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? '3001'}`
     ).replace(/\/$/, ''),
     uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
+    trustProxyHops: parseInt(process.env.TRUST_PROXY_HOPS ?? '0', 10),
   },
   // Any S3-compatible provider: Cloudflare R2, Supabase Storage, Backblaze B2,
   // MinIO, or AWS itself. Leave S3_BUCKET unset and uploads fall back to local

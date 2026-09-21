@@ -10,6 +10,12 @@ export interface Outlet {
   name: string
   slug: string
   tenantId: number
+  qrOrderingMode: "login" | "quick_order"
+  qrAccessCheckMode: "ip" | "geofence" | "either" | "both"
+  qrAccessLatitude: number | null
+  qrAccessLongitude: number | null
+  qrAccessRadiusMeters: number | null
+  qrAccessAllowedIp: string | null
   createdAt: string
   updatedAt: string
   tenant?: { id: number; name: string }

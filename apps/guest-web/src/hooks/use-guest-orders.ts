@@ -2,22 +2,26 @@
 
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { io } from "socket.io-client";
 import { authFetch } from "@/lib/api";
+import { acquireGuestSocket, releaseGuestSocket } from "@/lib/guest-socket";
 import { useGuestAuth } from "./use-guest-auth";
 import { publicQueryKeys } from "@rms/api-client/query-keys";
+import type { FoodStatusCount } from "@/lib/order-status";
 
 export interface GuestOrderItem {
   id: number;
+  foodId: number;
+  foodVariantId: number | null;
   quantity: number;
   unitPrice: number;
   totalAmount: number;
-  status: string;
   isHeld: boolean;
   note: string | null;
   cancelReason: string | null;
   food: { name: string } | null;
   foodVariant: { name: string } | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GuestOrder {
@@ -26,6 +30,12 @@ export interface GuestOrder {
   status: string;
   grandTotal: number;
   items: GuestOrderItem[];
+  /**
+   * Per food+variant kitchen progress, straight from
+   * table_session_food_status_counts. Item rows carry the bill detail
+   * (price, note, held); how far along the food is comes from here.
+   */
+  foodStatusCounts: FoodStatusCount[];
   createdAt: string;
 }
 
@@ -58,28 +68,18 @@ export function useGuestOrders(tableCode: string | null) {
 
   useEffect(() => {
     if (!tableCode || !isAuthenticated) return;
-    let socket: ReturnType<typeof io> | undefined;
-    let cancelled = false;
-    void authFetch("/customer-auth/ws-ticket", { method: "POST" })
-      .then((res) => (res.ok ? res.json() as Promise<{ ticket: string }> : null))
-      .then((body) => {
-        if (cancelled || !body?.ticket) return;
-        const configuredUrl = process.env.NEXT_PUBLIC_GUEST_WS_URL;
-        const fallbackUrl =
-          process.env.NEXT_PUBLIC_GUEST_API_URL?.replace(/\/api\/customer-backend\/?$/, "") ||
-          process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ||
-          window.location.origin;
-        // /kds is the Socket.IO namespace; the transport path remains the
-        // server default. The REST API's /api prefix is unrelated to WS.
-        socket = io(`${configuredUrl || fallbackUrl}/kds`, { auth: { ticket: body.ticket }, transports: ["websocket"] });
-        socket.on("guest.order.updated", () => {
-          void queryClient.invalidateQueries({ queryKey });
-        });
-      })
-      .catch(() => undefined);
+    // Shared, ref-counted connection — acquiring here just adds this
+    // consumer's listener to whatever socket every other mounted guest
+    // hook is already using, rather than opening (and ws-ticket-fetching
+    // for) a brand new one on every page.
+    const socket = acquireGuestSocket();
+    const onOrderUpdated = () => {
+      void queryClient.invalidateQueries({ queryKey });
+    };
+    socket.on("guest.order.updated", onOrderUpdated);
     return () => {
-      cancelled = true;
-      socket?.close();
+      socket.off("guest.order.updated", onOrderUpdated);
+      releaseGuestSocket();
     };
   }, [tableCode, isAuthenticated, queryClient, queryKey]);
 

@@ -45,11 +45,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.warn(logMessage);
     }
 
-    const isDev = process.env.NODE_ENV !== 'production';
     response.status(statusCode).json({
       statusCode,
       ...(requestId ? { requestId } : {}),
-      message: isDev ? message : (statusCode >= 500 ? 'Internal server error' : message),
+      message,
       error: isHttpException ? exception.name : 'InternalServerError',
       timestamp: new Date().toISOString(),
       path: request.url,

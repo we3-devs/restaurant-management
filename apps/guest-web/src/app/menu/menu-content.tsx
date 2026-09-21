@@ -23,6 +23,7 @@ import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { QuickOrderGate } from "@/components/quick-order-gate";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
@@ -51,7 +52,7 @@ const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
-  const { session } = useTableSession(tableCode);
+  const { session, qrOrderingMode, qrAccessCheckMode } = useTableSession(tableCode);
   const diningTableName = session?.diningTableName ?? "Table";
   const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
@@ -288,6 +289,26 @@ export default function MenuContent() {
   const placeOrder = async () => {
     setIsSubmitting(true);
     try {
+      // Fresh position at submit time (not reused from the join gate) so the
+      // backend's per-order geofence re-check reflects where the guest is now.
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+      if (
+        qrOrderingMode === "quick_order" &&
+        (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both") &&
+        navigator.geolocation
+      ) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10_000 }),
+          );
+          latitude = position.coords.latitude;
+          longitude = position.coords.longitude;
+        } catch {
+          // Fall through without coordinates — the backend rejects with a clear message if they're required.
+        }
+      }
+
       const res = await authFetch("/orders/guest", {
         method: "POST",
         body: JSON.stringify({
@@ -297,6 +318,7 @@ export default function MenuContent() {
             ...(i.variant ? { foodVariantId: i.variant.id } : {}),
             quantity: i.quantity,
           })),
+          ...(latitude !== undefined ? { latitude, longitude } : {}),
         }),
       });
 
@@ -368,7 +390,7 @@ export default function MenuContent() {
               </p>
             </div>
           </div>
-          {isAuthenticated && (
+          {isAuthenticated && qrOrderingMode !== "quick_order" && (
             <a
               href={`/table?table=${encodeURIComponent(tableCode)}`}
               aria-label="Table party"
@@ -378,7 +400,7 @@ export default function MenuContent() {
               Party
             </a>
           )}
-          {isAuthenticated && (
+          {isAuthenticated && qrOrderingMode !== "quick_order" && (
             <a
               href="/profile"
               className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
@@ -387,7 +409,7 @@ export default function MenuContent() {
               Profile
             </a>
           )}
-          {!isAuthenticated && (
+          {!isAuthenticated && qrOrderingMode !== "quick_order" && (
             <button
               onClick={() => setAuthIntent("login")}
               className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
@@ -928,7 +950,20 @@ export default function MenuContent() {
         </div>}
       </aside>
 
-      {authIntent && (
+      {authIntent && qrOrderingMode === "quick_order" && (
+        <QuickOrderGate
+          tableCode={tableCode!}
+          qrAccessCheckMode={qrAccessCheckMode}
+          onClose={() => setAuthIntent(null)}
+          onSuccess={() => {
+            const intent = authIntent;
+            setAuthIntent(null);
+            if (intent === "checkout") void placeOrder();
+          }}
+        />
+      )}
+
+      {authIntent && qrOrderingMode !== "quick_order" && (
         <GuestAuthSheet
           onClose={() => setAuthIntent(null)}
           onSuccess={() => {

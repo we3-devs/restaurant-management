@@ -14,8 +14,10 @@ import { registerRealtimeServer } from '../../realtime/realtime-bus';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import type { Notification } from '../notifications/entities/notification.entity';
 import type { ServiceRequest } from '../service-requests/entities/service-request.entity';
-import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
-import { KitchenTicket } from './entities/kitchen-ticket.entity';
+import {
+  KitchenTicketItemResponseDto,
+  KitchenTicketResponseDto,
+} from './dto/kitchen-ticket-response.dto';
 
 interface KdsSocketData {
   userId?: number;
@@ -149,7 +151,13 @@ export class KitchenTicketsGateway
     void client.join(this.outletRoom(body.outletId));
   }
 
-  notifyTicketsCreated(tickets: KitchenTicket[]): void {
+  /**
+   * Mapped responses, not entities. The KDS appends a pushed 'created'
+   * ticket straight onto its board and merges an 'updated' one into the
+   * ticket it already holds, so a payload missing its items/order/department
+   * relations would put an empty ticket on screen.
+   */
+  notifyTicketsCreated(tickets: KitchenTicketResponseDto[]): void {
     for (const ticket of tickets) {
       this.server
         .to(this.outletRoom(ticket.outletId))
@@ -157,13 +165,21 @@ export class KitchenTicketsGateway
     }
   }
 
-  notifyTicketUpdated(ticket: KitchenTicket): void {
+  notifyTicketUpdated(ticket: KitchenTicketResponseDto): void {
     this.server
       .to(this.outletRoom(ticket.outletId))
       .emit('kitchen.ticket.updated', ticket);
   }
 
-  notifyItemUpdated(outletId: number, item: KitchenTicketItem): void {
+  /**
+   * Takes the mapped response, not the entity: the entity no longer carries a
+   * status column, and the KDS merges this payload into its cached item — so
+   * pushing a raw entity would silently leave the board's status stale.
+   */
+  notifyItemUpdated(
+    outletId: number,
+    item: KitchenTicketItemResponseDto,
+  ): void {
     this.server
       .to(this.outletRoom(outletId))
       .emit('kitchen.item.updated', item);
