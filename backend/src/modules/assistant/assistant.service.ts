@@ -91,6 +91,36 @@ export function classifyAssistantIntent(
   return 'conversation';
 }
 
+function formatOrderAnswer(
+  question: string,
+  metrics: unknown,
+  period: string,
+): string {
+  if (/^orders?$/.test(question.trim().toLowerCase())) {
+    const count = Number((metrics as { orders?: unknown })?.orders ?? 0);
+    return `${period === 'today' ? 'Today' : period}, we had ${count} order${count === 1 ? '' : 's'}.`;
+  }
+
+  const orders = Array.isArray(metrics)
+    ? (metrics as Array<Record<string, unknown>>)
+    : [];
+  if (orders.length === 0) return `There were no orders for ${period}.`;
+
+  const lines = orders.map((order) => {
+    const orderNumber = order.orderNumber ?? order.billNumber ?? 'unnumbered';
+    const items = Array.isArray(order.items)
+      ? (order.items as Array<{ name?: unknown; quantity?: unknown }>)
+          .map((item) => `${item.name ?? 'Item'} x${item.quantity ?? 0}`)
+          .join(', ')
+      : 'No item details';
+    const total = order.grandTotal === null || order.grandTotal === undefined
+      ? ''
+      : `, total Rs. ${order.grandTotal}`;
+    return `- Order ${orderNumber}: ${items}; status ${order.status ?? 'unknown'}${total}`;
+  });
+  return `${period[0].toUpperCase()}${period.slice(1)}'s orders (${orders.length}):\n${lines.join('\n')}`;
+}
+
 @Injectable()
 export class AssistantService {
   constructor(
@@ -575,6 +605,14 @@ export class AssistantService {
           ...fix,
         }),
         ...(route === 'DATA' ? { data: fix } : {}),
+      };
+    }
+
+    if (data.intent === 'orderDetails' && 'metrics' in data) {
+      return {
+        route,
+        answer: formatOrderAnswer(question, data.metrics, data.period),
+        ...(route === 'DATA' ? { data } : {}),
       };
     }
 
