@@ -64,7 +64,7 @@ export function classifyAssistantIntent(
   if (/staff|employee|employees|team member/.test(q)) return 'staffSummary';
   if (/payment|payments|cash|card|refund/.test(q)) return 'payments';
   if (
-    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders/.test(
+    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|(?:what|which)\s+(?:was|were|is|are)?\s*(?:the\s+)?orders?|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders/.test(
       q,
     )
   )
@@ -431,7 +431,7 @@ export class AssistantService {
             )
           )[0]
         : await this.db.query(
-            `SELECT o.order_number AS "orderNumber", o.bill_number AS "billNumber", o.order_type AS "orderType", o.order_source AS "orderSource", o.status, o.payment_status AS "paymentStatus", o.grand_total AS "grandTotal", o.created_at AS "createdAt", COALESCE(items.items, '[]'::json) AS items FROM orders o LEFT JOIN LATERAL (SELECT json_agg(json_build_object('name', f.name, 'quantity', oi.quantity) ORDER BY f.name) AS items FROM order_items oi JOIN foods f ON f.id = oi.food_id WHERE oi.order_id = o.id) items ON true WHERE 1=1${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} ORDER BY o.created_at LIMIT 100`,
+            `SELECT o.order_number AS "orderNumber", o.bill_number AS "billNumber", o.order_type AS "orderType", o.order_source AS "orderSource", o.status, o.payment_status AS "paymentStatus", o.grand_total AS "grandTotal", o.created_at AS "createdAt", COALESCE(items.items, '[]'::json) AS items FROM orders o LEFT JOIN LATERAL (SELECT json_agg(json_build_object('name', f.name, 'quantity', oi.quantity) ORDER BY f.name) AS items FROM order_items oi JOIN foods f ON f.id = oi.food_id WHERE oi.order_id = o.id) items ON true WHERE o.status <> 'cancelled'${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} ORDER BY o.created_at LIMIT 100`,
             params,
           );
     } else if (intent === 'serviceIssues') {
