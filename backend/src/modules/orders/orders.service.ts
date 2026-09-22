@@ -2037,22 +2037,18 @@ export class OrdersService {
   }
 
   /**
-   * Hard delete is only safe while the item is still 'stock_reserved' —
-   * nothing downstream (kitchen ticket, prep, guest tracker) has seen it
-   * yet. Once it's been sent to the kitchen, deleting the row would erase
-   * the kitchen's record of it without a trace; void it instead (see
-   * voidItem) so the removal is auditable and reason-carrying.
+   * Hard delete — gated by the orders.delete permission (see
+   * OrderItemsController#remove), unlike void which any orders.manage
+   * holder can do. That higher bar is what makes it safe to allow here even
+   * after the item has been sent to the kitchen/bar and is being prepared,
+   * not just while it's still 'stock_reserved'; kitchen_ticket_items rows
+   * for it cascade-delete at the DB level (see KitchenTicketItem#orderItem).
    */
   async removeItem(id: number): Promise<void> {
     const item = await this.findItem(id);
     const order = await this.findOne(item.orderId);
     await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
-    if (item.status !== 'stock_reserved') {
-      throw new ConflictException(
-        `Item ${id} has already been sent to the kitchen (status: ${item.status}) and can no longer be deleted — void it instead`,
-      );
-    }
     const reservations = await this.reservationsRepository.find({
       where: { orderItemId: id, status: 'reserved' },
     });

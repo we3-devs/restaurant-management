@@ -178,7 +178,8 @@ export class OrderItemsController {
   @RequirePermissions('orders.manage')
   @ApiOperation({
     summary:
-      "Removes an order item — only while it's still 'stock_reserved' (not yet sent to the kitchen). Once fired, use POST :id/void instead.",
+      'Hard-deletes an order item, at any status (including sent to the kitchen/bar and being prepared) — requires orders.delete. ' +
+      "For an orders.manage holder without that permission, void it instead (POST :id/void) once it's been sent.",
   })
   async remove(
     @Param('id', ParseIntPipe) id: number,
@@ -187,7 +188,8 @@ export class OrderItemsController {
     await this.assertItemAccess(id, user);
     // Hard-deleting a line item is destructive and unaudited compared to
     // void (which keeps the record and requires a reason) — same
-    // manager-tier gate as cancelling an order. See OrdersController#updateStatus.
+    // manager-tier gate as cancelling an order, and the reason it's allowed
+    // at any item status, not just stock_reserved. See OrdersController#updateStatus.
     const allowed = await this.permissionsService.hasPermission(
       user.id,
       'orders.delete',
