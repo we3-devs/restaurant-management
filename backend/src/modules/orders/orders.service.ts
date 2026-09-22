@@ -832,10 +832,24 @@ export class OrdersService {
       fromStatus !== 'completed' &&
       fromStatus !== 'cancelled';
 
+    // The non-destructive sibling of forceComplete: closes the sale without
+    // requiring every item to have gone through the normal serve step, but
+    // — unlike force — keeps the charge and the stock consumption, since
+    // the items were still actually sold. `force` wins if both are somehow
+    // set (see UpdateOrderStatusDto). No orders.delete gate: nothing here
+    // is destructive or hard-to-reverse the way voiding/cancelling is.
+    const autoServeCompletion =
+      dto.status === 'completed' &&
+      dto.autoServe === true &&
+      !forceComplete &&
+      fromStatus !== 'completed' &&
+      fromStatus !== 'cancelled';
+
     if (
       dto.status !== fromStatus &&
       !isEmptyPendingCompletion &&
       !forceComplete &&
+      !autoServeCompletion &&
       !ORDER_STATUS_TRANSITIONS[fromStatus].includes(dto.status)
     ) {
       throw new ConflictException(
@@ -867,6 +881,23 @@ export class OrdersService {
           dto.note?.trim() || 'Force-completed without full service',
         );
       }
+      Object.assign(order, await this.findOne(id));
+    }
+
+    if (autoServeCompletion) {
+      // Flip straight to 'served' rather than voiding — the item's
+      // reservation still gets consumed as a normal sale by
+      // consumeReservationsForOrder below (it only cares that a 'reserved'
+      // row exists, not which stage the item was at), and its price stays
+      // on the bill. Must happen before order.status below flips to
+      // 'completed': the orders_lock_completed DB trigger freezes
+      // order_items the instant that save lands, same reasoning as
+      // KitchenTicketsService#closeAllForOrder deliberately not touching
+      // order_items after the fact.
+      await this.orderItemsRepository.update(
+        { orderId: id, status: Not(In(['served', 'cancelled'])) },
+        { status: 'served' },
+      );
       Object.assign(order, await this.findOne(id));
     }
 
@@ -1331,7 +1362,16 @@ export class OrdersService {
     const completed: Order[] = [];
     for (const order of payable) {
       completed.push(
-        await this.updateStatus(order.id, { status: 'completed' }, changedBy),
+        // autoServe: closing out a whole table shouldn't require staff to
+        // have separately marked every order's every item served first —
+        // same reasoning as the single-order "Complete sale" button (see
+        // CheckoutPanel#handleCompleteSale). It's a no-op wherever an order
+        // is already fully served.
+        await this.updateStatus(
+          order.id,
+          { status: 'completed', autoServe: true },
+          changedBy,
+        ),
       );
     }
     return completed;

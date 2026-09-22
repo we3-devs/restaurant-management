@@ -271,6 +271,8 @@ export interface UpdateOrderStatusInput {
   note?: string
   /** status="completed" only — closes the order out even with items that never reached 'served', voiding them instead. Requires orders.delete. See OrdersService#updateStatus. */
   force?: boolean
+  /** status="completed" only — closes the order out even with items that never reached 'served', marking them served (not voided) instead, so the sale still charges for them. No extra permission required. `force` wins if both are set. See OrdersService#updateStatus. */
+  autoServe?: boolean
 }
 
 export function useUpdateOrderStatus(id: number, options: OperationalMutationOptions = {}) {

@@ -105,16 +105,12 @@ export function CheckoutPanel({
     setPaymentAmount(displayedDueAmount)
   }
 
-  // Items still sitting in the cart (added but never "Send to kitchen"'d, or
-  // held) — these specifically block sending, not just completing.
-  const unsentItemCount = (orderItems?.data ?? []).filter(
-    (item) => item.status === "stock_reserved",
-  ).length
-  // Anything not yet 'served' (or voided) keeps the order from reaching
-  // 'served', which is normally the only status 'completed' can follow — so
-  // the backend rejects a plain complete. Surface that up front instead of
-  // letting the cashier hit a confusing generic error, and offer the
-  // force-complete override (voids these items) instead of a hard block.
+  // Anything not yet 'served' (or voided) — including items still sitting in
+  // the cart, never sent to kitchen. Purely informational for the main
+  // Complete button ("Complete sale" passes autoServe, which marks all of
+  // these served instead of requiring the normal serve step first); still
+  // gates the separate destructive "void instead" option below, which needs
+  // orders.delete.
   const unservedItemCount = (orderItems?.data ?? []).filter(
     (item) => item.status !== "served" && item.status !== "cancelled",
   ).length
@@ -151,7 +147,13 @@ export function CheckoutPanel({
       return
     }
     try {
-      await updateStatus.mutateAsync("completed")
+      // autoServe is a no-op when everything's already served — passing it
+      // unconditionally means "Complete sale" always just works instead of
+      // staff having to separately mark every item served first. Unlike
+      // force (below), it doesn't drop anything from the bill: unserved
+      // items are marked served, not voided, so the sale still charges and
+      // consumes stock for them normally.
+      await updateStatus.mutateAsync({ status: "completed", autoServe: true })
       // Stay put instead of bouncing to the receipt page — the bill can be
       // printed from the button above whenever it's needed, before or after
       // completion.
@@ -163,7 +165,7 @@ export function CheckoutPanel({
 
   async function handleCompleteSaleOverride() {
     if (!order) return
-    await updateStatusOverride.mutateAsync("completed")
+    await updateStatusOverride.mutateAsync({ status: "completed", autoServe: true })
     toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
   }
 
@@ -310,51 +312,49 @@ export function CheckoutPanel({
             }}
           />
 
-          {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline ? (
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleCompleteSale}
+            disabled={displayedDueAmount > 0 || updateStatus.isPending || !isOnline}
+          >
+            {!isOnline
+              ? "Offline"
+              : displayedDueAmount > 0
+                ? `Due ${displayedDueAmount}`
+                : unservedItemCount > 0
+                  ? `Complete sale (${unservedItemCount} unserved item${unservedItemCount === 1 ? "" : "s"} will auto-serve)`
+                  : "Complete sale"}
+          </Button>
+
+          {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline && (
             <AlertDialog>
               <AlertDialogTrigger
                 render={
-                  <Button className="w-full" size="lg" variant="destructive" disabled={updateStatus.isPending}>
-                    {unsentItemCount > 0
-                      ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen, or complete anyway`
-                      : `Complete anyway (${unservedItemCount} unserved)`}
+                  <Button className="w-full" size="sm" variant="outline" disabled={updateStatus.isPending}>
+                    Void {unservedItemCount} unserved item{unservedItemCount === 1 ? "" : "s"} instead
                   </Button>
                 }
               />
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Complete without full service?</AlertDialogTitle>
+                  <AlertDialogTitle>Void unserved items and complete?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet.
-                    Completing now voids {unservedItemCount === 1 ? "it" : "them"} (releasing any reserved stock) and
-                    closes out the table. This cannot be undone.
+                    {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet. This
+                    drops {unservedItemCount === 1 ? "it" : "them"} from the bill entirely (releasing any reserved
+                    stock) instead of charging for and serving {unservedItemCount === 1 ? "it" : "them"} — use this
+                    only when the guest genuinely didn't get {unservedItemCount === 1 ? "it" : "them"}. This cannot be
+                    undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction variant="destructive" onClick={handleForceCompleteSale}>
-                    Complete anyway
+                    Void and complete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : (
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleCompleteSale}
-              disabled={displayedDueAmount > 0 || unservedItemCount > 0 || updateStatus.isPending || !isOnline}
-            >
-              {!isOnline
-                ? "Offline"
-                : displayedDueAmount > 0
-                  ? `Due ${displayedDueAmount}`
-                  : unsentItemCount > 0
-                    ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
-                    : unservedItemCount > 0
-                      ? `${unservedItemCount} item${unservedItemCount === 1 ? "" : "s"} not yet served`
-                      : "Complete sale"}
-            </Button>
           )}
           <ClosedHoursOverrideButton
             closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
