@@ -226,7 +226,7 @@ export class CustomerCreditService {
 
   async findAccounts(
     query: ListCustomerCreditAccountsQueryDto,
-  ): Promise<PaginatedResponse<CustomerCreditAccount & { customerName?: string }>> {
+  ): Promise<PaginatedResponse<CustomerCreditAccount & { customerName?: string; customerPhone?: string }>> {
     const { page, limit, search } = query;
     const qb = this.accountsRepository
       .createQueryBuilder('account')
@@ -250,6 +250,7 @@ export class CustomerCreditService {
     const data = rows.entities.map((entity, index) => ({
       ...entity,
       customerName: rows.raw[index]?.customerName as string | undefined,
+      customerPhone: rows.raw[index]?.customerPhone as string | undefined,
     }));
 
     return {

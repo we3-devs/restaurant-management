@@ -18,6 +18,7 @@ export interface CustomerCreditAccount {
   lifetimeCharged: number
   lifetimeSettled: number
   customerName?: string
+  customerPhone?: string
   createdAt: string
   updatedAt: string
 }
