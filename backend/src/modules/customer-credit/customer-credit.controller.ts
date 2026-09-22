@@ -55,6 +55,7 @@ export class CustomerCreditController {
       dto.customerId,
       dto.amount,
       user.id,
+      dto.outletId,
       dto.notes,
     );
   }

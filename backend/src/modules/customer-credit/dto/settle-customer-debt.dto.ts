@@ -13,6 +13,11 @@ export class SettleCustomerDebtDto {
   @Min(0.01)
   amount: number;
 
+  @ApiProperty({ description: 'Outlet the settlement was collected at — lets it count as that outlet\'s revenue once paid' })
+  @Type(() => Number)
+  @IsInt()
+  outletId: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

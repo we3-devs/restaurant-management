@@ -28,6 +28,7 @@ export interface CustomerCreditTransaction {
   customerId: number
   orderId: number | null
   userId: number | null
+  outletId: number | null
   type: CustomerCreditTransactionType
   amount: number
   balanceAfter: number

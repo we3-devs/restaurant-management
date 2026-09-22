@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useCustomer, useCustomerOutlets, useUpdateCustomer, useUpdateCustomerOutlet } from "@/hooks/use-customers"
@@ -227,17 +228,18 @@ function CustomerCreditSection({ customerId }: { customerId: number }) {
 function SettleCustomerDebtDialog({ customerId }: { customerId: number }) {
   const [open, setOpen] = useState(false)
   const settleDebt = useSettleCustomerDebt()
+  const { data: outlets } = useOutlets({ limit: 100 })
 
   const form = useForm<SettleCustomerDebtInput>({
     resolver: zodResolver(settleCustomerDebtSchema),
-    defaultValues: { customerId, amount: 0, notes: "" },
+    defaultValues: { customerId, amount: 0, outletId: undefined, notes: "" },
   })
 
   async function onSubmit(values: SettleCustomerDebtInput) {
     try {
       await settleDebt.mutateAsync({ ...values, notes: values.notes || undefined })
       toast.success("Debt settled")
-      form.reset({ customerId, amount: 0, notes: "" })
+      form.reset({ customerId, amount: 0, outletId: undefined, notes: "" })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to settle debt")
@@ -253,6 +255,31 @@ function SettleCustomerDebtDialog({ customerId }: { customerId: number }) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="outletId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Outlet</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : ""}
+                    onValueChange={(value) => field.onChange(value ? Number(value) : undefined)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Where was this collected?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets?.data.map((outlet) => (
+                        <SelectItem key={outlet.id} value={String(outlet.id)}>
+                          {outlet.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="amount"
