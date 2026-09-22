@@ -281,7 +281,7 @@ export class OrdersService {
     if (fromStatus !== 'served' && fromStatus !== 'partially_served') return;
 
     order.status = 'accepted';
-    await this.ordersRepository.save(order);
+    const saved = await this.ordersRepository.save(order);
     await this.orderStatusHistoriesRepository.save(
       this.orderStatusHistoriesRepository.create({
         orderId,
@@ -291,6 +291,7 @@ export class OrdersService {
         note: reason,
       }),
     );
+    this.gateway.notifyOrderStatusChanged(saved);
   }
 
   /** Called by KitchenTicketsService after any item-level change — pushes the current order to the guest's own room if it's a guest order (no-op otherwise). */
@@ -931,6 +932,7 @@ export class OrdersService {
 
     const saved = await this.ordersRepository.save(order);
     this.gateway.notifyGuestOrderChanged(saved);
+    this.gateway.notifyOrderStatusChanged(saved);
 
     await this.orderStatusHistoriesRepository.save(
       this.orderStatusHistoriesRepository.create({

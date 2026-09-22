@@ -228,6 +228,24 @@ export class KitchenTicketsGateway
       .emit('guest.order.updated', order);
   }
 
+  /**
+   * Pushes an order status change to every staff screen on the outlet (POS
+   * cart, floor board, order list). Kitchen-ticket-driven status hops already
+   * reach staff via kitchen.ticket.updated/kitchen.item.updated, but a status
+   * change made directly through OrdersService#updateStatus — cancel,
+   * complete, force-complete — never touches a ticket/item, so without this
+   * a second screen watching the same order (another POS tab, a manager's
+   * dashboard) never learns the status moved until its next manual refetch.
+   * notifyGuestOrderChanged is a separate, guest-only push and doesn't cover
+   * this — it targets the customer's own room and no-ops for orders with no
+   * customerId, which is most walk-in/table orders.
+   */
+  notifyOrderStatusChanged(order: GuestOrderUpdate & { outletId: number }): void {
+    this.server
+      .to(this.outletRoom(order.outletId))
+      .emit('order.status.updated', order);
+  }
+
   private outletRoom(outletId: number): string {
     return `outlet:${outletId}`;
   }
