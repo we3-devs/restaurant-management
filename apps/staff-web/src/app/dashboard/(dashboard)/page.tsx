@@ -91,7 +91,7 @@ function Heading({
 		"Sales Overview": "/dashboard/analytics",
 		"Recent Orders": "/dashboard/orders",
 		"Top Selling Items": "/dashboard/foods",
-		"Table Occupancy": "/dashboard/tables",
+		"Table Occupancy": "/dashboard/dining-areas",
 		"Kitchen Queue": "/dashboard/orders",
 		"Today's domain activity": "/dashboard/analytics",
 	};
