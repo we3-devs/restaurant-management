@@ -187,16 +187,15 @@ export class KitchenTicketsGateway
 
   /** Pushes a persisted notification (e.g. "Table 8 — items ready") to every POS/waiter screen on the outlet. */
   notifyNotificationCreated(notification: Notification): void {
-    if (
-      notification.recipientUserIds !== null &&
-      notification.recipientUserIds !== undefined
-    ) {
+    if (notification.recipientUserIds?.length) {
       this.notifyUsersNotificationCreated(
         notification.recipientUserIds,
         notification,
       );
       return;
     }
+    // No resolved recipients (or none were scoped) — broadcast to the whole
+    // outlet room rather than silently notifying nobody.
     this.server
       .to(this.outletRoom(notification.outletId))
       .emit('notification.created', notification);
