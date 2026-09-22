@@ -209,9 +209,6 @@ export class NotificationsService {
     notification: Notification,
     recipientUserIds?: number[],
   ): Promise<void> {
-    // Web Push is reserved for urgent operational alerts. Normal/high events
-    // remain available through the realtime toast and notification bell.
-    const pushEnabledForEvent = notification.priority === 'urgent';
     if (!this.emailService.isConfigured && !this.pushService.isConfigured) {
       return;
     }
@@ -242,7 +239,7 @@ export class NotificationsService {
         if (preference.emailEnabled && user.email) {
           await this.emailService.send(user.email, notification.title, body);
         }
-        if (pushEnabledForEvent && preference.pushEnabled) {
+        if (preference.pushEnabled) {
           await this.pushService.sendToUser(user.id, notification.title, body, {
             type: notification.type,
             orderId: notification.orderId,
