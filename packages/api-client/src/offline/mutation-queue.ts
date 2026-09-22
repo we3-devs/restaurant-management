@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import type { QueryClient } from "@tanstack/react-query"
 import { apiClient, ApiError } from "../client"
 import { queryKeys } from "../query-keys"
@@ -67,8 +68,23 @@ export async function replayQueuedMutations(queryClient?: QueryClient) {
         notifyListeners()
         continue
       }
-      // Otherwise: still offline, or a genuine server rejection. Leave this
-      // and later entries queued for the next reconnect attempt.
+      // A 4xx here means the server actually received and evaluated this
+      // exact request and rejected it on the merits (validation, a business
+      // rule, a stale precondition) — replaying the identical payload again
+      // later can never succeed, unlike a genuine connectivity failure. Left
+      // queued, an entry like this blocks every mutation queued after it
+      // forever (this loop stops at the first failure), silently freezing
+      // the whole offline queue over one action nobody can retry their way
+      // out of. Drop it and surface it instead, and keep draining the rest.
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        await store.delete("mutation-queue", entry.id)
+        replayedAny = true
+        notifyListeners()
+        toast.error(`Couldn't sync "${entry.label}" from earlier: ${error.message}`)
+        continue
+      }
+      // Otherwise: still offline, or a genuine server/network failure. Leave
+      // this and later entries queued for the next reconnect attempt.
       break
     }
   }

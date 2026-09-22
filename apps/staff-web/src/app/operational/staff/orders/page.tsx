@@ -10,13 +10,21 @@ import { StatusBadge } from "@rms/ui/status-badge"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { tableSessionName, useTableSessions, type TableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useOrders, type Order } from "@rms/api-client/hooks/use-orders"
+import { useSettingsCategory, type BusinessSettings } from "@rms/api-client/hooks/use-settings"
 import { ORDER_STATUSES } from "@rms/validators/orders"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 
-function isToday(isoDate: string): boolean {
-  const now = new Date()
-  const date = new Date(isoDate)
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+// Mirrors backend/src/common/reporting/reporting-date.util.ts's default — the
+// same business-day boundary the dashboard/analytics "today" figures use.
+const DEFAULT_BUSINESS_TIMEZONE = "Asia/Kathmandu"
+
+/** "Today" by the tenant's configured business timezone, not the device's own clock/timezone — a tester (or any staff member) whose device isn't set to the outlet's local time would otherwise see today's orders silently filtered out, or yesterday's still showing, right around the business's midnight. */
+function businessDateKey(date: Date, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: DEFAULT_BUSINESS_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date)
+  }
 }
 
 interface OrderRow {
@@ -49,13 +57,16 @@ export default function StaffOrdersPage() {
     { enabled: !!outletId },
   )
   const { data: sessions } = useTableSessions({ outletId: outletId ?? undefined, limit: 200 })
+  const { data: businessSettings } = useSettingsCategory<BusinessSettings>("business")
+  const timeZone = businessSettings?.timezone || DEFAULT_BUSINESS_TIMEZONE
   const showSkeleton = useDelayedLoading(isLoading)
 
   const rows = useMemo<OrderRow[]>(() => {
     const sessionById = new Map<number, TableSession>((sessions?.data ?? []).map((s) => [s.id, s]))
+    const todayKey = businessDateKey(new Date(), timeZone)
 
     const withNames = (orders?.data ?? [])
-      .filter((order) => isToday(order.createdAt))
+      .filter((order) => businessDateKey(new Date(order.createdAt), timeZone) === todayKey)
       .map((order) => {
         const session = order.tableSessionId ? sessionById.get(order.tableSessionId) : undefined
         const tableName = order.tableName ?? order.orderType.replace(/_/g, " ")
@@ -70,7 +81,7 @@ export default function StaffOrdersPage() {
     return [...withNames].sort(
       (a, b) => new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime(),
     )
-  }, [orders, sessions])
+  }, [orders, sessions, timeZone])
 
   return (
     <div className="flex flex-col gap-3">
