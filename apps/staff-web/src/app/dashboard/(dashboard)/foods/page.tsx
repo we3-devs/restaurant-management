@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { DownloadIcon, Trash2Icon } from "lucide-react"
+import { ChefHatIcon, DownloadIcon, PackagePlusIcon, Trash2Icon } from "lucide-react"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState } from "@tanstack/react-table"
 import { toast } from "sonner"
 
@@ -20,13 +20,25 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useAnalyticsProducts } from "@/hooks/use-analytics"
-import { useBulkDeleteFoods, useFoods, type Food } from "@/hooks/use-foods"
+import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
+import { useUnits } from "@/hooks/use-units"
+import {
+  useBulkDeleteFoods,
+  useBulkImportFoodsAsIngredients,
+  useBulkUpdateFoodsDepartment,
+  useFoods,
+  type Food,
+} from "@/hooks/use-foods"
+import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
+import { OUTLET_DEPARTMENT_TYPES } from "@/lib/validators/foods"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
 import { usePageTitle } from "@rms/ui/use-page-title"
@@ -47,6 +59,7 @@ function buildColumns(selectable: boolean): ColumnDef<FoodRow>[] {
       header: "",
       cell: ({ row }) => (
         <div className="flex gap-1">
+          {row.original.departmentType ? <Badge variant="outline">prep: {row.original.departmentType}</Badge> : <Badge variant="secondary">ready-made</Badge>}
           {row.original.hasVariants && <Badge variant="secondary">variants</Badge>}
           {row.original.hasAddons && <Badge variant="secondary">addons</Badge>}
           {!row.original.isActive && <Badge variant="destructive">inactive</Badge>}
@@ -103,6 +116,16 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const showSkeleton = useDelayedLoading(isLoading || performanceLoading)
   const columns = useMemo(() => buildColumns(!readOnly), [readOnly])
   const bulkDeleteFoods = useBulkDeleteFoods()
+  const bulkUpdateDepartment = useBulkUpdateFoodsDepartment()
+  const [bulkDepartment, setBulkDepartment] = useState<string>("none")
+  const [prepPopoverOpen, setPrepPopoverOpen] = useState(false)
+  const { outletId: activeOutletId } = useActiveOutlet()
+  const { data: ingredientCategories } = useIngredientCategories({ limit: 100 })
+  const { data: units } = useUnits({ limit: 100 })
+  const bulkImportAsIngredients = useBulkImportFoodsAsIngredients()
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importCategoryId, setImportCategoryId] = useState<string>("")
+  const [importUnitId, setImportUnitId] = useState<string>("")
 
   function handleExport() {
     const header = ["Name", "Category", "SKU", "Sold", "Revenue", "Availability"]
@@ -137,6 +160,44 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
     }
   }
 
+  async function handleBulkDepartment() {
+    try {
+      const departmentType = bulkDepartment === "none" ? null : bulkDepartment
+      const result = await bulkUpdateDepartment.mutateAsync({ ids: selectedIds, departmentType })
+      toast.success(
+        departmentType
+          ? `${result.updated} food${result.updated === 1 ? "" : "s"} marked as needing prep`
+          : `${result.updated} food${result.updated === 1 ? "" : "s"} marked as ready-made`,
+      )
+      setRowSelection({})
+      setPrepPopoverOpen(false)
+      setBulkDepartment("none")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update foods")
+    }
+  }
+
+  async function handleBulkImportAsIngredients() {
+    if (!activeOutletId || !importCategoryId || !importUnitId) return
+    try {
+      const result = await bulkImportAsIngredients.mutateAsync({
+        foodIds: selectedIds,
+        outletId: activeOutletId,
+        ingredientCategoryId: Number(importCategoryId),
+        baseUnitId: Number(importUnitId),
+      })
+      if (result.created > 0) toast.success(`Imported ${result.created} food${result.created === 1 ? "" : "s"} into inventory`)
+      if (result.skipped > 0) toast.info(`Skipped ${result.skipped} already-linked food${result.skipped === 1 ? "" : "s"}`)
+      if (result.errors.length > 0) toast.error(`${result.errors.length} failed: ${result.errors.join("; ")}`)
+      setRowSelection({})
+      setImportDialogOpen(false)
+      setImportCategoryId("")
+      setImportUnitId("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to import foods into inventory")
+    }
+  }
+
   usePageTitle("Foods")
 
   return (
@@ -148,6 +209,55 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
           <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value ?? "all")}><SelectTrigger className="h-9 w-40 rounded-xl text-xs"><SelectValue placeholder="All categories" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{categories?.data.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select>
           <Select value={availabilityFilter} onValueChange={(value) => setAvailabilityFilter(value ?? "all")}><SelectTrigger className="h-9 w-32 rounded-xl text-xs"><SelectValue placeholder="Availability" /></SelectTrigger><SelectContent><SelectItem value="all">Availability</SelectItem><SelectItem value="available">Available</SelectItem><SelectItem value="unavailable">Unavailable</SelectItem></SelectContent></Select>
           <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}><DownloadIcon /> Export CSV</Button>
+          {!readOnly && selectedIds.length > 0 && (
+            <Popover open={prepPopoverOpen} onOpenChange={setPrepPopoverOpen}>
+              <PopoverTrigger render={<Button variant="outline" size="sm"><ChefHatIcon /> Needs prep ({selectedIds.length})</Button>} />
+              <PopoverContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">Set which department prepares the selected foods, or clear it to mark them ready-made (no kitchen prep).</p>
+                <Select value={bulkDepartment} onValueChange={(value) => setBulkDepartment(value ?? "none")}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="None — ready-made" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — ready-made</SelectItem>
+                    {OUTLET_DEPARTMENT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" className="w-full" onClick={handleBulkDepartment} disabled={bulkUpdateDepartment.isPending}>
+                  Apply to {selectedIds.length} food{selectedIds.length === 1 ? "" : "s"}
+                </Button>
+              </PopoverContent>
+            </Popover>
+          )}
+          {!readOnly && selectedIds.length > 0 && (
+            <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+              <DialogTrigger render={<Button variant="outline" size="sm"><PackagePlusIcon /> Import to inventory ({selectedIds.length})</Button>} />
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import {selectedIds.length} food{selectedIds.length === 1 ? "" : "s"} into inventory</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Creates a stock-tracked ingredient for each selected food (already-linked foods are skipped) in the active outlet.</p>
+                  <Select value={importCategoryId} onValueChange={(value) => setImportCategoryId(value ?? "")}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Ingredient category" /></SelectTrigger>
+                    <SelectContent>{ingredientCategories?.data.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={importUnitId} onValueChange={(value) => setImportUnitId(value ?? "")}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Base unit" /></SelectTrigger>
+                    <SelectContent>{units?.data.map((unit) => <SelectItem key={unit.id} value={String(unit.id)}>{unit.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={handleBulkImportAsIngredients}
+                    disabled={!activeOutletId || !importCategoryId || !importUnitId || bulkImportAsIngredients.isPending}
+                  >
+                    Import
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           {!readOnly && selectedIds.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger render={<Button variant="destructive" size="sm"><Trash2Icon /> Delete selected ({selectedIds.length})</Button>} />

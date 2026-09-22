@@ -19,6 +19,8 @@ import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
 import { BulkDeleteFoodsDto } from './dto/bulk-delete-foods.dto';
+import { BulkImportFoodsAsIngredientsDto } from './dto/bulk-import-foods-as-ingredients.dto';
+import { BulkUpdateFoodsDepartmentDto } from './dto/bulk-update-foods-department.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
@@ -106,6 +108,26 @@ export class FoodsController {
   })
   bulkRemove(@Body() dto: BulkDeleteFoodsDto) {
     return this.foodsService.removeMany(dto.ids);
+  }
+
+  @Post('bulk-update-department')
+  @RequirePermissions('foods.manage')
+  @ApiOperation({
+    summary:
+      'Sets (or clears, when null) departmentType — i.e. whether the food needs kitchen prep — for every requested id that belongs to the current tenant (ids outside it are silently skipped)',
+  })
+  bulkUpdateDepartment(@Body() dto: BulkUpdateFoodsDepartmentDto) {
+    return this.foodsService.updateDepartmentMany(dto.ids, dto.departmentType);
+  }
+
+  @Post('bulk-import-as-ingredients')
+  @RequirePermissions('foods.manage', 'ingredients.manage')
+  @ApiOperation({
+    summary:
+      'Creates a stock-tracked Ingredient for every requested food id that belongs to the current tenant and has no inventory link yet, then links it back (Food.inventoryIngredientId)',
+  })
+  bulkImportAsIngredients(@Body() dto: BulkImportFoodsAsIngredientsDto) {
+    return this.foodsService.importAsIngredients(dto);
   }
 
   @Get(':id/outlets')

@@ -119,6 +119,33 @@ export function useBulkDeleteFoods() {
   })
 }
 
+export function useBulkUpdateFoodsDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, departmentType }: { ids: number[]; departmentType: string | null }) =>
+      apiClient<{ updated: number }>("/foods/bulk-update-department", {
+        method: "POST",
+        body: JSON.stringify({ ids, departmentType }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.lists() }),
+  })
+}
+
+export function useBulkImportFoodsAsIngredients() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { foodIds: number[]; outletId: number; ingredientCategoryId: number; baseUnitId: number }) =>
+      apiClient<{ created: number; skipped: number; errors: string[] }>("/foods/bulk-import-as-ingredients", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.foods.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.lists() })
+    },
+  })
+}
+
 export function useFoodOutlets(foodId: number) {
   return useQuery({
     queryKey: queryKeys.foods.outlets(foodId),
