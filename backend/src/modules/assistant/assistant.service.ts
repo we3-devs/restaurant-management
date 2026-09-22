@@ -64,7 +64,7 @@ export function classifyAssistantIntent(
   if (/staff|employee|employees|team member/.test(q)) return 'staffSummary';
   if (/payment|payments|cash|card|refund/.test(q)) return 'payments';
   if (
-    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders/.test(
+    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|(?:what|which)\s+(?:was|were|is|are)?\s*(?:the\s+)?orders?|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders/.test(
       q,
     )
   )
@@ -89,6 +89,42 @@ export function classifyAssistantIntent(
     return 'overview';
 
   return 'conversation';
+}
+
+function formatOrderAnswer(
+  question: string,
+  metrics: unknown,
+  period: string,
+): string {
+  if (/^orders?$/.test(question.trim().toLowerCase())) {
+    const count = Number((metrics as { orders?: unknown })?.orders ?? 0);
+    return `${period === 'today' ? 'Today' : period}, we had ${count} order${count === 1 ? '' : 's'}.`;
+  }
+
+  const orders = Array.isArray(metrics)
+    ? (metrics as Array<Record<string, unknown>>)
+    : [];
+  if (orders.length === 0) return `There were no orders for ${period}.`;
+
+  const lines = orders.map((order) => {
+    const orderNumber = String(
+      order.orderNumber ?? order.billNumber ?? 'unnumbered',
+    );
+    const items = Array.isArray(order.items)
+      ? (order.items as Array<{ name?: unknown; quantity?: unknown }>)
+          .map(
+            (item) =>
+              `${String(item.name ?? 'Item')} x${String(item.quantity ?? 0)}`,
+          )
+          .join(', ')
+      : 'No item details';
+    const total =
+      order.grandTotal === null || order.grandTotal === undefined
+        ? ''
+        : `, total Rs. ${String(order.grandTotal)}`;
+    return `- Order ${orderNumber}: ${items}; status ${String(order.status ?? 'unknown')}${total}`;
+  });
+  return `${period[0].toUpperCase()}${period.slice(1)}'s orders (${orders.length}):\n${lines.join('\n')}`;
 }
 
 @Injectable()
@@ -431,7 +467,7 @@ export class AssistantService {
             )
           )[0]
         : await this.db.query(
-            `SELECT o.order_number AS "orderNumber", o.bill_number AS "billNumber", o.order_type AS "orderType", o.order_source AS "orderSource", o.status, o.payment_status AS "paymentStatus", o.grand_total AS "grandTotal", o.created_at AS "createdAt", COALESCE(items.items, '[]'::json) AS items FROM orders o LEFT JOIN LATERAL (SELECT json_agg(json_build_object('name', f.name, 'quantity', oi.quantity) ORDER BY f.name) AS items FROM order_items oi JOIN foods f ON f.id = oi.food_id WHERE oi.order_id = o.id) items ON true WHERE 1=1${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} ORDER BY o.created_at LIMIT 100`,
+            `SELECT o.order_number AS "orderNumber", o.bill_number AS "billNumber", o.order_type AS "orderType", o.order_source AS "orderSource", o.status, o.payment_status AS "paymentStatus", o.grand_total AS "grandTotal", o.created_at AS "createdAt", COALESCE(items.items, '[]'::json) AS items FROM orders o LEFT JOIN LATERAL (SELECT json_agg(json_build_object('name', f.name, 'quantity', oi.quantity) ORDER BY f.name) AS items FROM order_items oi JOIN foods f ON f.id = oi.food_id WHERE oi.order_id = o.id) items ON true WHERE o.status <> 'cancelled'${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} ORDER BY o.created_at LIMIT 100`,
             params,
           );
     } else if (intent === 'serviceIssues') {
@@ -575,6 +611,14 @@ export class AssistantService {
           ...fix,
         }),
         ...(route === 'DATA' ? { data: fix } : {}),
+      };
+    }
+
+    if (data.intent === 'orderDetails' && 'metrics' in data) {
+      return {
+        route,
+        answer: formatOrderAnswer(question, data.metrics, data.period),
+        ...(route === 'DATA' ? { data } : {}),
       };
     }
 
