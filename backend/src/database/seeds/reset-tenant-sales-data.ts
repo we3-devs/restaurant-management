@@ -40,6 +40,10 @@ const LOCKED_TABLES = [
   { table: 'order_items', trigger: 'order_items_lock_completed_order' },
   { table: 'order_payments', trigger: 'order_payments_lock_completed_order' },
   { table: 'order_item_addons', trigger: 'order_item_addons_lock_completed_order' },
+  // Deleting order_payments cascades an UPDATE orders (payment-totals sync
+  // trigger), and this script also deletes completed orders directly below —
+  // both hit this trigger on the orders table itself, not just its children.
+  { table: 'orders', trigger: 'orders_lock_completed' },
 ];
 
 // [table, whereSql, params] — whereSql references :outletIds / :tenantId,
