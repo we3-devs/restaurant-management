@@ -229,6 +229,7 @@ export class EmployeesService {
   async update(
     id: number,
     dto: UpdateEmployeeDto,
+    updatedBy: number,
   ): Promise<EmployeeResponseDto> {
     const e = await this.findOne(id);
     if (dto.outletId !== undefined) {
@@ -246,7 +247,8 @@ export class EmployeesService {
     const { outletId, ...employeeInput } = dto;
     Object.assign(e, employeeInput);
     const saved = await this.employeeRepo.save(e);
-    if (outletId !== undefined) await this.assignOutlet(saved.id, outletId, 0);
+    if (outletId !== undefined)
+      await this.assignOutlet(saved.id, outletId, updatedBy);
     return this.toResponse(await this.findOne(saved.id));
   }
 
