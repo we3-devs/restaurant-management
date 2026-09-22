@@ -52,6 +52,7 @@ export function CreateFoodDialog() {
       skuSegment: "",
       imageUrl: "",
       itemType: "ready_made",
+      departmentType: undefined,
       inventoryIngredientId: null,
     },
   })
@@ -67,6 +68,7 @@ export function CreateFoodDialog() {
         skuSegment: "",
         imageUrl: "",
         itemType: "ready_made",
+        departmentType: undefined,
         inventoryIngredientId: null,
       })
       setOpen(false)
@@ -214,7 +216,6 @@ export function CreateFoodDialog() {
                 </FormItem>
               )}
             />
-            {false && <>
             <FormField
               control={form.control}
               name="departmentType"
@@ -237,11 +238,13 @@ export function CreateFoodDialog() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Sets which kitchen station prepares this item. Leave as &quot;None&quot; for ready-made items (drinks, pre-made snacks) that skip the kitchen queue.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            </>}
             <DialogFooter>
               <Button type="submit" disabled={createFood.isPending}>
                 {createFood.isPending ? "Creating..." : "Create food"}
