@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@rms/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -165,16 +166,22 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
     return groups
   }, [permissions])
 
-  type AccessLevel = "none" | "view" | "full" | "enabled"
+  type AccessLevel = "none" | "view" | "full"
+
+  // Every module may carry any number of narrower, discretionary
+  // permissions beyond the base view/manage pair (e.g. orders has both
+  // orders.delete and orders.discount) — each gets its own independent
+  // toggle rather than being squeezed into one exclusive "enabled" slot.
+  function singlePermissions(modulePermissions: Permission[]): Permission[] {
+    return modulePermissions.filter((permission) => permission.action !== "view" && permission.action !== "manage")
+  }
 
   function moduleAccessLevel(modulePermissions: Permission[]): AccessLevel {
     const granted = new Set(position?.permissionSlugs ?? [])
     const managePermission = modulePermissions.find((permission) => permission.action === "manage")
     const viewPermission = modulePermissions.find((permission) => permission.action === "view")
-    const singlePermission = modulePermissions.find((permission) => permission.action !== "view" && permission.action !== "manage")
     if (managePermission && granted.has(managePermission.slug)) return "full"
     if (viewPermission && granted.has(viewPermission.slug)) return "view"
-    if (singlePermission && granted.has(singlePermission.slug)) return "enabled"
     return "none"
   }
 
@@ -183,7 +190,6 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
     const granted = new Set(position.permissionSlugs ?? [])
     const viewPermission = modulePermissions.find((permission) => permission.action === "view")
     const managePermission = modulePermissions.find((permission) => permission.action === "manage")
-    const singlePermission = modulePermissions.find((permission) => permission.action !== "view" && permission.action !== "manage")
     const wantView = level === "view" || level === "full"
     const wantManage = level === "full"
 
@@ -198,11 +204,17 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
         if (wantManage && !has) await assignPermission.mutateAsync(managePermission.id)
         if (!wantManage && has) await unassignPermission.mutateAsync(managePermission.id)
       }
-      if (singlePermission) {
-        const has = granted.has(singlePermission.slug)
-        if (level === "enabled" && !has) await assignPermission.mutateAsync(singlePermission.id)
-        if (level === "none" && has) await unassignPermission.mutateAsync(singlePermission.id)
-      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update permissions")
+    }
+  }
+
+  async function handleSinglePermissionToggle(permission: Permission, enabled: boolean) {
+    if (!position) return
+    const has = new Set(position.permissionSlugs ?? []).has(permission.slug)
+    try {
+      if (enabled && !has) await assignPermission.mutateAsync(permission.id)
+      if (!enabled && has) await unassignPermission.mutateAsync(permission.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update permissions")
     }
@@ -222,23 +234,38 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
           {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
             const hasView = modulePermissions.some((permission) => permission.action === "view")
             const hasManage = modulePermissions.some((permission) => permission.action === "manage")
-            const hasSingle = modulePermissions.some((permission) => permission.action !== "view" && permission.action !== "manage")
+            const extraPermissions = singlePermissions(modulePermissions)
+            const granted = new Set(position?.permissionSlugs ?? [])
+            if (!hasView && !hasManage && extraPermissions.length === 0) return null
             return (
               <div key={module} className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0">
                 <span className="text-sm font-medium capitalize">{module.replace(/-/g, " ")}</span>
-                <Select
-                  value={moduleAccessLevel(modulePermissions)}
-                  onValueChange={(value) => void handleModuleAccessChange(modulePermissions, value as AccessLevel)}
-                  disabled={!position || assignPermission.isPending || unassignPermission.isPending}
-                >
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No access</SelectItem>
-                    {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
-                    {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
-                    {hasSingle && <SelectItem value="enabled">Enabled</SelectItem>}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col items-end gap-2">
+                  {(hasView || hasManage) && (
+                    <Select
+                      value={moduleAccessLevel(modulePermissions)}
+                      onValueChange={(value) => void handleModuleAccessChange(modulePermissions, value as AccessLevel)}
+                      disabled={!position || assignPermission.isPending || unassignPermission.isPending}
+                    >
+                      <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No access</SelectItem>
+                        {hasView && <SelectItem value="view">{hasManage ? "View only" : "Enabled"}</SelectItem>}
+                        {hasManage && <SelectItem value="full">{hasView ? "Full access" : "Enabled"}</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {extraPermissions.map((permission) => (
+                    <label key={permission.slug} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={granted.has(permission.slug)}
+                        onCheckedChange={(checked) => void handleSinglePermissionToggle(permission, checked === true)}
+                        disabled={!position || assignPermission.isPending || unassignPermission.isPending}
+                      />
+                      {permission.name}
+                    </label>
+                  ))}
+                </div>
               </div>
             )
           })}
