@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -31,6 +31,8 @@ import { DINING_TABLE_STATUSES, updateDiningTableSchema, type UpdateDiningTableI
 
 export function DiningTableDetail({ tableId }: { tableId: number }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const listPath = pathname?.startsWith("/dashboard") ? "/dashboard/tables" : "/operational/dining-tables"
   const { data: table, isLoading } = useDiningTable(tableId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: outlet } = useOutlet(table?.outletId ?? 0)
@@ -67,7 +69,7 @@ export function DiningTableDetail({ tableId }: { tableId: number }) {
     try {
       await deleteTable.mutateAsync(tableId)
       toast.success("Table deleted")
-      router.push("/operational/dining-tables")
+      router.push(listPath)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete table")
     }
