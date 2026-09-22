@@ -73,6 +73,7 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/ingredient-categories", label: "Ingredient Categories", permission: "ingredient-categories.view" },
       { href: "/dashboard/ingredients", label: "Ingredients", permission: "ingredients.view" },
       { href: "/dashboard/inventory-items", label: "Manage Inventory Items", permission: "ingredients.view" },
+      { href: "/dashboard/inventory-kits", label: "Inventory Kits", permission: "inventory-kits.view" },
       { href: "/dashboard/stock-ins", label: "Stock-Ins", permission: "stock-ins.view" },
       { href: "/dashboard/stock-outs", label: "Stock-Outs", permission: "stock-outs.view" },
       { href: "/dashboard/stock-transfers", label: "Stock Transfers", permission: "stock-transfers.view" },

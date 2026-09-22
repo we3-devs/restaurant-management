@@ -9,8 +9,8 @@ export const REFRESH_TOKEN_COOKIE = "refresh_token"
 // Refresh token is long-lived (400d, the max browsers allow) so a login
 // persists until explicit logout or the user clears site data — the short
 // access token is silently refreshed underneath it (see backend-client.ts).
-const ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60
-const REFRESH_TOKEN_MAX_AGE_SECONDS = 400 * 24 * 60 * 60
+export const ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60
+export const REFRESH_TOKEN_MAX_AGE_SECONDS = 400 * 24 * 60 * 60
 
 export interface AuthTokens {
   accessToken: string
@@ -23,30 +23,37 @@ export interface AuthTokens {
 // one app's origin (e.g. admin.example.com) is also sent to the other
 // (e.g. pos.example.com) — required now that dashboard-web and
 // operational-web are separate deployments.
-const COOKIE_DOMAIN = process.env.AUTH_COOKIE_DOMAIN
+export const COOKIE_DOMAIN = process.env.AUTH_COOKIE_DOMAIN
 
-/** Sets both auth cookies. Only callable from a Route Handler or Server Action. */
+/** Shared cookie attributes, exported so proxy.ts (middleware — the one place that can reliably persist a refreshed token, see proxy.ts) can set matching cookies without duplicating these flags. */
+export function authCookieAttributes(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict" as const,
+    path: "/",
+    domain: COOKIE_DOMAIN,
+    maxAge,
+  }
+}
+
+/**
+ * Sets both auth cookies. Only callable from a Route Handler or Server
+ * Action — Next.js throws if invoked while a Server Component renders.
+ * Most real refreshes now happen proactively in proxy.ts (middleware), which
+ * can always persist cookies; this remains as the Route Handler path (e.g.
+ * /api/backend/* reacting to a 401 mid-request) and is defensively wrapped
+ * so a stray call from render context degrades to "not persisted" instead of
+ * crashing the page.
+ */
 export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
-  const cookieStore = await cookies()
-  const isProduction = process.env.NODE_ENV === "production"
-
-  cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "strict",
-    path: "/",
-    domain: COOKIE_DOMAIN,
-    maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
-  })
-
-  cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "strict",
-    path: "/",
-    domain: COOKIE_DOMAIN,
-    maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
-  })
+  try {
+    const cookieStore = await cookies()
+    cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, authCookieAttributes(ACCESS_TOKEN_MAX_AGE_SECONDS))
+    cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, authCookieAttributes(REFRESH_TOKEN_MAX_AGE_SECONDS))
+  } catch {
+    // Called during render — cookies are read-only here, nothing to do.
+  }
 }
 
 /**
