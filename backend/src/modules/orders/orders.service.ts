@@ -820,9 +820,21 @@ export class OrdersService {
       dto.status === 'completed' &&
       (await this.orderItemsRepository.count({ where: { orderId: id } })) === 0;
 
+    // Staff-acknowledged override for closing out a table whose items never
+    // all reached 'served' (a guest walked out, a staff mis-fire, etc.) —
+    // gated behind orders.delete in the controller since, like a
+    // cancellation, it's discretionary and voids real items rather than
+    // just skipping a status hop.
+    const forceComplete =
+      dto.status === 'completed' &&
+      dto.force === true &&
+      fromStatus !== 'completed' &&
+      fromStatus !== 'cancelled';
+
     if (
       dto.status !== fromStatus &&
       !isEmptyPendingCompletion &&
+      !forceComplete &&
       !ORDER_STATUS_TRANSITIONS[fromStatus].includes(dto.status)
     ) {
       throw new ConflictException(
@@ -838,6 +850,23 @@ export class OrdersService {
       throw new BadRequestException(
         'Completing an order requires a staff actor',
       );
+    }
+
+    if (forceComplete) {
+      // Void (not delete) every item that never reached 'served' — same as
+      // OrderItemsController's void action, so reservations are released and
+      // the item's history stays on the record instead of leaving it
+      // permanently stuck in an open status with stock locked against it.
+      const unservedItems = await this.orderItemsRepository.find({
+        where: { orderId: id, status: Not(In(['served', 'cancelled'])) },
+      });
+      for (const item of unservedItems) {
+        await this.voidItem(
+          item.id,
+          dto.note?.trim() || 'Force-completed without full service',
+        );
+      }
+      Object.assign(order, await this.findOne(id));
     }
 
     // Repair totals before the completion check. Payment creation and order

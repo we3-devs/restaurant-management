@@ -18,6 +18,17 @@ import {
 import { toast } from "sonner"
 
 import { useCurrentUser } from "@rms/auth/current-user-context"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@rms/ui/alert-dialog"
 import { Badge } from "@rms/ui/badge"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
@@ -169,6 +180,10 @@ function EditableCart({
   // quantity/note/packaging is cashier/admin-only; a waiter's view of it is
   // read-only (see FoodStatusCountRow below).
   const canEditSentItems = canRecordPayment || user.permissions.includes("orders.delete")
+  // Force-completing voids whatever never got served — as discretionary as
+  // cancelling an order, so it rides on the same permission (see
+  // OrdersController#updateStatus).
+  const canForceComplete = user.permissions.includes("orders.delete")
   const localCart = useLocalCartContext()
   const addItemsBatch = useAddOrderItemsBatch(orderId)
   const addItemsBatchOverride = useAddOrderItemsBatch(orderId, { closedHoursOverride: true })
