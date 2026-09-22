@@ -1,9 +1,8 @@
 "use client"
 
 import { Area, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { DateRangeFilter, type DateRange } from "@/components/date-range-filter"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAnalyticsDashboard } from "@/hooks/use-analytics"
@@ -32,7 +31,7 @@ export default function AnalyticsPage() {
   usePageTitle("Analytics")
 
   return (
-    <div className="page-shell space-y-6">
+    <div className="analytics-page page-shell space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Analytics</h1>
@@ -63,14 +62,11 @@ export default function AnalyticsPage() {
         </div>
       </div>
       {query.isLoading ? (
-        <>
         <AnalyticsSkeleton />
-        <div className="hidden">
-        <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Loading all domain analytics…</CardContent></Card>
-        </div>
-        </>
       ) : query.isError ? (
-        <Card><CardContent className="py-16 text-center text-sm text-destructive">Could not load analytics. <button className="ml-2 underline" onClick={() => void query.refetch()}>Retry</button></CardContent></Card>
+        <div className="analytics-section py-16 text-center text-sm text-destructive">
+          Could not load analytics. <button className="ml-2 underline" onClick={() => void query.refetch()}>Retry</button>
+        </div>
       ) : data ? (
         <AnalyticsContent data={data} />
       ) : null}
@@ -80,23 +76,23 @@ export default function AnalyticsPage() {
 
 function AnalyticsSkeleton() {
   const shimmer = "animate-pulse rounded-lg bg-muted/70"
-  return <div className="space-y-5" aria-label="Loading analytics" role="status">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card key={index}><CardContent className="space-y-3 p-5"><div className={`${shimmer} h-4 w-24`} /><div className={`${shimmer} h-8 w-32`} /><div className={`${shimmer} h-3 w-28`} /></CardContent></Card>)}</div>
-    <Card><CardContent className="flex flex-wrap gap-3 p-4"><div className={`${shimmer} h-4 w-28`} /><div className={`${shimmer} h-4 w-64`} /><div className={`${shimmer} h-4 w-40`} /><div className={`${shimmer} h-4 w-48`} /></CardContent></Card>
-    <div className="grid gap-4 xl:grid-cols-[1.6fr_0.9fr]"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
-    <div className="grid gap-4 xl:grid-cols-2"><ListSkeleton /><ChartSkeleton className="h-80" /></div>
-    <div className="grid gap-4 lg:grid-cols-2"><ListSkeleton /><ListSkeleton /></div>
-    <div className="grid gap-4 lg:grid-cols-2"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
-    <ListSkeleton />
+  return <div aria-label="Loading analytics" role="status">
+    <div className="analytics-kpi-grid">{Array.from({ length: 4 }, (_, index) => <div className="analytics-kpi space-y-3 py-1" key={index}><div className={`${shimmer} h-4 w-24`} /><div className={`${shimmer} h-8 w-32`} /><div className={`${shimmer} h-3 w-28`} /></div>)}</div>
+    <div className="analytics-section flex flex-wrap gap-3"><div className={`${shimmer} h-4 w-28`} /><div className={`${shimmer} h-4 w-64`} /><div className={`${shimmer} h-4 w-40`} /><div className={`${shimmer} h-4 w-48`} /></div>
+    <div className="analytics-section analytics-grid-2"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
+    <div className="analytics-section analytics-grid-2 even"><ListSkeleton /><ChartSkeleton className="h-80" /></div>
+    <div className="analytics-section analytics-grid-2 even"><ListSkeleton /><ListSkeleton /></div>
+    <div className="analytics-section analytics-grid-2 even"><ChartSkeleton className="h-80" /><ChartSkeleton className="h-80" /></div>
+    <div className="analytics-section"><ListSkeleton /></div>
   </div>
 }
 
 function ChartSkeleton({ className = "" }: { className?: string }) {
-  return <Card className={className}><CardHeader className="space-y-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-40" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></CardHeader><CardContent className="h-[calc(100%-88px)]"><div className="relative h-full overflow-hidden rounded-lg border border-dashed border-border/60 bg-muted/20"><div className="absolute inset-x-5 bottom-8 top-8 flex items-end justify-between gap-2 opacity-70">{[42, 60, 32, 72, 48, 80, 55, 66, 38, 58].map((height, index) => <div key={index} className="w-full rounded-t bg-muted/80" style={{ height: `${height}%` }} />)}</div><div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border/60" /></div></CardContent></Card>
+  return <div className={className}><div className="analytics-panel-heading space-y-3 pb-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-40" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></div><div className="h-[calc(100%-56px)]"><div className="relative h-full overflow-hidden rounded-lg border border-dashed border-border/60 bg-muted/20"><div className="absolute inset-x-5 bottom-8 top-8 flex items-end justify-between gap-2 opacity-70">{[42, 60, 32, 72, 48, 80, 55, 66, 38, 58].map((height, index) => <div key={index} className="w-full rounded-t bg-muted/80" style={{ height: `${height}%` }} />)}</div><div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border/60" /></div></div></div>
 }
 
 function ListSkeleton() {
-  return <Card><CardHeader className="space-y-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-44" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></CardHeader><CardContent className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="flex items-center justify-between border-b pb-3 last:border-0"><div className="animate-pulse rounded-lg bg-muted/70 h-4" style={{ width: `${45 + index * 7}%` }} /><div className="animate-pulse rounded-lg bg-muted/70 h-4 w-20" /></div>)}</CardContent></Card>
+  return <div><div className="analytics-panel-heading space-y-3 pb-3"><div className="animate-pulse rounded-lg bg-muted/70 h-5 w-44" /><div className="animate-pulse rounded-lg bg-muted/70 h-3 w-56" /></div><div className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="flex items-center justify-between border-b pb-3 last:border-0"><div className="animate-pulse rounded-lg bg-muted/70 h-4" style={{ width: `${45 + index * 7}%` }} /><div className="animate-pulse rounded-lg bg-muted/70 h-4 w-20" /></div>)}</div></div>
 }
 
 function AnalyticsContent({ data }: { data: NonNullable<ReturnType<typeof useAnalyticsDashboard>["data"]> }) {
@@ -109,37 +105,54 @@ function AnalyticsContent({ data }: { data: NonNullable<ReturnType<typeof useAna
   const topCategory = data.products.categories[0]
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div>
+      <div className="analytics-kpi-grid">
         <MetricCard label="Revenue" value={money(revenue)} detail="Gross sales in period" />
         <MetricCard label="Orders" value={orders.toLocaleString()} detail="Completed order volume" />
         <MetricCard label="Average order value" value={money(aov)} detail="Revenue per order" />
         <MetricCard label="Customers" value={customers.toLocaleString()} detail={repeatRate ? `${repeatRate.toFixed(1)}% repeat rate` : "Unique customers"} />
       </div>
       <InsightStrip trend={trendInsight(data.sales.trend)} topFood={topFood?.food} topCategory={topCategory?.category} repeatRate={repeatRate} />
-      <div className="grid gap-4 xl:grid-cols-[1.6fr_0.9fr]">
+      <div className="analytics-section analytics-grid-2">
         <RevenueTrendCard data={data.sales.trend} />
         <MixDonutCard title="Sales mix" subtitle="Orders by order type" rows={data.sales.orderMix.types.map((r) => ({ name: r.name, value: r.orders }))} />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="analytics-section analytics-grid-2 even">
         <MixCard title="Sales by category" subtitle="Which categories drive revenue" rows={data.products.categories.slice(0, 8).map((r) => ({ name: r.category, value: money(r.revenue), detail: `${r.orders} orders` }))} />
         <PaymentBreakdownCard rows={data.sales.paymentMix} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="analytics-section analytics-grid-2 even">
         <PerformanceCard title="Top performing foods" subtitle="Best revenue contributors" rows={data.products.foods.slice(0, 6)} />
         <PerformanceCard title="Foods to watch" subtitle="Lowest revenue contributors with sales" rows={[...data.products.foods].filter((row) => row.quantity > 0).sort((a, b) => a.revenue - b.revenue).slice(0, 6)} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="analytics-section analytics-grid-2 even">
         <CustomerTrendCard data={data.customers.trend} />
         <InventoryMovementCard rows={data.inventory.movement} />
       </div>
-      <MixCard title="Sales by source" subtitle="Revenue and order volume by channel" rows={data.sales.orderMix.sources.map((r) => ({ name: r.name, value: money(r.revenue), detail: `${r.orders} orders` }))} />
+      <div className="analytics-section">
+        <MixCard title="Sales by source" subtitle="Revenue and order volume by channel" rows={data.sales.orderMix.sources.map((r) => ({ name: r.name, value: money(r.revenue), detail: `${r.orders} orders` }))} />
+      </div>
+    </div>
+  )
+}
+
+function Panel({ title, subtitle, action, className = "", children }: { title: string; subtitle?: string; action?: ReactNode; className?: string; children: ReactNode }) {
+  return (
+    <div className={className}>
+      <div className="analytics-panel-heading flex items-start justify-between gap-3">
+        <div>
+          <h3>{title}</h3>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
     </div>
   )
 }
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <Card><CardContent className="space-y-1 p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></CardContent></Card>
+  return <div className="analytics-kpi"><p>{label}</p><strong className="tabular-nums">{value}</strong><small>{detail}</small></div>
 }
 
 function trendInsight(rows: { date: string; revenue: number }[]) {
@@ -153,11 +166,11 @@ function trendInsight(rows: { date: string; revenue: number }[]) {
 }
 
 function InsightStrip({ trend, topFood, topCategory, repeatRate }: { trend: string; topFood?: string; topCategory?: string; repeatRate: number }) {
-  return <Card className="border-primary/20 bg-primary/[0.03]"><CardContent className="flex flex-wrap items-center gap-x-7 gap-y-2 p-4 text-sm"><span className="font-semibold">What to notice</span><span className="text-muted-foreground">{trend}</span>{topFood && <span><strong>{topFood}</strong> leads food revenue.</span>}{topCategory && <span><strong>{topCategory}</strong> is the strongest category.</span>}{repeatRate > 0 && <span><strong>{repeatRate.toFixed(1)}%</strong> of customers returned.</span>}</CardContent></Card>
+  return <div className="analytics-section flex flex-wrap items-center gap-x-7 gap-y-2 text-sm"><span className="font-semibold">What to notice</span><span className="text-muted-foreground">{trend}</span>{topFood && <span><strong>{topFood}</strong> leads food revenue.</span>}{topCategory && <span><strong>{topCategory}</strong> is the strongest category.</span>}{repeatRate > 0 && <span><strong>{repeatRate.toFixed(1)}%</strong> of customers returned.</span>}</div>
 }
 
 function PerformanceCard({ title, subtitle, rows }: { title: string; subtitle: string; rows: { food: string; quantity: number; revenue: number; orders: number }[] }) {
-  return <Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>{subtitle}</CardDescription></CardHeader><CardContent className="space-y-2">{rows.length ? rows.map((row, index) => <div key={`${row.food}-${index}`} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0"><span className="flex min-w-0 items-center gap-2 truncate"><span className="w-5 text-xs text-muted-foreground">{index + 1}</span><span className="truncate">{row.food}</span></span><span className="shrink-0 text-right"><strong className="block tabular-nums">{money(row.revenue)}</strong><small className="text-muted-foreground">{row.quantity} sold · {row.orders} orders</small></span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">No food performance data for this range.</p>}</CardContent></Card>
+  return <Panel title={title} subtitle={subtitle}>{rows.length ? rows.map((row, index) => <div key={`${row.food}-${index}`} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0"><span className="flex min-w-0 items-center gap-2 truncate"><span className="w-5 text-xs text-muted-foreground">{index + 1}</span><span className="truncate">{row.food}</span></span><span className="shrink-0 text-right"><strong className="block tabular-nums">{money(row.revenue)}</strong><small className="text-muted-foreground">{row.quantity} sold · {row.orders} orders</small></span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">No food performance data for this range.</p>}</Panel>
 }
 
 function ChartEmpty({ label }: { label: string }) {
@@ -171,18 +184,17 @@ function ChartEmpty({ label }: { label: string }) {
 function RevenueTrendCard({ data }: { data: { date: string; orders: number; revenue: number }[] }) {
   const allZero = data.length > 0 && data.every((row) => row.revenue === 0 && row.orders === 0)
   return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div>
-          <CardTitle>Revenue over time</CardTitle>
-          <CardDescription>Daily revenue and order activity</CardDescription>
-        </div>
+    <Panel
+      title="Revenue over time"
+      subtitle="Daily revenue and order activity"
+      action={
         <div className="flex shrink-0 items-center gap-3 pt-0.5 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />Revenue</span>
           <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} />Orders</span>
         </div>
-      </CardHeader>
-      <CardContent className="h-64">
+      }
+    >
+      <div className="h-64">
         {data.length < 2 ? (
           <ChartEmpty label="Not enough daily data for this range." />
         ) : (
@@ -206,17 +218,16 @@ function RevenueTrendCard({ data }: { data: { date: string; orders: number; reve
             </LineChart>
           </ChartContainer>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
 function MixDonutCard({ title, subtitle, rows }: { title: string; subtitle: string; rows: { name: string; value: number }[] }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0)
   return (
-    <Card>
-      <CardHeader><CardTitle>{title}</CardTitle><CardDescription>{subtitle}</CardDescription></CardHeader>
-      <CardContent className="flex min-h-64 items-center gap-5">
+    <Panel title={title} subtitle={subtitle}>
+      <div className="flex min-h-64 items-center gap-5">
         {rows.length === 0 ? (
           <div className="h-64 w-full"><ChartEmpty label="No order mix for this range." /></div>
         ) : (
@@ -251,17 +262,16 @@ function MixDonutCard({ title, subtitle, rows }: { title: string; subtitle: stri
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
 function PaymentBreakdownCard({ rows }: { rows: { name: string; amount: number }[] }) {
   const hasData = rows.some((row) => row.amount > 0)
   return (
-    <Card>
-      <CardHeader><CardTitle>Payment breakdown</CardTitle><CardDescription>Collected amount by method</CardDescription></CardHeader>
-      <CardContent className="h-64">
+    <Panel title="Payment breakdown" subtitle="Collected amount by method">
+      <div className="h-64">
         {!hasData && rows.length === 0 ? (
           <ChartEmpty label="No payments recorded for this range." />
         ) : (
@@ -276,17 +286,16 @@ function PaymentBreakdownCard({ rows }: { rows: { name: string; amount: number }
             </LineChart>
           </ChartContainer>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
 function CustomerTrendCard({ data }: { data: { date: string; newCount: number; returningCount: number }[] }) {
   const hasData = data.some((row) => row.newCount > 0 || row.returningCount > 0)
   return (
-    <Card>
-      <CardHeader><CardTitle>Customer growth</CardTitle><CardDescription>New and returning customers by day</CardDescription></CardHeader>
-      <CardContent className="h-64">
+    <Panel title="Customer growth" subtitle="New and returning customers by day">
+      <div className="h-64">
         {!hasData && data.length === 0 ? (
           <ChartEmpty label="No customer activity for this range." />
         ) : (
@@ -302,17 +311,16 @@ function CustomerTrendCard({ data }: { data: { date: string; newCount: number; r
             </LineChart>
           </ChartContainer>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
 function InventoryMovementCard({ rows }: { rows: { type: string; quantity: number }[] }) {
   const hasData = rows.some((row) => row.quantity !== 0)
   return (
-    <Card>
-      <CardHeader><CardTitle>Inventory movement</CardTitle><CardDescription>Stock activity in the selected period</CardDescription></CardHeader>
-      <CardContent className="h-64">
+    <Panel title="Inventory movement" subtitle="Stock activity in the selected period">
+      <div className="h-64">
         {!hasData && rows.length === 0 ? (
           <ChartEmpty label="No stock movement for this range." />
         ) : (
@@ -327,8 +335,8 @@ function InventoryMovementCard({ rows }: { rows: { type: string; quantity: numbe
             </LineChart>
           </ChartContainer>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
@@ -336,17 +344,13 @@ function DomainTable({ title, report }: { title: string; report: NonNullable<Ret
   const columns = report.columns?.slice(0, 4) ?? Object.keys(report.data[0] ?? {}).slice(0, 4).map((key) => ({ key, header: key.replaceAll("_", " ") }))
   const rows = report.data.slice(0, 5)
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle className="capitalize">{title}</CardTitle>
-            <CardDescription>Daily activity in the selected range</CardDescription>
-          </div>
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium tabular-nums">{report.meta.total.toLocaleString()} records</span>
-        </div>
-      </CardHeader>
-      <CardContent className="overflow-x-auto pt-0">
+    <Panel
+      title={title}
+      subtitle="Daily activity in the selected range"
+      className="capitalize"
+      action={<span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium tabular-nums normal-case">{report.meta.total.toLocaleString()} records</span>}
+    >
+      <div className="overflow-x-auto">
         {rows.length ? (
           <table className="w-full min-w-[420px] text-sm">
             <thead>
@@ -365,8 +369,8 @@ function DomainTable({ title, report }: { title: string; report: NonNullable<Ret
         ) : (
           <p className="py-7 text-center text-sm text-muted-foreground">No activity for this range.</p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   )
 }
 
@@ -378,21 +382,18 @@ function formatCell(value: unknown) {
 
 function MixCard({ title, subtitle, rows }: { title: string; subtitle?: string; rows: { name: string; value: string | number; detail?: string }[] }) {
   return (
-    <Card>
-      <CardHeader><CardTitle>{title}</CardTitle>{subtitle && <CardDescription>{subtitle}</CardDescription>}</CardHeader>
-      <CardContent className="space-y-2">
-        {rows.length ? rows.map((row) => (
-          <div key={row.name} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0">
-            <span className="min-w-0 truncate capitalize">
-              {row.name.replaceAll("_", " ")}
-              {row.detail && <small className="ml-2 text-muted-foreground">{row.detail}</small>}
-            </span>
-            <span className="font-medium">{row.value}</span>
-          </div>
-        )) : (
-          <p className="py-8 text-center text-sm text-muted-foreground">No data for this range.</p>
-        )}
-      </CardContent>
-    </Card>
+    <Panel title={title} subtitle={subtitle}>
+      {rows.length ? rows.map((row) => (
+        <div key={row.name} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0">
+          <span className="min-w-0 truncate capitalize">
+            {row.name.replaceAll("_", " ")}
+            {row.detail && <small className="ml-2 text-muted-foreground">{row.detail}</small>}
+          </span>
+          <span className="font-medium">{row.value}</span>
+        </div>
+      )) : (
+        <p className="py-8 text-center text-sm text-muted-foreground">No data for this range.</p>
+      )}
+    </Panel>
   )
 }
