@@ -273,17 +273,37 @@ export function useUpdateOrderStatus(id: number, options: OperationalMutationOpt
       apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }), headers: operationalMutationHeaders(options.closedHoursOverride) }),
     // The status badge (POS header, order list, kitchen/waiter screens) flips
     // the instant staff tap the action instead of sitting on the old status
-    // until the round trip resolves — rolled back on error.
+    // until the round trip resolves — rolled back on error. Completing the
+    // last open order on a table session also frees the table the same
+    // instant (see patchDiningTableStatus) instead of waiting for the round
+    // trip — rolled back to 'occupied' if the request fails.
     onMutate: async (status) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.detail(id) })
       const previous = queryClient.getQueryData<Order>(queryKeys.orders.detail(id))
       queryClient.setQueryData<Order>(queryKeys.orders.detail(id), (old) =>
         old ? { ...old, status } : old,
       )
-      return { previous }
+
+      let patchedDiningTableId: number | null = null
+      if (
+        status === "completed" &&
+        previous?.tableSessionId &&
+        isLastOpenOrderForSession(queryClient, previous.tableSessionId, id)
+      ) {
+        const diningTableId = findCachedDiningTableId(queryClient, previous.tableSessionId)
+        if (diningTableId !== null) {
+          patchDiningTableStatus(queryClient, diningTableId, "available")
+          patchedDiningTableId = diningTableId
+        }
+      }
+
+      return { previous, patchedDiningTableId }
     },
     onError: (_err, _status, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.orders.detail(id), context.previous)
+      if (context?.patchedDiningTableId != null) {
+        patchDiningTableStatus(queryClient, context.patchedDiningTableId, "occupied")
+      }
     },
     onSuccess: (order, status) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })

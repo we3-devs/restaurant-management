@@ -81,14 +81,21 @@ export function useCompleteAllForTableSession(tableSessionId: number, options: O
   return useMutation({
     mutationFn: () =>
       apiClient<Order[]>(`/orders/table-sessions/${tableSessionId}/complete-all`, { method: "POST", headers: operationalMutationHeaders(options.closedHoursOverride) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      // Completing every open order on the session ends it server-side
-      // (OrdersService#freeTableForCompletedOrder), which frees the table —
-      // so paint it available now instead of leaving it red until the floor
-      // board's GET lands.
+    // Completing every open order on the session ends it server-side
+    // (OrdersService#freeTableForCompletedOrder), which frees the table — so
+    // paint it available the instant staff tap the action instead of leaving
+    // it red until the round trip lands, and roll it back to 'occupied' if
+    // the request fails.
+    onMutate: () => {
       const diningTableId = findCachedDiningTableId(queryClient, tableSessionId)
       if (diningTableId !== null) patchDiningTableStatus(queryClient, diningTableId, "available")
+      return { diningTableId }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.diningTableId != null) patchDiningTableStatus(queryClient, context.diningTableId, "occupied")
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       // refetchType "all": the floor board is unmounted while staff are on
       // this checkout screen, so an active-only invalidation would defer the
       // refetch until they navigate back to it.
