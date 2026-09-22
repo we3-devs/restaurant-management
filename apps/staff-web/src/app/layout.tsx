@@ -15,6 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const name = await currentTenantName();
   const staffName = `${name} Staff`;
   const appIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
+  const appleIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/logo.png";
 
   return {
     title: staffName,
@@ -22,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/manifest.json",
     icons: {
       icon: appIcon,
-      apple: appIcon,
+      apple: appleIcon,
     },
   };
 }

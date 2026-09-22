@@ -35,9 +35,7 @@ export async function GET(request: Request) {
     theme_color: branding.primaryColor ?? "#0430de",
     icons: [
       { src: icon, sizes: "any", purpose: "any" },
-      { src: icon, sizes: "any", purpose: "maskable" },
       { src: "/icons/logo.png", sizes: "500x500", type: "image/png", purpose: "any" },
-      { src: "/icons/logo.png", sizes: "500x500", type: "image/png", purpose: "maskable" },
     ],
   };
 
