@@ -260,6 +260,12 @@ function EditableCart({
     foodVariantId ? (menu?.foodVariants.find((v) => v.id === foodVariantId)?.name ?? null) : null
   const serverPendingItems = items?.data.filter((item) => item.status === "stock_reserved") ?? []
   const sentItems = items?.data.filter((item) => item.status !== "stock_reserved") ?? []
+  // Anything not yet 'served' (or voided) keeps the order from reaching
+  // 'served', which is normally the only status 'completed' can follow — see
+  // CheckoutPanel's identical unservedItemCount for the force-complete gate.
+  const unservedItemCount = (items?.data ?? []).filter(
+    (item) => item.status !== "served" && item.status !== "cancelled",
+  ).length
   // Same food/variant repeated across separate "add" actions lands as
   // separate order_item rows (each its own bill line) — group same
   // food+variant+status lines into one combined row for display so a
@@ -352,6 +358,24 @@ function EditableCart({
     if (!order) return
     await updateStatusOverride.mutateAsync("completed")
     toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
+  }
+
+  async function handleForceCompleteSale() {
+    if (!order) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to complete the sale")
+      return
+    }
+    try {
+      await updateStatus.mutateAsync({
+        status: "completed",
+        force: true,
+        note: "Force-completed without full service",
+      })
+      toast.success("Sale complete — unserved items voided")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to complete sale")
+    }
   }
 
   return (
@@ -621,25 +645,57 @@ function EditableCart({
 
             {canRecordPayment && (
               <>
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleCompleteSale}
-                  disabled={displayedDueAmount > 0 || serverPendingItems.length > 0 || updateStatus.isPending || !isOnline}
-                >
-                  {!isOnline ? (
-                    "Offline"
-                  ) : displayedDueAmount > 0 ? (
-                    `Due ${displayedDueAmount}`
-                  ) : serverPendingItems.length > 0 ? (
-                    `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
-                  ) : (
-                    <>
-                      <CheckCircle2Icon />
-                      Complete sale
-                    </>
-                  )}
-                </Button>
+                {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button className="w-full" size="lg" variant="destructive" disabled={updateStatus.isPending}>
+                          {serverPendingItems.length > 0
+                            ? `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen, or complete anyway`
+                            : `Complete anyway (${unservedItemCount} unserved)`}
+                        </Button>
+                      }
+                    />
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Complete without full service?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet.
+                          Completing now voids {unservedItemCount === 1 ? "it" : "them"} (releasing any reserved
+                          stock) and closes out the table. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={handleForceCompleteSale}>
+                          Complete anyway
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleCompleteSale}
+                    disabled={displayedDueAmount > 0 || unservedItemCount > 0 || updateStatus.isPending || !isOnline}
+                  >
+                    {!isOnline ? (
+                      "Offline"
+                    ) : displayedDueAmount > 0 ? (
+                      `Due ${displayedDueAmount}`
+                    ) : serverPendingItems.length > 0 ? (
+                      `Send ${serverPendingItems.length} item${serverPendingItems.length === 1 ? "" : "s"} to kitchen first`
+                    ) : unservedItemCount > 0 ? (
+                      `${unservedItemCount} item${unservedItemCount === 1 ? "" : "s"} not yet served`
+                    ) : (
+                      <>
+                        <CheckCircle2Icon />
+                        Complete sale
+                      </>
+                    )}
+                  </Button>
+                )}
                 <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="complete sale" onConfirm={handleCompleteSaleOverride} />
               </>
             )}
