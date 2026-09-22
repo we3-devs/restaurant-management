@@ -35,6 +35,7 @@ import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 import { TableSessionCheckout } from "./table-session-checkout"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 import { useCurrentUser } from "@rms/auth/current-user-context"
@@ -86,6 +87,7 @@ export function CheckoutPanel({
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   // Prefer the payment ledger for the visible totals. The order detail may be
@@ -250,22 +252,36 @@ export function CheckoutPanel({
             />
           </div>
           {paymentMethod === "credit" && (
-            <Select
-              value={creditCustomerId ? String(creditCustomerId) : ""}
-              onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-            >
-              <SelectTrigger className="w-full" disabled={customersLoading}>
-                <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-              </SelectTrigger>
-              <SelectContent>
-                {customers?.data.map((customer) => (
-                  <SelectItem key={customer.id} value={String(customer.id)}>
-                    {customer.name}
-                    {customer.phone ? ` (${customer.phone})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select
+                value={creditCustomerId ? String(creditCustomerId) : ""}
+                onValueChange={(value) => {
+                  if (value === "create") {
+                    setCreateCustomerOpen(true)
+                    return
+                  }
+                  setCreditCustomerId(value ? Number(value) : undefined)
+                }}
+              >
+                <SelectTrigger className="w-full" disabled={customersLoading}>
+                  <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="create">+ Create customer</SelectItem>
+                  {customers?.data.map((customer) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {customer.name}
+                      {customer.phone ? ` (${customer.phone})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <CreateCustomerDialog
+                open={createCustomerOpen}
+                onOpenChange={setCreateCustomerOpen}
+                onCreated={(customer) => setCreditCustomerId(customer.id)}
+              />
+            </>
           )}
           <Button
             variant="outline"
