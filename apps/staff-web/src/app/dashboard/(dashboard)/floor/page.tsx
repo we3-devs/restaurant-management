@@ -10,7 +10,7 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
 import { useDiningTables, useUpdateDiningTable, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { usePageTitle } from "@rms/ui/use-page-title"
-import { CreateDiningTableDialog } from "../tables/create-dining-table-dialog"
+import { CreateDiningTableDialog } from "@/app/operational/(operational)/dining-tables/create-dining-table-dialog"
 
 type Point = { x: number; y: number }
 const STATUS_STYLES: Record<string, string> = {
