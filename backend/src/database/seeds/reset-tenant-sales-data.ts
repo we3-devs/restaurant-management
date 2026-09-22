@@ -33,6 +33,15 @@ if (!tenantSlug) {
   process.exit(1);
 }
 
+// Tables guarded by the completed-order immutability trigger (see
+// 1771900000000-LockCompletedOrders.ts) that this script's deletes hit.
+// order_tables isn't touched by this script, so it's left out on purpose.
+const LOCKED_TABLES = [
+  { table: 'order_items', trigger: 'order_items_lock_completed_order' },
+  { table: 'order_payments', trigger: 'order_payments_lock_completed_order' },
+  { table: 'order_item_addons', trigger: 'order_item_addons_lock_completed_order' },
+];
+
 // [table, whereSql, params] — whereSql references :outletIds / :tenantId,
 // resolved into positional params right before each query runs. Order
 // matters: children before the parents they reference, even though most of
@@ -121,16 +130,33 @@ async function run() {
     console.log('\n--- Executing inside a transaction ---');
     await runner.startTransaction();
     try {
+      // order_items/order_payments/order_item_addons are guarded by a
+      // deliberate "completed orders are immutable" trigger
+      // (prevent_completed_order_child_mutation, see
+      // 1771900000000-LockCompletedOrders.ts) — most real sales orders are
+      // 'completed', so deleting them here requires disabling it. DDL is
+      // transactional in Postgres: if anything below throws, the rollback
+      // also reverts these DISABLE TRIGGER statements, so the guard is only
+      // ever off for the lifetime of a successfully committed run.
+      for (const t of LOCKED_TABLES) {
+        await runner.query(`ALTER TABLE ${t.table} DISABLE TRIGGER ${t.trigger}`);
+      }
+
       for (const step of steps) {
         const result = await runner.query(step.sql, step.params);
         console.log(`${step.table}: done`);
         void result;
       }
+
+      for (const t of LOCKED_TABLES) {
+        await runner.query(`ALTER TABLE ${t.table} ENABLE TRIGGER ${t.trigger}`);
+      }
+
       await runner.commitTransaction();
-      console.log('\nCommitted. Sales/order/payment/analytics data cleared for this tenant.');
+      console.log('\nCommitted. Sales/order/payment/analytics data cleared for this tenant. Completed-order lock trigger restored.');
     } catch (error) {
       await runner.rollbackTransaction();
-      console.error('\nFailed — rolled back, nothing was changed.', error);
+      console.error('\nFailed — rolled back, nothing was changed (including the trigger disable).', error);
       process.exit(1);
     }
   } finally {
