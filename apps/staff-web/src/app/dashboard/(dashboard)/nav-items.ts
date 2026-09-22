@@ -34,6 +34,8 @@ export const navGroupDefs: NavGroupDef[] = [
       { href: "/dashboard/analytics", label: "Analytics", permission: "dashboard.view" },
       { href: "/dashboard/overview/foods", label: "Foods", permission: "foods.view" },
       { href: "/dashboard/overview/inventory-items", label: "Inventory Items", permission: "ingredients.view" },
+      { href: "/dashboard/dining-areas", label: "View Dining Areas", permission: "dining-tables.view" },
+      { href: "/dashboard/tables", label: "View Tables", permission: "dining-tables.view" },
       { href: "/dashboard/orders", label: "Orders", permission: "orders.view" },
       { href: "/dashboard/sales", label: "Sales", permission: "reports.view" },
       { href: "/dashboard/invoices", label: "Invoices", permission: "orders.view" },

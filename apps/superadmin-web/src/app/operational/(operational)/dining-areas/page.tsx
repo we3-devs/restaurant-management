@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { Badge } from "@rms/ui/badge"
@@ -22,6 +23,8 @@ const columns: ColumnDef<DiningArea>[] = [
 ]
 
 export default function DiningAreasPage() {
+  const pathname = usePathname()
+  const basePath = pathname?.startsWith("/dashboard") ? "/dashboard/dining-areas" : "/operational/dining-areas"
   const { outletId } = useActiveOutlet()
   const { data, isLoading } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
   const showSkeleton = useDelayedLoading(isLoading)
@@ -59,7 +62,7 @@ export default function DiningAreasPage() {
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    <Link href={`/operational/dining-areas/${row.original.id}`} className="block">
+                    <Link href={`${basePath}/${row.original.id}`} className="block">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </Link>
                   </TableCell>
