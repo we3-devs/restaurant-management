@@ -1,7 +1,8 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "../client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
+import type { StockIn, StockInItem } from "./use-stock-ins"
 
 export interface WarehouseIngredientStock {
   id: number
@@ -60,5 +61,53 @@ export function useInventoryTransactions(params: ListInventoryTransactionsParams
       apiClient<PaginatedResponse<InventoryTransaction>>(`/inventory-transactions${toQueryString(params)}`),
     enabled: params.ingredientId !== undefined || params.warehouseId !== undefined,
     placeholderData: keepPreviousData,
+  })
+}
+
+export interface CreateInventoryItemInput {
+  ingredientId: number
+  warehouseId: number
+  /** Opening balance. Must be > 0 — a stock-in with no quantity has nothing to post. */
+  quantity: number
+  unitCost: number
+  remarks?: string
+}
+
+/**
+ * Brings an existing ingredient into a warehouse so it shows up as an
+ * inventory item.
+ *
+ * Stock rows are derived from the ledger, never written directly, so this
+ * walks the same three-step document path the stock-in screen uses —
+ * create draft, add the one item, approve — and it's the approval that
+ * posts `opening_stock` and materialises the row. Callers therefore need
+ * stock-ins.create, .update and .approve, not just inventory permissions.
+ */
+export function useCreateInventoryItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ ingredientId, warehouseId, quantity, unitCost, remarks }: CreateInventoryItemInput) => {
+      const stockIn = await apiClient<StockIn>("/stock-ins", {
+        method: "POST",
+        body: JSON.stringify({
+          warehouseId,
+          stockInDate: new Date().toISOString().slice(0, 10),
+          source: "correction",
+          remarks: remarks ?? "Opening stock",
+        }),
+      })
+      await apiClient<StockInItem>(`/stock-ins/${stockIn.id}/items`, {
+        method: "POST",
+        body: JSON.stringify({ ingredientId, quantity, unitCost }),
+      })
+      // A draft left unapproved would post nothing, so a failure here is a
+      // real failure the dialog must surface rather than swallow.
+      return apiClient<StockIn>(`/stock-ins/${stockIn.id}/approve`, { method: "POST" })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventoryTransactions.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.stockIns.all })
+    },
   })
 }

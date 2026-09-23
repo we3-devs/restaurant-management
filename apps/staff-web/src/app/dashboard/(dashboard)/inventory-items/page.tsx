@@ -19,6 +19,7 @@ import { useAnalyticsInventory } from "@/hooks/use-analytics"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { CreateIngredientDialog } from "../ingredients/create-ingredient-dialog"
+import { CreateInventoryItemDialog } from "./create-inventory-item-dialog"
 import { EditInventoryItemDialog } from "./edit-inventory-item-dialog"
 
 const money = (value: number) => value.toFixed(2)
@@ -125,7 +126,14 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
             <Button variant="outline" size="sm" disabled={isLoading || rows.length === 0} onClick={handleExport}>
               <DownloadIcon /> Export CSV
             </Button>
-            {readOnly ? <Button variant="outline" render={<Link href="/dashboard/inventory-items" />}>Manage Inventory</Button> : <CreateIngredientDialog />}
+            {readOnly ? (
+              <Button variant="outline" render={<Link href="/dashboard/inventory-items" />}>Manage Inventory</Button>
+            ) : (
+              <>
+                <CreateIngredientDialog />
+                <CreateInventoryItemDialog warehouseId={selectedWarehouseId} />
+              </>
+            )}
           </div>
         </div>
       </div>

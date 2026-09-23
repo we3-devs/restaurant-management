@@ -6,6 +6,12 @@ import type { ImportDomainConfig, ImportRawRow } from '../../data-import/interfa
 import type { ImportCommitResult } from '../../data-import/interfaces/import-result.interface';
 import type { ImportValidatedRow } from '../../data-import/interfaces/import-row.interface';
 import { Ingredient } from '../entities/ingredient.entity';
+import { Warehouse } from '../../warehouses/entities/warehouse.entity';
+import { WarehouseIngredientStock } from '../../inventory-stock/entities/warehouse-ingredient-stock.entity';
+import { WarehouseIngredientStocksService } from '../../inventory-stock/warehouse-ingredient-stocks.service';
+import { IngredientStockIn } from '../../stock-ins/entities/ingredient-stock-in.entity';
+import { IngredientStockInItem } from '../../stock-ins/entities/ingredient-stock-in-item.entity';
+import { generateDocumentNumber } from '../../../common/utils/document-number.util';
 import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
 import { Unit } from '../../units/entities/unit.entity';
@@ -30,7 +36,19 @@ interface IngredientImportRow extends ImportValidatedRow {
   categoryId: number | null;
   unit: string;
   unitId: number | null;
+  /** Optional opening balance. Blank means "reference data only" — the ingredient is created but never lands in a warehouse. */
+  warehouse: string;
+  warehouseId: number | null;
+  openingQuantity: number | null;
+  unitCost: number | null;
   existingId: number | null;
+}
+
+/** Trimmed cell parsed as a number; null for blank, NaN for unparseable (the caller reports it). */
+function parseNumericCell(raw: string | undefined): number | null {
+  const text = (raw ?? '').trim();
+  if (!text) return null;
+  return Number(text);
 }
 
 /**
@@ -41,6 +59,14 @@ interface IngredientImportRow extends ImportValidatedRow {
  * rejected row. Ingredients are outlet-scoped, so the same code may exist
  * under different outlets — identity/upsert matching is always (outlet,
  * code), never code alone.
+ *
+ * Opening stock: an ingredient row on its own is reference data and never
+ * shows up under Manage Inventory Items, which lists warehouse stock rows.
+ * Supplying warehouse + openingQuantity posts that balance through the same
+ * stock-in document + ledger path the UI uses, which is what materialises
+ * the stock row. It is deliberately one-shot — a re-import never re-posts an
+ * opening balance for a (warehouse, ingredient) pair that already has stock,
+ * so repeatedly uploading the same sheet can't inflate quantities.
  */
 @Injectable()
 export class IngredientsImporter implements ImportDomainConfig<Record<string, string>, IngredientImportRow> {
@@ -59,6 +85,13 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     minimumstock: 'minimumStock',
     reorderlevel: 'reorderLevel',
     reorderquantity: 'reorderQuantity',
+    warehouse: 'warehouse',
+    location: 'warehouse',
+    openingquantity: 'openingQuantity',
+    openingqty: 'openingQuantity',
+    quantity: 'openingQuantity',
+    unitcost: 'unitCost',
+    cost: 'unitCost',
   };
 
   constructor(
@@ -70,15 +103,19 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     private readonly unitsRepository: Repository<Unit>,
     @InjectRepository(Outlet)
     private readonly outletsRepository: Repository<Outlet>,
+    @InjectRepository(Warehouse)
+    private readonly warehousesRepository: Repository<Warehouse>,
+    private readonly stocksService: WarehouseIngredientStocksService,
     private readonly tenantContext: TenantContext = new TenantContext(),
   ) {}
 
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<IngredientImportRow[]> {
-    const [existingIngredients, categories, units, outlets] = await Promise.all([
+    const [existingIngredients, categories, units, outlets, warehouses] = await Promise.all([
       this.ingredientsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, code: true, outletId: true } }),
       this.categoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.unitsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.warehousesRepository.find({ select: { id: true, name: true, outletId: true } }),
     ]);
     const existingByOutletAndCode = new Map(
       existingIngredients.map((i) => [`${i.outletId}::${i.code.trim().toLowerCase()}`, i.id]),
@@ -86,6 +123,12 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const unitByName = new Map(units.map((u) => [u.name.trim().toLowerCase(), u.id]));
     const outletByName = new Map(outlets.map((o) => [o.name.trim().toLowerCase(), o.id]));
+    // Warehouse names only have to be unique within an outlet, so the row's
+    // resolved outlet is part of the key — matching on name alone could pull
+    // in another outlet's "Main Store".
+    const warehouseByOutletAndName = new Map(
+      warehouses.map((w) => [`${w.outletId}::${w.name.trim().toLowerCase()}`, w.id]),
+    );
     const seenKeysInBatch = new Set<string>();
 
     return rows.map(({ rowNumber, raw }) => {
@@ -94,6 +137,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
       const outletName = (raw.outlet ?? '').trim();
       const categoryName = (raw.category ?? '').trim();
       const unitName = (raw.unit ?? '').trim();
+      const warehouseName = (raw.warehouse ?? '').trim();
       const errors: string[] = [];
 
       if (!name) errors.push('name is required');
@@ -132,6 +176,39 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
         if (unitId === null) errors.push(`Unit "${unitName}" not found — expected an existing unit`);
       }
 
+      // Opening stock is all-or-nothing: a warehouse with no quantity (or
+      // the reverse) is a half-filled row, which is far more likely a
+      // mistake than an intent to post nothing.
+      let warehouseId: number | null = null;
+      let openingQuantity = parseNumericCell(raw.openingQuantity);
+      let unitCost = parseNumericCell(raw.unitCost);
+
+      if (openingQuantity !== null && !Number.isFinite(openingQuantity)) {
+        errors.push(`openingQuantity "${(raw.openingQuantity ?? '').trim()}" is not a number`);
+        openingQuantity = null;
+      } else if (openingQuantity !== null && openingQuantity <= 0) {
+        errors.push('openingQuantity must be greater than 0');
+        openingQuantity = null;
+      }
+
+      if (unitCost !== null && (!Number.isFinite(unitCost) || unitCost < 0)) {
+        errors.push(`unitCost "${(raw.unitCost ?? '').trim()}" is not a non-negative number`);
+        unitCost = null;
+      }
+
+      if (warehouseName && openingQuantity === null) {
+        if (!errors.some((e) => e.startsWith('openingQuantity'))) {
+          errors.push('openingQuantity is required when warehouse is given');
+        }
+      } else if (!warehouseName && openingQuantity !== null) {
+        errors.push('warehouse is required when openingQuantity is given');
+      } else if (warehouseName && outletId !== null) {
+        warehouseId = warehouseByOutletAndName.get(`${outletId}::${warehouseName.toLowerCase()}`) ?? null;
+        if (warehouseId === null) {
+          errors.push(`Warehouse "${warehouseName}" not found under outlet "${outletName}"`);
+        }
+      }
+
       const existingId =
         code && outletId !== null
           ? (existingByOutletAndCode.get(`${outletId}::${code.toLowerCase()}`) ?? null)
@@ -147,6 +224,10 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
         categoryId,
         unit: unitName,
         unitId,
+        warehouse: warehouseName,
+        warehouseId,
+        openingQuantity,
+        unitCost,
         existingId,
         errors,
       };
@@ -172,6 +253,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
             ingredientCategoryId: row.categoryId!,
             baseUnitId: row.unitId!,
           });
+          await this.postOpeningStock(row, row.existingId, manager);
           await manager.query(`RELEASE SAVEPOINT "${savepoint}"`);
           succeeded.push({ rowNumber: row.rowNumber, entityId: row.existingId });
         } else {
@@ -186,6 +268,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
               ...tenantFields(this.tenantContext),
             }),
           );
+          await this.postOpeningStock(row, created.id, manager);
           await manager.query(`RELEASE SAVEPOINT "${savepoint}"`);
           succeeded.push({ rowNumber: row.rowNumber, entityId: created.id });
         }
@@ -198,11 +281,76 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
     return { committedCount: succeeded.length, failedCount: failures.length, succeeded, failures };
   }
 
+  /**
+   * Materialises the ingredient as an inventory item by posting its opening
+   * balance, using the same stock-in document + ledger path the Manage
+   * Inventory Items dialog uses — the stock table is derived, so writing a
+   * row into it directly would leave the ledger disagreeing with it.
+   *
+   * No-ops when the row carried no opening balance, and — importantly —
+   * when the pair already has a stock row, so re-importing the same sheet
+   * updates the ingredient without ever re-posting stock. Runs on the
+   * engine's transaction manager, inside the caller's per-row SAVEPOINT.
+   */
+  private async postOpeningStock(
+    row: IngredientImportRow,
+    ingredientId: number,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (row.warehouseId === null || row.openingQuantity === null) return;
+
+    const alreadyStocked = await manager.getRepository(WarehouseIngredientStock).findOne({
+      where: { warehouseId: row.warehouseId, ingredientId },
+      select: { warehouseId: true, ingredientId: true },
+    });
+    if (alreadyStocked) return;
+
+    const unitCost = row.unitCost ?? 0;
+    const stockIn = await manager.getRepository(IngredientStockIn).save(
+      manager.getRepository(IngredientStockIn).create({
+        stockInNo: generateDocumentNumber('STIN', row.warehouseId),
+        warehouseId: row.warehouseId,
+        stockInDate: new Date().toISOString().slice(0, 10),
+        source: 'correction',
+        status: 'approved',
+        remarks: `Opening stock from ingredient import (row ${row.rowNumber})`,
+        // The import engine commits chunks without a user context, so the
+        // document is unattributed rather than wrongly attributed.
+        createdBy: null,
+        approvedBy: null,
+        approvedAt: new Date(),
+      }),
+    );
+
+    await manager.getRepository(IngredientStockInItem).save(
+      manager.getRepository(IngredientStockInItem).create({
+        ingredientStockInId: stockIn.id,
+        ingredientId,
+        ingredientBatchId: null,
+        quantity: row.openingQuantity,
+        unitCost,
+        totalCost: Math.round(row.openingQuantity * unitCost * 100) / 100,
+      }),
+    );
+
+    await this.stocksService.applyMovement({
+      warehouseId: row.warehouseId,
+      ingredientId,
+      quantityDelta: row.openingQuantity,
+      unitCost,
+      transactionType: 'opening_stock',
+      referenceType: 'stock_in',
+      referenceId: stockIn.id,
+      createdBy: null,
+      manager,
+    });
+  }
+
   async buildTemplate(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Ingredients');
-    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit']);
-    sheet.addRow(['Main Outlet', 'Tomato', 'ING-001', 'Vegetables', 'Kilogram']);
+    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit', 'warehouse', 'openingQuantity', 'unitCost']);
+    sheet.addRow(['Main Outlet', 'Tomato', 'ING-001', 'Vegetables', 'Kilogram', 'Main Store', 25, 1.5]);
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
 
@@ -219,7 +367,11 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Ingredients');
-    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit']);
+    // Same header as the template so an export can be edited and re-imported.
+    // The opening-stock columns are left blank on purpose: they're a one-off
+    // posting instruction, not ingredient state, and an ingredient can hold
+    // stock in several warehouses at once — no single value belongs here.
+    sheet.addRow(['outlet', 'name', 'code', 'category', 'unit', 'warehouse', 'openingQuantity', 'unitCost']);
     for (const ingredient of ingredients) {
       sheet.addRow([
         outletById.get(ingredient.outletId) ?? '',

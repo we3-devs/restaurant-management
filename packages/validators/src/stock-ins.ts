@@ -18,3 +18,18 @@ export const createStockInItemSchema = z.object({
 })
 
 export type CreateStockInItemInput = z.infer<typeof createStockInItemSchema>
+
+/**
+ * "Add inventory item" on Manage Inventory Items — brings an existing
+ * ingredient into a warehouse with an opening balance. Posted as a one-item
+ * stock-in, so the fields mirror createStockIn + createStockInItem rather
+ * than describing a record of their own.
+ */
+export const createInventoryItemSchema = z.object({
+  ingredientId: z.number({ message: "Select an ingredient" }).positive("Select an ingredient"),
+  warehouseId: z.number({ message: "Select a warehouse" }).positive("Select a warehouse"),
+  quantity: z.number().positive("Opening quantity must be greater than 0"),
+  unitCost: z.number().min(0, "Unit cost cannot be negative"),
+})
+
+export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>
