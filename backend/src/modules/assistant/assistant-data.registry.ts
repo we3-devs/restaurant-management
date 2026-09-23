@@ -14,6 +14,7 @@ export const ASSISTANT_DATA_PERMISSIONS = {
   customers: [['customers.view']],
   revenue: [['dashboard.view'], ['reports.view']],
   orderDetails: [['orders.view']],
+  topSelling: [['orders.view']],
   overview: [['dashboard.view'], ['reports.view']],
 } as const;
 
@@ -36,6 +37,7 @@ export const ASSISTANT_ALLOWED_TABLES = {
   customers: new Set(['orders']),
   revenue: new Set(['orders']),
   orderDetails: new Set(['orders', 'order_items', 'foods']),
+  topSelling: new Set(['orders', 'order_items', 'foods']),
   overview: new Set(['orders']),
 } as const;
 

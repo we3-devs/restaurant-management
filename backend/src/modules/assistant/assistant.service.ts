@@ -14,11 +14,12 @@ import {
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
 import {
-  ASSISTANT_SYSTEM_PROMPT,
+  getAssistantSystemPrompt,
   ASSISTANT_PERMISSION,
 } from './assistant.constants';
 import {
   ASSISTANT_DATA_PERMISSIONS,
+  ASSISTANT_ALLOWED_TABLES,
   assertAssistantDataAccess,
 } from './assistant-data.registry';
 
@@ -35,6 +36,7 @@ type DataIntent =
   | 'customers'
   | 'revenue'
   | 'orderDetails'
+  | 'topSelling'
   | 'overview';
 type AnalyticsPlan = {
   intent: DataIntent | 'conversation';
@@ -54,6 +56,12 @@ export function classifyAssistantIntent(
     /^(hi|hello|hey|hii|hiii|hloo|yo|sup|bro|broo|namaste|good\s+(morning|afternoon|evening)|how\s+are\s+you|what\s*['’]s\s+up|whats\s+up|hey\s+there|hi\s+there)$/i;
   if (casualGreeting.test(q)) return 'conversation';
 
+  if (
+    /top[\s-]?sell|best[\s-]?sell|best\s*seller|most\s+(sold|popular|ordered)|highest\s+selling|popular\s+(item|dish|food)s?/.test(
+      q,
+    )
+  )
+    return 'topSelling';
   if (
     /inventory|stock|ingredient|items?\s+(in|available)|available\s+items?/.test(
       q,
@@ -205,6 +213,9 @@ export class AssistantService {
       this.config.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY is not configured');
     const model = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+    const systemPrompt = getAssistantSystemPrompt(
+      (context as { intent?: string } | null)?.intent,
+    );
     const response = await fetch(
       'https://api.groq.com/openai/v1/chat/completions',
       {
@@ -218,7 +229,7 @@ export class AssistantService {
           temperature: 0.1,
           max_tokens: 700,
           messages: [
-            { role: 'system', content: ASSISTANT_SYSTEM_PROMPT },
+            { role: 'system', content: systemPrompt },
             {
               role: 'user',
               content: `Q: ${question}\nData: ${JSON.stringify(context)}`,
@@ -271,7 +282,7 @@ export class AssistantService {
             {
               role: 'system',
               content:
-                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, and orderDetails for requests to list or inspect individual orders. Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
+                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, topSelling, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, orderDetails for requests to list or inspect individual orders, and topSelling for questions about the best-selling, most popular, or highest-selling menu item(s). Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
             },
             { role: 'user', content: question },
           ],
@@ -302,6 +313,7 @@ export class AssistantService {
           'customers',
           'revenue',
           'orderDetails',
+          'topSelling',
           'overview',
         ].includes(parsed.intent ?? '') ||
         !['today', 'yesterday', 'dayBeforeYesterday', '7d', '30d'].includes(
@@ -368,6 +380,7 @@ export class AssistantService {
     question: string,
     ids?: number[],
     aiPlan?: AnalyticsPlan | null,
+    tables?: Iterable<string>,
   ) {
     const q = question.toLowerCase();
     const period = this.period(q);
@@ -414,8 +427,9 @@ export class AssistantService {
                   };
     const outletFilter = ids ? ' AND outlet_id = ANY($1::bigint[])' : '';
     const params = ids ? [ids] : [];
+    const domainTables = tables ?? ASSISTANT_ALLOWED_TABLES[intent];
     if (intent === 'occupancy') {
-      assertAssistantDataAccess(intent, ['dining_tables', 'outlets']);
+      assertAssistantDataAccess(intent, domainTables);
       const metrics = await this.db.query(
         `SELECT dt.name, dt.code, dt.status, dt.capacity, o.name AS "outletName" FROM dining_tables dt JOIN outlets o ON o.id = dt.outlet_id WHERE dt.outlet_id = ANY($1::bigint[]) AND dt.is_active = true ORDER BY o.name, dt.sort_order, dt.name`,
         params,
@@ -428,37 +442,30 @@ export class AssistantService {
     const groupBy = selected.groupBy;
     let metrics: unknown;
     if (intent === 'inventory') {
-      assertAssistantDataAccess(intent, [
-        'warehouse_ingredient_stocks',
-        'ingredients',
-        'warehouses',
-      ]);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = await this.db.query(
         `SELECT i.name, i.code, SUM(s.quantity)::numeric AS quantity, SUM(s.reserved_quantity)::numeric AS "reservedQuantity", GREATEST(SUM(s.quantity) - SUM(s.reserved_quantity), 0)::numeric AS "availableQuantity", MAX(i.reorder_level)::numeric AS "reorderLevel", MAX(i.minimum_stock)::numeric AS "minimumStock", CASE WHEN SUM(s.quantity) <= 0 THEN 'out_of_stock' WHEN SUM(s.quantity) - SUM(s.reserved_quantity) <= GREATEST(MAX(i.reorder_level), MAX(i.minimum_stock)) THEN 'low_stock' ELSE 'in_stock' END AS status FROM warehouse_ingredient_stocks s JOIN ingredients i ON i.id = s.ingredient_id JOIN warehouses w ON w.id = s.warehouse_id WHERE i.is_active = true${ids ? ' AND w.outlet_id = ANY($1::bigint[])' : ''} GROUP BY i.id, i.name, i.code ORDER BY "availableQuantity" ASC LIMIT 100`,
         params,
       );
     } else if (intent === 'menu') {
-      assertAssistantDataAccess(intent, ['foods']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = await this.db.query(
         `SELECT name, item_type AS type, is_active AS "isActive" FROM foods WHERE is_active = true ORDER BY name LIMIT 200`,
       );
     } else if (intent === 'staffSummary') {
-      assertAssistantDataAccess(intent, [
-        'employees',
-        'employee_outlet_assignments',
-      ]);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = await this.db.query(
         `SELECT employment_status AS status, COUNT(*)::int AS count FROM employees WHERE is_active = true${ids ? ' AND EXISTS (SELECT 1 FROM employee_outlet_assignments eoa WHERE eoa.employee_id = employees.id AND eoa.is_active = true AND eoa.outlet_id = ANY($1::bigint[]))' : ''} GROUP BY employment_status ORDER BY employment_status`,
         params,
       );
     } else if (intent === 'payments') {
-      assertAssistantDataAccess(intent, ['order_payments']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = await this.db.query(
         `SELECT method, type, COUNT(*)::int AS count, COALESCE(SUM(amount),0)::numeric AS amount FROM order_payments WHERE status = 'completed'${dateFilter('created_at')}${outletFilter} GROUP BY method, type ORDER BY amount DESC`,
         params,
       );
     } else if (intent === 'orderDetails') {
-      assertAssistantDataAccess(intent, ['orders', 'order_items', 'foods']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = /^orders?$/.test(q.trim())
         ? (
             await this.db.query(
@@ -471,13 +478,13 @@ export class AssistantService {
             params,
           );
     } else if (intent === 'serviceIssues') {
-      assertAssistantDataAccess(intent, ['service_requests']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = await this.db.query(
         `SELECT ${groupBy === 'day' ? "DATE_TRUNC('day', created_at)::date" : 'type AS category'}, COUNT(*)::int AS count FROM service_requests WHERE 1=1${dateFilter('created_at')}${outletFilter} GROUP BY ${groupBy === 'day' ? "DATE_TRUNC('day', created_at)" : 'type'} ORDER BY count DESC LIMIT 100`,
         params,
       );
     } else if (intent === 'cancellations') {
-      assertAssistantDataAccess(intent, ['reservations']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics =
         groupBy === 'day'
           ? await this.db.query(
@@ -491,7 +498,7 @@ export class AssistantService {
               )
             )[0];
     } else if (intent === 'bookings') {
-      assertAssistantDataAccess(intent, ['reservations']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics =
         groupBy === 'day'
           ? await this.db.query(
@@ -505,7 +512,7 @@ export class AssistantService {
               )
             )[0];
     } else if (intent === 'customers') {
-      assertAssistantDataAccess(intent, ['orders']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = (
         await this.db.query(
           `SELECT COUNT(DISTINCT customer_id)::int AS customers FROM orders WHERE status <> 'cancelled' AND customer_id IS NOT NULL${dateFilter('created_at')}${outletFilter}`,
@@ -513,7 +520,7 @@ export class AssistantService {
         )
       )[0];
     } else if (intent === 'revenue') {
-      assertAssistantDataAccess(intent, ['orders']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics =
         groupBy === 'day'
           ? await this.db.query(
@@ -526,8 +533,14 @@ export class AssistantService {
                 params,
               )
             )[0];
+    } else if (intent === 'topSelling') {
+      assertAssistantDataAccess(intent, domainTables);
+      metrics = await this.db.query(
+        `SELECT f.name, SUM(oi.quantity)::numeric AS "quantitySold", COALESCE(SUM(oi.total_amount),0)::numeric AS revenue FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN foods f ON f.id = oi.food_id WHERE o.status <> 'cancelled' AND oi.status <> 'cancelled'${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} GROUP BY f.id, f.name ORDER BY "quantitySold" DESC LIMIT 10`,
+        params,
+      );
     } else {
-      assertAssistantDataAccess(intent, ['orders']);
+      assertAssistantDataAccess(intent, domainTables);
       metrics = (
         await this.db.query(
           `SELECT COUNT(*)::int AS orders, COALESCE(SUM(grand_total) FILTER (WHERE payment_status = 'paid'),0)::numeric AS revenue FROM orders WHERE status <> 'cancelled'${dateFilter('created_at')}${outletFilter}`,
@@ -564,6 +577,12 @@ export class AssistantService {
     const safeIntent: DataIntent =
       selectedIntent === 'conversation' ? 'overview' : selectedIntent;
     const effectivePlan = plan?.intent === selectedIntent ? plan : null;
+
+    // Domain -> table list -> permission -> fetch. Resolve the domain's table
+    // list before checking permission or touching any data, so the
+    // permission check and every downstream query are scoped to the same
+    // fixed list rather than each branch declaring its own copy.
+    const domainTables = ASSISTANT_ALLOWED_TABLES[safeIntent];
     await this.assertIntentAccess(user, selectedIntent);
 
     const route: Route =
@@ -599,7 +618,7 @@ export class AssistantService {
               [ids],
             ),
           }
-        : await this.safeData(question, ids, effectivePlan);
+        : await this.safeData(question, ids, effectivePlan, domainTables);
 
     if (safeIntent !== 'overview' && data.intent === 'overview') {
       const fix = { ...data, intent: safeIntent };
