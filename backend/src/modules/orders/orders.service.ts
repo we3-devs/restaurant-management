@@ -267,7 +267,7 @@ export class OrdersService {
         tableName: tableSession?.diningTable?.name ?? null,
         customerName: customer?.name ?? null,
         orderedByName: createdByUser?.name ?? GUEST_ORDERED_BY,
-        billedByName: billedByNames.get(order.id) ?? null,
+        billedByName: billedByNames.get(Number(order.id)) ?? null,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
@@ -277,6 +277,10 @@ export class OrdersService {
    * Staff name behind the latest completed payment of each order. Resolved in
    * one extra query for the whole page instead of a join on the order list,
    * since an order can have many payments.
+   *
+   * Keyed by Number(): Order.id is a bigint without BigIntTransformer so it
+   * arrives as a string, while OrderPayment.orderId has the transformer and
+   * arrives as a number — comparing them raw never matches.
    */
   private async resolveBilledByNames(
     orderIds: number[],
@@ -303,8 +307,9 @@ export class OrdersService {
     });
     for (const payment of payments) {
       const name = payment.receivedByUser?.name;
-      if (name && !byOrder.has(payment.orderId)) {
-        byOrder.set(payment.orderId, name);
+      const key = Number(payment.orderId);
+      if (name && !byOrder.has(key)) {
+        byOrder.set(key, name);
       }
     }
     return byOrder;
