@@ -2,6 +2,14 @@
 
 import { QrCodeIcon } from "lucide-react"
 
+import {
+  QR_TEMPLATE_DEFAULTS,
+  QR_TEMPLATE_HEIGHT,
+  QR_TEMPLATE_WIDTH,
+  resolveQrTemplateLayout,
+  type QrTemplateLayout,
+} from "./qr-template-layout"
+
 type QrTemplatePreviewProps = {
   templateUrl?: string
   qrX?: number
@@ -10,27 +18,25 @@ type QrTemplatePreviewProps = {
   tableWidth?: number
   tableHeight?: number
   tableFontSize?: number
+  tableX?: number | null
+  tableY?: number | null
 }
 
-const WIDTH = 1200
-const HEIGHT = 1600
+const WIDTH = QR_TEMPLATE_WIDTH
+const HEIGHT = QR_TEMPLATE_HEIGHT
 
 function formatTableLabel() {
   return "1"
 }
 
-function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number, tableWidth: number, tableHeight: number, tableFontSize: number) {
+function downloadBlankTemplate(layout: QrTemplateLayout) {
   const canvas = document.createElement("canvas")
   canvas.width = WIDTH
   canvas.height = HEIGHT
   const ctx = canvas.getContext("2d")
   if (!ctx) return
 
-  const quietZone = Math.max(20, Math.round(qrSize * 0.05))
-  const labelWidth = tableWidth
-  const labelHeight = tableHeight
-  const labelX = qrX + (qrSize - labelWidth) / 2
-  const labelY = qrY + qrSize + quietZone + 20
+  const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelX, labelY } = layout
 
   ctx.fillStyle = "#f7c500"
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
@@ -50,17 +56,17 @@ function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number, tableWi
   ctx.setLineDash([])
   ctx.fillStyle = "#64748b"
   ctx.font = "700 32px Arial"
-  ctx.fillText("QR CODE GOES HERE", WIDTH / 2, qrY + qrSize / 2)
+  ctx.fillText("QR CODE GOES HERE", qrX + qrSize / 2, qrY + qrSize / 2)
   ctx.font = "400 24px Arial"
-  ctx.fillText(`${qrSize} × ${qrSize}px`, WIDTH / 2, qrY + qrSize / 2 + 42)
+  ctx.fillText(`${qrSize} × ${qrSize}px`, qrX + qrSize / 2, qrY + qrSize / 2 + 42)
 
   ctx.fillStyle = "#202126"
   ctx.beginPath()
   ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
   ctx.fill()
   ctx.fillStyle = "#fff"
-  ctx.font = `700 ${tableFontSize}px Arial`
-  ctx.fillText(formatTableLabel(), WIDTH / 2, labelY + labelHeight / 2)
+  ctx.font = `700 ${labelFontSize}px Arial`
+  ctx.fillText(formatTableLabel(), labelX + labelWidth / 2, labelY + labelHeight / 2)
 
   const link = document.createElement("a")
   link.href = canvas.toDataURL("image/png")
@@ -70,17 +76,18 @@ function downloadBlankTemplate(qrX: number, qrY: number, qrSize: number, tableWi
 
 export function QrTemplatePreview({
   templateUrl,
-  qrX = 300,
-  qrY = 515,
-  qrSize = 600,
-  tableWidth = 260,
-  tableHeight = 80,
-  tableFontSize = 34,
+  qrX = QR_TEMPLATE_DEFAULTS.qrX,
+  qrY = QR_TEMPLATE_DEFAULTS.qrY,
+  qrSize = QR_TEMPLATE_DEFAULTS.qrSize,
+  tableWidth = QR_TEMPLATE_DEFAULTS.tableWidth,
+  tableHeight = QR_TEMPLATE_DEFAULTS.tableHeight,
+  tableFontSize = QR_TEMPLATE_DEFAULTS.tableFontSize,
+  tableX,
+  tableY,
 }: QrTemplatePreviewProps) {
   const scale = 300 / WIDTH
-  const quietZone = Math.max(20, Math.round(qrSize * 0.05))
-  const labelWidth = tableWidth
-  const labelHeight = tableHeight
+  const layout = resolveQrTemplateLayout({ qrX, qrY, qrSize, tableWidth, tableHeight, tableFontSize, tableX, tableY })
+  const { quietZone, labelWidth, labelHeight, labelX, labelY } = layout
 
   return (
     <div className="space-y-2">
@@ -112,8 +119,8 @@ export function QrTemplatePreview({
         <div
           className="absolute flex items-center justify-center rounded-full bg-[#202126] text-[10px] font-bold text-white"
           style={{
-            left: (qrX + (qrSize - labelWidth) / 2) * scale,
-            top: (qrY + qrSize + quietZone + 20) * scale,
+            left: labelX * scale,
+            top: labelY * scale,
             width: labelWidth * scale,
             height: labelHeight * scale,
             fontSize: tableFontSize * scale,
@@ -123,11 +130,12 @@ export function QrTemplatePreview({
         </div>
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        Canvas: 1200 × 1600px · QR: X {qrX}, Y {qrY}, Size {qrSize}px
+        Canvas: 1200 × 1600px · QR: X {qrX}, Y {qrY}, Size {qrSize}px · Table label: X {Math.round(labelX)}, Y{" "}
+        {Math.round(labelY)}
       </p>
       <button
         type="button"
-        onClick={() => downloadBlankTemplate(qrX, qrY, qrSize, tableWidth, tableHeight, tableFontSize)}
+        onClick={() => downloadBlankTemplate(layout)}
         className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
       >
         Download blank template

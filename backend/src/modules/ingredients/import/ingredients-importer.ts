@@ -15,6 +15,7 @@ import { generateDocumentNumber } from '../../../common/utils/document-number.ut
 import { IngredientCategory } from '../../ingredient-categories/entities/ingredient-category.entity';
 import { Outlet } from '../../outlets/entities/outlet.entity';
 import { Unit } from '../../units/entities/unit.entity';
+import { isTrackableIngredientType } from '../../ingredient-categories/ingredient-category-type.util';
 import { TenantContext } from '../../../common/tenant/tenant-context';
 import { scopedWhere, tenantFields } from '../../../common/tenant/tenant-scope';
 
@@ -112,7 +113,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
   async validateRows(rows: ImportRawRow<Record<string, string>>[]): Promise<IngredientImportRow[]> {
     const [existingIngredients, categories, units, outlets, warehouses] = await Promise.all([
       this.ingredientsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, code: true, outletId: true } }),
-      this.categoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
+      this.categoriesRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true, type: true } }),
       this.unitsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.outletsRepository.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, name: true } }),
       this.warehousesRepository.find({ select: { id: true, name: true, outletId: true } }),
@@ -121,6 +122,7 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
       existingIngredients.map((i) => [`${i.outletId}::${i.code.trim().toLowerCase()}`, i.id]),
     );
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const categoryTypeById = new Map(categories.map((c) => [c.id, c.type]));
     const unitByName = new Map(units.map((u) => [u.name.trim().toLowerCase(), u.id]));
     const outletByName = new Map(outlets.map((o) => [o.name.trim().toLowerCase(), o.id]));
     // Warehouse names only have to be unique within an outlet, so the row's
@@ -206,6 +208,15 @@ export class IngredientsImporter implements ImportDomainConfig<Record<string, st
         warehouseId = warehouseByOutletAndName.get(`${outletId}::${warehouseName.toLowerCase()}`) ?? null;
         if (warehouseId === null) {
           errors.push(`Warehouse "${warehouseName}" not found under outlet "${outletName}"`);
+        }
+        // Raw materials and ready products never carry warehouse stock, and
+        // the ledger would reject them anyway — say so at preview, while the
+        // sheet is still being fixed, rather than part-way through a commit.
+        const categoryType = categoryId !== null ? categoryTypeById.get(categoryId) : undefined;
+        if (categoryType && !isTrackableIngredientType(categoryType)) {
+          errors.push(
+            `Category "${categoryName}" (type: ${categoryType}) does not support stock tracking — leave warehouse and openingQuantity blank`,
+          );
         }
       }
 

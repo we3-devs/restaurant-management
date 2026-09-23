@@ -19,7 +19,7 @@ const NO_OPENING_STOCK = { warehouse: '', warehouseId: null, openingQuantity: nu
 
 function buildRepos(opts: {
   existingIngredients?: { id: number; code: string; outletId: number }[];
-  categories?: { id: number; name: string }[];
+  categories?: { id: number; name: string; type?: string }[];
   units?: { id: number; name: string }[];
   outlets?: { id: number; name: string }[];
   warehouses?: { id: number; name: string; outletId: number }[];
@@ -85,7 +85,7 @@ describe('IngredientsImporter', () => {
 
     it('flags a missing unit with an exact-match error', async () => {
       const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
-        categories: [{ id: 1, name: 'Vegetables' }],
+        categories: [{ id: 1, name: 'Vegetables', type: 'consumable' }],
       });
       const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
 
@@ -96,7 +96,7 @@ describe('IngredientsImporter', () => {
 
     it('flags a missing outlet with an exact-match error', async () => {
       const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
-        categories: [{ id: 1, name: 'Vegetables' }],
+        categories: [{ id: 1, name: 'Vegetables', type: 'consumable' }],
         units: [{ id: 1, name: 'Kilogram' }],
       });
       const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
@@ -151,7 +151,7 @@ describe('IngredientsImporter', () => {
 
     it('rejects a warehouse that belongs to another outlet', async () => {
       const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
-        categories: [{ id: 1, name: 'Vegetables' }],
+        categories: [{ id: 1, name: 'Vegetables', type: 'consumable' }],
         units: [{ id: 1, name: 'Kilogram' }],
         warehouses: [{ id: 7, name: 'Main Store', outletId: 2 }],
       });
@@ -164,7 +164,7 @@ describe('IngredientsImporter', () => {
 
     it('rejects a half-filled opening balance in either direction', async () => {
       const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
-        categories: [{ id: 1, name: 'Vegetables' }],
+        categories: [{ id: 1, name: 'Vegetables', type: 'consumable' }],
         units: [{ id: 1, name: 'Kilogram' }],
       });
       const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
@@ -183,7 +183,7 @@ describe('IngredientsImporter', () => {
 
     it('leaves both opening-stock fields null when neither is supplied — the reference-data-only path', async () => {
       const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
-        categories: [{ id: 1, name: 'Vegetables' }],
+        categories: [{ id: 1, name: 'Vegetables', type: 'consumable' }],
         units: [{ id: 1, name: 'Kilogram' }],
       });
       const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
@@ -195,6 +195,33 @@ describe('IngredientsImporter', () => {
       expect(row.openingQuantity).toBeNull();
     });
   });
+
+
+    it('rejects an opening balance for a category type that carries no stock', async () => {
+      const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
+        categories: [{ id: 1, name: 'Meat', type: 'raw_material' }],
+        units: [{ id: 1, name: 'Kilogram' }],
+      });
+      const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
+
+      const [row] = await importer.validateRows(wrap([{ outlet: 'Main Outlet', name: 'Pork', code: 'ING-1', category: 'Meat', unit: 'Kilogram', warehouse: 'Main Store', openingQuantity: '10' }]));
+
+      expect(row.errors).toEqual([
+        'Category "Meat" (type: raw_material) does not support stock tracking — leave warehouse and openingQuantity blank',
+      ]);
+    });
+
+    it('still imports an untracked ingredient when no opening balance is asked for', async () => {
+      const { ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService } = buildRepos({
+        categories: [{ id: 1, name: 'Meat', type: 'raw_material' }],
+        units: [{ id: 1, name: 'Kilogram' }],
+      });
+      const importer = new IngredientsImporter(ingredientsRepository, categoriesRepository, unitsRepository, outletsRepository, warehousesRepository, stocksService);
+
+      const [row] = await importer.validateRows(wrap([{ outlet: 'Main Outlet', name: 'Pork', code: 'ING-1', category: 'Meat', unit: 'Kilogram' }]));
+
+      expect(row.errors).toEqual([]);
+    });
 
   describe('commitRows', () => {
     it('creates a new ingredient when there is no existing match', async () => {

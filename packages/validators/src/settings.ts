@@ -99,6 +99,8 @@ export const appearanceSettingsSchema = z.object({
   qrTemplateTableWidth: z.number().int().min(120).max(600).optional(),
   qrTemplateTableHeight: z.number().int().min(40).max(200).optional(),
   qrTemplateTableFontSize: z.number().int().min(16).max(120).optional(),
+  qrTemplateTableX: z.number().int().min(0).max(1200).nullable().optional(),
+  qrTemplateTableY: z.number().int().min(0).max(1600).nullable().optional(),
 })
 
 export type AppearanceSettingsInput = z.infer<typeof appearanceSettingsSchema>

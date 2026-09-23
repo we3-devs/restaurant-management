@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ValidateIf,
 } from 'class-validator';
 
 export class BusinessSettingsDto {
@@ -359,4 +360,22 @@ export class AppearanceSettingsDto {
   @Min(16)
   @Max(120)
   qrTemplateTableFontSize?: number;
+
+  // Null means "keep the label centred under the QR" — the behaviour every
+  // poster had before the label became movable.
+  @ApiPropertyOptional({ minimum: 0, maximum: 1200, nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  @Min(0)
+  @Max(1200)
+  qrTemplateTableX?: number | null;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1600, nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  @Min(0)
+  @Max(1600)
+  qrTemplateTableY?: number | null;
 }

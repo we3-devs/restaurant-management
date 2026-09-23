@@ -96,13 +96,25 @@ export function useCreateInventoryItem() {
           remarks: remarks ?? "Opening stock",
         }),
       })
-      await apiClient<StockInItem>(`/stock-ins/${stockIn.id}/items`, {
-        method: "POST",
-        body: JSON.stringify({ ingredientId, quantity, unitCost }),
-      })
-      // A draft left unapproved would post nothing, so a failure here is a
-      // real failure the dialog must surface rather than swallow.
-      return apiClient<StockIn>(`/stock-ins/${stockIn.id}/approve`, { method: "POST" })
+
+      // The draft exists from here on, so anything that fails after it has
+      // to take it back out — the server rejects an untracked ingredient at
+      // the add-item step, and an abandoned draft would otherwise pile up in
+      // the stock-in list for every failed attempt.
+      try {
+        await apiClient<StockInItem>(`/stock-ins/${stockIn.id}/items`, {
+          method: "POST",
+          body: JSON.stringify({ ingredientId, quantity, unitCost }),
+        })
+        // A draft left unapproved posts nothing, so a failure here is a real
+        // failure the dialog must surface rather than swallow.
+        return await apiClient<StockIn>(`/stock-ins/${stockIn.id}/approve`, { method: "POST" })
+      } catch (error) {
+        // Best-effort: the original error is what the user needs to see, so
+        // a failed cleanup must not replace it.
+        await apiClient<void>(`/stock-ins/${stockIn.id}`, { method: "DELETE" }).catch(() => undefined)
+        throw error
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all })

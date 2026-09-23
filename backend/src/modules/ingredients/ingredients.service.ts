@@ -99,7 +99,12 @@ export class IngredientsService {
     return ingredient;
   }
 
-  /** Throws when the ingredient's category's type doesn't support stock tracking (raw_material, ready_product). */
+  /**
+   * Throws when the ingredient's category type doesn't carry warehouse stock.
+   * Tracked: beverage, packaging, consumable. Untracked: raw_material,
+   * ready_product — those are consumed through recipes, not counted in a
+   * warehouse, so every stock document rejects them.
+   */
   assertTrackable(ingredient: Ingredient): void {
     if (!isTrackableIngredientType(ingredient.category.type)) {
       throw new BadRequestException(

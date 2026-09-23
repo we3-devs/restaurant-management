@@ -30,7 +30,25 @@ const defaultValues: AppearanceSettingsInput = {
   qrTemplateTableWidth: 260,
   qrTemplateTableHeight: 80,
   qrTemplateTableFontSize: 34,
+  qrTemplateTableX: null,
+  qrTemplateTableY: null,
 }
+
+/**
+ * The two label position fields are nullable on purpose: blank means "sit
+ * centred under the QR", which is where the label lived before it could be
+ * moved, so a poster nobody has retouched keeps printing exactly as it did.
+ */
+const QR_TEMPLATE_FIELDS = [
+  { name: "qrTemplateQrX", label: "QR X position", min: 0, max: 1200, nullable: false },
+  { name: "qrTemplateQrY", label: "QR Y position", min: 0, max: 1600, nullable: false },
+  { name: "qrTemplateQrSize", label: "QR size", min: 128, max: 900, nullable: false },
+  { name: "qrTemplateTableWidth", label: "Table label width", min: 120, max: 600, nullable: false },
+  { name: "qrTemplateTableHeight", label: "Table label height", min: 40, max: 200, nullable: false },
+  { name: "qrTemplateTableFontSize", label: "Table label font size", min: 16, max: 120, nullable: false },
+  { name: "qrTemplateTableX", label: "Table label X position", min: 0, max: 1200, nullable: true },
+  { name: "qrTemplateTableY", label: "Table label Y position", min: 0, max: 1600, nullable: true },
+] as const
 
 export default function AppearanceSettingsPage() {
   const { permissions } = useCurrentUser()
@@ -52,6 +70,8 @@ export default function AppearanceSettingsPage() {
   const qrTemplateTableWidth = form.watch("qrTemplateTableWidth")
   const qrTemplateTableHeight = form.watch("qrTemplateTableHeight")
   const qrTemplateTableFontSize = form.watch("qrTemplateTableFontSize")
+  const qrTemplateTableX = form.watch("qrTemplateTableX")
+  const qrTemplateTableY = form.watch("qrTemplateTableY")
 
   useEffect(() => {
     if (data) {
@@ -168,21 +188,30 @@ export default function AppearanceSettingsPage() {
                     </FormItem>
                   )}
                 />
-                {(["qrTemplateQrX", "qrTemplateQrY", "qrTemplateQrSize", "qrTemplateTableWidth", "qrTemplateTableHeight", "qrTemplateTableFontSize"] as const).map((fieldName) => (
+                {QR_TEMPLATE_FIELDS.map((qrField) => (
                   <FormField
-                    key={fieldName}
+                    key={qrField.name}
                     control={form.control}
-                    name={fieldName}
+                    name={qrField.name}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{fieldName === "qrTemplateQrX" ? "QR X position" : fieldName === "qrTemplateQrY" ? "QR Y position" : fieldName === "qrTemplateQrSize" ? "QR size" : fieldName === "qrTemplateTableWidth" ? "Table label width" : fieldName === "qrTemplateTableHeight" ? "Table label height" : "Table label font size"}</FormLabel>
+                        <FormLabel>{qrField.label}</FormLabel>
                         <FormControl
                           type="number"
-                          min={fieldName === "qrTemplateQrSize" ? 128 : fieldName === "qrTemplateTableWidth" ? 120 : fieldName === "qrTemplateTableHeight" ? 40 : fieldName === "qrTemplateTableFontSize" ? 16 : 0}
-                          max={fieldName === "qrTemplateQrX" ? 1200 : fieldName === "qrTemplateQrY" ? 1600 : fieldName === "qrTemplateQrSize" ? 900 : fieldName === "qrTemplateTableWidth" ? 600 : fieldName === "qrTemplateTableHeight" ? 200 : 120}
+                          min={qrField.min}
+                          max={qrField.max}
+                          placeholder={qrField.nullable ? "Auto (centred under QR)" : undefined}
                           disabled={!canManage}
                           value={field.value ?? ""}
-                          onChange={(event) => field.onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+                          onChange={(event) =>
+                            field.onChange(
+                              event.target.value === ""
+                                ? qrField.nullable
+                                  ? null
+                                  : undefined
+                                : Number(event.target.value),
+                            )
+                          }
                         />
                         <FormMessage />
                       </FormItem>
@@ -198,6 +227,8 @@ export default function AppearanceSettingsPage() {
                     tableWidth={qrTemplateTableWidth}
                     tableHeight={qrTemplateTableHeight}
                     tableFontSize={qrTemplateTableFontSize}
+                    tableX={qrTemplateTableX}
+                    tableY={qrTemplateTableY}
                   />
                 </div>
                 {canManage && (

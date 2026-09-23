@@ -15,6 +15,7 @@ import { useUnits } from "@/hooks/use-units"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { useActiveOutlet } from "@/lib/api/outlet/active-outlet-context"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { isTrackedIngredientType } from "@/lib/validators/ingredient-categories"
 import { createInventoryItemSchema, type CreateInventoryItemInput } from "@/lib/validators/stock-ins"
 
 const DEFAULTS: CreateInventoryItemInput = { ingredientId: 0, warehouseId: 0, quantity: 0, unitCost: 0 }
@@ -44,16 +45,25 @@ export function CreateInventoryItemDialog({ warehouseId }: { warehouseId?: numbe
     defaultValues: { ...DEFAULTS, warehouseId: warehouseId ?? 0 },
   })
 
+  // Only stock-tracked types can hold a warehouse balance — raw materials
+  // and ready products are consumed through recipes, and every stock
+  // document rejects them server-side. Offering them here would just yield
+  // a "does not support stock tracking" error on submit.
+  const stockableIngredients = useMemo(
+    () => (ingredients?.data ?? []).filter((ingredient) => isTrackedIngredientType(ingredient.category.type)),
+    [ingredients],
+  )
+
   const selectedIngredientId = form.watch("ingredientId")
   const unitLabel = useMemo(() => {
-    const ingredient = ingredients?.data.find((candidate) => candidate.id === selectedIngredientId)
+    const ingredient = stockableIngredients.find((candidate) => candidate.id === selectedIngredientId)
     if (!ingredient) return null
     const unit = units?.data.find((candidate) => candidate.id === ingredient.baseUnitId)
     return unit?.shortName ?? unit?.name ?? null
-  }, [ingredients, selectedIngredientId, units])
+  }, [stockableIngredients, selectedIngredientId, units])
 
   async function onSubmit(values: CreateInventoryItemInput) {
-    const ingredient = ingredients?.data.find((candidate) => candidate.id === values.ingredientId)
+    const ingredient = stockableIngredients.find((candidate) => candidate.id === values.ingredientId)
     try {
       await createInventoryItem.mutateAsync({
         ...values,
@@ -91,11 +101,19 @@ export function CreateInventoryItemDialog({ warehouseId }: { warehouseId?: numbe
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(value) => field.onChange(Number(value))}
                   >
-                    <SelectTrigger className="w-full" disabled={ingredientsLoading}>
-                      <SelectValue placeholder={ingredientsLoading ? "Loading…" : "Select an ingredient"} />
+                    <SelectTrigger className="w-full" disabled={ingredientsLoading || stockableIngredients.length === 0}>
+                      <SelectValue
+                        placeholder={
+                          ingredientsLoading
+                            ? "Loading…"
+                            : stockableIngredients.length === 0
+                              ? "No stock-tracked ingredients"
+                              : "Select an ingredient"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      {ingredients?.data.map((ingredient) => (
+                      {stockableIngredients.map((ingredient) => (
                         <SelectItem key={ingredient.id} value={String(ingredient.id)}>
                           {ingredient.name} ({ingredient.code})
                         </SelectItem>

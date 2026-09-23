@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { QR_TEMPLATE_HEIGHT, QR_TEMPLATE_WIDTH, resolveQrTemplateLayout } from "./qr-template-layout"
+
 type PosterBranding = {
   restaurantName: string | null
   logoUrl: string | null
@@ -13,6 +15,8 @@ type PosterBranding = {
   qrTemplateTableWidth: number | null
   qrTemplateTableHeight: number | null
   qrTemplateTableFontSize: number | null
+  qrTemplateTableX: number | null
+  qrTemplateTableY: number | null
 }
 
 type BrandedQrPosterProps = {
@@ -22,15 +26,6 @@ type BrandedQrPosterProps = {
   downloadName?: string
   showDownload?: boolean
 }
-
-const TEMPLATE_WIDTH = 1200
-const TEMPLATE_HEIGHT = 1600
-const DEFAULT_QR_X = 300
-const DEFAULT_QR_Y = 515
-const DEFAULT_QR_SIZE = 600
-const DEFAULT_TABLE_WIDTH = 260
-const DEFAULT_TABLE_HEIGHT = 80
-const DEFAULT_TABLE_FONT_SIZE = 34
 
 function formatTableLabel(tableLabel: string) {
   return tableLabel.trim().replace(/^table\s*/i, "")
@@ -69,37 +64,37 @@ export function BrandedQrPoster({
         if (cancelled) return
 
         const canvas = document.createElement("canvas")
-        canvas.width = TEMPLATE_WIDTH
-        canvas.height = TEMPLATE_HEIGHT
+        canvas.width = QR_TEMPLATE_WIDTH
+        canvas.height = QR_TEMPLATE_HEIGHT
         const ctx = canvas.getContext("2d")
         if (!ctx) throw new Error("Canvas is not available")
 
-        const qrX = branding.qrTemplateQrX ?? DEFAULT_QR_X
-        const qrY = branding.qrTemplateQrY ?? DEFAULT_QR_Y
-        const qrSize = branding.qrTemplateQrSize ?? DEFAULT_QR_SIZE
-        const tableWidth = branding.qrTemplateTableWidth ?? DEFAULT_TABLE_WIDTH
-        const tableHeight = branding.qrTemplateTableHeight ?? DEFAULT_TABLE_HEIGHT
-        const tableFontSize = branding.qrTemplateTableFontSize ?? DEFAULT_TABLE_FONT_SIZE
-        const quietZone = Math.max(20, Math.round(qrSize * 0.05))
+        const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelX, labelY } =
+          resolveQrTemplateLayout({
+            qrX: branding.qrTemplateQrX,
+            qrY: branding.qrTemplateQrY,
+            qrSize: branding.qrTemplateQrSize,
+            tableWidth: branding.qrTemplateTableWidth,
+            tableHeight: branding.qrTemplateTableHeight,
+            tableFontSize: branding.qrTemplateTableFontSize,
+            tableX: branding.qrTemplateTableX,
+            tableY: branding.qrTemplateTableY,
+          })
 
-        ctx.drawImage(template, 0, 0, TEMPLATE_WIDTH, TEMPLATE_HEIGHT)
+        ctx.drawImage(template, 0, 0, QR_TEMPLATE_WIDTH, QR_TEMPLATE_HEIGHT)
         ctx.fillStyle = "#fff"
         ctx.fillRect(qrX - quietZone, qrY - quietZone, qrSize + quietZone * 2, qrSize + quietZone * 2)
         ctx.drawImage(qr, qrX, qrY, qrSize, qrSize)
 
-        const labelWidth = tableWidth
-        const labelHeight = tableHeight
-        const labelX = qrX + (qrSize - labelWidth) / 2
-        const labelY = qrY + qrSize + quietZone + 20
         ctx.fillStyle = "#202126"
         ctx.beginPath()
         ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
         ctx.fill()
         ctx.fillStyle = "#fff"
-        ctx.font = `700 ${tableFontSize}px Arial`
+        ctx.font = `700 ${labelFontSize}px Arial`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        ctx.fillText(formatTableLabel(tableLabel), qrX + qrSize / 2, labelY + labelHeight / 2)
+        ctx.fillText(formatTableLabel(tableLabel), labelX + labelWidth / 2, labelY + labelHeight / 2)
 
         if (!cancelled) setDownloadUrl(canvas.toDataURL("image/png"))
       })
@@ -110,7 +105,7 @@ export function BrandedQrPoster({
     return () => {
       cancelled = true
     }
-  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateTableFontSize, branding.qrTemplateTableHeight, branding.qrTemplateTableWidth, branding.qrTemplateUrl, qrDataUrl, tableLabel])
+  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateTableFontSize, branding.qrTemplateTableHeight, branding.qrTemplateTableWidth, branding.qrTemplateTableX, branding.qrTemplateTableY, branding.qrTemplateUrl, qrDataUrl, tableLabel])
 
   return (
     <div className="flex flex-col items-center gap-3">
