@@ -72,7 +72,7 @@ export function classifyAssistantIntent(
   if (/staff|employee|employees|team member/.test(q)) return 'staffSummary';
   if (/payment|payments|cash|card|refund/.test(q)) return 'payments';
   if (
-    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|(?:what|which)\s+(?:was|were|is|are)?\s*(?:the\s+)?orders?|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders/.test(
+    /my\s+order|order.*(going|status|ready|progress|where|done|placed|made)|any\s+orders?|have\s+we\s+(done|made|placed)|(?:what|which)\s+(?:was|were|is|are)?\s*(?:the\s+)?orders?|order\s+(detail|details|list|number)|list\s+orders|individual\s+orders|show.*orders|pending\s+orders?|paid\s+orders?|orders?.*\b(pending|paid|unpaid)\b/.test(
       q,
     )
   )
