@@ -2130,8 +2130,15 @@ export class OrdersService {
         -reservation.reservedQuantity,
       );
     }
+    // Captured before the delete cascades away the kitchen_ticket_items row
+    // (see removeItem's own doc comment above) — otherwise there's nothing
+    // left afterward to tell which ticket needs recomputing.
+    const ticketId = await this.kitchenTicketsService.findTicketIdForOrderItem(id);
     await this.orderItemsRepository.remove(item);
     await this.recalculateTotals(item.orderId);
+    if (ticketId !== null) {
+      await this.kitchenTicketsService.recomputeAndNotifyTicket(ticketId);
+    }
   }
 
   /**
@@ -2162,6 +2169,14 @@ export class OrdersService {
     item.cancelReason = reason;
     const saved = await this.orderItemsRepository.save(item);
     await this.recalculateTotals(item.orderId);
+    // This item may already have a kitchen ticket (voidItem is the
+    // post-kitchen path, per its doc comment above) — updateItemStatus()/
+    // transitionItems() are the only other places that recompute a ticket's
+    // status and push the KDS update, and this bypasses both of them.
+    const ticketId = await this.kitchenTicketsService.findTicketIdForOrderItem(id);
+    if (ticketId !== null) {
+      await this.kitchenTicketsService.recomputeAndNotifyTicket(ticketId);
+    }
     return saved;
   }
 
