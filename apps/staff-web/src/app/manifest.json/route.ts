@@ -33,10 +33,13 @@ export async function GET(request: Request) {
     display: "standalone",
     background_color: "#ffffff",
     theme_color: branding.primaryColor ?? "#0430de",
-    icons: [
-      { src: icon, sizes: "any", purpose: "any" },
-      { src: "/icons/logo.png", sizes: "500x500", type: "image/png", purpose: "any" },
-    ],
+    // Only ever one icon entry: a hardcoded second fallback here (even with
+    // `icon` already resolving to /icons/logo.png when there's no branding)
+    // gave installers a concrete-sized default (500x500 png) to compete
+    // against the tenant's `sizes: "any"` entry — Chrome's icon picker favors
+    // an exact size match, so it was silently choosing the Restra default as
+    // the actual home-screen icon even once branding resolved correctly.
+    icons: [{ src: icon, sizes: "any", purpose: "any" }],
   };
 
   return NextResponse.json(manifest, {
