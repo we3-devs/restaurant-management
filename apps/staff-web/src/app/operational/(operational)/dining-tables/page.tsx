@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table"
 
 import { StatusBadge } from "@rms/ui/status-badge"
@@ -14,6 +15,12 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { CreateDiningTableDialog } from "./create-dining-table-dialog"
 
 export default function DiningTablesPage() {
+  const pathname = usePathname()
+  // This page is mounted at several routes (operational floor management,
+  // dashboard's editable table list, dashboard's read-only "view" list) —
+  // derive the base path from wherever it's actually rendered instead of
+  // hardcoding one, so row links stay on the same route family.
+  const basePath = pathname || "/operational/dining-tables"
   const { outletId } = useActiveOutlet()
   const { data, isLoading } = useDiningTables({
     limit: 100,
@@ -77,7 +84,7 @@ export default function DiningTablesPage() {
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    <Link href={`/operational/dining-tables/${row.original.id}`} className="block">
+                    <Link href={`${basePath}/${row.original.id}`} className="block">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </Link>
                   </TableCell>

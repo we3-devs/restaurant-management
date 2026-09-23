@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import type { OrderStatus } from '../entities/order.entity';
 
 const ORDER_STATUSES: OrderStatus[] = [
@@ -32,4 +32,20 @@ export class UpdateOrderStatusDto {
   @IsOptional()
   @IsString()
   cancelReason?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'status="completed" only. Closes the order out even though some items never reached "served" — those items are voided (reservations released, marked cancelled, dropped from the bill) instead of left dangling. Requires orders.delete.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'status="completed" only. Closes the order out even though some items never reached "served", by marking those items served first instead of voiding them — the sale still charges and consumes stock for them normally. Mutually exclusive with force in effect (a truthy force takes precedence). No extra permission beyond orders.manage.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoServe?: boolean;
 }

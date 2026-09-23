@@ -37,7 +37,19 @@ export const EMPTY_BRANDING: Branding = {
  */
 export const fetchBranding = cache(async (baseUrl: string, headers?: HeadersInit): Promise<Branding> => {
   try {
-    const response = await fetch(`${baseUrl}/settings/branding/public`, {
+    // Next's fetch Data Cache keys on the URL (and body), not on headers — so
+    // without this, every tenant's request collapses onto one shared cache
+    // entry keyed by this same URL, and whichever tenant's response landed
+    // there first gets served to everyone else until it expires. The tenant
+    // slug is already sent unauthenticated via X-Tenant-Slug, so putting it
+    // in the URL too leaks nothing new; it just gives each tenant its own
+    // cache entry. The backend ignores this query param and still resolves
+    // the tenant from the header.
+    const tenantSlug = new Headers(headers).get("x-tenant-slug")
+    const url = new URL(`${baseUrl}/settings/branding/public`)
+    if (tenantSlug) url.searchParams.set("tenant", tenantSlug)
+
+    const response = await fetch(url, {
       headers,
       // Short on purpose. Branding changes rarely, but when it does the admin
       // is staring at the settings screen waiting for it — a long TTL reads as

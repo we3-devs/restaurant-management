@@ -11,7 +11,7 @@ export function HeaderTenantSwitcher() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  if (!isSuperadmin || !mounted) return null
+  if (!mounted) return null
   if (isLoadingTenants) return <Skeleton className="h-8 w-44 rounded-md" />
 
   return (

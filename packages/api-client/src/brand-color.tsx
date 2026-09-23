@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { useTheme } from "next-themes"
 import { applyBrandColor } from "./apply-brand-color"
 import { useBranding } from "./hooks/use-branding"
 
@@ -11,19 +12,22 @@ import { useBranding } from "./hooks/use-branding"
  */
 export function BrandColor() {
   const { primaryColor } = useBranding()
+  const { resolvedTheme } = useTheme()
 
   useEffect(() => {
-    applyBrandColor(primaryColor)
-  }, [primaryColor])
+    applyBrandColor(primaryColor, resolvedTheme === "dark")
+  }, [primaryColor, resolvedTheme])
 
   return null
 }
 
 /** Applies server-provided branding without requiring a QueryClientProvider. */
 export function StaticBrandColor({ primaryColor }: { primaryColor: string | null | undefined }) {
+  const { resolvedTheme } = useTheme()
+
   useEffect(() => {
-    applyBrandColor(primaryColor)
-  }, [primaryColor])
+    applyBrandColor(primaryColor, resolvedTheme === "dark")
+  }, [primaryColor, resolvedTheme])
 
   return null
 }

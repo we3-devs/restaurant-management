@@ -86,7 +86,7 @@ export class EmployeesController {
       // caller could transfer an employee into an outlet they don't control.
       await this.outletAccess.assertOutletAccess(user.id, user.isSuperadmin, dto.outletId);
     }
-    return this.employeesService.update(id, dto);
+    return this.employeesService.update(id, dto, user.id);
   }
 
   @Delete('employees/:id') @HttpCode(HttpStatus.NO_CONTENT) @RequirePermissions('employees.manage')

@@ -11,7 +11,8 @@ let newOrderAudio: HTMLAudioElement | null = null
 export function playNewOrderSound(): void {
   if (typeof window === "undefined" || typeof Audio === "undefined") return
   try {
-    newOrderAudio ??= new Audio("/koiroylers-shop-notification-355746.mp3")
+    newOrderAudio ??= new Audio("/kitchensound.mpeg")
+    newOrderAudio.volume = 1
     newOrderAudio.currentTime = 0
     void newOrderAudio.play().catch(() => {})
   } catch {

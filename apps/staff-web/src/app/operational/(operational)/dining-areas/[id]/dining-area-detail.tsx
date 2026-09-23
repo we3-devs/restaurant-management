@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -29,6 +29,11 @@ import { updateDiningAreaSchema, type UpdateDiningAreaInput } from "@rms/validat
 
 export function DiningAreaDetail({ areaId }: { areaId: number }) {
   const router = useRouter()
+  const pathname = usePathname()
+  // Mirrors DiningAreasPage's basePath derivation — strip the trailing
+  // "/:id" segment to get back to whichever list route this detail page
+  // was reached from, instead of hardcoding one.
+  const listPath = pathname ? pathname.replace(/\/[^/]+$/, "") : "/operational/dining-areas"
   const { data: area, isLoading } = useDiningArea(areaId)
   const showSkeleton = useDelayedLoading(isLoading)
   const updateArea = useUpdateDiningArea(areaId)
@@ -58,7 +63,7 @@ export function DiningAreaDetail({ areaId }: { areaId: number }) {
     try {
       await deleteArea.mutateAsync(areaId)
       toast.success("Dining area deleted")
-      router.push("/operational/dining-areas")
+      router.push(listPath)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete dining area")
     }

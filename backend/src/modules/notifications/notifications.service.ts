@@ -69,68 +69,71 @@ export class NotificationsService {
   * active employee position matches one of the requested positions.
    */
   async getUserIdsByPosition(outletId: number, positionSlugs: string[]): Promise<number[]> {
-    const [presentSuperadmins, assignments] = await Promise.all([
+    if (positionSlugs.length === 0) return this.presentUserIds(outletId, true);
+    const [presentSuperadmins, assigned] = await Promise.all([
       this.presentUserIds(outletId, true),
-      positionSlugs.length === 0
-        ? Promise.resolve([])
-        : this.notificationsRepository.manager
-            .createQueryBuilder()
-            .from('employees', 'employee')
-            .innerJoin('positions', 'position', 'position.id = employee.position_id')
-            .innerJoin('employee_outlet_assignments', 'assignment', 'assignment.employee_id = employee.id')
-            .innerJoin(
-              Attendance,
-              'attendance',
-              'attendance.employee_id = employee.user_id AND attendance.outlet_id = assignment.outlet_id',
-            )
-            .where('assignment.outlet_id = :outletId', { outletId })
-            .andWhere('assignment.is_active = true')
-            .andWhere('employee.is_active = true')
-            .andWhere("employee.employment_status = 'active'")
-            .andWhere('position.is_active = true')
-            .andWhere('position.slug IN (:...positionSlugs)', { positionSlugs })
-            .andWhere('attendance.clock_out IS NULL')
-            .andWhere("attendance.status IN ('present', 'late')")
-            .select('employee.user_id', 'userId')
-            .getRawMany<{ userId: string }>(),
+      this.resolveAssignedEmployeeUserIds(outletId, { positionSlugs }),
     ]);
-    return [
-      ...new Set([
-        ...presentSuperadmins,
-        ...assignments.map((a) => Number(a.userId)),
-      ]),
-    ];
+    return [...new Set([...presentSuperadmins, ...assigned])];
   }
 
-  /** Present staff must have an active assignment and an open attendance record. */
+  /**
+   * Present staff must have an active outlet assignment. They also need an
+   * open attendance record, but only for tenants that have turned on the
+   * attendance-required toggle (`tenants.attendance_required`) — otherwise
+   * staff never clock in at all and this would resolve to zero recipients,
+   * silently dropping every notification (in-app and push) for that tenant.
+   */
   async getActiveStaffUserIds(outletId?: number): Promise<number[]> {
     if (!outletId) return [];
-    const [presentSuperadmins, assignments] = await Promise.all([
+    const [presentSuperadmins, assigned] = await Promise.all([
       this.presentUserIds(outletId, true),
-      this.notificationsRepository.manager
-        .createQueryBuilder()
-        .from('employees', 'employee')
-        .innerJoin('positions', 'position', 'position.id = employee.position_id')
-        .innerJoin('employee_outlet_assignments', 'assignment', 'assignment.employee_id = employee.id')
-        .innerJoin(
-          Attendance,
-          'attendance',
-          'attendance.employee_id = employee.user_id AND attendance.outlet_id = assignment.outlet_id',
-        )
-        .where('assignment.outlet_id = :outletId', { outletId })
-        .andWhere('assignment.is_active = true')
-        .andWhere('employee.is_active = true')
-        .andWhere("employee.employment_status = 'active'")
-        .andWhere('position.is_active = true')
-        .andWhere('attendance.clock_out IS NULL')
-        .andWhere("attendance.status IN ('present', 'late')")
-        .select('employee.user_id', 'userId')
-        .getRawMany<{ userId: string }>(),
+      this.resolveAssignedEmployeeUserIds(outletId),
     ]);
-    return [...new Set([
-      ...presentSuperadmins,
-      ...assignments.map((assignment) => Number(assignment.userId)),
-    ])];
+    return [...new Set([...presentSuperadmins, ...assigned])];
+  }
+
+  /** Active employees assigned to the outlet, optionally narrowed by position slug and gated by attendance when the tenant requires it. */
+  private async resolveAssignedEmployeeUserIds(
+    outletId: number,
+    options: { positionSlugs?: string[] } = {},
+  ): Promise<number[]> {
+    const attendanceRequired = await this.isAttendanceRequired(outletId);
+    const qb = this.notificationsRepository.manager
+      .createQueryBuilder()
+      .from('employees', 'employee')
+      .innerJoin('positions', 'position', 'position.id = employee.position_id')
+      .innerJoin('employee_outlet_assignments', 'assignment', 'assignment.employee_id = employee.id')
+      .where('assignment.outlet_id = :outletId', { outletId })
+      .andWhere('assignment.is_active = true')
+      .andWhere('employee.is_active = true')
+      .andWhere("employee.employment_status = 'active'")
+      .andWhere('position.is_active = true')
+      .select('employee.user_id', 'userId');
+    if (options.positionSlugs) {
+      qb.andWhere('position.slug IN (:...positionSlugs)', { positionSlugs: options.positionSlugs });
+    }
+    if (attendanceRequired) {
+      qb.innerJoin(
+        Attendance,
+        'attendance',
+        'attendance.employee_id = employee.user_id AND attendance.outlet_id = assignment.outlet_id',
+      )
+        .andWhere('attendance.clock_out IS NULL')
+        .andWhere("attendance.status IN ('present', 'late')");
+    }
+    const rows = await qb.getRawMany<{ userId: string }>();
+    return rows.map((row) => Number(row.userId));
+  }
+
+  private async isAttendanceRequired(outletId: number): Promise<boolean> {
+    const [row] = await this.notificationsRepository.manager.query(
+      `SELECT t.attendance_required AS "attendanceRequired"
+       FROM outlets o JOIN tenants t ON t.id = o.tenant_id
+       WHERE o.id = $1`,
+      [outletId],
+    ) as Array<{ attendanceRequired: boolean }>;
+    return row?.attendanceRequired ?? false;
   }
 
   private async presentUserIds(outletId: number, superadminsOnly = false): Promise<number[]> {
@@ -206,9 +209,6 @@ export class NotificationsService {
     notification: Notification,
     recipientUserIds?: number[],
   ): Promise<void> {
-    // Web Push is reserved for urgent operational alerts. Normal/high events
-    // remain available through the realtime toast and notification bell.
-    const pushEnabledForEvent = notification.priority === 'urgent';
     if (!this.emailService.isConfigured && !this.pushService.isConfigured) {
       return;
     }
@@ -239,7 +239,7 @@ export class NotificationsService {
         if (preference.emailEnabled && user.email) {
           await this.emailService.send(user.email, notification.title, body);
         }
-        if (pushEnabledForEvent && preference.pushEnabled) {
+        if (preference.pushEnabled) {
           await this.pushService.sendToUser(user.id, notification.title, body, {
             type: notification.type,
             orderId: notification.orderId,

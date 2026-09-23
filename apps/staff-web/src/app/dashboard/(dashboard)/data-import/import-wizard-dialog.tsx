@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -68,6 +69,7 @@ export function ImportWizardDialog({ config }: { config: DataImportDomainConfig 
   const [uploadPercent, setUploadPercent] = useState<number | null>(null)
   const [commitProgress, setCommitProgress] = useState<{ done: number; total: number } | null>(null)
   const [commitFailed, setCommitFailed] = useState(false)
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // How many commit chunks have already been sent successfully — lets a
@@ -92,9 +94,28 @@ export function ImportWizardDialog({ config }: { config: DataImportDomainConfig 
     setUploadPercent(null)
     setCommitProgress(null)
     setCommitFailed(false)
+    setSelectedRowIds(new Set())
     chunksSentRef.current = 0
     if (fileInputRef.current) fileInputRef.current.value = ""
     if (debounceRef.current) clearTimeout(debounceRef.current)
+  }
+
+  function toggleRowSelected(clientRowId: string, checked: boolean) {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(clientRowId)
+      else next.delete(clientRowId)
+      return next
+    })
+  }
+
+  function removeSelectedRows() {
+    if (!rowMeta || selectedRowIds.size === 0) return
+    const keepIndexes = rowMeta.map((_, i) => i).filter((i) => !selectedRowIds.has(rowMeta[i]!.clientRowId))
+    setRawRows((prev) => prev && keepIndexes.map((i) => prev[i]!))
+    setValidated((prev) => prev && keepIndexes.map((i) => prev[i]!))
+    setRowMeta((prev) => prev && keepIndexes.map((i) => prev[i]!))
+    setSelectedRowIds(new Set())
   }
 
   function extractRaw(row: ImportRow): Record<string, string> {
@@ -237,12 +258,26 @@ export function ImportWizardDialog({ config }: { config: DataImportDomainConfig 
                 {revalidateImport.isPending && (
                   <span className="text-xs text-muted-foreground">Re-checking…</span>
                 )}
-                <p className="ml-auto text-xs text-muted-foreground">Edit any cell to fix errors.</p>
+                {selectedRowIds.size > 0 && (
+                  <Button variant="destructive" size="sm" onClick={removeSelectedRows} disabled={isCommitting}>
+                    Remove {selectedRowIds.size} row{selectedRowIds.size === 1 ? "" : "s"}
+                  </Button>
+                )}
+                <p className="ml-auto text-xs text-muted-foreground">Edit any cell to fix errors, or select a row to remove it.</p>
               </div>
               <div className="max-h-96 overflow-auto rounded-md border">
                 <Table style={{ minWidth: `${config.columns.reduce((sum, c) => sum + (c.minWidth ?? 100), 80 + 120)}px` }}>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8">
+                        <Checkbox
+                          checked={rawRows.length > 0 && selectedRowIds.size === rawRows.length}
+                          onCheckedChange={(checked) =>
+                            setSelectedRowIds(checked === true ? new Set(rowMeta.map((m) => m.clientRowId)) : new Set())
+                          }
+                          disabled={isCommitting}
+                        />
+                      </TableHead>
                       <TableHead className="w-12">Row</TableHead>
                       {config.columns.map((column) => (
                         <TableHead key={column.key} style={{ minWidth: `${column.minWidth ?? 100}px` }}>{column.label}</TableHead>
@@ -253,8 +288,16 @@ export function ImportWizardDialog({ config }: { config: DataImportDomainConfig 
                   <TableBody>
                     {rawRows.map((row, index) => {
                       const errors = validated[index]?.errors ?? []
+                      const clientRowId = rowMeta[index]!.clientRowId
                       return (
-                        <TableRow key={rowMeta[index]!.clientRowId}>
+                        <TableRow key={clientRowId} data-selected={selectedRowIds.has(clientRowId) || undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedRowIds.has(clientRowId)}
+                              onCheckedChange={(checked) => toggleRowSelected(clientRowId, checked === true)}
+                              disabled={isCommitting}
+                            />
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">{rowMeta[index]!.rowNumber}</TableCell>
                           {config.columns.map((column) => (
                             <TableCell key={column.key} style={{ minWidth: `${column.minWidth ?? 100}px` }}>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ArmchairIcon, GripIcon } from "lucide-react"
 
 import { Button } from "@rms/ui/button"
@@ -10,7 +11,7 @@ import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
 import { useDiningTables, useUpdateDiningTable, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
 import { usePageTitle } from "@rms/ui/use-page-title"
-import { CreateDiningTableDialog } from "../tables/create-dining-table-dialog"
+import { CreateDiningTableDialog } from "@/app/operational/(operational)/dining-tables/create-dining-table-dialog"
 
 type Point = { x: number; y: number }
 const STATUS_STYLES: Record<string, string> = {
@@ -49,7 +50,7 @@ export default function FloorPlanPage() {
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" /> Available</span>
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-destructive" /> Occupied</span>
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" /> Reserved</span>
-        <span className="w-full sm:ml-auto sm:w-auto">{arrangeMode ? "Drag tables to position them on the map." : "Use this map to plan your dining room."}</span>
+        <span className="w-full sm:ml-auto sm:w-auto">{arrangeMode ? "Drag tables to position them on the map." : "Tap a table to edit or delete it."}</span>
       </div>
 
       {isLoading && <div className="h-80 animate-pulse rounded-xl border bg-muted/30" />}
@@ -77,6 +78,7 @@ function AreaMap({ outletId, area, arrangeMode, positions, onPositionChange }: {
 }
 
 function MapTable({ table, index, arrangeMode, position, onPositionChange }: { table: DiningTable; index: number; arrangeMode: boolean; position?: Point; onPositionChange: (tableId: number, point: Point) => void }) {
+  const router = useRouter()
   const [dragging, setDragging] = useState(false)
   const lastPoint = useRef<Point | null>(null)
   const updateTable = useUpdateDiningTable(table.id)
@@ -93,7 +95,7 @@ function MapTable({ table, index, arrangeMode, position, onPositionChange }: { t
   }
 
   return (
-    <button type="button" className={cn("absolute w-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-1 py-2 text-center shadow-sm transition-shadow sm:w-28 sm:px-2 sm:py-3", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined}>
+    <button type="button" className={cn("absolute w-20 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 px-1 py-2 text-center shadow-sm transition-shadow sm:w-28 sm:px-2 sm:py-3", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", !arrangeMode && "cursor-pointer hover:brightness-95", dragging && "z-10 scale-105 shadow-lg ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined} onClick={!arrangeMode ? () => router.push(`/dashboard/tables/${table.id}`) : undefined}>
       {arrangeMode ? <GripIcon className="mx-auto mb-1 size-4 opacity-50" /> : <ArmchairIcon className="mx-auto mb-1 size-4 opacity-60" />}
       <span className="block text-xs font-semibold sm:text-sm">{table.name}</span>
       <span className="mt-0.5 block text-[10px] capitalize opacity-75 sm:text-[11px]">{table.status} · {table.capacity} seats</span>

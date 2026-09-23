@@ -15,6 +15,7 @@ import { ThemeToggle } from "@rms/ui/theme-toggle"
 import { Separator } from "@rms/ui/separator"
 import { visibleNavGroups } from "./nav-items"
 import { OperatingStatusBadge } from "@rms/ui/operating-status-badge"
+import { RegisterOperationalServiceWorker } from "../../register-operational-sw"
 
 /**
  * Client component so visibleNavGroups() (whose result embeds Lucide icon
@@ -36,6 +37,7 @@ export function OperationalChrome({
 
   return (
     <>
+      <RegisterOperationalServiceWorker />
       <CommandPalette groups={groups} />
       <div className="flex min-h-screen">
         <AppSidebarShell groups={groups}>
@@ -51,7 +53,7 @@ export function OperationalChrome({
                 <HeaderPortalSwitcher current="staff" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <ThemeToggle />
-                <NotificationBell realtimeToast={false} pushApp="operational" />
+                <NotificationBell pushApp="operational" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <UserMenu />
               </div>

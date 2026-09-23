@@ -40,6 +40,19 @@ export class CustomerCreditTransaction {
   })
   userId: number | null;
 
+  /**
+   * Null only for pre-migration rows (see 1782200000000) that had no order
+   * to backfill from. Every new charge (from the order) and settlement
+   * (from the caller) is expected to carry this.
+   */
+  @Column({
+    name: 'outlet_id',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+    nullable: true,
+  })
+  outletId: number | null;
+
   @Column({ type: 'varchar', length: 30 })
   type: CustomerCreditTransactionType;
 

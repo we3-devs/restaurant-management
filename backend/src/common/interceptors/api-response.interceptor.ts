@@ -19,11 +19,8 @@ const NEVER_EXPOSE = new Set([
   'replacedByTokenHash',
   'otpCode',
   'otpHash',
-  'createdAt',
   'createdBy',
-  'updatedAt',
   'updatedBy',
-  'deletedAt',
 ]);
 
 function sanitize(value: unknown, exposedFields: Set<string>): unknown {

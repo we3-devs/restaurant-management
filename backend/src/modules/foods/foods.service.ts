@@ -22,7 +22,9 @@ import { FoodCategoriesService } from '../food-categories/food-categories.servic
 import { IngredientsService } from '../ingredients/ingredients.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { UnitsService } from '../units/units.service';
+import type { OutletDepartmentType } from '../outlet-departments/entities/outlet-department.entity';
 import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
+import { BulkImportFoodsAsIngredientsDto } from './dto/bulk-import-foods-as-ingredients.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
@@ -314,6 +316,49 @@ export class FoodsService {
     if (foods.length === 0) return { deleted: 0 };
     await this.foodsRepository.softDelete(foods.map((food) => food.id));
     return { deleted: foods.length };
+  }
+
+  /** Sets (or clears, when null) departmentType across every requested id that belongs to the current tenant, silently ignoring the rest. */
+  async updateDepartmentMany(ids: number[], departmentType: OutletDepartmentType | null): Promise<{ updated: number }> {
+    const foods = await this.foodsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(ids) }), select: { id: true } });
+    if (foods.length === 0) return { updated: 0 };
+    await this.foodsRepository.update(foods.map((food) => food.id), { departmentType });
+    return { updated: foods.length };
+  }
+
+  /**
+   * Creates a new stock-tracked Ingredient (same outlet/category/unit for the
+   * whole batch) for every requested food that belongs to the current tenant
+   * and isn't already linked to one, then links it back via
+   * Food.inventoryIngredientId. Per-food failures (e.g. a slug/code
+   * collision) are collected rather than aborting the whole batch.
+   */
+  async importAsIngredients(dto: BulkImportFoodsAsIngredientsDto): Promise<{ created: number; skipped: number; errors: string[] }> {
+    const foods = await this.foodsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(dto.foodIds) }) });
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+    for (const food of foods) {
+      if (food.inventoryIngredientId) {
+        skipped++;
+        continue;
+      }
+      try {
+        const ingredient = await this.ingredientsService.create({
+          outletId: dto.outletId,
+          ingredientCategoryId: dto.ingredientCategoryId,
+          baseUnitId: dto.baseUnitId,
+          name: food.name,
+          slug: food.slug,
+          code: `FOOD-${food.id}`,
+        });
+        await this.foodsRepository.update(food.id, { inventoryIngredientId: ingredient.id });
+        created++;
+      } catch (error) {
+        errors.push(`${food.name}: ${error instanceof Error ? error.message : 'failed to import'}`);
+      }
+    }
+    return { created, skipped, errors };
   }
 
   async listOutletOverrides(foodId: number): Promise<FoodOutlet[]> {

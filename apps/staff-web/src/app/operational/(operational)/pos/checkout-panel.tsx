@@ -5,6 +5,17 @@ import Link from "next/link"
 import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@rms/ui/alert-dialog"
 import { Badge } from "@rms/ui/badge"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
@@ -24,8 +35,10 @@ import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 import { TableSessionCheckout } from "./table-session-checkout"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
+import { useCurrentUser } from "@rms/auth/current-user-context"
 
 const CLOSED_ORDER_STATUSES = new Set(["completed", "cancelled"])
 
@@ -47,6 +60,11 @@ export function CheckoutPanel({
   const { data: payments } = useOrderPayments(orderId)
   const updateStatus = useUpdateOrderStatus(orderId)
   const updateStatusOverride = useUpdateOrderStatus(orderId, { closedHoursOverride: true })
+  const user = useCurrentUser()
+  // Force-completing voids whatever never got served — as discretionary as
+  // cancelling an order, so it rides on the same permission (see
+  // OrdersController#updateStatus).
+  const canForceComplete = user.permissions.includes("orders.delete")
   const createPayment = useCreateOrderPayment(orderId)
   const createPaymentOverride = useCreateOrderPayment(orderId, { closedHoursOverride: true })
   const isOnline = useOnlineStatus()
@@ -69,6 +87,7 @@ export function CheckoutPanel({
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [paymentAmount, setPaymentAmount] = useState(0)
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   // Prefer the payment ledger for the visible totals. The order detail may be
@@ -86,13 +105,14 @@ export function CheckoutPanel({
     setPaymentAmount(displayedDueAmount)
   }
 
-  // Items still sitting in the cart (added but never "Send to kitchen"'d,
-  // or held) keep the order from ever reaching 'served', which is the only
-  // status 'completed' can follow — so the backend will reject the sale.
-  // Surface that up front instead of letting the cashier hit a confusing
-  // generic error after the fact.
-  const unsentItemCount = (orderItems?.data ?? []).filter(
-    (item) => item.status === "stock_reserved",
+  // Anything not yet 'served' (or voided) — including items still sitting in
+  // the cart, never sent to kitchen. Purely informational for the main
+  // Complete button ("Complete sale" passes autoServe, which marks all of
+  // these served instead of requiring the normal serve step first); still
+  // gates the separate destructive "void instead" option below, which needs
+  // orders.delete.
+  const unservedItemCount = (orderItems?.data ?? []).filter(
+    (item) => item.status !== "served" && item.status !== "cancelled",
   ).length
 
   if (!order) return null
@@ -127,7 +147,13 @@ export function CheckoutPanel({
       return
     }
     try {
-      await updateStatus.mutateAsync("completed")
+      // autoServe is a no-op when everything's already served — passing it
+      // unconditionally means "Complete sale" always just works instead of
+      // staff having to separately mark every item served first. Unlike
+      // force (below), it doesn't drop anything from the bill: unserved
+      // items are marked served, not voided, so the sale still charges and
+      // consumes stock for them normally.
+      await updateStatus.mutateAsync({ status: "completed", autoServe: true })
       // Stay put instead of bouncing to the receipt page — the bill can be
       // printed from the button above whenever it's needed, before or after
       // completion.
@@ -139,8 +165,26 @@ export function CheckoutPanel({
 
   async function handleCompleteSaleOverride() {
     if (!order) return
-    await updateStatusOverride.mutateAsync("completed")
+    await updateStatusOverride.mutateAsync({ status: "completed", autoServe: true })
     toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
+  }
+
+  async function handleForceCompleteSale() {
+    if (!order) return
+    if (!isOnline) {
+      toast.error("You're offline — reconnect to complete the sale")
+      return
+    }
+    try {
+      await updateStatus.mutateAsync({
+        status: "completed",
+        force: true,
+        note: "Force-completed without full service",
+      })
+      toast.success("Sale complete — unserved items voided")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to complete sale")
+    }
   }
 
   return (
@@ -210,22 +254,36 @@ export function CheckoutPanel({
             />
           </div>
           {paymentMethod === "credit" && (
-            <Select
-              value={creditCustomerId ? String(creditCustomerId) : ""}
-              onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-            >
-              <SelectTrigger className="w-full" disabled={customersLoading}>
-                <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-              </SelectTrigger>
-              <SelectContent>
-                {customers?.data.map((customer) => (
-                  <SelectItem key={customer.id} value={String(customer.id)}>
-                    {customer.name}
-                    {customer.phone ? ` (${customer.phone})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select
+                value={creditCustomerId ? String(creditCustomerId) : ""}
+                onValueChange={(value) => {
+                  if (value === "create") {
+                    setCreateCustomerOpen(true)
+                    return
+                  }
+                  setCreditCustomerId(value ? Number(value) : undefined)
+                }}
+              >
+                <SelectTrigger className="w-full" disabled={customersLoading}>
+                  <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="create">+ Create customer</SelectItem>
+                  {customers?.data.map((customer) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {customer.name}
+                      {customer.phone ? ` (${customer.phone})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <CreateCustomerDialog
+                open={createCustomerOpen}
+                onOpenChange={setCreateCustomerOpen}
+                onCreated={(customer) => setCreditCustomerId(customer.id)}
+              />
+            </>
           )}
           <Button
             variant="outline"
@@ -258,16 +316,46 @@ export function CheckoutPanel({
             className="w-full"
             size="lg"
             onClick={handleCompleteSale}
-            disabled={displayedDueAmount > 0 || unsentItemCount > 0 || updateStatus.isPending || !isOnline}
+            disabled={displayedDueAmount > 0 || updateStatus.isPending || !isOnline}
           >
             {!isOnline
               ? "Offline"
               : displayedDueAmount > 0
                 ? `Due ${displayedDueAmount}`
-                : unsentItemCount > 0
-                  ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
+                : unservedItemCount > 0
+                  ? `Complete sale (${unservedItemCount} unserved item${unservedItemCount === 1 ? "" : "s"} will auto-serve)`
                   : "Complete sale"}
           </Button>
+
+          {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline && (
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={
+                  <Button className="w-full" size="sm" variant="outline" disabled={updateStatus.isPending}>
+                    Void {unservedItemCount} unserved item{unservedItemCount === 1 ? "" : "s"} instead
+                  </Button>
+                }
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Void unserved items and complete?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet. This
+                    drops {unservedItemCount === 1 ? "it" : "them"} from the bill entirely (releasing any reserved
+                    stock) instead of charging for and serving {unservedItemCount === 1 ? "it" : "them"} — use this
+                    only when the guest genuinely didn't get {unservedItemCount === 1 ? "it" : "them"}. This cannot be
+                    undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={handleForceCompleteSale}>
+                    Void and complete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <ClosedHoursOverrideButton
             closed={operatingHours?.enabled === true && operatingHours.isOpen === false}
             label="complete sale"

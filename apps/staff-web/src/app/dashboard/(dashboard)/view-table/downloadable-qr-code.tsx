@@ -3,12 +3,22 @@
 import { useEffect, useState } from "react"
 import QRCode from "qrcode"
 
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@rms/ui/skeleton"
 import { useBranding } from "@rms/api-client/hooks/use-branding"
 import { BrandedQrPoster } from "@rms/ui/branded-qr-poster"
 
-/** Same rendering as `@/components/qr-code`'s QrCode, but keeps the data URL around so it can offer a download. */
-export function DownloadableQrCode({ value, fileName, tableLabel, size = 176 }: { value: string; fileName: string; tableLabel: string; size?: number }) {
+/** Same rendering as TableQrCode, but keeps the data URL around so it can offer a download. */
+export function DownloadableQrCode({
+  value,
+  fileName,
+  tableLabel,
+  size = 176,
+}: {
+  value: string
+  fileName: string
+  tableLabel: string
+  size?: number
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const branding = useBranding()
 

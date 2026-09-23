@@ -14,7 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const branding = await fetchBranding(BACKEND_API_BASE, await brandingHeaders());
   const name = await currentTenantName();
   const staffName = `${name} Staff`;
-  const appIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/favicon.ico";
+  const appIcon = branding.faviconUrl ?? branding.logoUrl ?? "/icons/favicon.ico";
+  const appleIcon = branding.logoUrl ?? branding.faviconUrl ?? "/icons/logo.png";
 
   return {
     title: staffName,
@@ -22,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/manifest.json",
     icons: {
       icon: appIcon,
-      apple: appIcon,
+      apple: appleIcon,
     },
   };
 }

@@ -10,6 +10,7 @@ export const CUSTOMER_CREDIT_TRANSACTION_TYPES = [
 export const settleCustomerDebtSchema = z.object({
   customerId: z.number({ message: "Select a customer" }).positive(),
   amount: z.number().positive("Amount must be greater than zero"),
+  outletId: z.number({ message: "Select an outlet" }).positive(),
   notes: z.string().optional(),
 })
 

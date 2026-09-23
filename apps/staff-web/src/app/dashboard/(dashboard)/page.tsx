@@ -91,7 +91,7 @@ function Heading({
 		"Sales Overview": "/dashboard/analytics",
 		"Recent Orders": "/dashboard/orders",
 		"Top Selling Items": "/dashboard/foods",
-		"Table Occupancy": "/dashboard/tables",
+		"Table Occupancy": "/dashboard/dining-areas",
 		"Kitchen Queue": "/dashboard/orders",
 		"Today's domain activity": "/dashboard/analytics",
 	};
@@ -264,7 +264,7 @@ export default function DashboardPage() {
 							))}
 			</div>
 
-			<div className="dash-main-grid">
+			<div className="dash-main-grid dash-section">
 				{/* ── Sales chart — independent of orders/tables ── */}
 				<Panel className="sales-panel">
 					<Heading
@@ -354,7 +354,7 @@ export default function DashboardPage() {
 			</div>
 
 			{/* ── Top selling items — independent ── */}
-			<Panel className="items-panel">
+			<Panel className="items-panel dash-section">
 				<Heading title="Top Selling Items" action="" />
 				{charts.isLoading ? (
 					<div className="dash-skeleton dash-skeleton-items" />
@@ -377,7 +377,7 @@ export default function DashboardPage() {
 				)}
 			</Panel>
 
-			<div className="dash-main-grid lower-grid">
+			<div className="dash-main-grid lower-grid dash-section">
 				{/* ── Table occupancy — independent of orders/chart ── */}
 				<Panel>
 					<Heading title="Table Occupancy" subtitle="Live status of tables in the restaurant" />
@@ -464,7 +464,7 @@ export default function DashboardPage() {
 			</div>
 
 			{/* ── Domain activity — independent, lowest priority ── */}
-			<Panel className="activity-panel">
+			<Panel className="activity-panel dash-section">
 				<Heading
 					title="Today's domain activity"
 					subtitle="Real records from purchasing, reservations, staff, loyalty and system activity"

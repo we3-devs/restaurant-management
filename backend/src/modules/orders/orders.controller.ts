@@ -294,6 +294,20 @@ export class OrdersController {
         );
       }
     }
+    if (dto.status === 'completed' && dto.force) {
+      // Force-completing voids whatever never got served — as discretionary
+      // and hard-to-reverse as a cancellation, so it rides on the same
+      // manager-tier gate rather than plain orders.manage.
+      const allowed = await this.permissionsService.hasPermission(
+        user.id,
+        'orders.delete',
+      );
+      if (!allowed) {
+        throw new ForbiddenException(
+          'Force-completing an order requires the orders.delete permission',
+        );
+      }
+    }
     return this.ordersService.updateStatus(id, dto, user.id);
   }
 

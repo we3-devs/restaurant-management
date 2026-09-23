@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/session"
+import {
+  ACCESS_TOKEN_COOKIE,
+  ACCESS_TOKEN_MAX_AGE_SECONDS,
+  authCookieAttributes,
+  REFRESH_TOKEN_COOKIE,
+  REFRESH_TOKEN_MAX_AGE_SECONDS,
+} from "@/lib/auth/session"
 import { isAllowedTenantHost, tenantHeaders } from "@rms/auth/tenant"
 
 // Routes that must be reachable without a (staff) session. /guest (QR
@@ -11,12 +17,65 @@ function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
+
+/** Decodes a JWT's exp claim without verifying the signature — only used to decide whether a proactive refresh is worth attempting; the backend is the real authority. */
+function accessTokenExpiresAt(token: string): number | null {
+  const payload = token.split(".")[1]
+  if (!payload) return null
+  try {
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    const { exp } = JSON.parse(json) as { exp?: number }
+    return typeof exp === "number" ? exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+interface RefreshedTokens {
+  accessToken: string
+  refreshToken: string
+}
+
+// Dedupes concurrent refreshes for the same refresh token within this server
+// instance. The backend rotates refresh tokens on every use and revokes the
+// whole chain on reuse (theft detection) — without this, a page navigation's
+// parallel RSC/prefetch requests would each try to redeem the same token and
+// the loser would get its session killed instead of just refreshed.
+//
+// Keyed by token (a Map, not a single slot): this instance serves every
+// logged-in staff member concurrently, and a single-slot version would get
+// clobbered the moment a second user's refresh landed mid-flight — a third
+// request for the first user would then no longer find its own entry, fire a
+// second concurrent redemption of the same already-in-flight token, and trip
+// the same reuse-detection that kills the whole session chain. That's the
+// randomly-timed session death this map exists to prevent.
+const refreshInFlight = new Map<string, Promise<RefreshedTokens | null>>()
+
+async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
+  const existing = refreshInFlight.get(refreshToken)
+  if (existing) return existing
+  const promise = fetch(`${BACKEND_URL}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? (response.json() as Promise<RefreshedTokens>) : null))
+    .catch(() => null)
+    .finally(() => {
+      refreshInFlight.delete(refreshToken)
+    })
+  refreshInFlight.set(refreshToken, promise)
+  return promise
+}
+
 /**
  * Optimistic-only check (cookie presence, no backend call — Proxy must stay
  * fast, per Next's docs). The real check is verifySession() in the DAL,
  * called from (dashboard)/layout.tsx.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (!isAllowedTenantHost(request.headers.get("host"), "staff")) {
     return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
   }
@@ -64,11 +123,43 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
+  // Proactively refresh the access token here, before any Server Component
+  // renders. Server Components can only READ cookies — the DAL's own
+  // refresh-on-401 fallback (session-fetch.ts) cannot persist a renewed
+  // token when it fires mid-render, so an idle tab's access token cookie
+  // just kept going stale forever and the session silently died a couple of
+  // navigations later when the (already-rotated) refresh token was reused.
+  // Middleware is the one place that can both read the incoming request's
+  // cookies and reliably write Set-Cookie for the response, so it's the
+  // right place to keep this cookie alive.
+  let refreshedTokens: RefreshedTokens | null = null
+  if (hasSession && !isAuth) {
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
+    const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value
+    const expiresAt = accessToken ? accessTokenExpiresAt(accessToken) : null
+    const needsRefresh = Boolean(refreshToken) && (!accessToken || expiresAt === null || expiresAt < Date.now() + 10_000)
+    if (needsRefresh && refreshToken) {
+      refreshedTokens = await refreshTokens(refreshToken)
+      if (refreshedTokens) {
+        // Forward the new cookie to this request too, so the Server
+        // Components rendered right after this middleware see a valid
+        // access token instead of the stale one that triggered the refresh.
+        request.cookies.set(ACCESS_TOKEN_COOKIE, refreshedTokens.accessToken)
+        request.cookies.set(REFRESH_TOKEN_COOKIE, refreshedTokens.refreshToken)
+      }
+    }
+  }
+
   // Forward the pathname to server components (layout.tsx route guards read
   // it via headers()) since there's no other reliable way to get it there.
   const requestHeaders = tenantHeaders(request)
   requestHeaders.set("x-pathname", pathname)
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  if (refreshedTokens) {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, refreshedTokens.accessToken, authCookieAttributes(ACCESS_TOKEN_MAX_AGE_SECONDS))
+    response.cookies.set(REFRESH_TOKEN_COOKIE, refreshedTokens.refreshToken, authCookieAttributes(REFRESH_TOKEN_MAX_AGE_SECONDS))
+  }
+  return response
 }
 
 export const config = {

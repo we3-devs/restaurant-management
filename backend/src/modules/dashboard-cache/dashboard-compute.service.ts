@@ -104,10 +104,30 @@ export class DashboardComputeService {
    * Revenue-bearing orders only: excludes cancelled orders AND orders that
    * haven't been paid yet, since revenue should reflect money actually
    * collected, not orders merely placed.
+   *
+   * A "credit" payment settles the order (payment_status can reach 'paid')
+   * but isn't money collected yet — it's a charge to the customer's tab,
+   * settled later via POST /customer-credit/settlements. Joins each order's
+   * completed credit-payment total here so callers can subtract it from
+   * grand_total, instead of counting the charge as revenue the moment it's
+   * put on the tab.
    */
   private ordersInRange(range: ResolvedRange) {
     const qb = this.ordersRepository
       .createQueryBuilder('order')
+      .leftJoin(
+        (subQuery) =>
+          subQuery
+            .select('payment.order_id', 'orderId')
+            .addSelect('SUM(payment.amount)', 'amount')
+            .from('order_payments', 'payment')
+            .where("payment.method = 'credit'")
+            .andWhere("payment.type = 'payment'")
+            .andWhere("payment.status = 'completed'")
+            .groupBy('payment.order_id'),
+        'credit_payments',
+        'credit_payments."orderId" = order.id',
+      )
       .where('order.created_at BETWEEN :from AND :to', {
         from: range.from,
         to: range.to,
@@ -120,39 +140,103 @@ export class DashboardComputeService {
     return qb;
   }
 
+  /** grand_total net of whatever portion of the order was charged to a customer's credit tab rather than actually collected. */
+  private static readonly COLLECTED_TOTAL_SQL =
+    'order.grand_total - COALESCE(credit_payments.amount, 0)';
+
+  /**
+   * Credit settlements collected in range, scoped the same way ordersInRange
+   * is. Stored as a negative delta on the account ledger (see
+   * CustomerCreditService#settleDebt), so this flips the sign back to a
+   * positive amount actually received. Not tied to an order — it's real
+   * cash coming in for whatever the customer previously charged to their
+   * tab, recognized as revenue on the day it's actually collected rather
+   * than the day the original order was placed.
+   */
+  private settlementsInRange(range: ResolvedRange) {
+    const qb = this.ordersRepository.manager
+      .createQueryBuilder()
+      .from('customer_credit_transactions', 'settlement')
+      .where("settlement.type = 'settlement'")
+      .andWhere('settlement.created_at BETWEEN :from AND :to', {
+        from: range.from,
+        to: range.to,
+      });
+    if (range.outletId !== undefined) {
+      qb.andWhere('settlement.outlet_id = :outletId', {
+        outletId: range.outletId,
+      });
+    }
+    return qb;
+  }
+
   private async getSalesOverview(
     range: ResolvedRange,
   ): Promise<DashboardSummary['salesOverview']> {
-    const row = await this.ordersInRange(range)
-      .select('COUNT(*)', 'orderCount')
-      .addSelect('COALESCE(SUM(order.grand_total), 0)', 'grandTotal')
-      .getRawOne<{ orderCount: string; grandTotal: string }>();
+    const [row, settlementRow] = await Promise.all([
+      this.ordersInRange(range)
+        .select('COUNT(*)', 'orderCount')
+        .addSelect(
+          `COALESCE(SUM(${DashboardComputeService.COLLECTED_TOTAL_SQL}), 0)`,
+          'grandTotal',
+        )
+        .getRawOne<{ orderCount: string; grandTotal: string }>(),
+      this.settlementsInRange(range)
+        .select('COALESCE(SUM(-settlement.amount), 0)', 'amount')
+        .getRawOne<{ amount: string }>(),
+    ]);
 
     const orderCount = Number(row?.orderCount ?? 0);
-    const grandTotal = Number(row?.grandTotal ?? 0);
+    const collectedFromOrders = Number(row?.grandTotal ?? 0);
+    const settled = Number(settlementRow?.amount ?? 0);
     return {
       orderCount,
-      grandTotal,
-      avgOrderValue: orderCount > 0 ? grandTotal / orderCount : 0,
+      grandTotal: collectedFromOrders + settled,
+      // Kept order-only: a settlement isn't a new order, so folding it in
+      // here would understate/overstate the average for reasons that have
+      // nothing to do with order size.
+      avgOrderValue: orderCount > 0 ? collectedFromOrders / orderCount : 0,
     };
   }
 
   private async getRevenueTrend(
     range: ResolvedRange,
   ): Promise<DashboardSummary['revenueTrend']> {
-    const rows = await this.ordersInRange(range)
-      .select("TO_CHAR(order.created_at, 'YYYY-MM-DD')", 'date')
-      .addSelect('COUNT(*)', 'orderCount')
-      .addSelect('COALESCE(SUM(order.grand_total), 0)', 'grandTotal')
-      .groupBy('date')
-      .orderBy('date', 'ASC')
-      .getRawMany<{ date: string; orderCount: string; grandTotal: string }>();
+    const [rows, settlementRows] = await Promise.all([
+      this.ordersInRange(range)
+        .select("TO_CHAR(order.created_at, 'YYYY-MM-DD')", 'date')
+        .addSelect('COUNT(*)', 'orderCount')
+        .addSelect(
+          `COALESCE(SUM(${DashboardComputeService.COLLECTED_TOTAL_SQL}), 0)`,
+          'grandTotal',
+        )
+        .groupBy('date')
+        .orderBy('date', 'ASC')
+        .getRawMany<{ date: string; orderCount: string; grandTotal: string }>(),
+      this.settlementsInRange(range)
+        .select("TO_CHAR(settlement.created_at, 'YYYY-MM-DD')", 'date')
+        .addSelect('COALESCE(SUM(-settlement.amount), 0)', 'amount')
+        .groupBy('date')
+        .getRawMany<{ date: string; amount: string }>(),
+    ]);
 
-    return rows.map((row) => ({
-      date: row.date,
-      orderCount: Number(row.orderCount),
-      grandTotal: Number(row.grandTotal),
-    }));
+    const byDate = new Map<string, { orderCount: number; grandTotal: number }>();
+    for (const row of rows) {
+      byDate.set(row.date, { orderCount: Number(row.orderCount), grandTotal: Number(row.grandTotal) });
+    }
+    for (const settlementRow of settlementRows) {
+      const existing = byDate.get(settlementRow.date);
+      const settled = Number(settlementRow.amount);
+      if (existing) {
+        existing.grandTotal += settled;
+      } else {
+        byDate.set(settlementRow.date, { orderCount: 0, grandTotal: settled });
+      }
+    }
+
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, totals]) => ({ date, ...totals }));
   }
 
   private async getOrdersOverview(

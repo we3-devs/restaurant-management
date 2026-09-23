@@ -14,6 +14,22 @@ function luminance(hex: string): number {
 }
 
 /**
+ * Admins can pick any brand colour with no regard for which theme it lands on —
+ * a dark navy brand colour used as a flat fill (chart rings, status dots)
+ * disappears against the dark theme's near-black surfaces, and a pale/white
+ * brand colour does the same against the light theme's near-white surfaces.
+ * Rather than partially blending (which still reads as murky at the extremes),
+ * swap straight to white or black once the brand colour is too close to the
+ * current theme's own background to read as a distinct fill.
+ */
+function ensureVisibleOnSurface(color: string, isDark: boolean): string {
+  const lum = luminance(color)
+  if (isDark && lum < 0.12) return "#ffffff"
+  if (!isDark && lum > 0.88) return "#111827"
+  return color
+}
+
+/**
  * Paints the admin's brand colour onto the theme's CSS custom properties.
  *
  * Set on documentElement.style rather than in a stylesheet so it outranks both
@@ -23,7 +39,7 @@ function luminance(hex: string): number {
  * Shades are derived with color-mix() rather than JS colour maths: the browser
  * interpolates in oklab, which keeps tints perceptually even.
  */
-export function applyBrandColor(color: string | null | undefined): void {
+export function applyBrandColor(color: string | null | undefined, isDark = false): void {
   if (typeof document === "undefined") return
 
   const root = document.documentElement
@@ -44,10 +60,11 @@ export function applyBrandColor(color: string | null | undefined): void {
     return
   }
 
-  root.style.setProperty("--primary", color)
+  const displayColor = ensureVisibleOnSurface(color, isDark)
+  root.style.setProperty("--primary", displayColor)
   root.style.setProperty(
     "--primary-foreground",
-    luminance(color) > 0.55 ? "#111827" : "#ffffff",
+    luminance(displayColor) > 0.55 ? "#111827" : "#ffffff",
   )
 
   // guest-web's palette (see its globals.css @theme block).

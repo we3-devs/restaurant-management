@@ -266,28 +266,65 @@ function isLastOpenOrderForSession(
   return confirmed
 }
 
+export interface UpdateOrderStatusInput {
+  status: string
+  note?: string
+  /** status="completed" only — closes the order out even with items that never reached 'served', voiding them instead. Requires orders.delete. See OrdersService#updateStatus. */
+  force?: boolean
+  /** status="completed" only — closes the order out even with items that never reached 'served', marking them served (not voided) instead, so the sale still charges for them. No extra permission required. `force` wins if both are set. See OrdersService#updateStatus. */
+  autoServe?: boolean
+}
+
 export function useUpdateOrderStatus(id: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (status: string) =>
-      apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }), headers: operationalMutationHeaders(options.closedHoursOverride) }),
+    mutationFn: (input: string | UpdateOrderStatusInput) => {
+      const body = typeof input === "string" ? { status: input } : input
+      return apiClient<Order>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify(body), headers: operationalMutationHeaders(options.closedHoursOverride) })
+    },
     // The status badge (POS header, order list, kitchen/waiter screens) flips
     // the instant staff tap the action instead of sitting on the old status
-    // until the round trip resolves — rolled back on error.
-    onMutate: async (status) => {
+    // until the round trip resolves — rolled back on error. Completing the
+    // last open order on a table session also frees the table the same
+    // instant (see patchDiningTableStatus) instead of waiting for the round
+    // trip — rolled back to 'occupied' if the request fails.
+    onMutate: async (input) => {
+      const status = typeof input === "string" ? input : input.status
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.detail(id) })
       const previous = queryClient.getQueryData<Order>(queryKeys.orders.detail(id))
       queryClient.setQueryData<Order>(queryKeys.orders.detail(id), (old) =>
         old ? { ...old, status } : old,
       )
-      return { previous }
+
+      let patchedDiningTableId: number | null = null
+      if (
+        status === "completed" &&
+        previous?.tableSessionId &&
+        isLastOpenOrderForSession(queryClient, previous.tableSessionId, id)
+      ) {
+        const diningTableId = findCachedDiningTableId(queryClient, previous.tableSessionId)
+        if (diningTableId !== null) {
+          patchDiningTableStatus(queryClient, diningTableId, "available")
+          patchedDiningTableId = diningTableId
+        }
+      }
+
+      return { previous, patchedDiningTableId }
     },
-    onError: (_err, _status, context) => {
+    onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.orders.detail(id), context.previous)
+      if (context?.patchedDiningTableId != null) {
+        patchDiningTableStatus(queryClient, context.patchedDiningTableId, "occupied")
+      }
     },
-    onSuccess: (order, status) => {
+    onSuccess: (order, input) => {
+      const status = typeof input === "string" ? input : input.status
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
+      // Force-completing can void items, which changes stock reservations —
+      // refresh the item list so the cart/kitchen views don't show stale
+      // 'stock_reserved'/'sent_to_kitchen' rows.
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(id) })
       // Completing a dine-in order can auto-end its table session server-side
       // (OrdersService#freeTableForCompletedOrder), freeing the table with it.
       // refetchType "all" because the floor board is usually unmounted at this

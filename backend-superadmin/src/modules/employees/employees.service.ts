@@ -115,14 +115,14 @@ export class EmployeesService {
     return this.toResponse(await this.findOne(employee.id));
   }
 
-  async update(id: number, dto: UpdateEmployeeDto): Promise<EmployeeResponseDto> {
+  async update(id: number, dto: UpdateEmployeeDto, updatedBy: number): Promise<EmployeeResponseDto> {
     const e = await this.findOne(id);
     if (dto.outletId !== undefined) await this.syncUserTenantToOutlet(dto.userId !== undefined ? dto.userId : e.userId, dto.outletId);
     await this.syncIdentityToUser(dto.userId !== undefined ? dto.userId : e.userId, dto.name, dto.email, dto.phone);
     const { outletId, ...employeeInput } = dto;
     Object.assign(e, employeeInput);
     const saved = await this.employeeRepo.save(e);
-    if (outletId !== undefined) await this.assignOutlet(saved.id, outletId, 0);
+    if (outletId !== undefined) await this.assignOutlet(saved.id, outletId, updatedBy);
     return this.toResponse(await this.findOne(saved.id));
   }
 

@@ -43,6 +43,7 @@ import { IngredientCategoriesModule } from './modules/ingredient-categories/ingr
 import { IngredientWastagesModule } from './modules/ingredient-wastages/ingredient-wastages.module';
 import { IngredientsModule } from './modules/ingredients/ingredients.module';
 import { InventoryStockModule } from './modules/inventory-stock/inventory-stock.module';
+import { InventoryKitsModule } from './modules/inventory-kits/inventory-kits.module';
 import { KitchenTicketsModule } from './modules/kitchen-tickets/kitchen-tickets.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { MenuModule } from './modules/menu/menu.module';
@@ -194,6 +195,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     IngredientCategoriesModule,
     IngredientsModule,
     InventoryStockModule,
+    InventoryKitsModule,
     StockInsModule,
     StockOutsModule,
     StockTransfersModule,

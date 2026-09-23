@@ -17,6 +17,7 @@ interface WriteTransactionInput {
   customerId: number;
   orderId?: number;
   userId?: number;
+  outletId?: number;
   type: CustomerCreditTransactionType;
   amount: number;
   notes?: string;
@@ -81,6 +82,7 @@ export class CustomerCreditService {
         customerId: input.customerId,
         orderId: input.orderId ?? null,
         userId: input.userId ?? null,
+        outletId: input.outletId ?? null,
         type: input.type,
         amount: input.amount,
         balanceAfter: newBalance,
@@ -114,7 +116,7 @@ export class CustomerCreditService {
   async chargeCredit(
     customerId: number,
     amount: number,
-    opts: { orderId?: number; userId?: number; notes?: string } = {},
+    opts: { orderId?: number; userId?: number; outletId?: number; notes?: string } = {},
   ): Promise<CustomerCreditTransaction> {
     if (amount <= 0) {
       throw new BadRequestException('Charge amount must be positive');
@@ -124,6 +126,7 @@ export class CustomerCreditService {
         customerId,
         orderId: opts.orderId,
         userId: opts.userId,
+        outletId: opts.outletId,
         type: 'charge',
         amount,
         notes: opts.notes,
@@ -136,11 +139,18 @@ export class CustomerCreditService {
     return transaction;
   }
 
-  /** Customer pays down some or all of their outstanding balance, independent of any single order. */
+  /**
+   * Customer pays down some or all of their outstanding balance, independent
+   * of any single order. `outletId` is the outlet the settlement was taken
+   * at (the staff member's active outlet) — it's what lets this settlement
+   * count as revenue for that outlet once it's actually collected, since the
+   * original credit charge deliberately doesn't (see AnalyticsService#overview).
+   */
   async settleDebt(
     customerId: number,
     amount: number,
     userId: number,
+    outletId: number,
     notes?: string,
   ): Promise<CustomerCreditTransaction> {
     if (amount <= 0) {
@@ -162,6 +172,7 @@ export class CustomerCreditService {
       this.writeTransaction(manager, {
         customerId,
         userId,
+        outletId,
         type: 'settlement',
         amount: -amount,
         notes,
@@ -218,6 +229,7 @@ export class CustomerCreditService {
         customerId: charge.customerId,
         orderId,
         userId: userId ?? undefined,
+        outletId: charge.outletId ?? undefined,
         type: 'refund_reversal',
         amount: -charge.amount,
       }),
@@ -226,7 +238,7 @@ export class CustomerCreditService {
 
   async findAccounts(
     query: ListCustomerCreditAccountsQueryDto,
-  ): Promise<PaginatedResponse<CustomerCreditAccount & { customerName?: string }>> {
+  ): Promise<PaginatedResponse<CustomerCreditAccount & { customerName?: string; customerPhone?: string }>> {
     const { page, limit, search } = query;
     const qb = this.accountsRepository
       .createQueryBuilder('account')
@@ -250,6 +262,7 @@ export class CustomerCreditService {
     const data = rows.entities.map((entity, index) => ({
       ...entity,
       customerName: rows.raw[index]?.customerName as string | undefined,
+      customerPhone: rows.raw[index]?.customerPhone as string | undefined,
     }));
 
     return {

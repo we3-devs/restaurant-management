@@ -63,8 +63,17 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
   // The proxy normally refreshes server-side. This fallback covers an
   // already-returned 401 and collapses simultaneous expired requests into a
   // single refresh/rotation before replaying the original request once.
-  if (response.status === 401 && await refreshStaffSession()) {
-    response = await request()
+  if (response.status === 401) {
+    if (await refreshStaffSession()) {
+      response = await request()
+    } else if (typeof window !== "undefined") {
+      // Refresh token is gone/expired too — there's no session to recover.
+      // The client-side auth context has no way to react to this on its
+      // own, so force a hard navigation to drop stale state and hit the
+      // login page's own session check.
+      window.location.href = "/login"
+      return new Promise<T>(() => {})
+    }
   }
 
   if (!response.ok) {

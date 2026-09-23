@@ -215,6 +215,7 @@ export class OrderPaymentsService {
         await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {
           orderId,
           userId: receivedBy,
+          outletId: saved.outletId,
           notes: `Order ${order.orderNumber}`,
         });
       } catch (error) {

@@ -556,6 +556,33 @@ export class KitchenTicketsService {
   }
 
   /**
+   * Called by OrdersService.removeItem() *before* it hard-deletes an
+   * OrderItem — the delete cascades to this item's kitchen_ticket_items row
+   * at the DB level, so the ticket link has to be captured first or there's
+   * nothing left afterward to recompute against.
+   */
+  async findTicketIdForOrderItem(orderItemId: number): Promise<number | null> {
+    const ticketItem = await this.ticketItemsRepository.findOne({
+      where: { orderItemId },
+    });
+    return ticketItem?.ticketId ?? null;
+  }
+
+  /**
+   * Called by OrdersService.removeItem()/voidItem() after they delete/cancel
+   * an OrderItem directly — those paths bypass updateItemStatus() and
+   * transitionItems(), which are otherwise the only places that recompute a
+   * ticket's status and push the KDS update. Without this, a ticket whose
+   * last active item was removed/voided never leaves 'open'/'in_progress'
+   * and the kitchen queue shows a ticket that should have disappeared.
+   * Safe on a ticket with no items left — recomputeTicketStatus() closes it.
+   */
+  async recomputeAndNotifyTicket(ticketId: number): Promise<void> {
+    const ticket = await this.recomputeTicketStatus(ticketId);
+    this.gateway.notifyTicketUpdated(await this.toPushPayload(ticket.id));
+  }
+
+  /**
    * Reloads a ticket with every display relation and maps it for the wire.
    * Push payloads must be fully hydrated: the KDS appends a pushed
    * 'created' ticket straight onto its board, so emitting the bare entity a

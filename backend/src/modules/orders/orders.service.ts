@@ -281,7 +281,7 @@ export class OrdersService {
     if (fromStatus !== 'served' && fromStatus !== 'partially_served') return;
 
     order.status = 'accepted';
-    await this.ordersRepository.save(order);
+    const saved = await this.ordersRepository.save(order);
     await this.orderStatusHistoriesRepository.save(
       this.orderStatusHistoriesRepository.create({
         orderId,
@@ -291,6 +291,7 @@ export class OrdersService {
         note: reason,
       }),
     );
+    this.gateway.notifyOrderStatusChanged(saved);
   }
 
   /** Called by KitchenTicketsService after any item-level change — pushes the current order to the guest's own room if it's a guest order (no-op otherwise). */
@@ -820,9 +821,35 @@ export class OrdersService {
       dto.status === 'completed' &&
       (await this.orderItemsRepository.count({ where: { orderId: id } })) === 0;
 
+    // Staff-acknowledged override for closing out a table whose items never
+    // all reached 'served' (a guest walked out, a staff mis-fire, etc.) —
+    // gated behind orders.delete in the controller since, like a
+    // cancellation, it's discretionary and voids real items rather than
+    // just skipping a status hop.
+    const forceComplete =
+      dto.status === 'completed' &&
+      dto.force === true &&
+      fromStatus !== 'completed' &&
+      fromStatus !== 'cancelled';
+
+    // The non-destructive sibling of forceComplete: closes the sale without
+    // requiring every item to have gone through the normal serve step, but
+    // — unlike force — keeps the charge and the stock consumption, since
+    // the items were still actually sold. `force` wins if both are somehow
+    // set (see UpdateOrderStatusDto). No orders.delete gate: nothing here
+    // is destructive or hard-to-reverse the way voiding/cancelling is.
+    const autoServeCompletion =
+      dto.status === 'completed' &&
+      dto.autoServe === true &&
+      !forceComplete &&
+      fromStatus !== 'completed' &&
+      fromStatus !== 'cancelled';
+
     if (
       dto.status !== fromStatus &&
       !isEmptyPendingCompletion &&
+      !forceComplete &&
+      !autoServeCompletion &&
       !ORDER_STATUS_TRANSITIONS[fromStatus].includes(dto.status)
     ) {
       throw new ConflictException(
@@ -838,6 +865,40 @@ export class OrdersService {
       throw new BadRequestException(
         'Completing an order requires a staff actor',
       );
+    }
+
+    if (forceComplete) {
+      // Void (not delete) every item that never reached 'served' — same as
+      // OrderItemsController's void action, so reservations are released and
+      // the item's history stays on the record instead of leaving it
+      // permanently stuck in an open status with stock locked against it.
+      const unservedItems = await this.orderItemsRepository.find({
+        where: { orderId: id, status: Not(In(['served', 'cancelled'])) },
+      });
+      for (const item of unservedItems) {
+        await this.voidItem(
+          item.id,
+          dto.note?.trim() || 'Force-completed without full service',
+        );
+      }
+      Object.assign(order, await this.findOne(id));
+    }
+
+    if (autoServeCompletion) {
+      // Flip straight to 'served' rather than voiding — the item's
+      // reservation still gets consumed as a normal sale by
+      // consumeReservationsForOrder below (it only cares that a 'reserved'
+      // row exists, not which stage the item was at), and its price stays
+      // on the bill. Must happen before order.status below flips to
+      // 'completed': the orders_lock_completed DB trigger freezes
+      // order_items the instant that save lands, same reasoning as
+      // KitchenTicketsService#closeAllForOrder deliberately not touching
+      // order_items after the fact.
+      await this.orderItemsRepository.update(
+        { orderId: id, status: Not(In(['served', 'cancelled'])) },
+        { status: 'served' },
+      );
+      Object.assign(order, await this.findOne(id));
     }
 
     // Repair totals before the completion check. Payment creation and order
@@ -902,6 +963,7 @@ export class OrdersService {
 
     const saved = await this.ordersRepository.save(order);
     this.gateway.notifyGuestOrderChanged(saved);
+    this.gateway.notifyOrderStatusChanged(saved);
 
     await this.orderStatusHistoriesRepository.save(
       this.orderStatusHistoriesRepository.create({
@@ -1300,7 +1362,16 @@ export class OrdersService {
     const completed: Order[] = [];
     for (const order of payable) {
       completed.push(
-        await this.updateStatus(order.id, { status: 'completed' }, changedBy),
+        // autoServe: closing out a whole table shouldn't require staff to
+        // have separately marked every order's every item served first —
+        // same reasoning as the single-order "Complete sale" button (see
+        // CheckoutPanel#handleCompleteSale). It's a no-op wherever an order
+        // is already fully served.
+        await this.updateStatus(
+          order.id,
+          { status: 'completed', autoServe: true },
+          changedBy,
+        ),
       );
     }
     return completed;
@@ -2037,22 +2108,18 @@ export class OrdersService {
   }
 
   /**
-   * Hard delete is only safe while the item is still 'stock_reserved' —
-   * nothing downstream (kitchen ticket, prep, guest tracker) has seen it
-   * yet. Once it's been sent to the kitchen, deleting the row would erase
-   * the kitchen's record of it without a trace; void it instead (see
-   * voidItem) so the removal is auditable and reason-carrying.
+   * Hard delete — gated by the orders.delete permission (see
+   * OrderItemsController#remove), unlike void which any orders.manage
+   * holder can do. That higher bar is what makes it safe to allow here even
+   * after the item has been sent to the kitchen/bar and is being prepared,
+   * not just while it's still 'stock_reserved'; kitchen_ticket_items rows
+   * for it cascade-delete at the DB level (see KitchenTicketItem#orderItem).
    */
   async removeItem(id: number): Promise<void> {
     const item = await this.findItem(id);
     const order = await this.findOne(item.orderId);
     await this.operatingHoursService.assertOperational(order.outletId);
     OrdersService.assertMutable(order);
-    if (item.status !== 'stock_reserved') {
-      throw new ConflictException(
-        `Item ${id} has already been sent to the kitchen (status: ${item.status}) and can no longer be deleted — void it instead`,
-      );
-    }
     const reservations = await this.reservationsRepository.find({
       where: { orderItemId: id, status: 'reserved' },
     });
@@ -2063,8 +2130,15 @@ export class OrdersService {
         -reservation.reservedQuantity,
       );
     }
+    // Captured before the delete cascades away the kitchen_ticket_items row
+    // (see removeItem's own doc comment above) — otherwise there's nothing
+    // left afterward to tell which ticket needs recomputing.
+    const ticketId = await this.kitchenTicketsService.findTicketIdForOrderItem(id);
     await this.orderItemsRepository.remove(item);
     await this.recalculateTotals(item.orderId);
+    if (ticketId !== null) {
+      await this.kitchenTicketsService.recomputeAndNotifyTicket(ticketId);
+    }
   }
 
   /**
@@ -2095,6 +2169,14 @@ export class OrdersService {
     item.cancelReason = reason;
     const saved = await this.orderItemsRepository.save(item);
     await this.recalculateTotals(item.orderId);
+    // This item may already have a kitchen ticket (voidItem is the
+    // post-kitchen path, per its doc comment above) — updateItemStatus()/
+    // transitionItems() are the only other places that recompute a ticket's
+    // status and push the KDS update, and this bypasses both of them.
+    const ticketId = await this.kitchenTicketsService.findTicketIdForOrderItem(id);
+    if (ticketId !== null) {
+      await this.kitchenTicketsService.recomputeAndNotifyTicket(ticketId);
+    }
     return saved;
   }
 

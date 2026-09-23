@@ -55,7 +55,7 @@ export function OperationalChrome({
                 <HeaderPortalSwitcher current="staff" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <ThemeToggle />
-                <NotificationBell realtimeToast={false} pushApp="operational" />
+                <NotificationBell pushApp="operational" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
                 <UserMenu />
               </div>

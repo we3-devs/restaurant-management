@@ -18,6 +18,7 @@ export interface CustomerCreditAccount {
   lifetimeCharged: number
   lifetimeSettled: number
   customerName?: string
+  customerPhone?: string
   createdAt: string
   updatedAt: string
 }
@@ -27,6 +28,7 @@ export interface CustomerCreditTransaction {
   customerId: number
   orderId: number | null
   userId: number | null
+  outletId: number | null
   type: CustomerCreditTransactionType
   amount: number
   balanceAfter: number

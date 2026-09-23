@@ -115,6 +115,13 @@ export function useKitchenRealtime(outletId: number | null): void {
       }
     }
     const onServiceRequestCreated = () => invalidateService()
+    // Covers order-status changes made outside any kitchen-ticket item
+    // transition (cancel, complete, force-complete, reopening a served order
+    // for a new round of items) — those never touch order_items so no
+    // kitchen.ticket.*/kitchen.item.* event fires, and without this a second
+    // screen watching the same order (another POS tab, the floor board)
+    // would only pick up the change on its next unrelated refetch.
+    const onOrderStatusUpdated = () => invalidateOrders()
 
     socket.on("connect", subscribe)
     socket.on("kitchen.ticket.created", onTicketCreated)
@@ -122,6 +129,7 @@ export function useKitchenRealtime(outletId: number | null): void {
     socket.on("kitchen.item.updated", onItemUpdated)
     socket.on("notification.created", onNotificationCreated)
     socket.on("service_request.created", onServiceRequestCreated)
+    socket.on("order.status.updated", onOrderStatusUpdated)
     if (socket.connected) subscribe()
 
     return () => {
@@ -131,6 +139,7 @@ export function useKitchenRealtime(outletId: number | null): void {
       socket.off("kitchen.item.updated", onItemUpdated)
       socket.off("notification.created", onNotificationCreated)
       socket.off("service_request.created", onServiceRequestCreated)
+      socket.off("order.status.updated", onOrderStatusUpdated)
       releaseKdsSocket()
     }
   }, [outletId, queryClient])

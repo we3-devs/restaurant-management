@@ -277,7 +277,30 @@ export class AnalyticsService {
     // `orders`, `outstanding` and `customers` intentionally stay on `base`
     // (all non-cancelled orders) since those track order volume / amounts
     // still owed rather than revenue.
-    const paidBase = base.clone().andWhere("o.payment_status = 'paid'");
+    //
+    // A "credit" payment settles the order (payment_status can reach 'paid')
+    // but isn't money collected yet — it's a charge to the customer's tab,
+    // settled later via POST /customer-credit/settlements. This join gives
+    // every revenue sum below the order's completed-credit-payment total so
+    // it can be subtracted out, instead of counting a credit charge as
+    // revenue the moment it's put on the tab.
+    const paidBase = base
+      .clone()
+      .andWhere("o.payment_status = 'paid'")
+      .leftJoin(
+        (sub) =>
+          sub
+            .select('p.order_id', 'orderId')
+            .addSelect('SUM(p.amount)', 'amount')
+            .from('order_payments', 'p')
+            .where("p.method = 'credit'")
+            .andWhere("p.type = 'payment'")
+            .andWhere("p.status = 'completed'")
+            .groupBy('p.order_id'),
+        'credit_payments',
+        'credit_payments."orderId" = o.id',
+      );
+    const collected = 'o.grand_total - COALESCE(credit_payments.amount,0)';
     const [row, salesRow] = await Promise.all([
       base
         .clone()
@@ -291,9 +314,9 @@ export class AnalyticsService {
       paidBase
         .clone()
         .select('COUNT(*)', 'paidOrders')
-        .addSelect('COALESCE(SUM(o.grand_total),0)', 'grossSales')
+        .addSelect(`COALESCE(SUM(${collected}),0)`, 'grossSales')
         .addSelect(
-          'COALESCE(SUM(o.subtotal - o.discount_amount + o.service_charge_amount + o.tax_amount - o.refunded_amount),0)',
+          'COALESCE(SUM(o.subtotal - o.discount_amount + o.service_charge_amount + o.tax_amount - o.refunded_amount - COALESCE(credit_payments.amount,0)),0)',
           'netSales',
         )
         .addSelect('COALESCE(SUM(o.discount_amount),0)', 'discounts')
@@ -308,20 +331,68 @@ export class AnalyticsService {
     ]);
     Object.assign(row, salesRow);
     const orders = n(row?.orders);
-    const trend = await paidBase
+
+    // Credit settlements collected in range: real cash coming in for
+    // whatever was previously charged to a customer's tab, recognized as
+    // revenue on the day it's actually collected rather than the original
+    // order's date — see ordersInRange/paidBase's comment above for why the
+    // charge itself is excluded. Not tied to an order, so it has no
+    // order_source/order_type to fold into `sources`/`types`.
+    const settlementsBase = () => {
+      const qb = this.orders.manager
+        .createQueryBuilder()
+        .from('customer_credit_transactions', 's')
+        .where("s.type = 'settlement'")
+        .andWhere('s.created_at BETWEEN :from AND :to', {
+          from: scope.from,
+          to: scope.to,
+        });
+      if (scope.outlets !== ALL_OUTLETS)
+        qb.andWhere('s.outlet_id IN (:...outletIds)', {
+          outletIds: Array.isArray(scope.outlets)
+            ? scope.outlets
+            : [scope.outlets],
+        });
+      return qb;
+    };
+    const [settlementTotalRow, settlementTrendRows] = await Promise.all([
+      settlementsBase()
+        .select('COALESCE(SUM(-s.amount),0)', 'amount')
+        .getRawOne<{ amount: string }>(),
+      settlementsBase()
+        .select("TO_CHAR(s.created_at, 'YYYY-MM-DD')", 'date')
+        .addSelect('COALESCE(SUM(-s.amount),0)', 'amount')
+        .groupBy('date')
+        .getRawMany<{ date: string; amount: string }>(),
+    ]);
+    const settlementTotal = n(settlementTotalRow?.amount);
+
+    const orderTrend = await paidBase
       .clone()
       .select("TO_CHAR(o.created_at, 'YYYY-MM-DD')", 'date')
       .addSelect('COUNT(*)', 'orders')
-      .addSelect('COALESCE(SUM(o.grand_total),0)', 'revenue')
+      .addSelect(`COALESCE(SUM(${collected}),0)`, 'revenue')
       .groupBy('date')
       .orderBy('date')
       .getRawMany();
+    const trendByDate = new Map<string, { orders: number; revenue: number }>();
+    for (const x of orderTrend) trendByDate.set(x.date, { orders: n(x.orders), revenue: n(x.revenue) });
+    for (const x of settlementTrendRows) {
+      const existing = trendByDate.get(x.date);
+      const settled = n(x.amount);
+      if (existing) existing.revenue += settled;
+      else trendByDate.set(x.date, { orders: 0, revenue: settled });
+    }
+    const trend = [...trendByDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, totals]) => ({ date, ...totals }));
+
     const [sources, types, payments, itemRow] = await Promise.all([
       paidBase
         .clone()
         .select('o.order_source', 'name')
         .addSelect('COUNT(*)', 'orders')
-        .addSelect('COALESCE(SUM(o.grand_total),0)', 'revenue')
+        .addSelect(`COALESCE(SUM(${collected}),0)`, 'revenue')
         .groupBy('o.order_source')
         .getRawMany(),
       base
@@ -358,9 +429,12 @@ export class AnalyticsService {
     return {
       range: { from: scope.from, to: scope.to },
       kpis: {
-        grossSales: n(row?.grossSales),
-        netSales: n(row?.netSales),
+        grossSales: n(row?.grossSales) + settlementTotal,
+        netSales: n(row?.netSales) + settlementTotal,
         orders,
+        // Order-only (excludes settlements — a settlement isn't a new
+        // order, so folding it in would understate/overstate this for
+        // reasons that have nothing to do with order size).
         averageOrderValue: n(row?.paidOrders)
           ? n(row?.grossSales) / n(row?.paidOrders)
           : 0,
@@ -373,11 +447,7 @@ export class AnalyticsService {
         outstanding: n(row?.outstanding),
         loyaltyDiscount: n(row?.loyaltyDiscount),
       },
-      trend: trend.map((x) => ({
-        date: x.date,
-        orders: n(x.orders),
-        revenue: n(x.revenue),
-      })),
+      trend,
       orderMix: {
         sources: sources.map((x) => ({
           name: x.name,
