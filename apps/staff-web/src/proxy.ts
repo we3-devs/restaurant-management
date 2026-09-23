@@ -42,10 +42,19 @@ interface RefreshedTokens {
 // whole chain on reuse (theft detection) — without this, a page navigation's
 // parallel RSC/prefetch requests would each try to redeem the same token and
 // the loser would get its session killed instead of just refreshed.
-let refreshInFlight: { key: string; promise: Promise<RefreshedTokens | null> } | null = null
+//
+// Keyed by token (a Map, not a single slot): this instance serves every
+// logged-in staff member concurrently, and a single-slot version would get
+// clobbered the moment a second user's refresh landed mid-flight — a third
+// request for the first user would then no longer find its own entry, fire a
+// second concurrent redemption of the same already-in-flight token, and trip
+// the same reuse-detection that kills the whole session chain. That's the
+// randomly-timed session death this map exists to prevent.
+const refreshInFlight = new Map<string, Promise<RefreshedTokens | null>>()
 
 async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
-  if (refreshInFlight?.key === refreshToken) return refreshInFlight.promise
+  const existing = refreshInFlight.get(refreshToken)
+  if (existing) return existing
   const promise = fetch(`${BACKEND_URL}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -55,9 +64,9 @@ async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | nu
     .then((response) => (response.ok ? (response.json() as Promise<RefreshedTokens>) : null))
     .catch(() => null)
     .finally(() => {
-      if (refreshInFlight?.promise === promise) refreshInFlight = null
+      refreshInFlight.delete(refreshToken)
     })
-  refreshInFlight = { key: refreshToken, promise }
+  refreshInFlight.set(refreshToken, promise)
   return promise
 }
 
