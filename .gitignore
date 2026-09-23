@@ -118,3 +118,6 @@ launcher.bat
 /backend-superadmin/uploads/*
 !/backend-superadmin/uploads/.gitkeep
 
+
+# TypeORM migrations + baseline schema dump (kept out of version control).
+/typeorm/

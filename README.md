@@ -5,10 +5,25 @@ frontends under `apps/` (`guest-web`, `staff-web`, `superadmin-web`) with shared
 packages under `packages/`.
 
 The Postgres schema originated as a migration from a Laravel/Inertia app, which is no longer
-part of this project. The incremental migrations in `backend/src/database/migrations/` build on
-that inherited base schema rather than creating it, so a brand-new empty database cannot yet be
-built from this repo alone -- it has to be cloned from an existing one. The app always runs with
-`synchronize: false`; schema changes go through a migration, never through entity sync.
+part of this project. It is now captured in full by `1782300000000-BaselineSchema.ts` (125 tables,
+loaded from an adjacent `sql/` dump), which squashed 131 incremental migrations -- those are kept
+for history under `_archive/` and are not runnable on their own, since they assumed the inherited
+base schema the baseline replaces.
+
+**Migrations live in `/typeorm/` at the repo root, and that folder is gitignored.** It is not in
+version control, so a fresh clone has no schema and `migration:run` will find nothing -- obtain
+the folder out of band before provisioning a database. Because it sits outside the backend
+package it cannot resolve the `typeorm` package, so migrations there must avoid importing it;
+the baseline declares a structural `QueryRunnerLike` instead.
+
+The app always runs with `synchronize: false`, and the entities do NOT match the schema: running
+`migration:generate` against a correct database produces thousands of statements, including
+`DROP COLUMN tenant_id` on 68 tables. Never apply generated output wholesale -- hand-write schema
+changes as migrations instead.
+
+Migrations need a session-mode connection. The Supabase pooler port in `.env` (6543) is
+transaction mode, which `pg_dump` and some DDL cannot use -- run migration commands against port
+5432.
 
 ## Prerequisites
 

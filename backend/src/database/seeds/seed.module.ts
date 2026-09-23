@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TimestampSubscriber } from '../../common/subscribers/timestamp.subscriber';
+import { TenantModule } from '../../common/tenant/tenant.module';
 import { WsTicketsModule } from '../../common/ws-tickets/ws-tickets.module';
 import configuration, { AppConfig } from '../../config/configuration';
 import { validate } from '../../config/env.validation';
@@ -21,6 +22,11 @@ import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
     CacheModule.register({ isGlobal: true }),
+    // @Global, so importing it here makes TenantContext resolvable by every
+    // tenant-scoped service the seed pulls in (OutletsService and friends).
+    // app.module.ts imports it for the running app; without it here the seed
+    // dies on "Nest can't resolve dependencies of the OutletsService".
+    TenantModule,
     WsTicketsModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -34,7 +40,11 @@ import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
           username: dbConfig.username,
           password: dbConfig.password,
           synchronize: false,
-          autoLoadEntities: true,
+          // Glob every entity rather than autoLoadEntities, which only
+          // registers what the imported modules declare via forFeature —
+          // relations reaching outside that subset (Attendance#shift) then
+          // fail metadata resolution. Mirrors data-source.ts's own glob.
+          entities: ['src/modules/**/*.entity.ts'],
           migrationsTableName: 'typeorm_migrations',
           subscribers: [TimestampSubscriber],
         };

@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
@@ -15,7 +16,10 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD ?? '',
   synchronize: false,
   entities: ['src/modules/**/*.entity.ts'],
-  migrations: ['src/database/migrations/*.ts'],
+  // Migrations live in the repo-root typeorm/ folder (gitignored), outside the
+  // backend package entirely. Resolved from __dirname rather than a
+  // cwd-relative glob so the CLI works regardless of the invoking directory.
+  migrations: [join(__dirname, '..', '..', '..', 'typeorm', 'migrations', '*.ts')],
   // The Laravel schema already owns a "migrations" table (its own tracker,
   // incompatible schema) — TypeORM must track its own migrations elsewhere.
   migrationsTableName: 'typeorm_migrations',
