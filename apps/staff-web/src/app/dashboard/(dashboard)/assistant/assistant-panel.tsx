@@ -40,11 +40,7 @@ export function AssistantPanel() {
 		try {
 			const result = await apiClient<ChatResult>("/assistant/chat", {
 				method: "POST",
-				body: JSON.stringify({
-					question: trimmed,
-					outletId: outletId ?? undefined,
-					history: messages.slice(-6).map((item) => ({ role: item.role, text: item.text })),
-				}),
+				body: JSON.stringify({ question: trimmed, outletId: outletId ?? undefined }),
 			});
 			setMessages((current) => [...current, { id: Date.now() + 1, role: "assistant", text: result.answer, route: result.route }]);
 		} catch (error) {
