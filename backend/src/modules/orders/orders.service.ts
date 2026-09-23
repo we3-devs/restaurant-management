@@ -77,9 +77,22 @@ export interface OrderItemWithRelations extends OrderItem {
   reservations: OrderItemIngredientReservation[];
 }
 
-export type OrderListResponse = Omit<Order, 'tableSession' | 'customer'> & {
+/** Shown in place of a staff name when created_by is null — i.e. the guest ordered for themselves over QR/online. */
+export const GUEST_ORDERED_BY = 'Guest';
+
+export type OrderListResponse = Omit<
+  Order,
+  'tableSession' | 'customer' | 'createdByUser'
+> & {
   tableName: string | null;
   customerName: string | null;
+  /** Who placed the order — the staff user behind created_by, or 'Guest' for self-ordered QR/online orders where created_by is null. */
+  orderedByName: string;
+};
+
+export type OrderDetailResponse = Omit<Order, 'createdByUser'> & {
+  /** See OrderListResponse#orderedByName. */
+  orderedByName: string;
 };
 
 function round2(value: number): number {
@@ -200,7 +213,11 @@ export class OrdersService {
 
     const [orders, total] = await this.ordersRepository.findAndCount({
       where,
-      relations: { tableSession: { diningTable: true }, customer: true },
+      relations: {
+        tableSession: { diningTable: true },
+        customer: true,
+        createdByUser: true,
+      },
       select: {
         id: true,
         outletId: true,
@@ -230,6 +247,8 @@ export class OrdersService {
         updatedAt: true,
         customer: { id: true, name: true },
         tableSession: { id: true, diningTable: { id: true, name: true } },
+        createdBy: true,
+        createdByUser: { id: true, name: true },
       },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
@@ -237,10 +256,11 @@ export class OrdersService {
     });
 
     return {
-      data: orders.map(({ tableSession, customer, ...order }) => ({
+      data: orders.map(({ tableSession, customer, createdByUser, ...order }) => ({
         ...order,
         tableName: tableSession?.diningTable?.name ?? null,
         customerName: customer?.name ?? null,
+        orderedByName: createdByUser?.name ?? GUEST_ORDERED_BY,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
@@ -253,6 +273,23 @@ export class OrdersService {
       throw new NotFoundException(`Order ${id} not found`);
     }
     return order;
+  }
+
+  /**
+   * findOne plus the staff user behind created_by, for the order detail
+   * screen. Kept separate from findOne so the many internal callers that
+   * only need the row don't pay for the join.
+   */
+  async findOneWithOrderedBy(id: number): Promise<OrderDetailResponse> {
+    const order = await this.ordersRepository.findOne({
+      where: { id },
+      relations: { createdByUser: true },
+    });
+    if (!order) {
+      throw new NotFoundException(`Order ${id} not found`);
+    }
+    const { createdByUser, ...rest } = order;
+    return { ...rest, orderedByName: createdByUser?.name ?? GUEST_ORDERED_BY };
   }
 
   /** Every recorded status transition for an order, oldest first — written by updateStatus/reopenForNewItems, never previously read anywhere. */

@@ -36,6 +36,8 @@ export interface Order {
   orderType: string
   tableName?: string | null
   customerName?: string | null
+  /** Who placed the order — staff name from createdBy, or "Guest" for self-ordered QR/online orders. Absent on payloads that predate the field. */
+  orderedByName?: string | null
   /** Who placed it: walk_in/phone/online/staff/other. */
   source: string
   /** Which surface it came through: pos/qr/waiter/online. */

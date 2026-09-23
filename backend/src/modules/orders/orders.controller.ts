@@ -204,7 +204,11 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User,
   ) {
-    return this.assertOrderAccess(id, user);
+    // Not assertOrderAccess: the detail screen needs orderedByName, and
+    // this variant resolves it in the same fetch the access check uses.
+    const order = await this.ordersService.findOneWithOrderedBy(id);
+    await this.outletAccess.assertOutletAccess(user.id, order.outletId);
+    return order;
   }
 
   @Get(':id/status-history')

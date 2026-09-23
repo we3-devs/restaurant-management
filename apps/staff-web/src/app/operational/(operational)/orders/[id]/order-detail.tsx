@@ -85,7 +85,10 @@ export function OrderDetail({
         <div className="flex items-start justify-between gap-2">
           <div>
             <h1 className="text-lg font-semibold">Order tracking</h1>
-            <p className="text-sm text-muted-foreground">{order.orderNumber}</p>
+            <p className="text-sm text-muted-foreground">
+              {order.orderNumber}
+              {order.orderedByName && <> &middot; Ordered by {order.orderedByName}</>}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={order.status} />
@@ -110,6 +113,10 @@ export function OrderDetail({
           <p className="text-sm text-muted-foreground capitalize">
             {order.orderType.replace(/_/g, " ")} &middot; {order.source.replace(/_/g, " ")}
           </p>
+          {/* Staff member behind created_by, or "Guest" for self-ordered QR/online orders. */}
+          {order.orderedByName && (
+            <p className="text-sm text-muted-foreground">Ordered by {order.orderedByName}</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={order.status} />

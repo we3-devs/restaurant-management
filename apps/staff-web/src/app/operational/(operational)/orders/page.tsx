@@ -36,6 +36,7 @@ interface OrderRow {
   order: Order
   tableName: string
   customerName: string
+  orderedByName: string
   sessionLabel: string
 }
 
@@ -64,7 +65,10 @@ export default function OrdersPage() {
         // table client-side just to look up a name.
         const customerName = order.customerName ?? session?.customer?.name ?? "Walk-in"
         const sessionLabel = session ? tableSessionName(session) : "—"
-        return { order, tableName, customerName, sessionLabel }
+        // Resolved server-side from created_by; "Guest" when the guest
+        // self-ordered over QR. Falls back for payloads that predate it.
+        const orderedByName = order.orderedByName ?? "—"
+        return { order, tableName, customerName, orderedByName, sessionLabel }
       })
   }, [orders, sessions])
 
@@ -73,6 +77,7 @@ export default function OrdersPage() {
       { id: "table", header: "Table", accessorFn: (row) => row.tableName },
       { id: "customer", header: "Customer", accessorFn: (row) => row.customerName },
       { id: "session", header: "Session", accessorFn: (row) => row.sessionLabel },
+      { id: "orderedBy", header: "Ordered by", accessorFn: (row) => row.orderedByName },
       {
         id: "status",
         header: "Status",
