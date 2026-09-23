@@ -52,7 +52,7 @@ export function classifyAssistantIntent(
 
   const casualGreeting =
     /^(hi|hello|hey|hii|hiii|hloo|yo|sup|bro|broo|namaste|good\s+(morning|afternoon|evening)|how\s+are\s+you|what\s*['’]s\s+up|whats\s+up|hey\s+there|hi\s+there)$/i;
-  if (casualGreeting.test(q) || q.length <= 5) return 'conversation';
+  if (casualGreeting.test(q)) return 'conversation';
 
   if (
     /inventory|stock|ingredient|items?\s+(in|available)|available\s+items?/.test(
