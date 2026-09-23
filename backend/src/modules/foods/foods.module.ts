@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddonGroupsModule } from '../addon-groups/addon-groups.module';
 import { AuthModule } from '../auth/auth.module';
@@ -26,7 +26,10 @@ import { FoodsImporter } from './import/foods-importer';
     FoodCategoriesModule,
     OutletsModule,
     AddonGroupsModule,
-    IngredientsModule,
+    // Circular: IngredientsModule -> InventoryStockModule -> KitchenTicketsModule
+    // -> OrdersModule -> FoodsModule. Without forwardRef, IngredientsModule is
+    // still mid-load when this decorator evaluates and resolves to `undefined`.
+    forwardRef(() => IngredientsModule),
     UnitsModule,
   ],
   controllers: [FoodsController],

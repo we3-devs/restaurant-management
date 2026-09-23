@@ -55,11 +55,16 @@ import { TableSessionOpenController } from './table-session-open.controller';
     DiningTablesModule,
     FoodsModule,
     FoodVariantsModule,
-    AddonsModule,
+    // Circular, all three: IngredientsModule -> InventoryStockModule ->
+    // KitchenTicketsModule -> OrdersModule closes a load-time loop (see the
+    // note in FoodsModule). AddonsModule sits on the same require chain.
+    // Without forwardRef these resolve to `undefined` mid-cycle and Nest
+    // refuses to build the module.
+    forwardRef(() => AddonsModule),
     OutletDepartmentsModule,
-    IngredientsModule,
+    forwardRef(() => IngredientsModule),
     UnitsModule,
-    InventoryStockModule,
+    forwardRef(() => InventoryStockModule),
     WarehousesModule,
     // Circular: KitchenTicketsModule now also imports OrdersModule (so
     // KitchenTicketsService can call OrdersService#maybeAdvanceToServed()) —
