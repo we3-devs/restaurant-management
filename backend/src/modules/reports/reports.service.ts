@@ -222,6 +222,10 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
+      // Link target for the report table, not a displayed column — REPORT_COLUMNS
+      // drives both the on-screen headers and every exporter, so id keys added
+      // here stay out of the CSV/Excel/PDF output.
+      .addSelect('order.id', 'orderId')
       .addSelect('order.created_at', 'createdAt')
       .addSelect('order.subtotal', 'subtotal')
       .addSelect('order.discount_amount', 'discountAmount')
@@ -293,6 +297,7 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
+      .addSelect('order.id', 'orderId')
       .addSelect(`TO_CHAR(order.created_at, 'YYYY-MM-DD"T"HH24:MI:SS')`, 'createdAt')
       .addSelect('order.order_type', 'orderType')
       .addSelect('order.source', 'source')
@@ -364,23 +369,26 @@ export class ReportsService {
   private async stockMovementsReport(
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    // document_id rides along so the report table can link each row to its
+    // own document page. It is not in REPORT_COLUMNS, so it never reaches the
+    // CSV/Excel/PDF exporters — those project strictly through the columns.
     const union = `
-      SELECT 'stock_in' AS movement_type, doc.stock_in_no AS document_no, doc.stock_in_date AS date, doc.status AS status, doc.warehouse_id AS warehouse_id
+      SELECT 'stock_in' AS movement_type, doc.id AS document_id, doc.stock_in_no AS document_no, doc.stock_in_date AS date, doc.status AS status, doc.warehouse_id AS warehouse_id
       FROM ingredient_stock_ins doc
       UNION ALL
-      SELECT 'stock_out', doc.stock_out_no, doc.stock_out_date, doc.status, doc.warehouse_id
+      SELECT 'stock_out', doc.id, doc.stock_out_no, doc.stock_out_date, doc.status, doc.warehouse_id
       FROM ingredient_stock_outs doc
       UNION ALL
-      SELECT 'transfer', doc.transfer_no, doc.transfer_date, doc.status, doc.from_warehouse_id
+      SELECT 'transfer', doc.id, doc.transfer_no, doc.transfer_date, doc.status, doc.from_warehouse_id
       FROM ingredient_stock_transfers doc
       UNION ALL
-      SELECT 'adjustment', doc.adjustment_no, doc.adjustment_date, doc.status, doc.warehouse_id
+      SELECT 'adjustment', doc.id, doc.adjustment_no, doc.adjustment_date, doc.status, doc.warehouse_id
       FROM ingredient_stock_adjustments doc
       UNION ALL
-      SELECT 'wastage', doc.wastage_no, doc.wastage_date, doc.status, doc.warehouse_id
+      SELECT 'wastage', doc.id, doc.wastage_no, doc.wastage_date, doc.status, doc.warehouse_id
       FROM ingredient_wastages doc
       UNION ALL
-      SELECT 'count', doc.count_no, doc.count_date, doc.status, doc.warehouse_id
+      SELECT 'count', doc.id, doc.count_no, doc.count_date, doc.status, doc.warehouse_id
       FROM ingredient_stock_counts doc
     `;
 
@@ -414,7 +422,7 @@ export class ReportsService {
     const data = await this.ordersRepository.manager.query<
       Record<string, unknown>[]
     >(
-      `SELECT doc.movement_type AS "movementType", doc.document_no AS "documentNo", doc.date AS "date", doc.status AS "status", warehouse.name AS "warehouseName"
+      `SELECT doc.movement_type AS "movementType", doc.document_id AS "documentId", doc.document_no AS "documentNo", doc.date AS "date", doc.status AS "status", warehouse.name AS "warehouseName"
        ${baseFrom}
        ORDER BY doc.date ${resolved.sortDir}
        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
@@ -517,6 +525,7 @@ export class ReportsService {
       .createQueryBuilder()
       .select('ticket.id', 'ticketId')
       .addSelect('"order".order_number', 'orderNumber')
+      .addSelect('"order".id', 'orderId')
       .addSelect('department.name', 'departmentName')
       .addSelect('ticket.priority', 'priority')
       .addSelect('ticket.created_at', 'createdAt')
@@ -631,6 +640,7 @@ export class ReportsService {
       .createQueryBuilder()
       .select('payment.payment_number', 'paymentNumber')
       .addSelect('"order".order_number', 'orderNumber')
+      .addSelect('"order".id', 'orderId')
       .addSelect('payment.method', 'method')
       .addSelect('payment.type', 'type')
       .addSelect('payment.amount', 'amount')
@@ -695,6 +705,7 @@ export class ReportsService {
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('po.po_no', 'poNo')
+      .addSelect('po.id', 'poId')
       .addSelect('supplier.company_name', 'supplierName')
       .addSelect('outlet.name', 'outletName')
       .addSelect('po.status', 'status')
