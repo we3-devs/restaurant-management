@@ -28,6 +28,24 @@ import {
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
+
+/**
+ * Column lengths the released identifiers have to keep fitting into — see
+ * Ingredient's @Column definitions.
+ */
+const IDENTIFIER_LENGTHS = { code: 80, slug: 255, barcode: 255 } as const;
+
+/**
+ * Stamps a deleted row's identifier so it stops occupying the value.
+ * The id keeps it unique even if the same base value is deleted twice, and
+ * the base is trimmed (not the suffix) when the two together would overflow
+ * the column.
+ */
+function releasedIdentifier(value: string, id: number, maxLength: number): string {
+  const suffix = `-deleted-${id}`;
+  return `${value.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
+}
+
 @Injectable()
 export class IngredientsService {
   constructor(
@@ -109,6 +127,21 @@ export class IngredientsService {
     if (!isTrackableIngredientType(ingredient.category.type)) {
       throw new BadRequestException(
         `Ingredient "${ingredient.name}" (type: ${ingredient.category.type}) does not support stock tracking.`,
+      );
+    }
+  }
+
+  /**
+   * Same rule as assertTrackable, but for a category chosen up front — used
+   * where an ingredient is about to be created specifically to be stocked,
+   * so the caller can reject the category once instead of producing
+   * ingredients that every stock document will later refuse.
+   */
+  async assertCategoryTrackable(ingredientCategoryId: number): Promise<void> {
+    const category = await this.ingredientCategoriesService.findOne(ingredientCategoryId);
+    if (!isTrackableIngredientType(category.type)) {
+      throw new BadRequestException(
+        `Ingredient category "${category.name}" (type: ${category.type}) does not support stock tracking.`,
       );
     }
   }
@@ -233,8 +266,50 @@ export class IngredientsService {
     return this.findOne(id);
   }
 
+  /**
+   * Soft-deletes the ingredient and releases its unique identifiers.
+   *
+   * ingredients has plain UNIQUE constraints on code, slug and barcode that
+   * don't exclude soft-deleted rows, so a deleted ingredient would otherwise
+   * keep squatting on its code forever — and nothing could ever reuse it.
+   * That's what stopped a food from being re-imported into inventory after
+   * its ingredient was deleted. Renaming them to "<value>-deleted-<id>"
+   * frees the originals while leaving the row (and its ledger history)
+   * recoverable and recognisable.
+   */
   async remove(id: number): Promise<void> {
-    await this.findOne(id);
+    const ingredient = await this.findOne(id);
+    await this.ingredientsRepository.update(id, this.releasedIdentifiersFor(ingredient));
     await this.ingredientsRepository.softDelete(id);
+  }
+
+  /**
+   * Frees code/slug held by rows that were soft-deleted before remove()
+   * started releasing them. Live rows are deliberately left alone: a clash
+   * with one of those is a genuine conflict the caller should hear about,
+   * not something to rename out from under someone.
+   */
+  async releaseDeletedIdentifiers(identifiers: { code?: string; slug?: string }): Promise<void> {
+    const where: FindOptionsWhere<Ingredient>[] = [];
+    if (identifiers.code) where.push(scopedWhere(this.tenantContext, { code: identifiers.code }));
+    if (identifiers.slug) where.push(scopedWhere(this.tenantContext, { slug: identifiers.slug }));
+    if (where.length === 0) return;
+
+    const holders = await this.ingredientsRepository.find({ where, withDeleted: true });
+    for (const holder of holders) {
+      if (!holder.deletedAt) continue;
+      await this.ingredientsRepository.update(holder.id, this.releasedIdentifiersFor(holder));
+    }
+  }
+
+  private releasedIdentifiersFor(ingredient: Ingredient): Partial<Ingredient> {
+    return {
+      code: releasedIdentifier(ingredient.code, ingredient.id, IDENTIFIER_LENGTHS.code),
+      slug: releasedIdentifier(ingredient.slug, ingredient.id, IDENTIFIER_LENGTHS.slug),
+      // Null barcodes don't collide under a UNIQUE constraint, so leave them be.
+      ...(ingredient.barcode
+        ? { barcode: releasedIdentifier(ingredient.barcode, ingredient.id, IDENTIFIER_LENGTHS.barcode) }
+        : {}),
+    };
   }
 }

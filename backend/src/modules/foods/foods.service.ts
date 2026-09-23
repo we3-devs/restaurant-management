@@ -329,21 +329,37 @@ export class FoodsService {
   /**
    * Creates a new stock-tracked Ingredient (same outlet/category/unit for the
    * whole batch) for every requested food that belongs to the current tenant
-   * and isn't already linked to one, then links it back via
+   * and isn't already linked to a live one, then links it back via
    * Food.inventoryIngredientId. Per-food failures (e.g. a slug/code
    * collision) are collected rather than aborting the whole batch.
    */
   async importAsIngredients(dto: BulkImportFoodsAsIngredientsDto): Promise<{ created: number; skipped: number; errors: string[] }> {
+    // The whole point of this import is to make foods stockable, so a
+    // category that carries no warehouse stock is rejected outright rather
+    // than silently producing ingredients no stock document will accept.
+    await this.ingredientsService.assertCategoryTrackable(dto.ingredientCategoryId);
+
     const foods = await this.foodsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(dto.foodIds) }) });
     let created = 0;
     let skipped = 0;
     const errors: string[] = [];
     for (const food of foods) {
-      if (food.inventoryIngredientId) {
+      // A link only counts while the ingredient behind it is still alive —
+      // deleting the ingredient used to leave the food pointing at a dead
+      // row and permanently "already imported", with no way to import it
+      // again.
+      if (food.inventoryIngredientId && (await this.hasLiveIngredient(food.inventoryIngredientId))) {
         skipped++;
         continue;
       }
       try {
+        // Soft-deleted ingredients kept their code/slug until remove()
+        // started releasing them, so anything deleted before that still
+        // squats on the values this import needs.
+        await this.ingredientsService.releaseDeletedIdentifiers({
+          code: `FOOD-${food.id}`,
+          slug: food.slug,
+        });
         const ingredient = await this.ingredientsService.create({
           outletId: dto.outletId,
           ingredientCategoryId: dto.ingredientCategoryId,
@@ -359,6 +375,16 @@ export class FoodsService {
       }
     }
     return { created, skipped, errors };
+  }
+
+  /** True only when the id resolves to an ingredient that hasn't been deleted. */
+  private async hasLiveIngredient(ingredientId: number): Promise<boolean> {
+    try {
+      await this.ingredientsService.findOne(ingredientId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async listOutletOverrides(foodId: number): Promise<FoodOutlet[]> {

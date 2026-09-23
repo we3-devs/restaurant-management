@@ -39,6 +39,7 @@ import {
 } from "@/hooks/use-foods"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { OUTLET_DEPARTMENT_TYPES } from "@/lib/validators/foods"
+import { isTrackedIngredientType } from "@/lib/validators/ingredient-categories"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
 import { usePageTitle } from "@rms/ui/use-page-title"
@@ -121,6 +122,14 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const [prepPopoverOpen, setPrepPopoverOpen] = useState(false)
   const { outletId: activeOutletId } = useActiveOutlet()
   const { data: ingredientCategories } = useIngredientCategories({ limit: 100 })
+  // This import exists to make foods stock-trackable, and only beverage /
+  // packaging / consumable categories carry warehouse stock — landing a food
+  // in a raw_material or ready_product category would create an ingredient
+  // that no stock document will ever accept.
+  const stockTrackedCategories = useMemo(
+    () => (ingredientCategories?.data ?? []).filter((category) => isTrackedIngredientType(category.type)),
+    [ingredientCategories],
+  )
   const { data: units } = useUnits({ limit: 100 })
   const bulkImportAsIngredients = useBulkImportFoodsAsIngredients()
   const [importDialogOpen, setImportDialogOpen] = useState(false)
@@ -239,9 +248,16 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">Creates a stock-tracked ingredient for each selected food (already-linked foods are skipped) in the active outlet.</p>
                   <Select value={importCategoryId} onValueChange={(value) => setImportCategoryId(value ?? "")}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Ingredient category" /></SelectTrigger>
-                    <SelectContent>{ingredientCategories?.data.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="w-full" disabled={stockTrackedCategories.length === 0}>
+                      <SelectValue placeholder={stockTrackedCategories.length === 0 ? "No stock-tracked categories" : "Ingredient category"} />
+                    </SelectTrigger>
+                    <SelectContent>{stockTrackedCategories.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent>
                   </Select>
+                  {stockTrackedCategories.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Create an ingredient category of type beverage, packaging or consumable first — those are the types that carry warehouse stock.
+                    </p>
+                  )}
                   <Select value={importUnitId} onValueChange={(value) => setImportUnitId(value ?? "")}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Base unit" /></SelectTrigger>
                     <SelectContent>{units?.data.map((unit) => <SelectItem key={unit.id} value={String(unit.id)}>{unit.name}</SelectItem>)}</SelectContent>
