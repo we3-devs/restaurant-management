@@ -23,6 +23,33 @@ import {
   assertAssistantDataAccess,
 } from './assistant-data.registry';
 
+export type AssistantHistoryMessage = { role: 'user' | 'assistant'; text: string };
+
+const MAX_HISTORY_MESSAGES = 6;
+const MAX_HISTORY_MESSAGE_LENGTH = 500;
+
+// Bounds how much prior conversation reaches the LLM: caps turn count and
+// per-message length, and drops anything that isn't a plain user/assistant
+// turn, since this comes straight from client-supplied request data.
+function sanitizeHistory(
+  history?: AssistantHistoryMessage[],
+): AssistantHistoryMessage[] {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter(
+      (message): message is AssistantHistoryMessage =>
+        !!message &&
+        (message.role === 'user' || message.role === 'assistant') &&
+        typeof message.text === 'string' &&
+        message.text.trim().length > 0,
+    )
+    .slice(-MAX_HISTORY_MESSAGES)
+    .map((message) => ({
+      role: message.role,
+      text: message.text.trim().slice(0, MAX_HISTORY_MESSAGE_LENGTH),
+    }));
+}
+
 type Route = 'DATA' | 'INSIGHT' | 'CHAT';
 type DataIntent =
   | 'occupancy'
@@ -201,7 +228,11 @@ export class AssistantService {
         `You do not have permission to ask about ${intent}`,
       );
   }
-  private async llm(question: string, context: unknown) {
+  private async llm(
+    question: string,
+    context: unknown,
+    history: AssistantHistoryMessage[] = [],
+  ) {
     const key =
       this.config.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY is not configured');
@@ -223,6 +254,10 @@ export class AssistantService {
           max_tokens: 700,
           messages: [
             { role: 'system', content: systemPrompt },
+            ...history.map((message) => ({
+              role: message.role,
+              content: message.text,
+            })),
             {
               role: 'user',
               content: `Q: ${question}\nData: ${JSON.stringify(context)}`,
@@ -254,7 +289,10 @@ export class AssistantService {
           afterThink.slice(thinkEnd + afterThink.match(/<\/think>/i)![0].length)
     ).trim();
   }
-  private async plan(question: string): Promise<AnalyticsPlan | null> {
+  private async plan(
+    question: string,
+    history: AssistantHistoryMessage[] = [],
+  ): Promise<AnalyticsPlan | null> {
     const key =
       this.config.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
     if (!key) return null;
@@ -275,8 +313,12 @@ export class AssistantService {
             {
               role: 'system',
               content:
-                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, and orderDetails for requests to list or inspect individual orders. Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
+                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, and orderDetails for requests to list or inspect individual orders. Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Prior conversation turns may be included only to resolve follow-up references (e.g. "what about yesterday", "and orders too?") — always classify the LATEST user question, not an earlier one. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
             },
+            ...history.map((message) => ({
+              role: message.role,
+              content: message.text,
+            })),
             { role: 'user', content: question },
           ],
         }),
@@ -541,16 +583,22 @@ export class AssistantService {
       metrics,
     };
   }
-  async chat(user: User, question: string, outletId?: number) {
+  async chat(
+    user: User,
+    question: string,
+    outletId?: number,
+    history?: AssistantHistoryMessage[],
+  ) {
     await this.assertAssistantAccess(user);
     this.requireTenant();
     if (!question.trim()) throw new BadRequestException('Question is required');
+    const safeHistory = sanitizeHistory(history);
 
     // Authorize the requested data domain before resolving outlets or querying
     // any restaurant data. The LLM planner receives only the question, never
     // database data, and cannot grant access by changing its predicted intent.
     const fallbackIntent = this.intent(question);
-    const plan = await this.plan(question);
+    const plan = await this.plan(question, safeHistory);
     // Keep general conversation tenant-aware. It receives restaurant identity
     // context, but never receives business rows unless the request maps to a
     // permitted data intent.
@@ -586,7 +634,7 @@ export class AssistantService {
         intent: 'restaurant_general_conversation',
         restaurantName: restaurant.name,
       };
-      return { route, answer: await this.llm(question, data) };
+      return { route, answer: await this.llm(question, data, safeHistory) };
     }
 
     const allTablesRequested =
@@ -610,11 +658,15 @@ export class AssistantService {
       const fix = { ...data, intent: safeIntent };
       return {
         route,
-        answer: await this.llm(question, {
-          responseMode: 'restaurant_data',
-          restaurantName: restaurant.name,
-          ...fix,
-        }),
+        answer: await this.llm(
+          question,
+          {
+            responseMode: 'restaurant_data',
+            restaurantName: restaurant.name,
+            ...fix,
+          },
+          safeHistory,
+        ),
         ...(route === 'DATA' ? { data: fix } : {}),
       };
     }
@@ -634,7 +686,7 @@ export class AssistantService {
     };
     return {
       route,
-      answer: await this.llm(question, llmContext),
+      answer: await this.llm(question, llmContext, safeHistory),
       ...(route === 'DATA' ? { data } : {}),
     };
   }
