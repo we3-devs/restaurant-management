@@ -40,7 +40,9 @@ const createColumns = (customerNameFor: (order: Order) => string): ColumnDef<Ord
   { id: "status", header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   { id: "paymentStatus", header: "Payment", cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} /> },
   { id: "orderType", header: "Type", cell: ({ row }) => <span className="capitalize">{row.original.orderType.replaceAll("_", " ")}</span> },
-  { accessorKey: "createdAt", header: "Created", cell: ({ row }) => new Date(row.original.createdAt).toLocaleString() },
+  { id: "orderedBy", header: "Ordered by", cell: ({ row }) => row.original.orderedByName ?? "—" },
+  { id: "billedBy", header: "Billed by", cell: ({ row }) => row.original.billedByName ?? "—" },
+  { accessorKey: "createdAt", header: "Created", cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString() },
   { accessorKey: "grandTotal", header: "Total" },
 ]
 /** Read-only order status tracking for admin — no create/edit here, that stays in operational-web/POS. */
@@ -74,8 +76,8 @@ export default function OrdersTrackingPage() {
   })
   const showSkeleton = useDelayedLoading(isLoading)
   function exportOrders() {
-    const values = (data?.data ?? []).map((order) => [order.orderNumber, order.status, order.paymentStatus, order.orderType, order.createdAt, order.grandTotal])
-    const csv = [["Order", "Status", "Payment", "Type", "Created", "Total"], ...values].map((row) => row.join(",")).join("\r\n")
+    const values = (data?.data ?? []).map((order) => [order.orderNumber, order.status, order.paymentStatus, order.orderType, order.orderedByName ?? "", order.billedByName ?? "", new Date(order.createdAt).toLocaleDateString(), order.grandTotal])
+    const csv = [["Order", "Status", "Payment", "Type", "Ordered by", "Billed by", "Created", "Total"], ...values].map((row) => row.join(",")).join("\r\n")
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "orders.csv"; link.click(); URL.revokeObjectURL(url)
   }
 

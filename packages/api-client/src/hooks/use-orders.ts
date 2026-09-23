@@ -38,6 +38,8 @@ export interface Order {
   customerName?: string | null
   /** Who placed the order — staff name from createdBy, or "Guest" for self-ordered QR/online orders. Absent on payloads that predate the field. */
   orderedByName?: string | null
+  /** Who took the money — staff behind the latest completed payment. Null until something is collected; absent on payloads that predate the field. */
+  billedByName?: string | null
   /** Who placed it: walk_in/phone/online/staff/other. */
   source: string
   /** Which surface it came through: pos/qr/waiter/online. */

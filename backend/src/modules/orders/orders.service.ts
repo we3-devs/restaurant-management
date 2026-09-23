@@ -88,6 +88,8 @@ export type OrderListResponse = Omit<
   customerName: string | null;
   /** Who placed the order — the staff user behind created_by, or 'Guest' for self-ordered QR/online orders where created_by is null. */
   orderedByName: string;
+  /** Who took the money — the staff behind the most recent completed payment. Null while nothing has been collected yet. */
+  billedByName: string | null;
 };
 
 export type OrderDetailResponse = Omit<Order, 'createdByUser'> & {
@@ -255,15 +257,57 @@ export class OrdersService {
       take: limit,
     });
 
+    const billedByNames = await this.resolveBilledByNames(
+      orders.map((order) => order.id),
+    );
+
     return {
       data: orders.map(({ tableSession, customer, createdByUser, ...order }) => ({
         ...order,
         tableName: tableSession?.diningTable?.name ?? null,
         customerName: customer?.name ?? null,
         orderedByName: createdByUser?.name ?? GUEST_ORDERED_BY,
+        billedByName: billedByNames.get(order.id) ?? null,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  /**
+   * Staff name behind the latest completed payment of each order. Resolved in
+   * one extra query for the whole page instead of a join on the order list,
+   * since an order can have many payments.
+   */
+  private async resolveBilledByNames(
+    orderIds: number[],
+  ): Promise<Map<number, string>> {
+    const byOrder = new Map<number, string>();
+    if (orderIds.length === 0) {
+      return byOrder;
+    }
+    const payments = await this.orderPaymentsRepository.find({
+      where: {
+        orderId: In(orderIds),
+        type: 'payment',
+        status: 'completed',
+      },
+      relations: { receivedByUser: true },
+      select: {
+        id: true,
+        orderId: true,
+        receivedBy: true,
+        receivedByUser: { id: true, name: true },
+        createdAt: true,
+      },
+      order: { createdAt: 'DESC' },
+    });
+    for (const payment of payments) {
+      const name = payment.receivedByUser?.name;
+      if (name && !byOrder.has(payment.orderId)) {
+        byOrder.set(payment.orderId, name);
+      }
+    }
+    return byOrder;
   }
 
   /** Internal lookup used by OrderPaymentsService and by this service's own sub-resources. */
