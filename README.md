@@ -1,17 +1,18 @@
 # Restaurant Management System
 
-A NestJS 11 REST API (`backend/`) + Next.js 16 App Router frontend (`frontend/`), rebuilding the
-Laravel/Inertia app in `rms-main/` as two separate apps. This foundation phase covers shared
-infra and one working auth flow end to end; business domains (menu, orders, inventory,
-purchasing, reservations, POS, loyalty, ...) come in later phases.
+A NestJS 11 REST API (`backend/`, plus `backend-superadmin/`) and three Next.js App Router
+frontends under `apps/` (`guest-web`, `staff-web`, `superadmin-web`) with shared workspace
+packages under `packages/`.
 
-The Postgres database (`restaurant`) already has the full ~83-table schema migrated from the
-Laravel app. The backend maps onto it as-is (`synchronize: false`); the only table it owns is
-`refresh_tokens`.
+The Postgres schema originated as a migration from a Laravel/Inertia app, which is no longer
+part of this project. The incremental migrations in `backend/src/database/migrations/` build on
+that inherited base schema rather than creating it, so a brand-new empty database cannot yet be
+built from this repo alone -- it has to be cloned from an existing one. The app always runs with
+`synchronize: false`; schema changes go through a migration, never through entity sync.
 
 ## Prerequisites
 
-- Postgres running locally with the `restaurant` database already migrated (see `backend/.env`).
+- Access to a Postgres database with the schema already present; connection details in `backend/.env`.
 - Redis running locally (`docker compose up -d redis` from the repo root, or your own Redis on `6379`).
 - Node.js 20+.
 
@@ -21,7 +22,7 @@ Laravel app. The backend maps onto it as-is (`synchronize: false`); the only tab
 cd backend
 npm install
 npm run migration:run   # applies pending TypeORM-owned migrations
-npm run seed             # idempotent: seeds a super-admin role/user
+npm run seed             # idempotent: seeds permissions + super-admin position mapping
 npm run start:dev
 ```
 
@@ -29,8 +30,9 @@ npm run start:dev
 - Swagger: http://localhost:3001/docs
 - Health check: http://localhost:3001/api/health
 
-Seeded login (see `backend/.env` `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`):
-`admin@rms.local` / `Admin@12345`.
+There is no bootstrap-admin seeder: nothing in `src/` reads `SEED_ADMIN_EMAIL`/
+`SEED_ADMIN_PASSWORD` (those `.env` entries are vestigial), and `run-seed.ts` creates
+permissions only -- never a user. A usable login has to come from existing rows.
 
 ## Frontend
 
