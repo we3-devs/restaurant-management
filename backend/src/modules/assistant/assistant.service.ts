@@ -36,6 +36,7 @@ type DataIntent =
   | 'customers'
   | 'revenue'
   | 'orderDetails'
+  | 'topSelling'
   | 'overview';
 type AnalyticsPlan = {
   intent: DataIntent | 'conversation';
@@ -55,6 +56,12 @@ export function classifyAssistantIntent(
     /^(hi|hello|hey|hii|hiii|hloo|yo|sup|bro|broo|namaste|good\s+(morning|afternoon|evening)|how\s+are\s+you|what\s*['’]s\s+up|whats\s+up|hey\s+there|hi\s+there)$/i;
   if (casualGreeting.test(q)) return 'conversation';
 
+  if (
+    /top[\s-]?sell|best[\s-]?sell|best\s*seller|most\s+(sold|popular|ordered)|highest\s+selling|popular\s+(item|dish|food)s?/.test(
+      q,
+    )
+  )
+    return 'topSelling';
   if (
     /inventory|stock|ingredient|items?\s+(in|available)|available\s+items?/.test(
       q,
@@ -275,7 +282,7 @@ export class AssistantService {
             {
               role: 'system',
               content:
-                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, and orderDetails for requests to list or inspect individual orders. Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
+                'Convert the user question into JSON only. Never write SQL. Use conversation for greetings, casual chat, or questions unrelated to restaurant data. Allowed intent values: conversation, occupancy, inventory, menu, staffSummary, payments, serviceIssues, cancellations, bookings, customers, revenue, orderDetails, topSelling, overview. Use inventory for stock or ingredient availability, menu for food/menu questions, staffSummary for staff counts/statuses, payments for payment totals or methods, orderDetails for requests to list or inspect individual orders, and topSelling for questions about the best-selling, most popular, or highest-selling menu item(s). Allowed period values: today, yesterday, dayBeforeYesterday, 7d, 30d. Allowed groupBy values: day, type. Use groupBy only when requested. Use type only for serviceIssues. Return exactly: {"intent":"...","period":"...","groupBy":"..."}.',
             },
             { role: 'user', content: question },
           ],
@@ -306,6 +313,7 @@ export class AssistantService {
           'customers',
           'revenue',
           'orderDetails',
+          'topSelling',
           'overview',
         ].includes(parsed.intent ?? '') ||
         !['today', 'yesterday', 'dayBeforeYesterday', '7d', '30d'].includes(
@@ -525,6 +533,12 @@ export class AssistantService {
                 params,
               )
             )[0];
+    } else if (intent === 'topSelling') {
+      assertAssistantDataAccess(intent, domainTables);
+      metrics = await this.db.query(
+        `SELECT f.name, SUM(oi.quantity)::numeric AS "quantitySold", COALESCE(SUM(oi.total_amount),0)::numeric AS revenue FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN foods f ON f.id = oi.food_id WHERE o.status <> 'cancelled' AND oi.status <> 'cancelled'${dateFilter('o.created_at')}${ids ? ' AND o.outlet_id = ANY($1::bigint[])' : ''} GROUP BY f.id, f.name ORDER BY "quantitySold" DESC LIMIT 10`,
+        params,
+      );
     } else {
       assertAssistantDataAccess(intent, domainTables);
       metrics = (

@@ -15,4 +15,19 @@ describe('classifyAssistantIntent', () => {
     );
     expect(classifyAssistantIntent('order details')).toBe('orderDetails');
   });
+
+  it('routes best-seller questions to topSelling, not menu/revenue', () => {
+    expect(classifyAssistantIntent('top selling item today')).toBe(
+      'topSelling',
+    );
+    expect(classifyAssistantIntent('what is our best seller')).toBe(
+      'topSelling',
+    );
+    expect(classifyAssistantIntent('most popular dish this week')).toBe(
+      'topSelling',
+    );
+    expect(classifyAssistantIntent('highest selling item')).toBe(
+      'topSelling',
+    );
+  });
 });

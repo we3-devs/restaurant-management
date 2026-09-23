@@ -34,6 +34,8 @@ const ASSISTANT_DOMAIN_PROMPTS: Record<string, string> = {
   cancellations: 'Summarize cancellation counts briefly.',
   bookings: 'Summarize booking/reservation counts briefly.',
   customers: 'Summarize distinct customer counts briefly.',
+  topSelling:
+    'List the top-selling items for the period, one per line ordered by quantity sold (e.g., "Momo: 42 sold, Rs. 1,260 revenue"). Only list as many items as the data provides; if asked for just the top item, name only the first one.',
   overview:
     'Summarize overall orders and revenue briefly for the requested period.',
   dailySummary:
