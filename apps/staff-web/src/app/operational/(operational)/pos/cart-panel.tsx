@@ -350,7 +350,7 @@ function EditableCart({ orderId }: { orderId: number }) {
     <div className="flex w-full min-h-[75vh] flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
       <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
-      <div className="max-h-[45vh] space-y-3 overflow-y-auto">
+      <div className="max-h-[65vh] space-y-3 overflow-y-auto">
         {isLoading && <ListSkeleton count={3} />}
         {!isLoading &&
           pendingCount === 0 &&
