@@ -51,8 +51,11 @@ export class CreateOrderPaymentDto {
   @IsString()
   note?: string;
 
-  @ApiPropertyOptional({ description: 'Required when method="credit" — the customer whose tab is charged' })
-  @ValidateIf((dto) => dto.method === 'credit')
+  @ApiPropertyOptional({
+    description:
+      'Required when method="credit" (the customer whose tab is charged); optional for every other method (attributes the payment to a customer of record)',
+  })
+  @ValidateIf((dto) => dto.method === 'credit' || dto.customerId !== undefined)
   @Type(() => Number)
   @IsInt()
   customerId?: number;

@@ -57,7 +57,7 @@ export function TableSessionCheckout({
   const [paymentAmount, setPaymentAmount] = useState("")
   const parsedPaymentAmount = Number(paymentAmount)
   const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
-  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   async function handlePay() {
@@ -66,7 +66,7 @@ export function TableSessionCheckout({
       toast.error("You're offline — reconnect to record a payment")
       return
     }
-    if (paymentMethod === "credit" && !creditCustomerId) {
+    if (paymentMethod === "credit" && !paymentCustomerId) {
       toast.error("Select a customer to charge this to their tab")
       return
     }
@@ -74,7 +74,9 @@ export function TableSessionCheckout({
       await createPayment.mutateAsync({
         method: paymentMethod,
         amount: parsedPaymentAmount,
-        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+        // Required for credit (the tab being charged); optional attribution
+        // for every other method.
+        customerId: paymentCustomerId,
       })
       setPaymentAmount("")
       toast.success("Payment recorded across the table")
@@ -128,24 +130,27 @@ export function TableSessionCheckout({
           }}
         />
       </div>
-      {paymentMethod === "credit" && (
-        <Select
-          value={creditCustomerId ? String(creditCustomerId) : ""}
-          onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-        >
-          <SelectTrigger className="w-full" disabled={customersLoading}>
-            <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-          </SelectTrigger>
-          <SelectContent>
-            {customers?.data.map((customer) => (
-              <SelectItem key={customer.id} value={String(customer.id)}>
-                {customer.name}
-                {customer.phone ? ` (${customer.phone})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      {/* Shown for every payment method now, not just credit — required
+          when charging a tab, optional attribution otherwise. */}
+      <Select
+        value={paymentCustomerId ? String(paymentCustomerId) : "none"}
+        onValueChange={(value) => setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)}
+      >
+        <SelectTrigger className="w-full" disabled={customersLoading}>
+          <SelectValue
+            placeholder={customersLoading ? "Loading…" : paymentMethod === "credit" ? "Charge to customer's tab" : "No customer"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+          {customers?.data.map((customer) => (
+            <SelectItem key={customer.id} value={String(customer.id)}>
+              {customer.name}
+              {customer.phone ? ` (${customer.phone})` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button
         variant="outline"
         size="sm"
@@ -154,7 +159,7 @@ export function TableSessionCheckout({
           createPayment.isPending ||
           !isValidPaymentAmount ||
           !isOnline ||
-          (paymentMethod === "credit" && !creditCustomerId)
+          (paymentMethod === "credit" && !paymentCustomerId)
         }
       >
         {createPayment.isPending ? "Recording..." : "Pay across table"}

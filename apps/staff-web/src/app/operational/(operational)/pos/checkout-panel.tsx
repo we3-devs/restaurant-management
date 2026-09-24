@@ -87,7 +87,7 @@ export function CheckoutPanel({
   const [paymentAmount, setPaymentAmount] = useState("")
   const parsedPaymentAmount = Number(paymentAmount)
   const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
-  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
@@ -115,7 +115,7 @@ export function CheckoutPanel({
       toast.error("You're offline — reconnect to record a payment")
       return
     }
-    if (paymentMethod === "credit" && !creditCustomerId) {
+    if (paymentMethod === "credit" && !paymentCustomerId) {
       toast.error("Select a customer to charge this to their tab")
       return
     }
@@ -124,7 +124,9 @@ export function CheckoutPanel({
         type: "payment",
         method: paymentMethod,
         amount: parsedPaymentAmount,
-        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+        // Required for credit (the tab being charged); optional attribution
+        // for every other method.
+        customerId: paymentCustomerId,
       })
       setPaymentAmount("")
       toast.success("Payment recorded")
@@ -220,7 +222,7 @@ export function CheckoutPanel({
             value={paymentMethod}
             onChange={(method) => {
               setPaymentMethod(method)
-              if (method === "credit") setCreditCustomerId(order.customerId ?? undefined)
+              if (method === "credit") setPaymentCustomerId(order.customerId ?? undefined)
             }}
           />
           <div className="space-y-1.5">
@@ -239,38 +241,44 @@ export function CheckoutPanel({
               }}
             />
           </div>
-          {paymentMethod === "credit" && (
-            <>
-              <Select
-                value={creditCustomerId ? String(creditCustomerId) : ""}
-                onValueChange={(value) => {
-                  if (value === "create") {
-                    setCreateCustomerOpen(true)
-                    return
+          {/* Shown for every payment method now, not just credit — required
+              when charging a tab, optional attribution otherwise (e.g. so a
+              cash/card payment's receipt/history shows who paid). */}
+          <>
+            <Select
+              value={paymentCustomerId ? String(paymentCustomerId) : "none"}
+              onValueChange={(value) => {
+                if (value === "create") {
+                  setCreateCustomerOpen(true)
+                  return
+                }
+                setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)
+              }}
+            >
+              <SelectTrigger className="w-full" disabled={customersLoading}>
+                <SelectValue
+                  placeholder={
+                    customersLoading ? "Loading…" : paymentMethod === "credit" ? "Charge to customer's tab" : "No customer"
                   }
-                  setCreditCustomerId(value ? Number(value) : undefined)
-                }}
-              >
-                <SelectTrigger className="w-full" disabled={customersLoading}>
-                  <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="create">+ Create customer</SelectItem>
-                  {customers?.data.map((customer) => (
-                    <SelectItem key={customer.id} value={String(customer.id)}>
-                      {customer.name}
-                      {customer.phone ? ` (${customer.phone})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CreateCustomerDialog
-                open={createCustomerOpen}
-                onOpenChange={setCreateCustomerOpen}
-                onCreated={(customer) => setCreditCustomerId(customer.id)}
-              />
-            </>
-          )}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+                <SelectItem value="create">+ Create customer</SelectItem>
+                {customers?.data.map((customer) => (
+                  <SelectItem key={customer.id} value={String(customer.id)}>
+                    {customer.name}
+                    {customer.phone ? ` (${customer.phone})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <CreateCustomerDialog
+              open={createCustomerOpen}
+              onOpenChange={setCreateCustomerOpen}
+              onCreated={(customer) => setPaymentCustomerId(customer.id)}
+            />
+          </>
           <Button
             variant="outline"
             size="sm"
@@ -279,7 +287,7 @@ export function CheckoutPanel({
               createPayment.isPending ||
               !isValidPaymentAmount ||
               !isOnline ||
-              (paymentMethod === "credit" && !creditCustomerId)
+              (paymentMethod === "credit" && !paymentCustomerId)
             }
           >
             {createPayment.isPending ? "Recording..." : "Add payment"}
@@ -292,7 +300,7 @@ export function CheckoutPanel({
                 type: "payment",
                 method: paymentMethod,
                 amount: parsedPaymentAmount,
-                customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+                customerId: paymentCustomerId,
               })
               setPaymentAmount("")
               toast.success("Payment recorded")

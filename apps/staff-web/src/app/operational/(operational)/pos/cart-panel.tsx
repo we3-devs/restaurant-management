@@ -189,10 +189,10 @@ function EditableCart({ orderId }: { orderId: number }) {
   const [paymentAmount, setPaymentAmount] = useState("")
   const parsedPaymentAmount = Number(paymentAmount)
   const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
-  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
   // Shown to the cashier while charging to a tab, so they can see the
   // customer's remaining headroom before it gets rejected server-side.
-  const { data: creditAccount } = useCustomerCreditAccount(creditCustomerId ?? 0)
+  const { data: creditAccount } = useCustomerCreditAccount(paymentCustomerId ?? 0)
   const remainingCredit =
     creditAccount && creditAccount.creditLimit > 0
       ? Math.round((creditAccount.creditLimit - creditAccount.outstandingBalance) * 100) / 100
@@ -204,7 +204,7 @@ function EditableCart({ orderId }: { orderId: number }) {
       toast.error("You're offline — reconnect to record a payment")
       return
     }
-    if (paymentMethod === "credit" && !creditCustomerId) {
+    if (paymentMethod === "credit" && !paymentCustomerId) {
       toast.error("Select a customer to charge this to their tab")
       return
     }
@@ -213,7 +213,9 @@ function EditableCart({ orderId }: { orderId: number }) {
         type: "payment",
         method: paymentMethod,
         amount: parsedPaymentAmount,
-        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+        // Required for credit (the tab being charged); optional attribution
+        // for every other method.
+        customerId: paymentCustomerId,
       })
       setPaymentAmount("")
       toast.success("Payment recorded")
@@ -460,7 +462,7 @@ function EditableCart({ orderId }: { orderId: number }) {
             value={paymentMethod}
             onChange={(method) => {
               setPaymentMethod(method)
-              if (method === "credit") setCreditCustomerId(order.customerId ?? undefined)
+              if (method === "credit") setPaymentCustomerId(order.customerId ?? undefined)
             }}
           />
           <div className="space-y-1">
@@ -477,28 +479,34 @@ function EditableCart({ orderId }: { orderId: number }) {
               }}
             />
           </div>
-          {paymentMethod === "credit" && (
-            <div className="space-y-1">
-              <Label htmlFor="payment-credit-customer">Charge to</Label>
-              <Select
-                value={creditCustomerId ? String(creditCustomerId) : ""}
-                onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-              >
-                <SelectTrigger id="payment-credit-customer" className="w-full" disabled={customersLoading}>
-                  <SelectValue placeholder={customersLoading ? "Loading…" : "Select a customer's tab"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers?.data.map((customer) => (
-                    <SelectItem key={customer.id} value={String(customer.id)}>
-                      {customer.name}
-                      {customer.phone ? ` (${customer.phone})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {paymentMethod === "credit" && creditCustomerId && creditAccount && (
+          {/* Shown for every payment method now, not just credit — required
+              when charging a tab, optional attribution otherwise (e.g. so a
+              cash/card payment's receipt/history shows who paid). */}
+          <div className="space-y-1">
+            <Label htmlFor="payment-customer">{paymentMethod === "credit" ? "Charge to" : "Customer (optional)"}</Label>
+            <Select
+              value={paymentCustomerId ? String(paymentCustomerId) : "none"}
+              onValueChange={(value) => setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)}
+            >
+              <SelectTrigger id="payment-customer" className="w-full" disabled={customersLoading}>
+                <SelectValue
+                  placeholder={
+                    customersLoading ? "Loading…" : paymentMethod === "credit" ? "Select a customer's tab" : "No customer"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+                {customers?.data.map((customer) => (
+                  <SelectItem key={customer.id} value={String(customer.id)}>
+                    {customer.name}
+                    {customer.phone ? ` (${customer.phone})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {paymentMethod === "credit" && paymentCustomerId && creditAccount && (
             <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/50 p-2 text-xs">
               <span className="text-muted-foreground">Current credit owed</span>
               <span className="text-right tabular-nums">{creditAccount.outstandingBalance}</span>
@@ -525,13 +533,13 @@ function EditableCart({ orderId }: { orderId: number }) {
               createPayment.isPending ||
               !isValidPaymentAmount ||
               !isOnline ||
-              (paymentMethod === "credit" && !creditCustomerId) ||
+              (paymentMethod === "credit" && !paymentCustomerId) ||
               (paymentMethod === "credit" && remainingCredit !== null && parsedPaymentAmount > remainingCredit)
             }
           >
             {createPayment.isPending ? "Recording..." : "Add payment"}
           </Button>
-          <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); setPaymentAmount(""); toast.success("Payment recorded") }} />
+          <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentCustomerId }); setPaymentAmount(""); toast.success("Payment recorded") }} />
         </div>
       )}
 

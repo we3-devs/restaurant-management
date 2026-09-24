@@ -50,8 +50,10 @@ export class OrderPayment {
   @JoinColumn({ name: 'order_id' })
   order: Order;
 
-  // Set only when method="credit" — the customer whose tab this payment was
+  // Required when method="credit" — the customer whose tab this payment was
   // charged to (see OrderPaymentsService.create -> CustomerCreditService).
+  // Optional for every other method: attributes the payment to a customer of
+  // record without actually charging anything to a tab.
   @Column({
     name: 'customer_id',
     type: 'bigint',

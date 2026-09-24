@@ -129,6 +129,11 @@ export class OrderPaymentsService {
           );
         }
       }
+    } else if (dto.customerId) {
+      // Optional customer attribution on a non-credit payment — same
+      // fail-fast existence check as the credit path, just without any of
+      // the tab/credit-limit machinery that method actually needs.
+      await this.customersService.findOne(dto.customerId);
     }
 
     // Row-locks the order for the duration of the check + insert so a
@@ -179,7 +184,10 @@ export class OrderPaymentsService {
         const payment = manager.create(OrderPayment, {
           outletId: lockedOrder.outletId,
           orderId,
-          customerId: method === 'credit' ? dto.customerId! : null,
+          // Required for 'credit' (the tab being charged); optional for every
+          // other method (e.g. attributing a cash/card payment to a customer
+          // of record for receipts/history without actually charging a tab).
+          customerId: dto.customerId ?? null,
           receivedBy,
           paymentNumber: this.generatePaymentNumber(lockedOrder.outletId),
           type,
