@@ -60,10 +60,8 @@ function downloadBlankTemplate(layout: QrTemplateLayout) {
   ctx.font = "400 24px Arial"
   ctx.fillText(`${qrSize} × ${qrSize}px`, qrX + qrSize / 2, qrY + qrSize / 2 + 42)
 
-  ctx.fillStyle = "#202126"
-  ctx.beginPath()
-  ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
-  ctx.fill()
+  // No pill behind the label anymore — labelWidth/labelHeight still define
+  // the text's centered bounding box, just nothing fills it.
   ctx.fillStyle = labelTextColor
   ctx.font = `700 ${labelFontSize}px Arial`
   ctx.fillText(formatTableLabel(), labelX + labelWidth / 2, labelY + labelHeight / 2)
@@ -117,7 +115,7 @@ export function QrTemplatePreview({
           </span>
         </div>
         <div
-          className="absolute flex items-center justify-center rounded-full bg-[#202126] text-[10px] font-bold"
+          className="absolute flex items-center justify-center text-[10px] font-bold"
           style={{
             left: labelX * scale,
             top: labelY * scale,

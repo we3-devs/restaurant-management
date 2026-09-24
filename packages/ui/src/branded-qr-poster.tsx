@@ -86,10 +86,8 @@ export function BrandedQrPoster({
         ctx.fillRect(qrX - quietZone, qrY - quietZone, qrSize + quietZone * 2, qrSize + quietZone * 2)
         ctx.drawImage(qr, qrX, qrY, qrSize, qrSize)
 
-        ctx.fillStyle = "#202126"
-        ctx.beginPath()
-        ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
-        ctx.fill()
+        // No pill behind the label anymore — labelWidth/labelHeight still
+        // define the text's centered bounding box, just nothing fills it.
         ctx.fillStyle = labelTextColor
         ctx.font = `700 ${labelFontSize}px Arial`
         ctx.textAlign = "center"
