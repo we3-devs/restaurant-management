@@ -220,8 +220,22 @@ export function useUpdateOrder(id: number, options: OperationalMutationOptions =
     onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.orders.detail(id), context.previous)
     },
+    // The PATCH response is already the fully recalculated order (new
+    // subtotal/discountAmount/taxAmount/grandTotal/dueAmount — see
+    // OrdersService#update -> recalculateTotals), so write it straight into
+    // the cache instead of just invalidating and waiting on a second GET for
+    // numbers this response already has. Without this, applying a discount
+    // patches only discountType/discountValue optimistically (onMutate above
+    // can't know the recalculated totals) and the visible due/grand total
+    // sits stale until that extra round trip lands.
+    onSuccess: (updated) => {
+      // queuableApiClient resolves with undefined when the request was
+      // queued offline instead of actually sent — nothing to seed the cache
+      // with yet in that case; the optimistic patch from onMutate stands
+      // until the queued request actually lands.
+      if (updated) queryClient.setQueryData(queryKeys.orders.detail(id), updated)
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() })
     },
   })

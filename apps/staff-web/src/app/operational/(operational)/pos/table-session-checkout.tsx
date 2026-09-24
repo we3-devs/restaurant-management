@@ -52,19 +52,16 @@ export function TableSessionCheckout({
   const totalDue = orders.reduce((sum, order) => sum + order.dueAmount, 0)
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
-  const [paymentAmount, setPaymentAmount] = useState(totalDue)
+  // Raw text, not a number: starts empty and is never auto-filled from the
+  // combined due amount — mirrors CheckoutPanel's own pattern.
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const parsedPaymentAmount = Number(paymentAmount)
+  const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
-  // Re-seeds the payment-amount field whenever the combined due changes
-  // (e.g. after a payment lands) — mirrors CheckoutPanel's own pattern.
-  const [seededDue, setSeededDue] = useState<number | null>(null)
-  if (totalDue !== seededDue) {
-    setSeededDue(totalDue)
-    setPaymentAmount(totalDue)
-  }
 
   async function handlePay() {
-    if (paymentAmount <= 0) return
+    if (!isValidPaymentAmount) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to record a payment")
       return
@@ -76,9 +73,10 @@ export function TableSessionCheckout({
     try {
       await createPayment.mutateAsync({
         method: paymentMethod,
-        amount: paymentAmount,
+        amount: parsedPaymentAmount,
         customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
       })
+      setPaymentAmount("")
       toast.success("Payment recorded across the table")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -120,10 +118,14 @@ export function TableSessionCheckout({
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Amount</span>
         <Input
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
+          placeholder="Enter amount"
           value={paymentAmount}
-          onChange={(e) => setPaymentAmount(Number(e.target.value))}
+          onChange={(e) => {
+            const next = e.target.value
+            if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+          }}
         />
       </div>
       {paymentMethod === "credit" && (
@@ -150,7 +152,7 @@ export function TableSessionCheckout({
         onClick={handlePay}
         disabled={
           createPayment.isPending ||
-          paymentAmount <= 0 ||
+          !isValidPaymentAmount ||
           !isOnline ||
           (paymentMethod === "credit" && !creditCustomerId)
         }

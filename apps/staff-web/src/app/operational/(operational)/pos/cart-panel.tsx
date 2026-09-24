@@ -184,7 +184,11 @@ function EditableCart({ orderId }: { orderId: number }) {
   const displayedDueAmount = ledgerTotals?.dueAmount ?? order?.dueAmount ?? 0
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
-  const [paymentAmount, setPaymentAmount] = useState(0)
+  // Raw text, not a number: starts empty and is never auto-filled from the
+  // due amount — mirrors CheckoutPanel's own pattern.
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const parsedPaymentAmount = Number(paymentAmount)
+  const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   // Shown to the cashier while charging to a tab, so they can see the
   // customer's remaining headroom before it gets rejected server-side.
@@ -194,17 +198,8 @@ function EditableCart({ orderId }: { orderId: number }) {
       ? Math.round((creditAccount.creditLimit - creditAccount.outstandingBalance) * 100) / 100
       : null
 
-  // Re-seed the payment amount whenever the due amount changes (order loads,
-  // or a payment lands) — without an effect, per React's "adjusting state
-  // when a prop changes" pattern.
-  const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && displayedDueAmount !== seededDueAmount) {
-    setSeededDueAmount(displayedDueAmount)
-    setPaymentAmount(displayedDueAmount)
-  }
-
   async function handleAddPayment() {
-    if (paymentAmount <= 0) return
+    if (!isValidPaymentAmount) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to record a payment")
       return
@@ -217,9 +212,10 @@ function EditableCart({ orderId }: { orderId: number }) {
       await createPayment.mutateAsync({
         type: "payment",
         method: paymentMethod,
-        amount: paymentAmount,
+        amount: parsedPaymentAmount,
         customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
       })
+      setPaymentAmount("")
       toast.success("Payment recorded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -534,10 +530,14 @@ function EditableCart({ orderId }: { orderId: number }) {
                   <Label htmlFor="payment-amount">Amount</Label>
                   <Input
                     id="payment-amount"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Enter amount"
                     value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+                    }}
                   />
                 </div>
                 {paymentMethod === "credit" && (
@@ -572,7 +572,7 @@ function EditableCart({ orderId }: { orderId: number }) {
                     <span className="font-medium">Remaining credit</span>
                     <span
                       className={`text-right font-medium tabular-nums ${
-                        remainingCredit !== null && remainingCredit < paymentAmount ? "text-destructive" : ""
+                        remainingCredit !== null && remainingCredit < parsedPaymentAmount ? "text-destructive" : ""
                       }`}
                     >
                       {remainingCredit !== null ? remainingCredit : "Unlimited"}
@@ -586,15 +586,15 @@ function EditableCart({ orderId }: { orderId: number }) {
                   onClick={handleAddPayment}
                   disabled={
                     createPayment.isPending ||
-                    paymentAmount <= 0 ||
+                    !isValidPaymentAmount ||
                     !isOnline ||
                     (paymentMethod === "credit" && !creditCustomerId) ||
-                    (paymentMethod === "credit" && remainingCredit !== null && paymentAmount > remainingCredit)
+                    (paymentMethod === "credit" && remainingCredit !== null && parsedPaymentAmount > remainingCredit)
                   }
                 >
                   {createPayment.isPending ? "Recording..." : "Add payment"}
                 </Button>
-                <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: paymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); toast.success("Payment recorded") }} />
+                <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); setPaymentAmount(""); toast.success("Payment recorded") }} />
               </div>
             )}
 

@@ -80,7 +80,13 @@ export function CheckoutPanel({
   )
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
-  const [paymentAmount, setPaymentAmount] = useState(0)
+  // Raw text, not a number: starts empty and is never auto-filled from the
+  // due amount, so it can't silently snap to a stale figure while an order
+  // update is still in flight, and staff always type the exact amount
+  // they're actually handed rather than trusting a pre-filled guess.
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const parsedPaymentAmount = Number(paymentAmount)
+  const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
@@ -90,15 +96,6 @@ export function CheckoutPanel({
   const paymentTotals = payments && order ? calculatePaymentTotals(order.grandTotal, payments.data) : null
   const paidAmount = paymentTotals?.paidAmount ?? order?.paidAmount ?? 0
   const displayedDueAmount = paymentTotals?.dueAmount ?? order?.dueAmount ?? 0
-
-  // Re-seed the editable totals/payment-amount fields whenever a different
-  // order loads, or the due amount changes after a payment — without an
-  // effect, per React's "adjusting state when a prop changes" pattern.
-  const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && displayedDueAmount !== seededDueAmount) {
-    setSeededDueAmount(displayedDueAmount)
-    setPaymentAmount(displayedDueAmount)
-  }
 
   // Anything not yet 'served' (or voided) — including items still sitting in
   // the cart, never sent to kitchen. Purely informational for the main
@@ -113,7 +110,7 @@ export function CheckoutPanel({
   if (!order) return null
 
   async function handleAddPayment() {
-    if (paymentAmount <= 0) return
+    if (!isValidPaymentAmount) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to record a payment")
       return
@@ -126,9 +123,10 @@ export function CheckoutPanel({
       await createPayment.mutateAsync({
         type: "payment",
         method: paymentMethod,
-        amount: paymentAmount,
+        amount: parsedPaymentAmount,
         customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
       })
+      setPaymentAmount("")
       toast.success("Payment recorded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -228,10 +226,17 @@ export function CheckoutPanel({
           <div className="space-y-1.5">
             <span className="text-sm font-medium">Amount</span>
             <Input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              placeholder="Enter amount"
               value={paymentAmount}
-              onChange={(e) => setPaymentAmount(Number(e.target.value))}
+              onChange={(e) => {
+                const next = e.target.value
+                // Digits and at most one decimal point — text input (not
+                // type="number") so the field can be genuinely empty and
+                // has no increment/decrement spinner.
+                if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+              }}
             />
           </div>
           {paymentMethod === "credit" && (
@@ -272,7 +277,7 @@ export function CheckoutPanel({
             onClick={handleAddPayment}
             disabled={
               createPayment.isPending ||
-              paymentAmount <= 0 ||
+              !isValidPaymentAmount ||
               !isOnline ||
               (paymentMethod === "credit" && !creditCustomerId)
             }
@@ -286,9 +291,10 @@ export function CheckoutPanel({
               await createPaymentOverride.mutateAsync({
                 type: "payment",
                 method: paymentMethod,
-                amount: paymentAmount,
+                amount: parsedPaymentAmount,
                 customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
               })
+              setPaymentAmount("")
               toast.success("Payment recorded")
             }}
           />
