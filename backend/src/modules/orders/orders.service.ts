@@ -206,7 +206,14 @@ export class OrdersService {
     if (createdFrom || createdTo) {
       baseWhere.createdAt = Between(
         createdFrom ? new Date(createdFrom) : new Date(0),
-        createdTo ? new Date(createdTo) : new Date('9999-12-31T23:59:59.999Z'),
+        // A bare "YYYY-MM-DD" (e.g. from a date-range picker) parses to that
+        // day's UTC midnight, which would exclude the entire day it's meant
+        // to include — push it to the end of that day instead.
+        createdTo
+          ? /^\d{4}-\d{2}-\d{2}$/.test(createdTo)
+            ? new Date(`${createdTo}T23:59:59.999Z`)
+            : new Date(createdTo)
+          : new Date('9999-12-31T23:59:59.999Z'),
       );
     }
     const where: FindOptionsWhere<Order> | FindOptionsWhere<Order>[] = search
