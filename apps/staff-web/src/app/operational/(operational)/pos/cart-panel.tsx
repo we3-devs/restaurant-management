@@ -347,7 +347,7 @@ function EditableCart({ orderId }: { orderId: number }) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
+    <div className="flex w-full min-h-[75vh] flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
       <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[45vh] space-y-3 overflow-y-auto">
