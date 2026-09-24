@@ -64,7 +64,6 @@ export function OrderDetail({
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: session } = useTableSession(order?.tableSessionId ?? 0)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
-  const [editingTotals, setEditingTotals] = useState(false)
   const issueInvoice = useIssueInvoice(orderId)
   // Cashiers can record payments from this read-only staff view too — every
   // other staff-shell role (waiter, bartender, cook, host) stays view-only
@@ -143,11 +142,6 @@ export function OrderDetail({
               {issueInvoice.isPending ? "Generating..." : "Issue Invoice"}
             </Button>
           )}
-          {canRecordPayment && order.status !== "completed" && (
-            <Button variant="outline" size="sm" onClick={() => setEditingTotals((v) => !v)}>
-              {editingTotals ? "Done editing" : "Edit"}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -159,7 +153,7 @@ export function OrderDetail({
 
       <div className="mx-auto max-w-5xl grid gap-6 lg:grid-cols-2">
         <BillCard orderId={orderId} />
-        {canRecordPayment && <PaymentSummaryCard orderId={orderId} order={order} editingTotals={editingTotals} />}
+        {canRecordPayment && <PaymentSummaryCard orderId={orderId} order={order} />}
       </div>
     </div>
   )
@@ -291,11 +285,9 @@ function BillCard({ orderId }: { orderId: number }) {
 function PaymentSummaryCard({
   orderId,
   order,
-  editingTotals,
 }: {
   orderId: number
   order: Order
-  editingTotals: boolean
 }) {
   const createPayment = useCreateOrderPayment(orderId)
   const { data: payments } = useOrderPayments(orderId)
@@ -385,7 +377,7 @@ function PaymentSummaryCard({
         </div>
       </CardHeader>
       <CardContent className="flex h-full flex-col space-y-4">
-        {editingTotals && !isLocked && (
+        {!isLocked && (
           <div className="space-y-2 border-b border-input  py-4">
             <OrderDiscountForm orderId={orderId} />
           </div>
