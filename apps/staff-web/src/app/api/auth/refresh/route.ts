@@ -9,13 +9,27 @@ export async function POST(request: NextRequest) {
   const refreshToken = body?.refreshToken ?? (await getRefreshToken())
   if (!refreshToken) return NextResponse.json({ message: "No refresh token" }, { status: 401 })
 
-  const response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-    cache: "no-store",
-  })
-  if (!response.ok) return NextResponse.json({ message: "Session expired" }, { status: 401 })
+  let response: Response
+  try {
+    response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+    })
+  } catch {
+    // Network error reaching the backend (e.g. a cold-starting instance) —
+    // the refresh token may still be perfectly valid, so this must not read
+    // as "session expired" to the caller (apiClient forces a hard redirect
+    // to /login on 401, which would log the user out over a transient blip).
+    return NextResponse.json({ message: "Backend unreachable" }, { status: 503 })
+  }
+  if (!response.ok) {
+    // Only a 401/403 from the backend means the refresh token itself was
+    // rejected (expired/reused/revoked) — anything else is transient.
+    const status = response.status === 401 || response.status === 403 ? 401 : 503
+    return NextResponse.json({ message: "Session expired" }, { status })
+  }
 
   const data = (await response.json()) as { accessToken: string; refreshToken: string }
   await setAuthCookies({ accessToken: data.accessToken, refreshToken: data.refreshToken })

@@ -18,9 +18,19 @@ async function readJson<T>(response: Response): Promise<T | null> {
   }
 }
 
-let staffRefreshInFlight: Promise<boolean> | null = null
+/**
+ * "invalid" (the refresh endpoint returned 401 — the backend definitively
+ * rejected the refresh token) is the only case that should force a logout.
+ * "transient" (network error, or the refresh endpoint's own 503 for a
+ * backend hiccup) must NOT — that was the bug: a momentary blip while
+ * refreshing (e.g. a cold-starting backend) got treated the same as an
+ * actually-dead session and hard-redirected the user to /login.
+ */
+type RefreshOutcome = "ok" | "invalid" | "transient"
 
-async function refreshStaffSession(): Promise<boolean> {
+let staffRefreshInFlight: Promise<RefreshOutcome> | null = null
+
+async function refreshStaffSession(): Promise<RefreshOutcome> {
   if (staffRefreshInFlight) return staffRefreshInFlight
   staffRefreshInFlight = fetch("/api/auth/refresh", {
     method: "POST",
@@ -28,8 +38,8 @@ async function refreshStaffSession(): Promise<boolean> {
     body: "{}",
     cache: "no-store",
   })
-    .then((response) => response.ok)
-    .catch(() => false)
+    .then((response): RefreshOutcome => (response.ok ? "ok" : response.status === 401 ? "invalid" : "transient"))
+    .catch((): RefreshOutcome => "transient")
     .finally(() => {
       staffRefreshInFlight = null
     })
@@ -64,9 +74,10 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
   // already-returned 401 and collapses simultaneous expired requests into a
   // single refresh/rotation before replaying the original request once.
   if (response.status === 401) {
-    if (await refreshStaffSession()) {
+    const outcome = await refreshStaffSession()
+    if (outcome === "ok") {
       response = await request()
-    } else if (typeof window !== "undefined") {
+    } else if (outcome === "invalid" && typeof window !== "undefined") {
       // Refresh token is gone/expired too — there's no session to recover.
       // The client-side auth context has no way to react to this on its
       // own, so force a hard navigation to drop stale state and hit the
@@ -74,6 +85,9 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
       window.location.href = "/login"
       return new Promise<T>(() => {})
     }
+    // "transient" falls through and lets the original 401 surface as an
+    // ApiError below — the caller (react-query) can retry rather than the
+    // user getting logged out over a momentary backend hiccup.
   }
 
   if (!response.ok) {

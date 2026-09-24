@@ -11,7 +11,17 @@ export interface SessionFetchConfig {
   scope: string
 }
 
-type RefreshState = { key: string; promise: Promise<string | null> }
+/**
+ * `invalid: true` means the backend explicitly rejected the refresh token
+ * (expired/reused/revoked) — the session really is gone. Anything else
+ * (network error, backend 5xx/cold-start) is transient: the refresh token
+ * itself may still be perfectly good, so the caller must NOT clear the
+ * session over it — that was exactly the bug where a momentary blip during
+ * refresh (e.g. a sleeping Render instance waking up) wiped a still-valid
+ * session and looked like a random logout.
+ */
+type RefreshResult = { token: string | null; invalid: boolean }
+type RefreshState = { key: string; promise: Promise<RefreshResult> }
 let refreshInFlight: RefreshState | null = null
 
 async function fetchWithToken(url: string, init: RequestInit, token?: string): Promise<Response> {
@@ -21,24 +31,31 @@ async function fetchWithToken(url: string, init: RequestInit, token?: string): P
   return fetch(url, { ...init, headers, cache: "no-store" })
 }
 
-async function refresh(config: SessionFetchConfig): Promise<string | null> {
+async function refresh(config: SessionFetchConfig): Promise<RefreshResult> {
   const refreshToken = await config.getRefreshToken()
-  if (!refreshToken) return null
+  if (!refreshToken) return { token: null, invalid: true }
 
   const key = `${config.scope}:${refreshToken}`
   if (refreshInFlight?.key === key) return refreshInFlight.promise
 
-  const promise = (async () => {
-    const response = await fetch(`${config.backendUrl}/api${config.refreshPath}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-      cache: "no-store",
-    })
-    if (!response.ok) return null
+  const promise = (async (): Promise<RefreshResult> => {
+    let response: Response
+    try {
+      response = await fetch(`${config.backendUrl}/api${config.refreshPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+      })
+    } catch {
+      return { token: null, invalid: false }
+    }
+    if (!response.ok) {
+      return { token: null, invalid: response.status === 401 || response.status === 403 }
+    }
     const tokens = (await response.json()) as { accessToken: string; refreshToken: string }
     await config.setTokens(tokens)
-    return tokens.accessToken
+    return { token: tokens.accessToken, invalid: false }
   })().finally(() => {
     if (refreshInFlight?.promise === promise) refreshInFlight = null
   })
@@ -61,10 +78,13 @@ export async function sessionFetch(
   const firstAttempt = await fetchWithToken(`${config.backendUrl}/api${path}`, init, await config.getAccessToken())
   if (firstAttempt.status !== 401) return firstAttempt
 
-  const token = await refresh(config)
-  if (!token) {
-    await config.clearSession()
+  const result = await refresh(config)
+  if (!result.token) {
+    // Only wipe cookies when the backend definitively rejected the refresh
+    // token. A transient failure just fails this one request — the (still
+    // valid) refresh token stays put so the next request can try again.
+    if (result.invalid) await config.clearSession()
     throw config.unauthorizedError
   }
-  return fetchWithToken(`${config.backendUrl}/api${path}`, init, token)
+  return fetchWithToken(`${config.backendUrl}/api${path}`, init, result.token)
 }
