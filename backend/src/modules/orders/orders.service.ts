@@ -71,6 +71,7 @@ import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Order } from './entities/order.entity';
 import type { OrderStatus } from './entities/order.entity';
 import { TableSessionFoodStatusCount } from './entities/table-session-food-status-count.entity';
+import { User } from '../users/entities/user.entity';
 
 export interface OrderItemWithRelations extends OrderItem {
   addons: OrderItemAddon[];
@@ -148,6 +149,8 @@ export class OrdersService {
     private readonly reservationsRepository: Repository<OrderItemIngredientReservation>,
     @InjectRepository(TableSessionFoodStatusCount)
     private readonly tableSessionFoodStatusCountsRepository: Repository<TableSessionFoodStatusCount>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     @Inject(forwardRef(() => KitchenTicketsService))
     private readonly kitchenTicketsService: KitchenTicketsService,
     private readonly gateway: KitchenTicketsGateway,
@@ -1585,14 +1588,24 @@ export class OrdersService {
       ),
     ];
     const itemIds = items.map((item) => item.id);
+    const creatorIds = [
+      ...new Set(
+        items
+          .map((item) => item.createdBy)
+          .filter((id): id is number => id !== null),
+      ),
+    ];
 
-    const [foods, variants, addons] = await Promise.all([
+    const [foods, variants, addons, creators] = await Promise.all([
       this.foodsService.findByIds(foodIds),
       this.foodVariantsService.findByIds(variantIds),
       itemIds.length
         ? this.orderItemAddonsRepository.find({
             where: { orderItemId: In(itemIds) },
           })
+        : Promise.resolve([]),
+      creatorIds.length
+        ? this.usersRepository.find({ where: { id: In(creatorIds) } })
         : Promise.resolve([]),
     ]);
     const addonIds = [...new Set(addons.map((addon) => addon.addonId))];
@@ -1604,6 +1617,9 @@ export class OrdersService {
     );
     const addonNameById = new Map(
       addonDefs.map((addon) => [addon.id, addon.name]),
+    );
+    const creatorNameById = new Map(
+      creators.map((creator) => [creator.id, creator.name]),
     );
     const addonsByItem = new Map<number, OrderItemAddon[]>();
     for (const addon of addons) {
@@ -1635,6 +1651,10 @@ export class OrdersService {
       packagingType: item.packagingType,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      createdByName:
+        item.createdBy !== null
+          ? (creatorNameById.get(item.createdBy) ?? GUEST_ORDERED_BY)
+          : GUEST_ORDERED_BY,
       addons: (addonsByItem.get(item.id) ?? []).map((addon) => ({
         id: addon.id,
         addonId: addon.addonId,
@@ -1736,6 +1756,8 @@ export class OrdersService {
       deferTotals?: boolean;
       /** Caller runs the recompute itself once the whole batch has landed. */
       deferReservations?: boolean;
+      /** Staff placing this line — omitted (null) for a guest's own QR/online order. */
+      createdBy?: number | null;
     } = {},
   ): Promise<OrderItem> {
     const order = options.order ?? await this.findOne(orderId);
@@ -1810,6 +1832,7 @@ export class OrdersService {
         totalAmount: round2(quantity * unitPrice),
         note: dto.note ?? null,
         packagingType,
+        createdBy: options.createdBy ?? null,
       })
       .onConflict(
         `(order_id, food_id, (COALESCE(food_variant_id, -1)), (COALESCE(note, '')), packaging_type) ` +
@@ -1862,7 +1885,7 @@ export class OrdersService {
   async addItemsBatch(
     orderId: number,
     items: (CreateOrderItemDto & { addons?: CreateOrderItemAddonDto[] })[],
-    options: { order?: Order } = {},
+    options: { order?: Order; createdBy?: number | null } = {},
   ): Promise<OrderItem[]> {
     const order = options.order ?? await this.findOne(orderId);
     OrdersService.assertMutable(order);
@@ -1978,6 +2001,7 @@ export class OrdersService {
             totalAmount: round2(line.quantity * unitPrice),
             note: line.note,
             packagingType: line.packagingType,
+            createdBy: options.createdBy ?? null,
           },
         };
       });

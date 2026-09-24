@@ -13,6 +13,7 @@ import { Food } from '../../foods/entities/food.entity';
 import { FoodVariant } from '../../food-variants/entities/food-variant.entity';
 import { OutletDepartment } from '../../outlet-departments/entities/outlet-department.entity';
 import { TableSession } from '../../table-sessions/entities/table-session.entity';
+import { User } from '../../users/entities/user.entity';
 import { Order } from './order.entity';
 
 export type OrderItemStatus =
@@ -161,6 +162,19 @@ export class OrderItem {
 
   @Column({ name: 'cancel_reason', type: 'text', nullable: true })
   cancelReason: string | null;
+
+  /** Staff who added this line — null for a guest's own QR/online order (matches Order#createdBy). */
+  @Column({
+    name: 'created_by',
+    type: 'bigint',
+    transformer: new BigIntTransformer(),
+    nullable: true,
+  })
+  createdBy: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by' })
+  createdByUser: User | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

@@ -84,6 +84,8 @@ export interface OrderItem {
   createdAt: string
   /** Last status change (sent → preparing → ready → served) — the order-tracking "updated" time. */
   updatedAt: string
+  /** Staff who added this line — "Guest" for a guest's own QR/online order. */
+  createdByName: string
   // Embedded by GET /order-items so cart/order-detail rows don't each need
   // their own /order-items/:id/addons and /order-items/:id/reservations call.
   addons: OrderItemAddon[]

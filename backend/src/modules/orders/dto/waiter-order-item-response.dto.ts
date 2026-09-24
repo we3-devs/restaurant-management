@@ -90,6 +90,10 @@ export class WaiterOrderItemResponseDto {
   @ApiProperty()
   updatedAt: Date;
 
+  /** Staff who added this line — 'Guest' for a guest's own QR/online order (see OrdersService.GUEST_ORDERED_BY). */
+  @ApiProperty()
+  createdByName: string;
+
   @ApiProperty({ type: [WaiterOrderItemAddonResponseDto] })
   addons: WaiterOrderItemAddonResponseDto[];
 }

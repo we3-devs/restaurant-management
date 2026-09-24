@@ -27,6 +27,7 @@ import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Order } from './entities/order.entity';
 import { TableSessionFoodStatusCount } from './entities/table-session-food-status-count.entity';
+import { User } from '../users/entities/user.entity';
 import { OrderItemsController } from './order-items.controller';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
@@ -46,6 +47,9 @@ import { TableSessionOpenController } from './table-session-open.controller';
       // registering the same entity's repository here avoids a circular
       // module import (OrderPaymentsModule already imports OrdersModule).
       OrderPayment,
+      // For batch-resolving order_items.created_by -> staff name in
+      // toWaiterItems(), same pattern as Order.createdByUser.
+      User,
     ]),
     AuthModule,
     OutletsModule,

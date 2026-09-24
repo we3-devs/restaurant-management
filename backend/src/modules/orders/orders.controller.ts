@@ -416,7 +416,7 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     const order = await this.assertOrderAccess(id, user);
-    return this.ordersService.addItem(id, dto, { order });
+    return this.ordersService.addItem(id, dto, { order, createdBy: user.id });
   }
 
   @Post(':id/items/batch')
@@ -431,7 +431,7 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     const order = await this.assertOrderAccess(id, user);
-    return this.ordersService.addItemsBatch(id, dto.items, { order });
+    return this.ordersService.addItemsBatch(id, dto.items, { order, createdBy: user.id });
   }
 
   @Post(':id/invoice')
