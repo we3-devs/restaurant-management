@@ -388,7 +388,8 @@ function EditableCart({
   }
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
+      <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[45vh] space-y-3 overflow-y-auto">
         {isLoading && <ListSkeleton count={3} />}
@@ -477,10 +478,10 @@ function EditableCart({
         {isPlacing ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
       <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="place order" onConfirm={handlePlaceOrderOverride} />
+      </div>
+
       {order && (
-        <>
-          <Separator />
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-lg border border-input p-3">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase">
                 <ReceiptIcon className="size-3.5" />
@@ -535,8 +536,6 @@ function EditableCart({
               </div>
             </div>
 
-            {canRecordPayment && <OrderDiscountForm orderId={orderId} />}
-
             {(payments?.data.length ?? 0) > 0 && (
               <div className="space-y-1">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase">Payments</h4>
@@ -560,6 +559,7 @@ function EditableCart({
                   <CircleDollarSignIcon className="size-4 text-primary" />
                   <h4 className="text-sm font-medium">Record a payment</h4>
                 </div>
+                <OrderDiscountForm orderId={orderId} />
                 <PaymentMethodPicker
                   value={paymentMethod}
                   onChange={(method) => {
@@ -690,7 +690,6 @@ function EditableCart({
               </>
             )}
           </div>
-        </>
       )}
     </div>
   )
