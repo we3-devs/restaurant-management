@@ -10,8 +10,8 @@ export interface Branding {
   qrTemplateQrY: number | null
   qrTemplateQrSize: number | null
   qrTemplateTableWidth: number | null
-  qrTemplateTableHeight: number | null
   qrTemplateTableFontSize: number | null
+  qrTemplateTableTextColor: string | null
   qrTemplateTableX: number | null
   qrTemplateTableY: number | null
 }
@@ -26,8 +26,8 @@ export const EMPTY_BRANDING: Branding = {
   qrTemplateQrY: null,
   qrTemplateQrSize: null,
   qrTemplateTableWidth: null,
-  qrTemplateTableHeight: null,
   qrTemplateTableFontSize: null,
+  qrTemplateTableTextColor: null,
   qrTemplateTableX: null,
   qrTemplateTableY: null,
 }

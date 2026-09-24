@@ -13,8 +13,8 @@ type PosterBranding = {
   qrTemplateQrY: number | null
   qrTemplateQrSize: number | null
   qrTemplateTableWidth: number | null
-  qrTemplateTableHeight: number | null
   qrTemplateTableFontSize: number | null
+  qrTemplateTableTextColor: string | null
   qrTemplateTableX: number | null
   qrTemplateTableY: number | null
 }
@@ -69,14 +69,14 @@ export function BrandedQrPoster({
         const ctx = canvas.getContext("2d")
         if (!ctx) throw new Error("Canvas is not available")
 
-        const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelX, labelY } =
+        const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelTextColor, labelX, labelY } =
           resolveQrTemplateLayout({
             qrX: branding.qrTemplateQrX,
             qrY: branding.qrTemplateQrY,
             qrSize: branding.qrTemplateQrSize,
             tableWidth: branding.qrTemplateTableWidth,
-            tableHeight: branding.qrTemplateTableHeight,
             tableFontSize: branding.qrTemplateTableFontSize,
+            tableTextColor: branding.qrTemplateTableTextColor,
             tableX: branding.qrTemplateTableX,
             tableY: branding.qrTemplateTableY,
           })
@@ -90,7 +90,7 @@ export function BrandedQrPoster({
         ctx.beginPath()
         ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
         ctx.fill()
-        ctx.fillStyle = "#fff"
+        ctx.fillStyle = labelTextColor
         ctx.font = `700 ${labelFontSize}px Arial`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
@@ -105,7 +105,7 @@ export function BrandedQrPoster({
     return () => {
       cancelled = true
     }
-  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateTableFontSize, branding.qrTemplateTableHeight, branding.qrTemplateTableWidth, branding.qrTemplateTableX, branding.qrTemplateTableY, branding.qrTemplateUrl, qrDataUrl, tableLabel])
+  }, [branding.qrTemplateQrSize, branding.qrTemplateQrX, branding.qrTemplateQrY, branding.qrTemplateTableFontSize, branding.qrTemplateTableTextColor, branding.qrTemplateTableWidth, branding.qrTemplateTableX, branding.qrTemplateTableY, branding.qrTemplateUrl, qrDataUrl, tableLabel])
 
   return (
     <div className="flex flex-col items-center gap-3">

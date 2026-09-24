@@ -16,8 +16,8 @@ type QrTemplatePreviewProps = {
   qrY?: number
   qrSize?: number
   tableWidth?: number
-  tableHeight?: number
   tableFontSize?: number
+  tableTextColor?: string | null
   tableX?: number | null
   tableY?: number | null
 }
@@ -36,7 +36,7 @@ function downloadBlankTemplate(layout: QrTemplateLayout) {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
 
-  const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelX, labelY } = layout
+  const { qrX, qrY, qrSize, quietZone, labelWidth, labelHeight, labelFontSize, labelTextColor, labelX, labelY } = layout
 
   ctx.fillStyle = "#f7c500"
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
@@ -64,7 +64,7 @@ function downloadBlankTemplate(layout: QrTemplateLayout) {
   ctx.beginPath()
   ctx.roundRect(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
   ctx.fill()
-  ctx.fillStyle = "#fff"
+  ctx.fillStyle = labelTextColor
   ctx.font = `700 ${labelFontSize}px Arial`
   ctx.fillText(formatTableLabel(), labelX + labelWidth / 2, labelY + labelHeight / 2)
 
@@ -80,14 +80,14 @@ export function QrTemplatePreview({
   qrY = QR_TEMPLATE_DEFAULTS.qrY,
   qrSize = QR_TEMPLATE_DEFAULTS.qrSize,
   tableWidth = QR_TEMPLATE_DEFAULTS.tableWidth,
-  tableHeight = QR_TEMPLATE_DEFAULTS.tableHeight,
   tableFontSize = QR_TEMPLATE_DEFAULTS.tableFontSize,
+  tableTextColor,
   tableX,
   tableY,
 }: QrTemplatePreviewProps) {
   const scale = 300 / WIDTH
-  const layout = resolveQrTemplateLayout({ qrX, qrY, qrSize, tableWidth, tableHeight, tableFontSize, tableX, tableY })
-  const { quietZone, labelWidth, labelHeight, labelX, labelY } = layout
+  const layout = resolveQrTemplateLayout({ qrX, qrY, qrSize, tableWidth, tableFontSize, tableTextColor, tableX, tableY })
+  const { quietZone, labelWidth, labelHeight, labelTextColor, labelX, labelY } = layout
 
   return (
     <div className="space-y-2">
@@ -117,13 +117,14 @@ export function QrTemplatePreview({
           </span>
         </div>
         <div
-          className="absolute flex items-center justify-center rounded-full bg-[#202126] text-[10px] font-bold text-white"
+          className="absolute flex items-center justify-center rounded-full bg-[#202126] text-[10px] font-bold"
           style={{
             left: labelX * scale,
             top: labelY * scale,
             width: labelWidth * scale,
             height: labelHeight * scale,
             fontSize: tableFontSize * scale,
+            color: labelTextColor,
           }}
         >
           {formatTableLabel()}

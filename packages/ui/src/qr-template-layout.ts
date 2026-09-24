@@ -10,13 +10,20 @@
 export const QR_TEMPLATE_WIDTH = 1200
 export const QR_TEMPLATE_HEIGHT = 1600
 
+// The label pill's height is no longer its own setting — it's derived from
+// the font size (see resolveQrTemplateLayout) so the pill always hugs the
+// text instead of needing separate width/height tuning to avoid clipping or
+// looking oversized. This padding is chosen to match the old fixed default
+// (34px font -> 80px height) so existing posters don't visibly jump.
+const TABLE_LABEL_VERTICAL_PADDING = 23
+
 export const QR_TEMPLATE_DEFAULTS = {
   qrX: 300,
   qrY: 515,
   qrSize: 600,
   tableWidth: 260,
-  tableHeight: 80,
   tableFontSize: 34,
+  tableTextColor: "#ffffff",
 } as const
 
 type Nullable = number | null | undefined
@@ -26,8 +33,8 @@ export type QrTemplateLayoutInput = {
   qrY?: Nullable
   qrSize?: Nullable
   tableWidth?: Nullable
-  tableHeight?: Nullable
   tableFontSize?: Nullable
+  tableTextColor?: string | null
   tableX?: Nullable
   tableY?: Nullable
 }
@@ -40,6 +47,7 @@ export type QrTemplateLayout = {
   labelWidth: number
   labelHeight: number
   labelFontSize: number
+  labelTextColor: string
   labelX: number
   labelY: number
 }
@@ -51,8 +59,9 @@ export function resolveQrTemplateLayout(input: QrTemplateLayoutInput = {}): QrTe
   const qrY = num(input.qrY, QR_TEMPLATE_DEFAULTS.qrY)
   const qrSize = num(input.qrSize, QR_TEMPLATE_DEFAULTS.qrSize)
   const labelWidth = num(input.tableWidth, QR_TEMPLATE_DEFAULTS.tableWidth)
-  const labelHeight = num(input.tableHeight, QR_TEMPLATE_DEFAULTS.tableHeight)
   const labelFontSize = num(input.tableFontSize, QR_TEMPLATE_DEFAULTS.tableFontSize)
+  const labelHeight = labelFontSize + TABLE_LABEL_VERTICAL_PADDING * 2
+  const labelTextColor = input.tableTextColor || QR_TEMPLATE_DEFAULTS.tableTextColor
   const quietZone = Math.max(20, Math.round(qrSize * 0.05))
 
   return {
@@ -63,6 +72,7 @@ export function resolveQrTemplateLayout(input: QrTemplateLayoutInput = {}): QrTe
     labelWidth,
     labelHeight,
     labelFontSize,
+    labelTextColor,
     labelX: num(input.tableX, qrX + (qrSize - labelWidth) / 2),
     labelY: num(input.tableY, qrY + qrSize + quietZone + 20),
   }

@@ -347,19 +347,17 @@ export class AppearanceSettingsDto {
   @Max(600)
   qrTemplateTableWidth?: number;
 
-  @ApiPropertyOptional({ minimum: 40, maximum: 200 })
-  @IsOptional()
-  @IsInt()
-  @Min(40)
-  @Max(200)
-  qrTemplateTableHeight?: number;
-
   @ApiPropertyOptional({ minimum: 16, maximum: 120 })
   @IsOptional()
   @IsInt()
   @Min(16)
   @Max(120)
   qrTemplateTableFontSize?: number;
+
+  @ApiPropertyOptional({ description: 'Table label pill text color, e.g. "#ffffff"' })
+  @IsOptional()
+  @IsString()
+  qrTemplateTableTextColor?: string;
 
   // Null means "keep the label centred under the QR" — the behaviour every
   // poster had before the label became movable.

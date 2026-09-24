@@ -121,8 +121,8 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     qrTemplateQrY: 515,
     qrTemplateQrSize: 600,
     qrTemplateTableWidth: 260,
-    qrTemplateTableHeight: 80,
     qrTemplateTableFontSize: 34,
+    qrTemplateTableTextColor: '#ffffff',
     qrTemplateTableX: null,
     qrTemplateTableY: null,
   },
@@ -301,8 +301,8 @@ export class SettingsService {
     qrTemplateQrY: number | null;
     qrTemplateQrSize: number | null;
     qrTemplateTableWidth: number | null;
-    qrTemplateTableHeight: number | null;
     qrTemplateTableFontSize: number | null;
+    qrTemplateTableTextColor: string | null;
     qrTemplateTableX: number | null;
     qrTemplateTableY: number | null;
   }> {
@@ -324,8 +324,8 @@ export class SettingsService {
       qrTemplateQrY: typeof appearance.qrTemplateQrY === 'number' ? appearance.qrTemplateQrY : null,
       qrTemplateQrSize: typeof appearance.qrTemplateQrSize === 'number' ? appearance.qrTemplateQrSize : null,
       qrTemplateTableWidth: typeof appearance.qrTemplateTableWidth === 'number' ? appearance.qrTemplateTableWidth : null,
-      qrTemplateTableHeight: typeof appearance.qrTemplateTableHeight === 'number' ? appearance.qrTemplateTableHeight : null,
       qrTemplateTableFontSize: typeof appearance.qrTemplateTableFontSize === 'number' ? appearance.qrTemplateTableFontSize : null,
+      qrTemplateTableTextColor: pick(appearance.qrTemplateTableTextColor),
       qrTemplateTableX: typeof appearance.qrTemplateTableX === 'number' ? appearance.qrTemplateTableX : null,
       qrTemplateTableY: typeof appearance.qrTemplateTableY === 'number' ? appearance.qrTemplateTableY : null,
     };

@@ -28,8 +28,8 @@ const defaultValues: AppearanceSettingsInput = {
   qrTemplateQrY: 515,
   qrTemplateQrSize: 600,
   qrTemplateTableWidth: 260,
-  qrTemplateTableHeight: 80,
   qrTemplateTableFontSize: 34,
+  qrTemplateTableTextColor: "#ffffff",
   qrTemplateTableX: null,
   qrTemplateTableY: null,
 }
@@ -44,7 +44,6 @@ const QR_TEMPLATE_FIELDS = [
   { name: "qrTemplateQrY", label: "QR Y position", min: 0, max: 1600, nullable: false },
   { name: "qrTemplateQrSize", label: "QR size", min: 128, max: 900, nullable: false },
   { name: "qrTemplateTableWidth", label: "Table label width", min: 120, max: 600, nullable: false },
-  { name: "qrTemplateTableHeight", label: "Table label height", min: 40, max: 200, nullable: false },
   { name: "qrTemplateTableFontSize", label: "Table label font size", min: 16, max: 120, nullable: false },
   { name: "qrTemplateTableX", label: "Table label X position", min: 0, max: 1200, nullable: true },
   { name: "qrTemplateTableY", label: "Table label Y position", min: 0, max: 1600, nullable: true },
@@ -68,8 +67,8 @@ export default function AppearanceSettingsPage() {
   const qrTemplateQrY = form.watch("qrTemplateQrY")
   const qrTemplateQrSize = form.watch("qrTemplateQrSize")
   const qrTemplateTableWidth = form.watch("qrTemplateTableWidth")
-  const qrTemplateTableHeight = form.watch("qrTemplateTableHeight")
   const qrTemplateTableFontSize = form.watch("qrTemplateTableFontSize")
+  const qrTemplateTableTextColor = form.watch("qrTemplateTableTextColor")
   const qrTemplateTableX = form.watch("qrTemplateTableX")
   const qrTemplateTableY = form.watch("qrTemplateTableY")
 
@@ -218,6 +217,21 @@ export default function AppearanceSettingsPage() {
                     )}
                   />
                 ))}
+                <FormField
+                  control={form.control}
+                  name="qrTemplateTableTextColor"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Table label text color</FormLabel>
+                      <ColorPickerField
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={!canManage}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="col-span-2 border-t pt-3">
                   <QrTemplatePreview
                     templateUrl={qrTemplateUrl}
@@ -225,8 +239,8 @@ export default function AppearanceSettingsPage() {
                     qrY={qrTemplateQrY}
                     qrSize={qrTemplateQrSize}
                     tableWidth={qrTemplateTableWidth}
-                    tableHeight={qrTemplateTableHeight}
                     tableFontSize={qrTemplateTableFontSize}
+                    tableTextColor={qrTemplateTableTextColor}
                     tableX={qrTemplateTableX}
                     tableY={qrTemplateTableY}
                   />

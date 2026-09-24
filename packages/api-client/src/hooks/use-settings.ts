@@ -91,8 +91,8 @@ export interface AppearanceSettings {
   qrTemplateQrY?: number
   qrTemplateQrSize?: number
   qrTemplateTableWidth?: number
-  qrTemplateTableHeight?: number
   qrTemplateTableFontSize?: number
+  qrTemplateTableTextColor?: string
   qrTemplateTableX?: number | null
   qrTemplateTableY?: number | null
 }
