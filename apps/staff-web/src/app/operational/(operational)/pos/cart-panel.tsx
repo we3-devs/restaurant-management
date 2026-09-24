@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   CheckCircle2Icon,
@@ -11,7 +10,6 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
-  PrinterIcon,
   ReceiptIcon,
   XIcon,
 } from "lucide-react"
@@ -30,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@rms/ui/alert-dialog"
 import { Badge } from "@rms/ui/badge"
+import { BillReceiptDialog } from "@rms/ui/bill-receipt-dialog"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
@@ -86,30 +85,26 @@ function groupSentItems(items: OrderItem[]): OrderItem[][] {
 }
 
 export function CartPanel({ orderId, basePath = "/operational/pos" }: { orderId: number; basePath?: string }) {
-  // The receipt page and the tables board are their own top-level
-  // staff-shell pages (see staff/nav-items.ts), not nested under basePath.
-  const isStaffShell = basePath.startsWith("/operational/staff")
-  const receiptPath = isStaffShell ? `/operational/staff/pos/receipt/${orderId}` : `/operational/pos/receipt/${orderId}`
-  const tablesPath = isStaffShell ? "/operational/staff/tables" : "/operational/floor"
+  // The tables board is its own top-level staff-shell page (see
+  // staff/nav-items.ts), not nested under basePath.
+  const tablesPath = basePath.startsWith("/operational/staff") ? "/operational/staff/tables" : "/operational/floor"
   const { data: order } = useOrder(orderId)
 
   // Nothing left to do once the sale is closed out — items can no longer be
   // edited and payment is done, so collapse to a read-only summary instead
   // of the full editable cart.
   if (order?.status === "completed") {
-    return <CompletedSaleSummary order={order} receiptPath={receiptPath} tablesPath={tablesPath} />
+    return <CompletedSaleSummary order={order} tablesPath={tablesPath} />
   }
 
-  return <EditableCart orderId={orderId} receiptPath={receiptPath} />
+  return <EditableCart orderId={orderId} />
 }
 
 function CompletedSaleSummary({
   order,
-  receiptPath,
   tablesPath,
 }: {
   order: Order
-  receiptPath: string
   tablesPath: string
 }) {
   const router = useRouter()
@@ -133,22 +128,13 @@ function CompletedSaleSummary({
     <div className="flex w-full flex-col gap-3">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase">Payment info</h3>
       <BillSummary order={order} />
-      <Button variant="outline" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
-        <PrinterIcon />
-        View / print bill
-      </Button>
+      <BillReceiptDialog orderId={order.id} />
       <Button onClick={() => router.replace(tablesPath)}>Go to tables</Button>
     </div>
   )
 }
 
-function EditableCart({
-  orderId,
-  receiptPath,
-}: {
-  orderId: number
-  receiptPath: string
-}) {
+function EditableCart({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: order } = useOrder(orderId)
   // table_session_food_status_counts is the rollup every status display reads:
@@ -487,14 +473,7 @@ function EditableCart({
                 <ReceiptIcon className="size-3.5" />
                 Payment
               </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}
-              >
-                <PrinterIcon />
-                View / print bill
-              </Button>
+              <BillReceiptDialog orderId={orderId} />
             </div>
 
             {/* Totals — Due is the one number that matters at a glance, so it's

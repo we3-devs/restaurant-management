@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
+import { BillReceiptDialog } from "@rms/ui/bill-receipt-dialog"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { OrderDiscountForm } from "@rms/ui/order-discount-form"
@@ -46,10 +46,6 @@ export function TableSessionCheckout({
   basePath?: string
 }) {
   const isOnline = useOnlineStatus()
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
-  // the receipt page is its own top-level staff-shell page (see
-  // staff/nav-items.ts) — mirrors CheckoutPanel's derivation.
-  const receiptPath = (id: number) => (basePath.startsWith("/operational/staff") ? `/operational/staff/pos/receipt/${id}` : `/operational/pos/receipt/${id}`)
   const createPayment = useCreateTableSessionPayment(tableSessionId)
   const completeAll = useCompleteAllForTableSession(tableSessionId)
 
@@ -111,7 +107,7 @@ export function TableSessionCheckout({
 
       <div className="space-y-1.5">
         {orders.map((order) => (
-          <OrderWithItems key={order.id} order={order} receiptHref={receiptPath(order.id)} />
+          <OrderWithItems key={order.id} order={order} />
         ))}
       </div>
 
@@ -175,7 +171,7 @@ export function TableSessionCheckout({
 }
 
 /** One order's summary plus its item list — not-served items first, so the cashier sees at a glance what's still outstanding before what's already gone out. */
-function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: string }) {
+function OrderWithItems({ order }: { order: Order }) {
   const { data: items } = useOrderItems(order.id)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
@@ -200,14 +196,14 @@ function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: str
             <p>{order.grandTotal}</p>
             <p className="text-muted-foreground">Due {order.dueAmount}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="View / print bill"
-            render={<Link href={receiptHref} target="_blank" rel="noopener noreferrer" />}
-          >
-            <PrinterIcon className="size-4" />
-          </Button>
+          <BillReceiptDialog
+            orderId={order.id}
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="View / print bill">
+                <PrinterIcon className="size-4" />
+              </Button>
+            }
+          />
         </div>
       </div>
       {sortedItems.length > 0 && (

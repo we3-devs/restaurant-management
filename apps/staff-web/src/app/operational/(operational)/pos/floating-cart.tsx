@@ -43,7 +43,7 @@ export function FloatingCart({ orderId, basePath = "/operational/pos" }: { order
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+          className="max-h-[85vh] overflow-y-auto sm:max-w-3xl"
           showCloseButton={order?.status !== "completed"}
         >
           <DialogTitle className="sr-only">Cart</DialogTitle>

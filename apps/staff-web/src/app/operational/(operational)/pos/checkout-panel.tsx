@@ -1,8 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -17,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@rms/ui/alert-dialog"
 import { Badge } from "@rms/ui/badge"
+import { BillReceiptDialog } from "@rms/ui/bill-receipt-dialog"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
@@ -51,11 +50,6 @@ export function CheckoutPanel({
   /** Order-taking/receipt route this panel navigates into — desktop POS by default, staff mobile passes its own route. */
   basePath?: string
 }) {
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
-  // the receipt page doesn't live under it — it's its own top-level
-  // staff-shell page (see staff/nav-items.ts) — so derive it separately
-  // rather than nesting off basePath.
-  const receiptPath = basePath.startsWith("/operational/staff") ? `/operational/staff/pos/receipt/${orderId}` : `/operational/pos/receipt/${orderId}`
   const { data: order } = useOrder(orderId)
   const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
@@ -191,10 +185,7 @@ export function CheckoutPanel({
   return (
     <div className="space-y-3 border-t border-input pt-3">
       <div className="flex justify-end">
-        <Button variant="outline" size="sm" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
-          <PrinterIcon />
-          View / print bill
-        </Button>
+        <BillReceiptDialog orderId={orderId} />
       </div>
 
       <BillSummary order={{ ...order, paidAmount, dueAmount: displayedDueAmount }} />
