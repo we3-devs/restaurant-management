@@ -157,12 +157,53 @@ export class AuthService {
     if (claim.affected !== 1) {
       const existing = await this.refreshTokensRepository.findOne({
         where: { tokenHash },
+        relations: { user: true },
       });
       if (!existing) {
         throw new UnauthorizedException('Invalid refresh token');
       }
-      // Already revoked (lost the race, or genuine reuse of a rotated
-      // token): possible theft. Revoke the whole chain for this user.
+
+      // The frontend has two independent call sites that can each decide to
+      // refresh around the same moment — proxy.ts's proactive refresh ahead
+      // of a page render, and the reactive refresh-on-401 fallback used by
+      // API mutations — and they don't share in-process state (different
+      // Next.js runtimes), so they can't dedupe a simultaneous refresh of
+      // the same still-valid token the way proxy.ts already dedupes against
+      // itself. Without this, the loser of that race reuses an
+      // already-rotated token a few milliseconds after the winner, and the
+      // theft-detection below nukes the whole chain — logging the user out
+      // over a timing race, not a real reuse. If the token was revoked only
+      // moments ago as part of its own rotation (not stale reuse of a token
+      // whose replacement has long since moved on), rotate the successor
+      // again for this request instead, so the loser also gets a valid pair.
+      const REUSE_GRACE_MS = 15_000;
+      const revokedJustNow =
+        existing.revokedAt !== null &&
+        Date.now() - existing.revokedAt.getTime() < REUSE_GRACE_MS;
+      if (revokedJustNow && existing.replacedByTokenHash) {
+        const successorClaim = await this.refreshTokensRepository.update(
+          { tokenHash: existing.replacedByTokenHash, revokedAt: IsNull() },
+          { revokedAt: new Date() },
+        );
+        if (successorClaim.affected === 1) {
+          const successor = await this.refreshTokensRepository.findOne({
+            where: { tokenHash: existing.replacedByTokenHash },
+            relations: { user: true },
+          });
+          if (successor && successor.expiresAt.getTime() >= Date.now()) {
+            const tokens = await this.issueTokenPair(successor.user);
+            await this.refreshTokensRepository.update(
+              { tokenHash: successor.tokenHash },
+              { replacedByTokenHash: this.hashToken(tokens.refreshToken) },
+            );
+            return { tokens, user: successor.user };
+          }
+        }
+      }
+
+      // Outside the grace window, or the successor was already claimed by
+      // someone else too: genuine reuse of a stale token — possible theft.
+      // Revoke the whole chain for this user.
       await this.refreshTokensRepository.update(
         { userId: existing.userId, revokedAt: IsNull() },
         { revokedAt: new Date() },
