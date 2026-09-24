@@ -291,6 +291,8 @@ function PaymentSummaryCard({
 }) {
   const createPayment = useCreateOrderPayment(orderId)
   const { data: payments } = useOrderPayments(orderId)
+  const { permissions } = useCurrentUser()
+  const canRefund = permissions.includes("order-payments.refund")
 
   const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [amount, setAmount] = useState(0)
@@ -346,21 +348,23 @@ function PaymentSummaryCard({
       <CardHeader className="flex-row w-full items-center">
         <div className=" w-full flex items-center justify-between ">
           <StatusBadge status={order.paymentStatus} />
-        {paidAmount > 0 && (
+        {((paidAmount > 0 && canRefund) || !isLocked) && (
           <div className="flex items-center justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-red-600 border-red-600 text-white hover:bg-red-700"
-              onClick={() => {
-                setFormMode("refund")
-                setAmount(paidAmount)
-                setRefundNote("")
-                if (method === "credit") setMethod("cash")
-              }}
-            >
-              Refund
-            </Button>
+            {paidAmount > 0 && canRefund && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-red-600 border-red-600 text-white hover:bg-red-700"
+                onClick={() => {
+                  setFormMode("refund")
+                  setAmount(paidAmount)
+                  setRefundNote("")
+                  if (method === "credit") setMethod("cash")
+                }}
+              >
+                Refund
+              </Button>
+            )}
             {!isLocked && (
               <Button
                 size="sm"

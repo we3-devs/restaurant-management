@@ -20,12 +20,27 @@ const PERMISSION_MODULES = [
   'inventory-stock', 'kitchen-tickets', 'service-requests', 'notifications', 'assistant',
 ] as const;
 
-async function upsertPermission(repo: Repository<Permission>, module: string, action: string): Promise<Permission> {
+// Narrower, discretionary permissions beyond a module's base view/manage
+// pair — each gates one specific controller action (see the matching
+// permissionsService.hasPermission() call at its call site) and is granted
+// to no one but super-admin by default; other positions opt in explicitly
+// via Settings > Positions.
+const EXTRA_PERMISSIONS: { module: string; action: string; name: string }[] = [
+  { module: 'order-payments', action: 'refund', name: 'Issue refunds' },
+  { module: 'orders', action: 'delete', name: 'Cancel, force-complete, or delete order items' },
+];
+
+async function upsertPermission(
+  repo: Repository<Permission>,
+  module: string,
+  action: string,
+  name?: string,
+): Promise<Permission> {
   const slug = `${module}.${action}`;
   let permission = await repo.findOne({ where: { slug } });
   if (!permission) {
     permission = await repo.save(repo.create({
-      name: `${action === 'view' ? 'View' : 'Manage'} ${module.replace(/-/g, ' ')}`,
+      name: name ?? `${action === 'view' ? 'View' : 'Manage'} ${module.replace(/-/g, ' ')}`,
       slug,
       module,
       action,
@@ -53,6 +68,14 @@ async function run() {
         const exists = await positionPermissionRepo.findOne({ where: { positionId: systemPosition.id, permissionId: permission.id } });
         if (!exists) await positionPermissionRepo.save(positionPermissionRepo.create({ positionId: systemPosition.id, permissionId: permission.id, createdBy: null }));
       }
+    }
+  }
+
+  for (const { module, action, name } of EXTRA_PERMISSIONS) {
+    const permission = await upsertPermission(permissionRepo, module, action, name);
+    if (systemPosition) {
+      const exists = await positionPermissionRepo.findOne({ where: { positionId: systemPosition.id, permissionId: permission.id } });
+      if (!exists) await positionPermissionRepo.save(positionPermissionRepo.create({ positionId: systemPosition.id, permissionId: permission.id, createdBy: null }));
     }
   }
 
