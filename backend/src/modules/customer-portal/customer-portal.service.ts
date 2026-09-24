@@ -10,6 +10,7 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { withPrimaryAddress } from '../customers/customers.service';
 import { Customer, CustomerAddress } from '../customers/entities/customer.entity';
 import { FoodsService } from '../foods/foods.service';
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
@@ -64,7 +65,9 @@ export class CustomerPortalService {
     Object.assign(customer, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.email !== undefined && { email: dto.email }),
-      ...(dto.address !== undefined && { address: dto.address }),
+      ...(dto.address !== undefined && {
+        addresses: withPrimaryAddress(customer.addresses, dto.address ?? null),
+      }),
       ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),
     });
 

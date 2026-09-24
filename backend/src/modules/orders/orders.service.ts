@@ -230,7 +230,6 @@ export class OrdersService {
         customerId: true,
         orderNumber: true,
         orderType: true,
-        source: true,
         orderSource: true,
         status: true,
         paymentStatus: true,
@@ -679,10 +678,10 @@ export class OrdersService {
   /**
    * Guest self-ordering from /guest (OTP-verified customers only — enforced
    * by the controller's CustomerJwtAuthGuard check, not here). Kept separate
-   * from create() rather than widening its signature: source/orderSource
-   * are hardcoded here (never caller-supplied), and there's no staff
-   * `createdBy` — matches the 'online'/'qr' origin columns that already
-   * exist on the entity for exactly this case.
+   * from create() rather than widening its signature: orderSource is
+   * hardcoded here (never caller-supplied), and there's no staff
+   * `createdBy` — matches the 'qr' origin value that already exists on
+   * the entity for exactly this case.
    */
   /**
    * One shared cart per table visit: if the table session already has an
@@ -717,7 +716,6 @@ export class OrdersService {
             orderType: 'table',
             orderNumber: this.generateOrderNumber(outletId),
             createdBy: null,
-            source: 'online',
             orderSource: 'qr',
             billId,
             billNumber,

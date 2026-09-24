@@ -61,7 +61,7 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         <div>
           <h1 className="text-lg font-semibold">{customerNames.length > 0 ? customerNames.join(", ") : customer?.name ?? "Walk-in customer"}</h1>
           <p className="text-sm text-muted-foreground capitalize">
-            {order.source.replace(/_/g, " ")} &middot; {table?.name ?? "No table"}
+            {order.orderSource.replace(/_/g, " ")} &middot; {table?.name ?? "No table"}
           </p>
           <p className="text-xs text-muted-foreground">
             Placed {new Date(order.createdAt).toLocaleString()}

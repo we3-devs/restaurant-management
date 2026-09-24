@@ -4,7 +4,6 @@ import type {
   OrderChannel,
   OrderDiscountType,
   OrderPaymentStatus,
-  OrderSourceChannel,
   OrderStatus,
   OrderType,
 } from '../entities/order.entity';
@@ -27,9 +26,6 @@ export class OrderResponseDto {
 
   @ApiProperty()
   orderType: OrderType;
-
-  @ApiProperty()
-  source: OrderSourceChannel;
 
   @ApiProperty()
   orderSource: OrderChannel;

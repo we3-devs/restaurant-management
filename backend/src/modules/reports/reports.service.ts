@@ -300,7 +300,7 @@ export class ReportsService {
       .addSelect('order.id', 'orderId')
       .addSelect(`TO_CHAR(order.created_at, 'YYYY-MM-DD"T"HH24:MI:SS')`, 'createdAt')
       .addSelect('order.order_type', 'orderType')
-      .addSelect('order.source', 'source')
+      .addSelect('order.order_source', 'orderSource')
       .addSelect('order.status', 'status')
       .addSelect(
         '(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = order.id)',

@@ -117,19 +117,6 @@ export class Supplier {
   })
   outstandingBalance: number;
 
-  @Column({
-    name: 'total_purchased',
-    type: 'decimal',
-    precision: 18,
-    scale: 2,
-    default: 0,
-    transformer: new NumericTransformer(),
-  })
-  totalPurchased: number;
-
-  @Column({ name: 'last_purchase_date', type: 'date', nullable: true })
-  lastPurchaseDate: string | null;
-
   @Column({ type: 'integer', default: 0 })
   rating: number;
 

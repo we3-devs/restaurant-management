@@ -10,6 +10,9 @@ function buildRepository(existing: { id: number; phone: string | null; email: st
   let nextId = existing.length + 1;
   return {
     find: async () => existing,
+    findOne: jest.fn(async ({ where: { id } }: { where: { id: number } }) =>
+      existing.find((c) => c.id === id) ?? null,
+    ),
     create: (data: Partial<Customer>) => data as Customer,
     save: jest.fn(async (c: Customer) => ({ ...c, id: c.id ?? nextId++ }) as Customer),
     update: jest.fn(async () => undefined),
@@ -47,7 +50,7 @@ describe('CustomersImporter', () => {
   describe('commitRows', () => {
     it('updates name/address for an existing match, leaves phone/email alone', async () => {
       const importer = new CustomersImporter(buildRepository());
-      const managerRepo = buildRepository();
+      const managerRepo = buildRepository([{ id: 7, phone: '9800000000', email: null }]);
       const manager = { getRepository: () => managerRepo } as unknown as EntityManager;
 
       await importer.commitRows(
@@ -55,7 +58,10 @@ describe('CustomersImporter', () => {
         manager,
       );
 
-      expect(managerRepo.update).toHaveBeenCalledWith(7, { name: 'Jane Updated', address: 'New Addr' });
+      expect(managerRepo.update).toHaveBeenCalledWith(7, {
+        name: 'Jane Updated',
+        addresses: [{ id: expect.any(String), label: 'Primary', line1: 'New Addr', isDefault: true }],
+      });
       expect(managerRepo.save).not.toHaveBeenCalled();
     });
 

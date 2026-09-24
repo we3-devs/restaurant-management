@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
 import { Brackets, FindOptionsWhere, In, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { normalizeNepalPhone } from '../../common/phone';
@@ -20,7 +21,34 @@ import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerOutletDto } from './dto/update-customer-outlet.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerOutlet } from './entities/customer-outlet.entity';
-import { Customer } from './entities/customer.entity';
+import { Customer, CustomerAddress } from './entities/customer.entity';
+
+/**
+ * The staff-facing API/UI only ever edits a single free-text "address" —
+ * there's no separate staff UI for the guest portal's multi-address list
+ * (customer-portal.service.ts), so this maps that single field onto
+ * whichever address is marked default, leaving any others (added by the
+ * customer themselves) untouched.
+ */
+export function withPrimaryAddress(
+  addresses: CustomerAddress[] | null | undefined,
+  line1: string | null,
+): CustomerAddress[] | null {
+  const existing = addresses ?? [];
+  const others = existing.filter((a) => !a.isDefault);
+  if (!line1) return others.length > 0 ? others : null;
+  const current = existing.find((a) => a.isDefault);
+  return [
+    { ...current, id: current?.id ?? randomUUID(), label: current?.label ?? 'Primary', line1, isDefault: true },
+    ...others,
+  ];
+}
+
+export function primaryAddressLine1(addresses: CustomerAddress[] | null): string | null {
+  return (
+    addresses?.find((a) => a.isDefault)?.line1 ?? addresses?.[0]?.line1 ?? null
+  );
+}
 
 @Injectable()
 export class CustomersService {
@@ -115,7 +143,7 @@ export class CustomersService {
       name: dto.name,
       phone,
       email: dto.email ?? null,
-      address: dto.address ?? null,
+      addresses: withPrimaryAddress(null, dto.address ?? null),
       dateOfBirth: dto.dateOfBirth ?? null,
     });
 
@@ -189,7 +217,9 @@ export class CustomersService {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(phone !== undefined && { phone }),
       ...(dto.email !== undefined && { email: dto.email }),
-      ...(dto.address !== undefined && { address: dto.address }),
+      ...(dto.address !== undefined && {
+        addresses: withPrimaryAddress(customer.addresses, dto.address ?? null),
+      }),
       ...(dto.dateOfBirth !== undefined && { dateOfBirth: dto.dateOfBirth }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
@@ -303,7 +333,7 @@ export class CustomersService {
       name: customer.name,
       phone: customer.phone,
       email: customer.email,
-      address: customer.address,
+      address: primaryAddressLine1(customer.addresses),
       isActive: customer.isActive,
       createdAt: customer.createdAt,
     };

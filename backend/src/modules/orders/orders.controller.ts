@@ -228,7 +228,7 @@ export class OrdersController {
   @Post()
   @RequirePermissions('orders.manage')
   @ApiOperation({
-    summary: 'Creates an order (source/orderSource are hardcoded to staff/pos)',
+    summary: 'Creates an order (orderSource is hardcoded to pos)',
   })
   async create(@Body() dto: CreateOrderDto, @CurrentUser() user: User) {
     await this.outletAccess.assertOutletAccess(user.id, dto.outletId);

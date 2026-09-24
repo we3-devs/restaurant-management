@@ -17,8 +17,6 @@ import { TableSession } from '../../table-sessions/entities/table-session.entity
 import { User } from '../../users/entities/user.entity';
 
 export type OrderType = 'grab_and_go' | 'table' | 'stay' | 'delivery';
-export type OrderSourceChannel =
-  'walk_in' | 'phone' | 'online' | 'staff' | 'other';
 export type OrderChannel = 'pos' | 'qr' | 'waiter' | 'online';
 export type OrderStatus =
   | 'pending'
@@ -156,9 +154,6 @@ export class Order {
     default: 'table',
   })
   orderType: OrderType;
-
-  @Column({ type: 'varchar', length: 255, default: 'staff' })
-  source: OrderSourceChannel;
 
   @Column({
     name: 'order_source',

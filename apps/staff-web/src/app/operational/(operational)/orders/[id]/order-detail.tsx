@@ -111,7 +111,7 @@ export function OrderDetail({
         <div>
           <h1 className="text-lg font-semibold">{order.orderNumber}</h1>
           <p className="text-sm text-muted-foreground capitalize">
-            {order.orderType.replace(/_/g, " ")} &middot; {order.source.replace(/_/g, " ")}
+            {order.orderType.replace(/_/g, " ")} &middot; {order.orderSource.replace(/_/g, " ")}
           </p>
           {/* Staff member behind created_by, or "Guest" for self-ordered QR/online orders. */}
           {order.orderedByName && (

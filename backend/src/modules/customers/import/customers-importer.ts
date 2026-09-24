@@ -5,6 +5,7 @@ import { EntityManager, Repository } from 'typeorm';
 import type { ImportDomainConfig, ImportRawRow } from '../../data-import/interfaces/import-domain-config.interface';
 import type { ImportCommitResult } from '../../data-import/interfaces/import-result.interface';
 import type { ImportValidatedRow } from '../../data-import/interfaces/import-row.interface';
+import { primaryAddressLine1, withPrimaryAddress } from '../customers.service';
 import { Customer } from '../entities/customer.entity';
 
 interface CustomerImportRow extends ImportValidatedRow {
@@ -86,12 +87,21 @@ export class CustomersImporter implements ImportDomainConfig<Record<string, stri
       await manager.query(`SAVEPOINT "${savepoint}"`);
       try {
         if (row.existingId) {
-          await repo.update(row.existingId, { name: row.name, address: row.address });
+          const current = await repo.findOne({ where: { id: row.existingId } });
+          await repo.update(row.existingId, {
+            name: row.name,
+            addresses: withPrimaryAddress(current?.addresses, row.address),
+          });
           await manager.query(`RELEASE SAVEPOINT "${savepoint}"`);
           succeeded.push({ rowNumber: row.rowNumber, entityId: row.existingId });
         } else {
           const created = await repo.save(
-            repo.create({ name: row.name, phone: row.phone, email: row.email, address: row.address }),
+            repo.create({
+              name: row.name,
+              phone: row.phone,
+              email: row.email,
+              addresses: withPrimaryAddress(null, row.address),
+            }),
           );
           await manager.query(`RELEASE SAVEPOINT "${savepoint}"`);
           succeeded.push({ rowNumber: row.rowNumber, entityId: created.id });
@@ -119,7 +129,7 @@ export class CustomersImporter implements ImportDomainConfig<Record<string, stri
     const sheet = workbook.addWorksheet('Customers');
     sheet.addRow(['name', 'phone', 'email', 'address']);
     for (const customer of customers) {
-      sheet.addRow([customer.name, customer.phone ?? '', customer.email ?? '', customer.address ?? '']);
+      sheet.addRow([customer.name, customer.phone ?? '', customer.email ?? '', primaryAddressLine1(customer.addresses) ?? '']);
     }
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }

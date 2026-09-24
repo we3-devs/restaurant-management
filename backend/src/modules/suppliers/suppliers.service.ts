@@ -268,10 +268,10 @@ export class SuppliersService {
     return {
       supplier: {
         ...supplier,
-        totalPurchased: Number(purchaseSummary?.totalPurchased ?? supplier.totalPurchased ?? 0),
+        totalPurchased: Number(purchaseSummary?.totalPurchased ?? 0),
         lastPurchaseDate: purchaseSummary?.lastPurchaseDate
           ? new Date(purchaseSummary.lastPurchaseDate).toISOString().slice(0, 10)
-          : supplier.lastPurchaseDate,
+          : null,
       },
       purchaseOrderCount: Number(poCount?.count ?? 0),
       goodsReceivedCount: Number(grnCount?.count ?? 0),

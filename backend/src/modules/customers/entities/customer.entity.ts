@@ -35,9 +35,6 @@ export class Customer {
   @Column({ type: 'varchar', length: 255, nullable: true })
   email: string | null;
 
-  @Column({ type: 'text', nullable: true })
-  address: string | null;
-
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
