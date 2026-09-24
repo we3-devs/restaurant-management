@@ -60,7 +60,16 @@ function useArrivingSoonByTable(outletId: number): Map<number, string> {
   }, [arrivingSoon, assignments])
 }
 
-export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?: string }) {
+export function FloorBoard({
+  outletId,
+  basePath,
+  showHeader = true,
+}: {
+  outletId: number
+  basePath?: string
+  /** The staff-shell Tables page already has its own "Tables" page header, so this banner would be redundant there. */
+  showHeader?: boolean
+}) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
   const showSkeleton = useDelayedLoading(isLoading)
   const arrivingSoonByTable = useArrivingSoonByTable(outletId)
@@ -80,17 +89,19 @@ export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <LayoutGridIcon className="size-4 text-primary" />
-          <div>
-            <p className="text-sm font-medium">Floor map</p>
-            <p className="text-xs text-muted-foreground">
-              Dashboard-configured floor plan. Tap a table to start a sale.
-            </p>
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <LayoutGridIcon className="size-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Floor map</p>
+              <p className="text-xs text-muted-foreground">
+                Dashboard-configured floor plan. Tap a table to start a sale.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       {showSkeleton && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (

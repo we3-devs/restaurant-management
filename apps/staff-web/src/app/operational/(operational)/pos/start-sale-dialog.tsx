@@ -65,6 +65,10 @@ export function StartSaleDialog({
   // (it mounts this component in response to the same preselectedTableId);
   // this only owns the form fields. Adjusts state during render (not an
   // effect) — same idiom as useStartSaleDialogState/CheckoutPanel.
+  const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
+  const availableTables = tables.filter((table) => table.status === "available")
+  const preselectedTable = tables.find((table) => table.id === preselectedTableId)
+
   const [seededTableId, setSeededTableId] = useState<number | undefined>(
     preselectedTableId,
   )
@@ -73,11 +77,8 @@ export function StartSaleDialog({
     setOrderType("table")
     setTableSessionId("")
     setNewTableId(String(preselectedTableId))
+    setGuestCount(preselectedTable?.capacity ?? 2)
   }
-
-  const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
-  const availableTables = tables.filter((table) => table.status === "available")
-  const preselectedTable = tables.find((table) => table.id === preselectedTableId)
   const { data: customers } = useCustomers({ limit: 100 })
   const openTableSession = useOpenTableSession()
   const createOrder = useCreateOrder()
@@ -108,7 +109,7 @@ export function StartSaleDialog({
         const result = await openTableSession.mutateAsync({
           outletId,
           diningTableId: Number(newTableId),
-          guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount,
+          guestCount,
           customerId: customerId ? Number(customerId) : undefined,
           orderType,
         })
@@ -138,7 +139,7 @@ export function StartSaleDialog({
     let orderId: number
     if (orderType === "table" && !tableSessionId) {
       if (!newTableId) throw new Error("Pick an active table or seat a walk-in table first")
-      const result = await openTableSessionOverride.mutateAsync({ outletId, diningTableId: Number(newTableId), guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount, customerId: customerId ? Number(customerId) : undefined, orderType })
+      const result = await openTableSessionOverride.mutateAsync({ outletId, diningTableId: Number(newTableId), guestCount, customerId: customerId ? Number(customerId) : undefined, orderType })
       if (!result?.order) throw new Error("Table session opened but no order was returned")
       orderId = result.order.id
     } else {
@@ -165,6 +166,15 @@ export function StartSaleDialog({
               <div className="space-y-1.5">
                 <Label>Table</Label>
                 <Input value={preselectedTable?.name ?? "Loading…"} disabled />
+              </div>
+              <div className="space-y-1.5">
+                <Label>No. of customers</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(Number(e.target.value))}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Customer (optional)</Label>
