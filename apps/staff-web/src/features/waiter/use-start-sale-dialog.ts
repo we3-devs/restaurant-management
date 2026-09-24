@@ -16,15 +16,18 @@ export function useStartSaleDialogState(preselectedTableId: number | undefined) 
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Arriving via a table-card click (?tableId=...) on an empty table — open
-  // straight into the walk-in form instead of making the user tap "Start
-  // sale" themselves. Adjusts state during render (not an effect) per
-  // React's "adjusting state when a prop changes" pattern — same idiom
+  // Arriving via a table-card click (?tableId=...) on an empty table — mount
+  // the dialog (and pre-fetch its table-sessions/customers data) so it's
+  // instant once actually opened, but don't pop it open on its own; staff
+  // still have to tap "Start sale" themselves. That button then opens onto
+  // whichever table was last tapped, since preselectedTableId (driven by the
+  // URL) is unchanged either way — see StartSaleDialog's own preselected-
+  // table seeding. Adjusts state during render (not an effect) per React's
+  // "adjusting state when a prop changes" pattern — same idiom
   // CheckoutPanel/TableSessionCheckout already use for re-seeding fields.
   const [seededTableId, setSeededTableId] = useState<number | undefined>(undefined)
   if (preselectedTableId !== undefined && preselectedTableId !== seededTableId) {
     setSeededTableId(preselectedTableId)
-    setOpen(true)
     setMounted(true)
   }
 

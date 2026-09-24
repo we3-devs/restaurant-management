@@ -347,7 +347,7 @@ function EditableCart({ orderId }: { orderId: number }) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
+    <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
       <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[45vh] space-y-3 overflow-y-auto">
@@ -446,12 +446,103 @@ function EditableCart({ orderId }: { orderId: number }) {
       <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="place order" onConfirm={handlePlaceOrderOverride} />
       </div>
 
+      {/* Column 2: record a payment — nothing to do here without the
+          permission, so this column is simply omitted rather than shown
+          empty (see canRecordPayment above). */}
+      {order && canRecordPayment && (
+        <div className="space-y-2.5 rounded-lg border border-dashed border-input p-3">
+          <div className="flex items-center gap-1.5">
+            <CircleDollarSignIcon className="size-4 text-primary" />
+            <h3 className="text-sm font-medium">Record payment</h3>
+          </div>
+          <OrderDiscountForm orderId={orderId} />
+          <PaymentMethodPicker
+            value={paymentMethod}
+            onChange={(method) => {
+              setPaymentMethod(method)
+              if (method === "credit") setCreditCustomerId(order.customerId ?? undefined)
+            }}
+          />
+          <div className="space-y-1">
+            <Label htmlFor="payment-amount">Amount</Label>
+            <Input
+              id="payment-amount"
+              type="text"
+              inputMode="decimal"
+              placeholder="Enter amount"
+              value={paymentAmount}
+              onChange={(e) => {
+                const next = e.target.value
+                if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+              }}
+            />
+          </div>
+          {paymentMethod === "credit" && (
+            <div className="space-y-1">
+              <Label htmlFor="payment-credit-customer">Charge to</Label>
+              <Select
+                value={creditCustomerId ? String(creditCustomerId) : ""}
+                onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+              >
+                <SelectTrigger id="payment-credit-customer" className="w-full" disabled={customersLoading}>
+                  <SelectValue placeholder={customersLoading ? "Loading…" : "Select a customer's tab"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers?.data.map((customer) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {customer.name}
+                      {customer.phone ? ` (${customer.phone})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {paymentMethod === "credit" && creditCustomerId && creditAccount && (
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/50 p-2 text-xs">
+              <span className="text-muted-foreground">Current credit owed</span>
+              <span className="text-right tabular-nums">{creditAccount.outstandingBalance}</span>
+              <span className="text-muted-foreground">Credit limit</span>
+              <span className="text-right tabular-nums">
+                {creditAccount.creditLimit > 0 ? creditAccount.creditLimit : "None"}
+              </span>
+              <span className="font-medium">Remaining credit</span>
+              <span
+                className={`text-right font-medium tabular-nums ${
+                  remainingCredit !== null && remainingCredit < parsedPaymentAmount ? "text-destructive" : ""
+                }`}
+              >
+                {remainingCredit !== null ? remainingCredit : "Unlimited"}
+              </span>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={handleAddPayment}
+            disabled={
+              createPayment.isPending ||
+              !isValidPaymentAmount ||
+              !isOnline ||
+              (paymentMethod === "credit" && !creditCustomerId) ||
+              (paymentMethod === "credit" && remainingCredit !== null && parsedPaymentAmount > remainingCredit)
+            }
+          >
+            {createPayment.isPending ? "Recording..." : "Add payment"}
+          </Button>
+          <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); setPaymentAmount(""); toast.success("Payment recorded") }} />
+        </div>
+      )}
+
+      {/* Column 3: payment summary (totals + ledger) and, for whoever can
+          take money, the complete-sale actions. */}
       {order && (
           <div className="space-y-3 rounded-lg border border-input p-3">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase">
                 <ReceiptIcon className="size-3.5" />
-                Payment
+                Payment summary
               </h3>
               <BillReceiptDialog orderId={orderId} />
             </div>
@@ -497,7 +588,7 @@ function EditableCart({ orderId }: { orderId: number }) {
 
             {(payments?.data.length ?? 0) > 0 && (
               <div className="space-y-1">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase">Payments</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase">Payment details</h4>
                 <div className="divide-y divide-border rounded-lg border border-input">
                   {payments?.data.map((payment) => (
                     <div key={payment.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs">
@@ -509,92 +600,6 @@ function EditableCart({ orderId }: { orderId: number }) {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {canRecordPayment && (
-              <div className="space-y-2.5 rounded-lg border border-dashed border-input p-3">
-                <div className="flex items-center gap-1.5">
-                  <CircleDollarSignIcon className="size-4 text-primary" />
-                  <h4 className="text-sm font-medium">Record a payment</h4>
-                </div>
-                <OrderDiscountForm orderId={orderId} />
-                <PaymentMethodPicker
-                  value={paymentMethod}
-                  onChange={(method) => {
-                    setPaymentMethod(method)
-                    if (method === "credit") setCreditCustomerId(order.customerId ?? undefined)
-                  }}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="payment-amount">Amount</Label>
-                  <Input
-                    id="payment-amount"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Enter amount"
-                    value={paymentAmount}
-                    onChange={(e) => {
-                      const next = e.target.value
-                      if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
-                    }}
-                  />
-                </div>
-                {paymentMethod === "credit" && (
-                  <div className="space-y-1">
-                    <Label htmlFor="payment-credit-customer">Charge to</Label>
-                    <Select
-                      value={creditCustomerId ? String(creditCustomerId) : ""}
-                      onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-                    >
-                      <SelectTrigger id="payment-credit-customer" className="w-full" disabled={customersLoading}>
-                        <SelectValue placeholder={customersLoading ? "Loading…" : "Select a customer's tab"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers?.data.map((customer) => (
-                          <SelectItem key={customer.id} value={String(customer.id)}>
-                            {customer.name}
-                            {customer.phone ? ` (${customer.phone})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                {paymentMethod === "credit" && creditCustomerId && creditAccount && (
-                  <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/50 p-2 text-xs">
-                    <span className="text-muted-foreground">Current credit owed</span>
-                    <span className="text-right tabular-nums">{creditAccount.outstandingBalance}</span>
-                    <span className="text-muted-foreground">Credit limit</span>
-                    <span className="text-right tabular-nums">
-                      {creditAccount.creditLimit > 0 ? creditAccount.creditLimit : "None"}
-                    </span>
-                    <span className="font-medium">Remaining credit</span>
-                    <span
-                      className={`text-right font-medium tabular-nums ${
-                        remainingCredit !== null && remainingCredit < parsedPaymentAmount ? "text-destructive" : ""
-                      }`}
-                    >
-                      {remainingCredit !== null ? remainingCredit : "Unlimited"}
-                    </span>
-                  </div>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleAddPayment}
-                  disabled={
-                    createPayment.isPending ||
-                    !isValidPaymentAmount ||
-                    !isOnline ||
-                    (paymentMethod === "credit" && !creditCustomerId) ||
-                    (paymentMethod === "credit" && remainingCredit !== null && parsedPaymentAmount > remainingCredit)
-                  }
-                >
-                  {createPayment.isPending ? "Recording..." : "Add payment"}
-                </Button>
-                <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentMethod === "credit" ? creditCustomerId : undefined }); setPaymentAmount(""); toast.success("Payment recorded") }} />
               </div>
             )}
 
