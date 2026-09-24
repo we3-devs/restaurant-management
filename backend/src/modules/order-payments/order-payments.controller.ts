@@ -86,9 +86,13 @@ export class OrderPaymentsController {
     @CurrentUser() user: User,
   ) {
     const order = await this.ordersService.findOne(id);
-    await this.outletAccess.assertOutletAccess(user.id, order.outletId);
-    await this.assertRefundAllowed(dto.type, user);
-    return this.orderPaymentsService.create(id, dto, user.id);
+    // Independent of each other and of the order fetch's outcome besides
+    // outletId, so they don't need to be sequential round trips.
+    await Promise.all([
+      this.outletAccess.assertOutletAccess(user.id, order.outletId),
+      this.assertRefundAllowed(dto.type, user),
+    ]);
+    return this.orderPaymentsService.create(id, dto, user.id, order);
   }
 
   @Post('table-sessions/:id/payments')

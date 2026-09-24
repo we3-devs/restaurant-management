@@ -69,9 +69,12 @@ export class OrderPaymentsService {
     orderId: number,
     dto: CreateOrderPaymentDto,
     receivedBy: number,
+    preloadedOrder?: Order,
   ): Promise<OrderPayment> {
-    const targetOrder = await this.ordersService.findOne(orderId);
-    await this.operatingHoursService.assertOperational(targetOrder.outletId);
+    const targetOrder =
+      preloadedOrder && preloadedOrder.id === orderId
+        ? preloadedOrder
+        : await this.ordersService.findOne(orderId);
     const type = dto.type ?? 'payment';
     const method = dto.method ?? 'cash';
     const amount = Math.round(dto.amount * 100) / 100;
@@ -79,16 +82,22 @@ export class OrderPaymentsService {
       throw new BadRequestException('Payment amount must be greater than zero');
     }
 
-    if (dto.idempotencyKey) {
-      const existing = await this.orderPaymentsRepository.findOne({
-        where: { outletId: targetOrder.outletId, idempotencyKey: dto.idempotencyKey },
-      });
-      if (existing) {
-        if (existing.orderId !== orderId) {
-          throw new ConflictException('idempotencyKey was already used for another order');
-        }
-        return existing;
+    // Independent checks — neither depends on the other's result — so they
+    // run as one round trip each in parallel instead of back-to-back.
+    const [, existingByIdempotencyKey] = await Promise.all([
+      this.operatingHoursService.assertOperational(targetOrder.outletId),
+      dto.idempotencyKey
+        ? this.orderPaymentsRepository.findOne({
+            where: { outletId: targetOrder.outletId, idempotencyKey: dto.idempotencyKey },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (existingByIdempotencyKey) {
+      if (existingByIdempotencyKey.orderId !== orderId) {
+        throw new ConflictException('idempotencyKey was already used for another order');
       }
+      return existingByIdempotencyKey;
     }
 
     if (method === 'credit') {
@@ -100,7 +109,10 @@ export class OrderPaymentsService {
       if (!dto.customerId) {
         throw new BadRequestException('customerId is required when method="credit"');
       }
-      // Fails fast, before the order is locked/mutated, if the customer doesn't exist.
+      // Fails fast, before the order is locked/mutated, if the customer
+      // doesn't exist. Deliberately sequential: getAccountByCustomer()
+      // below auto-creates a credit-account row (getOrCreateAccount), so
+      // this existence check must resolve first rather than race it.
       await this.customersService.findOne(dto.customerId);
 
       // Enforce the customer's credit limit (0/unset = no limit) — without
@@ -208,21 +220,22 @@ export class OrderPaymentsService {
 
     if (saved.method === 'credit' && saved.customerId) {
       // The payment row is already committed above — a credit-ledger hiccup
-      // shouldn't fail this otherwise-successful request. Logged for
-      // reconciliation, same pattern as the loyalty/credit reversals in
-      // OrdersService#updateStatus.
-      try {
-        await this.customerCreditService.chargeCredit(saved.customerId, saved.amount, {
+      // shouldn't fail this otherwise-successful request, so this is
+      // fire-and-forget (logged for reconciliation) rather than blocking
+      // the response, same pattern as the loyalty/credit reversals in
+      // OrdersService#updateStatus and the notification below.
+      this.customerCreditService
+        .chargeCredit(saved.customerId, saved.amount, {
           orderId,
           userId: receivedBy,
           outletId: saved.outletId,
           notes: `Order ${order.orderNumber}`,
+        })
+        .catch((error: Error) => {
+          this.logger.error(
+            `Failed to charge customer credit for payment ${saved.id} (order ${orderId}): ${error.message}`,
+          );
         });
-      } catch (error) {
-        this.logger.error(
-          `Failed to charge customer credit for payment ${saved.id} (order ${orderId}): ${(error as Error).message}`,
-        );
-      }
     }
 
     if (saved.status === 'completed' && saved.type === 'payment') {
@@ -317,6 +330,7 @@ export class OrderPaymentsService {
             customerId: dto.customerId,
           },
           receivedBy,
+          order,
         ),
       );
       remaining -= portion;
