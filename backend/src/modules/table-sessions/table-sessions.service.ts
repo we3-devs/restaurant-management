@@ -23,6 +23,7 @@ import { KitchenTicketsGateway } from '../kitchen-tickets/kitchen-tickets.gatewa
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Order } from '../orders/entities/order.entity';
 import { OutletsService } from '../outlets/outlets.service';
 import { ReservationsService } from '../reservations/reservations.service';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
@@ -88,6 +89,8 @@ export class TableSessionsService {
     private readonly sessionCustomersRepository: Repository<TableSessionCustomer>,
     @InjectRepository(LoyaltyAccount)
     private readonly loyaltyAccountsRepository: Repository<LoyaltyAccount>,
+    @InjectRepository(Order)
+    private readonly ordersRepository: Repository<Order>,
     private readonly diningTablesService: DiningTablesService,
     private readonly outletsService: OutletsService,
     private readonly customersService: CustomersService,
@@ -591,6 +594,8 @@ export class TableSessionsService {
       'available',
     );
 
+    await this.cancelEmptyPendingOrders(session.id, endedBy);
+
     const table = await this.diningTablesService.findOne(session.diningTableId);
     // Fire-and-forget: the session end above is already committed, so a
     // notification hiccup shouldn't fail this otherwise-successful request.
@@ -609,6 +614,34 @@ export class TableSessionsService {
       );
 
     return saved;
+  }
+
+  /**
+   * A session ending sometimes leaves behind a draft order that never had
+   * any items added (e.g. a table opened and then closed without ordering)
+   * — still 'pending'/grandTotal 0. Left alone it sits in order lists
+   * forever as a 0-amount "unpaid" order, so it's auto-cancelled here
+   * rather than requiring staff to clean it up by hand.
+   */
+  private async cancelEmptyPendingOrders(
+    tableSessionId: number,
+    cancelledBy: number,
+  ): Promise<void> {
+    const emptyOrders = await this.ordersRepository.find({
+      where: { tableSessionId, status: 'pending', grandTotal: 0 },
+    });
+    if (emptyOrders.length === 0) {
+      return;
+    }
+    const now = new Date();
+    for (const order of emptyOrders) {
+      order.status = 'cancelled';
+      order.paymentStatus = 'cancelled';
+      order.cancelledAt = now;
+      order.cancelledBy = cancelledBy;
+      order.cancelReason = 'Table closed with no items ordered';
+    }
+    await this.ordersRepository.save(emptyOrders);
   }
 
   /** Moves an in-progress session to a different table (e.g. guests relocate before paying). */

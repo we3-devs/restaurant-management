@@ -7,6 +7,7 @@ import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { LoyaltyAccount } from '../loyalty/entities/loyalty-account.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { Order } from '../orders/entities/order.entity';
 import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { TableSession } from './entities/table-session.entity';
@@ -19,7 +20,10 @@ import { TableSessionsService } from './table-sessions.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TableSession, TableSessionCustomer, LoyaltyAccount]),
+    // Order is registered here (not via OrdersModule, which itself imports
+    // this module) so TableSessionsService can cancel abandoned empty
+    // orders on session end without a circular service dependency.
+    TypeOrmModule.forFeature([TableSession, TableSessionCustomer, LoyaltyAccount, Order]),
     AuthModule,
     DiningTablesModule,
     OutletsModule,
