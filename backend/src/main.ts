@@ -3,11 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import compression from 'compression';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { httpCompression } from './common/middleware/http-compression.middleware';
 import { AppConfig } from './config/configuration';
 import {
   UPLOADS_ROUTE,
@@ -50,7 +50,8 @@ async function bootstrap() {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     next();
   });
-  app.use(compression());
+  // zstd for clients that accept it, brotli/gzip otherwise.
+  app.use(httpCompression());
   app.enableCors({
     origin: configService.get('app', { infer: true })!.frontendUrls,
     credentials: true,
