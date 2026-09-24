@@ -355,8 +355,8 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User,
   ) {
-    await this.assertOrderAccess(id, user);
-    return this.kitchenTicketsService.markOrderReadyItemsServed(id);
+    const order = await this.assertOrderAccess(id, user);
+    return this.kitchenTicketsService.markOrderReadyItemsServed(id, order);
   }
 
   @Post(':id/mark-ready-item-served/:ticketItemId')
@@ -369,10 +369,11 @@ export class OrdersController {
     @Param('ticketItemId', ParseIntPipe) ticketItemId: number,
     @CurrentUser() user: User,
   ) {
-    await this.assertOrderAccess(id, user);
+    const order = await this.assertOrderAccess(id, user);
     return this.kitchenTicketsService.markOrderReadyItemServed(
       id,
       ticketItemId,
+      order,
     );
   }
 

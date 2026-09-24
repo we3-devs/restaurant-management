@@ -12,6 +12,7 @@ import { PaginatedResponse } from '../../common/dto/paginated-response.interface
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
+import { Order } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { User } from '../users/entities/user.entity';
@@ -544,7 +545,13 @@ export class KitchenTicketsService {
     // current order to the guest tracker room (a no-op unless this order
     // actually has a customer of record, i.e. is a guest order).
     await this.ordersService.syncStatusFromItems(saved.orderId, null);
-    await this.ordersService.notifyGuestByOrderId(saved.orderId);
+    // Pure realtime push (no data mutation) — doesn't need to block the
+    // caller, which has already gotten everything it needs from `saved`.
+    this.ordersService
+      .notifyGuestByOrderId(saved.orderId)
+      .catch((error: Error) =>
+        this.logger.error(`Failed to notify guest for order ${saved.orderId}: ${error.message}`),
+      );
     return saved;
   }
 
@@ -608,15 +615,24 @@ export class KitchenTicketsService {
    * affected ticket and pushes the updates so the ready queue clears in
    * realtime.
    */
-  async markOrderReadyItemsServed(orderId: number): Promise<KitchenTicket[]> {
+  async markOrderReadyItemsServed(
+    orderId: number,
+    preloadedOrder?: Order,
+  ): Promise<KitchenTicket[]> {
     // Checked up front, not left to the DB: without this, a "Deliver"
     // tap on an order that got paid out and completed while items sat
     // 'ready' (its waiter never tapped Deliver in time) reaches the
     // orders_lock_completed trigger's raw UPDATE on order_items and comes
     // back as an unhandled 500 instead of a clean 409 — see
     // OrdersService#assertMutable, the same guard every other order-item
-    // mutation in orders.service.ts already goes through.
-    OrdersService.assertMutable(await this.ordersService.findOne(orderId));
+    // mutation in orders.service.ts already goes through. The controller
+    // already fetched the order for its own access check, so this reuses
+    // it instead of paying for a second round trip to the same row.
+    OrdersService.assertMutable(
+      preloadedOrder && preloadedOrder.id === orderId
+        ? preloadedOrder
+        : await this.ordersService.findOne(orderId),
+    );
 
     const eligible = await this.ticketItemsRepository
       .createQueryBuilder('ticketItem')
@@ -660,8 +676,14 @@ export class KitchenTicketsService {
     const tickets = await Promise.all(
       ticketIds.map((ticketId) => this.recomputeTicketStatusOnly(ticketId)),
     );
+    // Realtime push to OTHER clients — doesn't gate this response, and each
+    // ticket's payload fetch is independent of the others.
     for (const updated of tickets) {
-      this.gateway.notifyTicketUpdated(await this.toPushPayload(updated.id));
+      this.toPushPayload(updated.id)
+        .then((payload) => this.gateway.notifyTicketUpdated(payload))
+        .catch((error: Error) =>
+          this.logger.error(`Failed to push ticket ${updated.id} update: ${error.message}`),
+        );
       for (const item of eligible.filter((i) => i.ticketId === updated.id)) {
         this.gateway.notifyItemUpdated(
           updated.outletId,
@@ -670,8 +692,16 @@ export class KitchenTicketsService {
       }
     }
     await this.ordersService.syncStatusFromItems(orderId, null);
-    await this.ordersService.notifyGuestByOrderId(orderId);
-    await this.ordersService.maybeAdvanceToServed(orderId, null);
+    this.ordersService
+      .notifyGuestByOrderId(orderId)
+      .catch((error: Error) =>
+        this.logger.error(`Failed to notify guest for order ${orderId}: ${error.message}`),
+      );
+    this.ordersService
+      .maybeAdvanceToServed(orderId, null)
+      .catch((error: Error) =>
+        this.logger.error(`Failed to advance order ${orderId} to served: ${error.message}`),
+      );
     return tickets;
   }
 
@@ -679,9 +709,14 @@ export class KitchenTicketsService {
   async markOrderReadyItemServed(
     orderId: number,
     ticketItemId: number,
+    preloadedOrder?: Order,
   ): Promise<KitchenTicket> {
     // Same reasoning as markOrderReadyItemsServed's guard above.
-    OrdersService.assertMutable(await this.ordersService.findOne(orderId));
+    OrdersService.assertMutable(
+      preloadedOrder && preloadedOrder.id === orderId
+        ? preloadedOrder
+        : await this.ordersService.findOne(orderId),
+    );
 
     const item = await this.ticketItemsRepository
       .createQueryBuilder('ticketItem')
@@ -716,9 +751,22 @@ export class KitchenTicketsService {
     item.orderItem.status = 'served';
 
     const ticket = await this.recomputeTicketStatus(item.ticketId);
-    this.gateway.notifyTicketUpdated(await this.toPushPayload(ticket.id));
+    // The write is already committed and `ticket` already reflects it —
+    // everything below is realtime push to OTHER clients (KDS boards, guest
+    // tracker) plus a best-effort order-status advance, none of which the
+    // caller's own response depends on. Fire-and-forget instead of making
+    // the waiter's tap wait on more round trips than the write itself took.
+    this.toPushPayload(ticket.id)
+      .then((payload) => this.gateway.notifyTicketUpdated(payload))
+      .catch((error: Error) =>
+        this.logger.error(`Failed to push ticket ${ticket.id} update: ${error.message}`),
+      );
     this.gateway.notifyItemUpdated(ticket.outletId, this.toItemResponse(item));
-    await this.ordersService.maybeAdvanceToServed(orderId, null);
+    this.ordersService
+      .maybeAdvanceToServed(orderId, null)
+      .catch((error: Error) =>
+        this.logger.error(`Failed to advance order ${orderId} to served: ${error.message}`),
+      );
     return ticket;
   }
 
