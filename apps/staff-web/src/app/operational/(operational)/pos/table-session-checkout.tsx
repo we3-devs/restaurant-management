@@ -9,6 +9,7 @@ import { Badge } from "@rms/ui/badge"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { OrderDiscountForm } from "@rms/ui/order-discount-form"
+import { PaymentMethodPicker } from "@rms/ui/payment-method-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateTableSessionPayment, useCompleteAllForTableSession } from "@rms/api-client/hooks/use-order-payments"
 import { useOrderItems, type Order } from "@rms/api-client/hooks/use-orders"
@@ -119,22 +120,9 @@ export function TableSessionCheckout({
         <span>{totalDue}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Select
-          value={paymentMethod}
-          onValueChange={(value) => value && setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ORDER_PAYMENT_METHODS.map((method) => (
-              <SelectItem key={method} value={method}>
-                {method}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
+      <div className="space-y-1.5">
+        <span className="text-sm font-medium">Amount</span>
         <Input
           type="number"
           step="0.01"

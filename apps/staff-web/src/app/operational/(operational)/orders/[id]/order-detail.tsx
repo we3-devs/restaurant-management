@@ -10,6 +10,7 @@ import { BillReceipt } from "@rms/ui/bill-receipt"
 import { Button } from "@rms/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@rms/ui/card"
 import { Input } from "@rms/ui/input"
+import { PaymentMethodPicker } from "@rms/ui/payment-method-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@rms/ui/skeletons"
 import { useDelayedLoading } from "@rms/ui/use-delayed-loading"
@@ -301,6 +302,7 @@ function PaymentSummaryCard({
 
   const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
   const [amount, setAmount] = useState(0)
+  const [refundNote, setRefundNote] = useState("")
   const [formMode, setFormMode] = useState<"none" | "payment" | "refund">("none")
   const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
@@ -315,6 +317,10 @@ function PaymentSummaryCard({
     setAmount(dueAmount)
   }
 
+  // Completed orders are locked for edits and new payments, but a refund is
+  // still a legitimate special case after the fact (e.g. a guest complaint
+  // discovered later) — so only Add Payment/discount editing are gated on
+  // this, not the Refund action itself.
   const isLocked = order.status === "completed"
 
   async function handleSubmitPayment() {
@@ -323,15 +329,21 @@ function PaymentSummaryCard({
       toast.error("Select a customer to charge this to their tab")
       return
     }
+    if (formMode === "refund" && !refundNote.trim()) {
+      toast.error("Describe the reason for this refund")
+      return
+    }
     try {
       await createPayment.mutateAsync({
         type: formMode === "refund" ? "refund" : "payment",
         method,
         amount,
         customerId: method === "credit" ? creditCustomerId : undefined,
+        note: formMode === "refund" ? refundNote.trim() : undefined,
       })
       toast.success(formMode === "refund" ? "Refund recorded" : "Payment recorded")
       setFormMode("none")
+      setRefundNote("")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
     }
@@ -342,7 +354,7 @@ function PaymentSummaryCard({
       <CardHeader className="flex-row w-full items-center">
         <div className=" w-full flex items-center justify-between ">
           <StatusBadge status={order.paymentStatus} />
-        {!isLocked && (
+        {paidAmount > 0 && (
           <div className="flex items-center justify-end gap-2">
             <Button
               size="sm"
@@ -351,20 +363,23 @@ function PaymentSummaryCard({
               onClick={() => {
                 setFormMode("refund")
                 setAmount(paidAmount)
+                setRefundNote("")
                 if (method === "credit") setMethod("cash")
               }}
             >
               Refund
             </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setFormMode("payment")
-                setAmount(dueAmount)
-              }}
-            >
-              Add Payment
-            </Button>
+            {!isLocked && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setFormMode("payment")
+                  setAmount(dueAmount)
+                }}
+              >
+                Add Payment
+              </Button>
+            )}
           </div>
         )}
         </div>
@@ -379,25 +394,27 @@ function PaymentSummaryCard({
         {formMode !== "none" && (
           <div className="space-y-2">
             <p className="text-sm font-medium capitalize">{formMode}</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={method} onValueChange={(value) => value && setMethod(value as typeof method)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ORDER_PAYMENT_METHODS
-                    // Credit is a customer's tab, not a refundable-from method — there's
-                    // no original credit charge to unambiguously reverse from here.
-                    .filter((option) => option !== "credit" || formMode === "payment")
-                    .map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+            <PaymentMethodPicker
+              value={method}
+              onChange={setMethod}
+              // Credit is a customer's tab, not a refundable-from method — there's
+              // no original credit charge to unambiguously reverse from here.
+              exclude={formMode === "refund" ? ["credit"] : undefined}
+            />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Amount</p>
               <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             </div>
+            {formMode === "refund" && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Reason for refund</p>
+                <Input
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  placeholder="e.g. Guest complaint — food quality"
+                />
+              </div>
+            )}
             {formMode === "payment" && method === "credit" && (
               <Select
                 value={creditCustomerId ? String(creditCustomerId) : ""}
@@ -424,7 +441,8 @@ function PaymentSummaryCard({
                 disabled={
                   createPayment.isPending ||
                   amount <= 0 ||
-                  (formMode === "payment" && method === "credit" && !creditCustomerId)
+                  (formMode === "payment" && method === "credit" && !creditCustomerId) ||
+                  (formMode === "refund" && !refundNote.trim())
                 }
               >
                 {createPayment.isPending ? "Saving..." : formMode === "refund" ? "Record refund" : "Record payment"}
