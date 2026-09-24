@@ -133,7 +133,7 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
                   {item.quantity} &times; {variantName(item.foodVariantId) ? `${variantName(item.foodVariantId)}` : `${foodName(item.foodId)}`}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Ordered {formatTime(item.createdAt)}
+                  Ordered by {item.createdByName} at {formatTime(item.createdAt)}
                   {statusMovedAt ? ` · updated ${statusMovedAt}` : ""}
                 </p>
                 {item.isHeld && <p className="text-xs text-muted-foreground">Held — not fired to kitchen</p>}
