@@ -319,19 +319,41 @@ export default function MenuContent() {
       // backend's per-order geofence re-check reflects where the guest is now.
       let latitude: number | undefined;
       let longitude: number | undefined;
-      if (
+      const needsGeofence =
         qrOrderingMode === "quick_order" &&
-        (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both") &&
-        navigator.geolocation
-      ) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10_000 }),
-          );
-          latitude = position.coords.latitude;
-          longitude = position.coords.longitude;
-        } catch {
-          // Fall through without coordinates — the backend rejects with a clear message if they're required.
+        (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both");
+      if (needsGeofence && navigator.geolocation) {
+        // A prior explicit denial can't be re-prompted by calling
+        // getCurrentPosition again — the browser just fails it instantly with
+        // no dialog. Checking first lets a "geofence"/"both" outlet (where
+        // location is the only or a required path, not just one of two
+        // alternatives) stop and tell the guest to fix it in their browser
+        // settings, instead of silently submitting with no coordinates and
+        // getting the backend's generic "not at the restaurant" rejection.
+        const permissionState = await navigator.permissions
+          ?.query({ name: "geolocation" })
+          .then((status) => status.state)
+          .catch(() => null);
+
+        if (permissionState === "denied" && (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "both")) {
+          toast.error("Location access is blocked. Enable it for this site in your browser settings, then try again.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (permissionState !== "denied") {
+          try {
+            // Triggers the browser's native permission prompt when the state
+            // is still "prompt" (i.e. never asked before).
+            const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10_000 }),
+            );
+            latitude = position.coords.latitude;
+            longitude = position.coords.longitude;
+          } catch {
+            // Fall through without coordinates — "either" mode may still pass on IP,
+            // and the backend rejects with a clear message if location was required.
+          }
         }
       }
 
