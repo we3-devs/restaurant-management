@@ -33,8 +33,11 @@ export function GuestNavBar() {
   const onCart = pathname === "/cart";
   // Quick-order guests are anonymous — there's no verified identity to
   // attach a party of companions to, so this tab only makes sense once
-  // someone has actually signed in (login-mode outlets).
-  const showParty = isAuthenticated && qrOrderingMode !== "quick_order";
+  // someone has actually signed in (login-mode outlets). qrOrderingMode
+  // starts null until the anonymous table scan resolves; requiring it to be
+  // resolved stops this from flashing true for an already-authenticated
+  // returning guest on a quick-order table during that brief window.
+  const showParty = isAuthenticated && qrOrderingMode !== null && qrOrderingMode !== "quick_order";
 
   const tabClass = (active: boolean) =>
     `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${

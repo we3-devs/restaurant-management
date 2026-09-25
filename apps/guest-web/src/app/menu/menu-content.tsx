@@ -287,7 +287,7 @@ export default function MenuContent() {
               </p>
             </div>
           </div>
-          {isAuthenticated && qrOrderingMode !== "quick_order" && (
+          {isAuthenticated && qrOrderingMode !== null && qrOrderingMode !== "quick_order" && (
             <a
               href="/profile"
               className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
@@ -296,7 +296,11 @@ export default function MenuContent() {
               Profile
             </a>
           )}
-          {!isAuthenticated && qrOrderingMode !== "quick_order" && (
+          {/* qrOrderingMode starts null until the anonymous table scan
+              resolves — requiring it to be resolved (not just !== "quick_order")
+              stops this from flashing on every table, including quick-order
+              ones, for the brief window before the scan response lands. */}
+          {!isAuthenticated && qrOrderingMode !== null && qrOrderingMode !== "quick_order" && (
             <button
               onClick={() => setAuthIntent("login")}
               className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
