@@ -16,6 +16,7 @@ import { useTableSession } from "@/hooks/use-table-session";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useCart } from "@/hooks/use-cart";
+import { useQuickOrderSession } from "@/hooks/use-quick-order-session";
 import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { GuestNavBar } from "@/components/guest-nav-bar";
@@ -40,16 +41,23 @@ const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
-  const { qrOrderingMode, diningTableName } = useTableSession(tableCode);
+  const { qrOrderingMode, qrAccessCheckMode, diningTableName, location, locationDenied, hasActiveOrder } =
+    useTableSession(tableCode);
   const { isAuthenticated } = useGuestAuth();
   const { cart, addItem: addToCart, updateQuantity, itemCount } = useCart(tableCode);
+  // Only used to silently join an existing table's order for viewing (the
+  // "This table already has an order" banner below) — checkout's own join
+  // happens separately via useCheckout on the /cart page.
+  const quickOrderSession = useQuickOrderSession(tableCode, qrAccessCheckMode, location, locationDenied);
+  const [isJoiningToView, setIsJoiningToView] = useState(false);
   const branding = useBranding();
   const [variantFor, setVariantFor] = useState<Food | null>(null);
   // Step 2 of the picker: which top-level group (Veg / Chicken) is open.
   const [variantGroup, setVariantGroup] = useState<Variant | null>(null);
   // Tracks why the gate opened: signing in from the header shouldn't silently
-  // send an order just because the cart happens to be full.
-  const [authIntent, setAuthIntent] = useState<"login" | null>(null);
+  // send an order, but signing in from the "existing order" banner should go
+  // straight to viewing it.
+  const [authIntent, setAuthIntent] = useState<"login" | "view-order" | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   // Two-level menu: a category list, then that category's foods.
   const [openSection, setOpenSection] = useState<number | null>(null);
@@ -247,6 +255,29 @@ export default function MenuContent() {
     window.scrollTo({ top: 0 });
   };
 
+  // "This table already has an order" banner — orders are a shared cart for
+  // the whole table session (see OrdersService#createFromGuest), so whoever
+  // scans next should be able to see it, not just whoever placed it. Viewing
+  // still requires an identity (useGuestOrders needs one to fetch), so this
+  // establishes one the same way checkout would, just without placing
+  // anything: quick-order joins silently, login mode opens the OTP sheet.
+  const handleViewExistingOrder = () => {
+    if (qrOrderingMode === "quick_order") {
+      setIsJoiningToView(true);
+      void quickOrderSession
+        .join()
+        .then(() => {
+          window.location.href = `/order?table=${tableCode}`;
+        })
+        .catch((err: unknown) => {
+          toast.error(err instanceof Error ? err.message : "Couldn't verify you're at this table");
+          setIsJoiningToView(false);
+        });
+      return;
+    }
+    setAuthIntent("view-order");
+  };
+
   if (!isReady) {
     return <div className="min-h-screen bg-slate-50" />;
   }
@@ -349,6 +380,21 @@ export default function MenuContent() {
           </label>
         </div>
       </header>
+
+      {hasActiveOrder && !isAuthenticated && (
+        <div className="mx-auto max-w-3xl px-4 pt-3">
+          <button
+            onClick={handleViewExistingOrder}
+            disabled={isJoiningToView}
+            className="flex w-full items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-left transition hover:border-brand-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <span className="text-sm font-medium text-brand-900">This table already has an order in progress</span>
+            <span className="shrink-0 text-sm font-semibold text-brand-700">
+              {isJoiningToView ? "Loading…" : "View order"}
+            </span>
+          </button>
+        </div>
+      )}
 
       <main className="mx-auto max-w-3xl px-4 py-5 pb-40">
         {foodsLoading ? (
@@ -696,8 +742,15 @@ export default function MenuContent() {
           );
         })()}
 
-      {authIntent === "login" && (
-        <GuestAuthSheet onClose={() => setAuthIntent(null)} onSuccess={() => setAuthIntent(null)} />
+      {authIntent !== null && (
+        <GuestAuthSheet
+          onClose={() => setAuthIntent(null)}
+          onSuccess={() => {
+            const intent = authIntent;
+            setAuthIntent(null);
+            if (intent === "view-order") window.location.href = `/order?table=${tableCode}`;
+          }}
+        />
       )}
 
       <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />

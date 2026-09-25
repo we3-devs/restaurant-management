@@ -1,8 +1,11 @@
 import { BadRequestException, Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Not, Repository } from 'typeorm';
 import { Public } from '../auth/decorators/public.decorator';
 import { DiningTablesService } from '../dining-tables/dining-tables.service';
+import { Order } from '../orders/entities/order.entity';
 import { OutletsService } from '../outlets/outlets.service';
 import { JoinTableSessionDto } from './dto/guest-table-session.dto';
 import { TableSessionsService } from './table-sessions.service';
@@ -29,6 +32,11 @@ export class GuestTableScanController {
     private readonly tableSessions: TableSessionsService,
     private readonly diningTables: DiningTablesService,
     private readonly outlets: OutletsService,
+    // Order is registered directly on TableSessionsModule (see its own
+    // comment) rather than importing OrdersModule, to avoid a circular
+    // module dependency — same reasoning applies here.
+    @InjectRepository(Order)
+    private readonly ordersRepository: Repository<Order>,
   ) {}
 
   /**
@@ -55,13 +63,25 @@ export class GuestTableScanController {
       this.tableSessions.ensureActiveForScan(table.id, table.outletId),
       this.outlets.findOne(table.outletId),
     ]);
-    const detail = await this.tableSessions.findOneDetailed(session.id);
+    const [detail, activeOrderCount] = await Promise.all([
+      this.tableSessions.findOneDetailed(session.id),
+      // Orders are a shared cart for the whole table session (see
+      // OrdersService#createFromGuest), not per-guest — so whoever scans
+      // next, even before signing in / joining, should learn there's
+      // already an order in progress rather than only the guest who placed
+      // it finding out. A boolean, not the count or contents, is all an
+      // unauthenticated caller gets.
+      this.ordersRepository.count({
+        where: { tableSessionId: session.id, status: Not('cancelled') },
+      }),
+    ]);
     return {
       id: detail.id,
       outletName: detail.outletName,
       diningTableName: detail.diningTableName,
       qrOrderingMode: outlet.qrOrderingMode,
       qrAccessCheckMode: outlet.qrAccessCheckMode,
+      hasActiveOrder: activeOrderCount > 0,
     };
   }
 }

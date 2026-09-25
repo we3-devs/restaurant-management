@@ -55,6 +55,10 @@ export function useTableSession(tableCode: string | null) {
   // generic "Table" placeholder while the authenticated session query below
   // (gated on `joined`) hasn't run yet.
   const [scannedTableName, setScannedTableName] = useState<string | null>(null);
+  // Orders are a shared cart for the whole table session, not per-guest —
+  // this is how a guest who hasn't joined/signed in yet (or a second person
+  // scanning the same table) learns there's already an order in progress.
+  const [hasActiveOrder, setHasActiveOrder] = useState(false);
   // Requested once, in parallel with the rest of the page loading — as soon
   // as the anonymous scan reports the outlet needs a geofence check — rather
   // than waiting for the guest to tap "Continue"/"Place order". Both the
@@ -105,6 +109,7 @@ export function useTableSession(tableCode: string | null) {
         if (data?.qrOrderingMode) setQrOrderingMode(data.qrOrderingMode);
         if (data?.qrAccessCheckMode) setQrAccessCheckMode(data.qrAccessCheckMode);
         if (data?.diningTableName) setScannedTableName(data.diningTableName);
+        if (data?.hasActiveOrder) setHasActiveOrder(true);
       })
       .catch(() => undefined);
   }, [tableCode]);
@@ -183,5 +188,6 @@ export function useTableSession(tableCode: string | null) {
     diningTableName: query.data?.diningTableName ?? scannedTableName,
     location,
     locationDenied,
+    hasActiveOrder,
   };
 }
