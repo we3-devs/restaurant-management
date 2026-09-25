@@ -57,8 +57,7 @@ const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
-  const { session, qrOrderingMode, qrAccessCheckMode } = useTableSession(tableCode);
-  const diningTableName = session?.diningTableName ?? "Table";
+  const { qrOrderingMode, qrAccessCheckMode, diningTableName } = useTableSession(tableCode);
   const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);

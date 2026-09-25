@@ -17,7 +17,7 @@ export default function TableContent() {
   const { tableCode, isReady } = useGuestSession();
 	const { isAuthenticated } = useGuestAuth();
 	const branding = useBranding();
-	const { session, members, isLoading, addCompanion, removeCompanion, qrOrderingMode, qrAccessCheckMode } = useTableSession(tableCode);
+	const { session, members, isLoading, addCompanion, removeCompanion, qrOrderingMode, qrAccessCheckMode, diningTableName } = useTableSession(tableCode);
 	const sessionTime = session ? formatTableSessionTime(session.startedAt) : null;
 
 	const [name, setName] = useState("");
@@ -118,7 +118,7 @@ export default function TableContent() {
 								{branding.restaurantName}
 							</h1>
 							<p className="truncate text-xs text-slate-500">
-								{session?.diningTableName ?? "Table"}
+								{diningTableName}
 								{sessionTime && ` · ${sessionTime}`}
 							</p>
 						</div>

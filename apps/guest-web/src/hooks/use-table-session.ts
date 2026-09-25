@@ -41,6 +41,11 @@ export function useTableSession(tableCode: string | null) {
   const [joinedToken, setJoinedToken] = useState<string | null>(null);
   const [qrOrderingMode, setQrOrderingMode] = useState<QrOrderingMode | null>(null);
   const [qrAccessCheckMode, setQrAccessCheckMode] = useState<QrAccessCheckMode | null>(null);
+  // The anonymous scan call already returns the table's name — captured here
+  // so the header can show it before the guest signs in, instead of the
+  // generic "Table" placeholder while the authenticated session query below
+  // (gated on `joined`) hasn't run yet.
+  const [scannedTableName, setScannedTableName] = useState<string | null>(null);
   const joiningRef = useRef(false);
   const scannedRef = useRef(false);
   const joined = !!token && joinedToken === token;
@@ -82,6 +87,7 @@ export function useTableSession(tableCode: string | null) {
       .then((data) => {
         if (data?.qrOrderingMode) setQrOrderingMode(data.qrOrderingMode);
         if (data?.qrAccessCheckMode) setQrAccessCheckMode(data.qrAccessCheckMode);
+        if (data?.diningTableName) setScannedTableName(data.diningTableName);
       })
       .catch(() => undefined);
   }, [tableCode]);
@@ -143,5 +149,9 @@ export function useTableSession(tableCode: string | null) {
     removeCompanion,
     qrOrderingMode,
     qrAccessCheckMode,
+    // Falls back to the anonymous scan's table name until the authenticated
+    // session query (joined-only) resolves, so the header never shows a
+    // generic "Table" placeholder for a guest who hasn't signed in yet.
+    diningTableName: query.data?.diningTableName ?? scannedTableName,
   };
 }
