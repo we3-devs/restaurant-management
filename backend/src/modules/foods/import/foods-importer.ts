@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import type { ImportDomainConfig, ImportRawRow } from '../../data-import/interfaces/import-domain-config.interface';
 import type { ImportCommitResult } from '../../data-import/interfaces/import-result.interface';
 import type { ImportValidatedRow } from '../../data-import/interfaces/import-row.interface';
@@ -456,7 +456,11 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         return { id: cachedId, created: false };
       }
       const existing = await foodVariantRepo.findOne({
-        where: scopedWhere(this.tenantContext, { foodId, variantId, subVariantId }),
+        where: scopedWhere(this.tenantContext, {
+          foodId,
+          variantId: variantId ?? IsNull(),
+          subVariantId: subVariantId ?? IsNull(),
+        }),
         select: { id: true },
       });
       if (existing) {
