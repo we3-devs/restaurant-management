@@ -4,13 +4,9 @@ import { useState, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ShoppingCart,
-  ClipboardList,
   Minus,
   Plus,
-  Send,
   X,
-  Check,
   User,
   Users,
   ArrowLeft,
@@ -20,16 +16,13 @@ import {
 import { useTableSession } from "@/hooks/use-table-session";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
-import { useGuestOrders } from "@/hooks/use-guest-orders";
+import { useCart } from "@/hooks/use-cart";
 import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
-import { QuickOrderGate } from "@/components/quick-order-gate";
+import { GuestNavBar } from "@/components/guest-nav-bar";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
-import { LocationPermissionHelp } from "@/components/location-permission-help";
 import { CardGridSkeleton } from "@/components/skeleton";
-import { authFetch, getJson, readError } from "@/lib/api";
-import { ORDER_LABEL } from "@/lib/order-status";
-import { publicQueryKeys } from "@rms/api-client/query-keys";
+import { getJson } from "@/lib/api";
 import type { Food } from "@rms/api-client/hooks/use-foods";
 import type { FoodCategory as Category } from "@rms/api-client/hooks/use-food-categories";
 import type { FoodVariant as Variant } from "@rms/api-client/hooks/use-food-variants";
@@ -40,38 +33,23 @@ import type { VariantListValue as ListValue } from "@rms/api-client/hooks/use-va
 // /foods/public/menu projection that never picked up FoodVariant-level
 // stock/inventoryAvailable, so the two menus silently drifted apart. Both
 // surfaces now read the exact same food items from the same place.
-interface CartItem {
-  key: string;
-  food: Food;
-  variant: Variant | null;
-  /** "Veg · Full" for a nested pick, "Full" for a flat one. */
-  variantLabel: string | null;
-  unitPrice: number;
-  quantity: number;
-}
 
 const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
-const cartKey = (foodId: number, variantId?: number | null) =>
-  `${foodId}:${variantId ?? 0}`;
 
 const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
-  const { qrOrderingMode, qrAccessCheckMode, diningTableName, location, locationDenied } = useTableSession(tableCode);
+  const { qrOrderingMode, diningTableName } = useTableSession(tableCode);
   const { isAuthenticated } = useGuestAuth();
+  const { cart, addItem: addToCart, updateQuantity } = useCart(tableCode);
   const branding = useBranding();
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [cartOpen, setCartOpen] = useState(false);
-  const [sidebarView, setSidebarView] = useState<"cart" | "ordered">("cart");
   const [variantFor, setVariantFor] = useState<Food | null>(null);
   // Step 2 of the picker: which top-level group (Veg / Chicken) is open.
   const [variantGroup, setVariantGroup] = useState<Variant | null>(null);
   // Tracks why the gate opened: signing in from the header shouldn't silently
   // send an order just because the cart happens to be full.
-  const [authIntent, setAuthIntent] = useState<"checkout" | "login" | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showLocationHelp, setShowLocationHelp] = useState(false);
+  const [authIntent, setAuthIntent] = useState<"login" | null>(null);
   // Two-level menu: a category list, then that category's foods.
   const [openSection, setOpenSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -204,34 +182,6 @@ export default function MenuContent() {
     ? { id: UNCATEGORISED, name: "Search results", foods: searchResults }
     : null;
 
-  const addItem = useCallback(
-    (food: Food, variant: Variant | null, variantLabel: string | null) => {
-      const unavailable = variant
-        ? variant.inventoryAvailable === false
-        : (variantsByFood[food.id] ?? []).some((leaf) => leaf.inventoryAvailable === false);
-      if (unavailable) {
-        toast.error(`${food.name}${variantLabel ? ` · ${variantLabel}` : ""} is out of stock`);
-        return;
-      }
-      const key = cartKey(food.id, variant?.id);
-      const unitPrice = variant?.price ?? variantsByFood[food.id]?.[0]?.price ?? 0;
-      setCart((prev) => {
-        const existing = prev.find((i) => i.key === key);
-        if (existing) {
-          return prev.map((i) =>
-            i.key === key ? { ...i, quantity: i.quantity + 1 } : i
-          );
-        }
-        return [
-          ...prev,
-          { key, food, variant, variantLabel, unitPrice, quantity: 1 },
-        ];
-      });
-      toast.success(variantLabel ? `${food.name} · ${variantLabel}` : food.name);
-    },
-    [variantsByFood]
-  );
-
   const handleAdd = useCallback(
     (food: Food) => {
       if (!isFoodAvailable(food.id)) {
@@ -244,18 +194,10 @@ export default function MenuContent() {
         setVariantGroup(null);
         return;
       }
-      addItem(food, null, null);
+      addToCart(food, null, null);
     },
-    [variantsByFood, addItem, isFoodAvailable]
+    [variantsByFood, addToCart, isFoodAvailable]
   );
-
-  const updateQuantity = useCallback((key: string, qty: number) => {
-    setCart((prev) =>
-      qty <= 0
-        ? prev.filter((i) => i.key !== key)
-        : prev.map((i) => (i.key === key ? { ...i, quantity: qty } : i))
-    );
-  }, []);
 
   // Menu cards own quantity changes. For foods with variants, decrement the
   // most recently added option; adding still opens the option picker so the
@@ -285,23 +227,13 @@ export default function MenuContent() {
       const matchingItems = itemsForFood(food.id);
       const lastItem = matchingItems[matchingItems.length - 1];
       if (lastItem) {
-        addItem(food, lastItem.variant, lastItem.variantLabel);
+        addToCart(food, lastItem.variant, lastItem.variantLabel);
       } else {
         handleAdd(food);
       }
     },
-    [itemsForFood, addItem, handleAdd]
+    [itemsForFood, addToCart, handleAdd]
   );
-
-  const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
-  const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
-
-  // Same query key as /order, so the tracker bar rides the existing cache
-  // instead of opening a second five-second poll against the backend.
-  const { data: guestOrders = [] } = useGuestOrders(tableCode);
-  const showTracker = guestOrders.length > 0;
-  const showCartBar = itemCount > 0 && !cartOpen && !variantFor;
-  const showBottomBar = showTracker || showCartBar;
 
   const activeSectionData =
     openSection === null
@@ -312,65 +244,6 @@ export default function MenuContent() {
   const openCategory = (id: number) => {
     setOpenSection(id);
     window.scrollTo({ top: 0 });
-  };
-
-  const placeOrder = async () => {
-    setIsSubmitting(true);
-    try {
-      // location comes from useTableSession, requested once in parallel with
-      // the page loading — no fresh geolocation call happens here. A
-      // "geofence"/"both" outlet (where location isn't just one of two
-      // alternatives) with no reading and a known denial stops before
-      // hitting the network at all, instead of submitting with no
-      // coordinates and getting the backend's generic rejection.
-      const needsGeofence =
-        qrOrderingMode === "quick_order" &&
-        (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both");
-      if (needsGeofence && !location && locationDenied && qrAccessCheckMode !== "either") {
-        setShowLocationHelp(true);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const res = await authFetch("/orders/guest", {
-        method: "POST",
-        body: JSON.stringify({
-          tableCode,
-          items: cart.map((i) => ({
-            foodId: i.food.id,
-            ...(i.variant ? { foodVariantId: i.variant.id } : {}),
-            quantity: i.quantity,
-          })),
-          ...(location ? { latitude: location.latitude, longitude: location.longitude } : {}),
-        }),
-      });
-
-      if (!res.ok) throw new Error(await readError(res, "Failed to place order"));
-
-      toast.success("Order placed!");
-      setCart([]);
-      setTimeout(() => {
-        window.location.href = `/order?table=${tableCode}`;
-      }, 500);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Order failed");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (cart.length === 0) {
-      toast.error("Add items first");
-      return;
-    }
-    // Browsing stays open to everyone; identity is only required at the point
-    // it actually matters, which is also where the backend demands it.
-    if (!isAuthenticated) {
-      setAuthIntent("checkout");
-      return;
-    }
-    void placeOrder();
   };
 
   if (!isReady) {
@@ -440,41 +313,6 @@ export default function MenuContent() {
               <User size={14} />
               Log in
             </button>
-          )}
-          
-          {isAuthenticated && (
-          <div className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200 p-1">
-            <button
-              onClick={() => {
-                setSidebarView("cart");
-                setCartOpen(true);
-              }}
-              aria-label={`Open cart, ${itemCount} items`}
-              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-95 ${
-                cartOpen && sidebarView === "cart"
-                  ? "bg-brand-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <ShoppingCart size={15} />
-              Cart{itemCount > 0 && ` (${itemCount})`}
-            </button>
-            <button
-              onClick={() => {
-                setSidebarView("ordered");
-                setCartOpen(true);
-              }}
-              aria-label={`Open submitted orders, ${guestOrders.length} orders`}
-              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition active:scale-95 ${
-                cartOpen && sidebarView === "ordered"
-                  ? "bg-brand-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <ClipboardList size={15} />
-              Ordered{guestOrders.length > 0 && ` (${guestOrders.length})`}
-            </button>
-          </div>
           )}
         </div>
 
@@ -671,34 +509,11 @@ export default function MenuContent() {
         )}
       </main>
 
-      {/* Live tracker sits above the cart CTA — a diner mid-second-round needs
-          both at once, so they stack rather than compete for the same slot. */}
-      {showBottomBar && (
-        <div
-          className="fixed inset-x-0 bottom-0 z-20 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
-        >
-          {showTracker && tableCode && <OrderTrackerBar tableCode={tableCode} />}
-
-          {showCartBar && (
-            <div className="border-t border-slate-200">
-              <div className="mx-auto max-w-3xl px-4 py-3">
-                <button
-                  onClick={() => {
-                    setSidebarView("cart");
-                    setCartOpen(true);
-                  }}
-                  className="flex w-full items-center justify-between rounded-xl bg-brand-600 px-4 py-3.5 text-white transition hover:bg-brand-700 active:scale-[0.99]"
-                >
-                  <span className="text-sm font-medium">
-                    {itemCount} {itemCount === 1 ? "item" : "items"}
-                  </span>
-                  <span className="text-sm font-semibold">
-                    View order · {money(total)}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
+      {/* Sits just above the bottom nav bar — a diner mid-second-round needs
+          both the live status and quick access to Cart/Ordered at once. */}
+      {tableCode && (
+        <div className="fixed inset-x-0 bottom-14 z-20 bg-white/95 backdrop-blur-sm">
+          <OrderTrackerBar tableCode={tableCode} />
         </div>
       )}
 
@@ -793,7 +608,7 @@ export default function MenuContent() {
                               onClick={() => {
                                 // Nothing left to choose — order it directly.
                                 if (single) {
-                                  addItem(
+                                  addToCart(
                                     variantFor,
                                     items[0],
                                     variantLabelOf(items[0])
@@ -834,7 +649,7 @@ export default function MenuContent() {
                             <button
                               onClick={() => {
                                 if (outOfStock) return;
-                                addItem(variantFor, item, variantLabelOf(item));
+                                addToCart(variantFor, item, variantLabelOf(item));
                                 closePicker();
                               }}
                               disabled={outOfStock}
@@ -867,194 +682,11 @@ export default function MenuContent() {
           );
         })()}
 
-      {cartOpen && (
-        <div
-          onClick={() => setCartOpen(false)}
-          className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-[2px]"
-        />
+      {authIntent === "login" && (
+        <GuestAuthSheet onClose={() => setAuthIntent(null)} onSuccess={() => setAuthIntent(null)} />
       )}
 
-      <aside
-        aria-hidden={!cartOpen}
-        className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${
-          cartOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3.5">
-          <h2 className="font-semibold text-slate-900">
-            {sidebarView === "cart" ? "Cart" : "Ordered"}
-          </h2>
-          <button
-            onClick={() => setCartOpen(false)}
-            aria-label="Close cart"
-            className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {sidebarView === "ordered" && guestOrders.length > 0 && (
-            <section className="mb-5 space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Submitted orders
-                </h3>
-                <a
-                  href={`/order?table=${encodeURIComponent(tableCode)}`}
-                  className="text-xs font-medium text-brand-600 hover:underline"
-                >
-                  View all
-                </a>
-              </div>
-              <div className="space-y-2">
-                {guestOrders.map((order) => (
-                  <a
-                    key={order.id}
-                    href={`/order?table=${encodeURIComponent(tableCode)}`}
-                    onClick={() => setCartOpen(false)}
-                    className="block rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-brand-600 hover:bg-brand-50"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {order.orderNumber}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {ORDER_LABEL[order.status] ?? order.status}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-semibold text-slate-900">
-                        {money(order.grandTotal)}
-                      </span>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {sidebarView === "cart" && (cart.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <ShoppingCart size={32} className="text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No items yet</p>
-            </div>
-          ) : (
-            <ul className="space-y-2.5">
-              {cart.map((item) => (
-                <li key={item.key} className="rounded-xl border border-slate-200 p-3">
-                  <div className="flex justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">
-                        {item.food.name}
-                      </p>
-                      {item.variantLabel && (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                          <Check size={12} /> {item.variantLabel}
-                        </p>
-                      )}
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold text-slate-900">
-                      {money(item.unitPrice * item.quantity)}
-                    </p>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
-                    <span className="text-xs text-slate-500">Quantity</span>
-                    <span className="rounded-md bg-brand-50 px-2.5 py-1 text-sm font-bold tabular-nums text-brand-700">
-                      {item.quantity}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ))}
-          {sidebarView === "ordered" && guestOrders.length === 0 && (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <ClipboardList size={32} className="text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No submitted orders yet</p>
-            </div>
-          )}
-        </div>
-
-        {sidebarView === "cart" && <div className="border-t border-slate-200 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-slate-500">Total</span>
-            <span className="text-lg font-semibold text-slate-900">{money(total)}</span>
-          </div>
-          <button
-            onClick={handleSubmit}
-            disabled={cart.length === 0 || isSubmitting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            <Send size={16} />
-            {isSubmitting ? "Placing…" : "Place order"}
-          </button>
-        </div>}
-      </aside>
-
-      {authIntent && qrOrderingMode === "quick_order" && (
-        <QuickOrderGate
-          tableCode={tableCode!}
-          qrAccessCheckMode={qrAccessCheckMode}
-          location={location}
-          locationDenied={locationDenied}
-          onClose={() => setAuthIntent(null)}
-          onSuccess={() => {
-            const intent = authIntent;
-            setAuthIntent(null);
-            if (intent === "checkout") void placeOrder();
-          }}
-        />
-      )}
-
-      {authIntent && qrOrderingMode !== "quick_order" && (
-        <GuestAuthSheet
-          onClose={() => setAuthIntent(null)}
-          onSuccess={() => {
-            const intent = authIntent;
-            setAuthIntent(null);
-            // They were mid-checkout when the gate appeared, so finish the job
-            // rather than making them find the button again.
-            if (intent === "checkout") void placeOrder();
-          }}
-        />
-      )}
-
-      {showLocationHelp && (
-        <>
-          <div
-            onClick={() => setShowLocationHelp(false)}
-            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px]"
-          />
-          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5">
-              <h2 className="font-semibold text-slate-900">Turn location back on</h2>
-              <button
-                onClick={() => setShowLocationHelp(false)}
-                aria-label="Close"
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-3 p-4">
-              <p className="text-sm text-slate-600">
-                This table requires confirming your location, but it's currently blocked for this site. Follow these
-                steps, then come back and place your order again:
-              </p>
-              <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
-                <LocationPermissionHelp />
-              </div>
-              <button
-                onClick={() => setShowLocationHelp(false)}
-                className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      <GuestNavBar />
     </div>
   );
 }

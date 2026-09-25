@@ -6,6 +6,7 @@ import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { GuestNavBar } from "@/components/guest-nav-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
 import {
   ITEM_LABEL,
@@ -112,12 +113,6 @@ export default function OrderContent() {
           >
             Log in
           </button>
-          <a
-            href={`/menu?table=${tableCode}`}
-            className="mt-3 text-sm text-slate-500 underline underline-offset-4"
-          >
-            Back to menu
-          </a>
         </div>
         {authOpen && (
           <GuestAuthSheet
@@ -125,6 +120,7 @@ export default function OrderContent() {
             onSuccess={() => setAuthOpen(false)}
           />
         )}
+        <GuestNavBar />
       </>
     );
   }
@@ -141,17 +137,20 @@ export default function OrderContent() {
 
   if (orders.length === 0) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
-        <AlertCircle size={40} className="text-slate-300" />
-        <h1 className="mt-4 text-lg font-semibold text-slate-900">No orders yet</h1>
-        <p className="mt-1 text-sm text-slate-500">Table {tableCode}</p>
-        <a
-          href={`/menu?table=${tableCode}`}
-          className="mt-6 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
-        >
-          Browse menu
-        </a>
-      </div>
+      <>
+        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+          <AlertCircle size={40} className="text-slate-300" />
+          <h1 className="mt-4 text-lg font-semibold text-slate-900">No orders yet</h1>
+          <p className="mt-1 text-sm text-slate-500">Table {tableCode}</p>
+          <a
+            href={`/menu?table=${tableCode}`}
+            className="mt-6 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
+          >
+            Browse menu
+          </a>
+        </div>
+        <GuestNavBar />
+      </>
     );
   }
 
@@ -357,16 +356,7 @@ export default function OrderContent() {
         </section>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
-        <div className="mx-auto max-w-2xl px-4 py-3">
-          <a
-            href={`/menu?table=${tableCode}`}
-            className="flex w-full items-center justify-center rounded-xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99]"
-          >
-            Back to menu
-          </a>
-        </div>
-      </div>
+      <GuestNavBar />
     </div>
   );
 }
