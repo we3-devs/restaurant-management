@@ -132,6 +132,13 @@ interface FoodImportRow extends ImportValidatedRow {
  * an error — commitRows auto-creates it (same find-or-create shape as
  * variant/subVariant) so legacy sheets bring their categories with them
  * instead of importing every row as "Uncategorized".
+ *
+ * Every row of the chain below the Food itself — category, variant,
+ * sub-variant, and the FoodVariant (food item) — is find-or-create: a
+ * second import of the same sheet (or a sheet that only adds rows to an
+ * existing food) reuses whatever already matches by name/combination
+ * instead of creating duplicates, updating the FoodVariant's price in
+ * place if it changed.
  */
 @Injectable()
 export class FoodsImporter implements ImportDomainConfig<Record<string, string>, FoodImportRow> {
@@ -298,6 +305,10 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
     // Repeated food names (e.g. "Hukka" with a different variant per row)
     // share one Food row instead of each row creating its own.
     const foodIdCache = new Map<string, number>();
+    // Keyed by foodId:variantId:subVariantId so re-importing the same sheet
+    // (or a sheet that only adds new rows to an existing food) reuses the
+    // matching FoodVariant instead of creating a duplicate sellable item.
+    const foodVariantIdCache = new Map<string, number>();
 
     /**
      * Finds the category by name in this tenant, or creates it. Slug is
@@ -423,6 +434,52 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
       return { id: created.id, created: true };
     };
 
+    /**
+     * Finds-or-creates the FoodVariant (food item) for this exact
+     * foodId/variantId/subVariantId combination. Re-importing a sheet that
+     * already produced this item — or adding new rows to a food that
+     * already has it — updates its price in place rather than creating a
+     * second, duplicate sellable item alongside it.
+     */
+    const resolveFoodVariant = async (
+      foodId: number,
+      variantId: number | null,
+      subVariantId: number | null,
+      name: string,
+      price: number,
+      isDefault: boolean,
+    ): Promise<{ id: number; created: boolean }> => {
+      const key = `${foodId}:${variantId ?? ''}:${subVariantId ?? ''}`;
+      const cachedId = foodVariantIdCache.get(key);
+      if (cachedId !== undefined) {
+        await foodVariantRepo.update({ id: cachedId }, { price, name });
+        return { id: cachedId, created: false };
+      }
+      const existing = await foodVariantRepo.findOne({
+        where: scopedWhere(this.tenantContext, { foodId, variantId, subVariantId }),
+        select: { id: true },
+      });
+      if (existing) {
+        foodVariantIdCache.set(key, existing.id);
+        await foodVariantRepo.update({ id: existing.id }, { price, name });
+        return { id: existing.id, created: false };
+      }
+      const created = await foodVariantRepo.save(
+        foodVariantRepo.create({
+          ...tenantFields(this.tenantContext),
+          foodId,
+          variantId,
+          subVariantId,
+          name,
+          price,
+          isDefault,
+          sortOrder: 0,
+        }),
+      );
+      foodVariantIdCache.set(key, created.id);
+      return { id: created.id, created: true };
+    };
+
     for (const row of rows) {
       // Each row gets its own SAVEPOINT — without this, one row's constraint
       // violation aborts the whole shared chunk transaction, and every row
@@ -465,19 +522,15 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
           if (row.subVariantName) nameParts.push(row.subVariantName);
           const fvName = nameParts.join(' – ');
 
-          await foodVariantRepo.save(
-            foodVariantRepo.create({
-              ...tenantFields(this.tenantContext),
-              foodId,
-              variantId: resolvedVariantId,
-              subVariantId: resolvedSubVariantId,
-              name: fvName,
-              price: row.basePrice,
-              // Only the row that created the food gets the default item —
-              // otherwise every sibling variant row would claim isDefault.
-              isDefault: foodCreated,
-              sortOrder: 0,
-            }),
+          await resolveFoodVariant(
+            foodId,
+            resolvedVariantId,
+            resolvedSubVariantId,
+            fvName,
+            row.basePrice,
+            // Only the row that created the food gets the default item —
+            // otherwise every sibling variant row would claim isDefault.
+            foodCreated,
           );
 
           // Recompose so the FoodVariant gets its composed SKU too.

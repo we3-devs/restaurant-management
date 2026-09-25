@@ -27,6 +27,8 @@ function buildRepos(opts: {
   const foodVariantsRepository = {
     create: (data: Partial<FoodVariant>) => data as FoodVariant,
     save: jest.fn(async (fv: FoodVariant) => ({ ...fv, id: nextId++ }) as FoodVariant),
+    findOne: jest.fn(async () => null),
+    update: jest.fn(async () => undefined),
   } as unknown as Repository<FoodVariant>;
   const variantsRepository = { find: async () => opts.variants ?? [] } as unknown as Repository<Variant>;
   const subVariantsRepository = { find: async () => opts.subVariants ?? [] } as unknown as Repository<SubVariant>;
@@ -184,6 +186,8 @@ describe('FoodsImporter', () => {
       const managerFVRepo = {
         create: (d: unknown) => d,
         save: jest.fn(async (fv: unknown) => { foodVariantSaved = fv; return fv; }),
+        findOne: jest.fn(async () => null),
+        update: jest.fn(async () => undefined),
       };
       const manager = {
         getRepository: (entity: unknown) => {
@@ -221,6 +225,58 @@ describe('FoodsImporter', () => {
       expect(managerFVRepo.save).toHaveBeenCalled();
       expect((foodVariantSaved as { price?: number })?.price).toBe(290);
       expect(skuCompositionService.recomposeFoodTree).toHaveBeenCalled();
+    });
+
+    it('reuses an existing FoodVariant for the same food/variant/sub-variant instead of duplicating it', async () => {
+      const { importer } = buildImporter();
+      const managerFoodRepo = {
+        create: (d: unknown) => d,
+        save: jest.fn(async (f: unknown) => ({ ...(f as object), id: 1 })),
+        update: jest.fn(async () => undefined),
+        findOne: jest.fn(async () => ({ id: 1 })),
+      };
+      const managerFVRepo = {
+        create: (d: unknown) => d,
+        save: jest.fn(),
+        findOne: jest.fn(async () => ({ id: 9 })),
+        update: jest.fn(async () => undefined),
+      };
+      const manager = {
+        getRepository: (entity: unknown) => {
+          const name = (entity as { name?: string }).name;
+          return name === 'FoodVariant' ? managerFVRepo : managerFoodRepo;
+        },
+        query: jest.fn(async () => undefined),
+      } as unknown as EntityManager;
+
+      const result = await importer.commitRows(
+        [
+          {
+            rowNumber: 2,
+            name: 'Choila',
+            slug: 'chicken-choila',
+            skuSegment: 'IK07',
+            shortDescription: null,
+            imageUrl: null,
+            foodCategory: null,
+            foodCategoryName: null,
+            foodCategoryId: null,
+            itemType: 'kitchen',
+            departmentType: null,
+            basePrice: 350,
+            variantName: null,
+            variantId: null,
+            subVariantName: null,
+            subVariantId: null,
+            errors: [],
+          },
+        ],
+        manager,
+      );
+
+      expect(result.committedCount).toBe(1);
+      expect(managerFVRepo.save).not.toHaveBeenCalled();
+      expect(managerFVRepo.update).toHaveBeenCalledWith({ id: 9 }, { price: 350, name: 'Choila' });
     });
   });
 });
