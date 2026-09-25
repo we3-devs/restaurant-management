@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import toast from "react-hot-toast";
 import { ClipboardList, ShoppingCart, Users, UtensilsCrossed } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useCart } from "@/hooks/use-cart";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useTableSession } from "@/hooks/use-table-session";
+import { useQuickOrderSession } from "@/hooks/use-quick-order-session";
 
 /**
  * Persistent bottom tab bar shared across guest pages. Every tab, including
@@ -18,15 +21,39 @@ import { useTableSession } from "@/hooks/use-table-session";
  */
 export function GuestNavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { tableCode } = useGuestSession();
   const { itemCount } = useCart(tableCode);
   const { isAuthenticated } = useGuestAuth();
-  const { qrOrderingMode } = useTableSession(tableCode);
+  const { qrOrderingMode, qrAccessCheckMode, location, locationDenied } =
+    useTableSession(tableCode);
   const { data: guestOrders = [] } = useGuestOrders(tableCode);
+  // Quick-order guests hitting "Ordered" before they've joined anything
+  // (e.g. someone else at the table already placed one) have no identity
+  // yet for useGuestOrders to fetch with — join silently first, the same way
+  // the menu's "table already has an order" banner does, instead of landing
+  // on a false "No orders yet".
+  const quickOrderSession = useQuickOrderSession(tableCode, qrAccessCheckMode, location, locationDenied);
+  const [isJoiningOrder, setIsJoiningOrder] = useState(false);
 
   if (!tableCode) return null;
 
   const tableParam = encodeURIComponent(tableCode);
+  const orderHref = `/order?table=${tableParam}`;
+
+  const handleOrderClick = (event: React.MouseEvent) => {
+    if (isAuthenticated || qrOrderingMode !== "quick_order") return;
+    event.preventDefault();
+    if (isJoiningOrder) return;
+    setIsJoiningOrder(true);
+    void quickOrderSession
+      .join()
+      .then(() => router.push(orderHref))
+      .catch((err: unknown) => {
+        toast.error(err instanceof Error ? err.message : "Couldn't verify you're at this table");
+      })
+      .finally(() => setIsJoiningOrder(false));
+  };
   const onMenu = pathname === "/menu";
   const onOrder = pathname === "/order";
   const onParty = pathname === "/table";
@@ -68,7 +95,7 @@ export function GuestNavBar() {
           </span>
           Cart
         </Link>
-        <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
+        <Link href={orderHref} onClick={handleOrderClick} className={tabClass(onOrder)}>
           <span className="relative">
             <ClipboardList size={20} />
             {guestOrders.length > 0 && (
@@ -77,7 +104,7 @@ export function GuestNavBar() {
               </span>
             )}
           </span>
-          Ordered
+          {isJoiningOrder ? "Loading…" : "Ordered"}
         </Link>
       </div>
     </nav>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,6 +41,7 @@ const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
 const UNCATEGORISED = -1;
 
 export default function MenuContent() {
+  const router = useRouter();
   const { tableCode, isReady } = useGuestSession();
   const { qrOrderingMode, qrAccessCheckMode, diningTableName, location, locationDenied, hasActiveOrder } =
     useTableSession(tableCode);
@@ -267,7 +269,7 @@ export default function MenuContent() {
       void quickOrderSession
         .join()
         .then(() => {
-          window.location.href = `/order?table=${tableCode}`;
+          router.push(`/order?table=${tableCode}`);
         })
         .catch((err: unknown) => {
           toast.error(err instanceof Error ? err.message : "Couldn't verify you're at this table");
