@@ -127,9 +127,13 @@ export function useTableSession(tableCode: string | null) {
 
   useEffect(() => {
     if (!tableCode || !token || joined || joiningRef.current) return;
-    // quick_order outlets join through useQuickOrderSession's own endpoint —
-    // calling this one with a guest-typed token would just 401.
-    if (qrOrderingMode === "quick_order") return;
+    // Only join once the scan has told us this is a login-mode outlet.
+    // qrOrderingMode starts null until that resolves, and quick_order
+    // outlets join through useQuickOrderSession's own endpoint instead —
+    // calling this one with a guest-typed token (e.g. a token left over
+    // from an earlier quick-order join, still in localStorage on remount)
+    // would just 401.
+    if (qrOrderingMode !== "login") return;
     joiningRef.current = true;
     join.mutate(undefined, { onSettled: () => (joiningRef.current = false) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
