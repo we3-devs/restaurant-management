@@ -265,6 +265,15 @@ export default function OrderContent() {
           <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Items
           </h2>
+          {/* TEMPORARY debug aid — remove once the empty-items issue is
+              diagnosed. Shows exactly what this page received for `current`
+              (the order object items/status render from), directly on the
+              page so it can be screenshotted without opening DevTools. */}
+          {(!current.items || current.items.length === 0) && (
+            <pre className="mb-3 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[10px] leading-tight text-slate-100">
+              {JSON.stringify(current, null, 2)}
+            </pre>
+          )}
           <ul className="divide-y divide-slate-100">
             {current.items?.map((item) => {
               const open = expanded.has(item.id);
