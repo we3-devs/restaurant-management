@@ -819,11 +819,21 @@ export class OrdersService {
           order: { createdAt: 'ASC' },
         })
       : [];
-    const itemsByOrder = new Map<number, OrderItem[]>();
+    // Keyed by String(orderId), not the raw value: Order.id is declared
+    // `@PrimaryGeneratedColumn({ type: 'bigint' })` with no transformer, so
+    // it comes back as pg's raw bigint string ("78"); OrderItem.orderId and
+    // TableSessionFoodStatusCount.orderId both use BigIntTransformer and
+    // come back as the number 78. Map.get() is strict-equality, so looking
+    // up the numeric-keyed map with the string id always silently missed —
+    // the order's own top-level fields still resolved fine (no lookup
+    // involved), which is what made "items: []" look like a query problem
+    // rather than a type mismatch one level up.
+    const itemsByOrder = new Map<string, OrderItem[]>();
     for (const item of allItems) {
-      const items = itemsByOrder.get(item.orderId) ?? [];
+      const key = String(item.orderId);
+      const items = itemsByOrder.get(key) ?? [];
       items.push(item);
-      itemsByOrder.set(item.orderId, items);
+      itemsByOrder.set(key, items);
     }
 
     // Kitchen progress comes from the counts rollup, not from each item's own
@@ -837,17 +847,18 @@ export class OrdersService {
           }),
         )
       : [];
-    const countsByOrder = new Map<number, typeof countRows>();
+    const countsByOrder = new Map<string, typeof countRows>();
     for (const row of countRows) {
-      const rows = countsByOrder.get(row.orderId) ?? [];
+      const key = String(row.orderId);
+      const rows = countsByOrder.get(key) ?? [];
       rows.push(row);
-      countsByOrder.set(row.orderId, rows);
+      countsByOrder.set(key, rows);
     }
 
     return orders.map((order) => ({
       ...order,
-      items: itemsByOrder.get(order.id) ?? [],
-      foodStatusCounts: countsByOrder.get(order.id) ?? [],
+      items: itemsByOrder.get(String(order.id)) ?? [],
+      foodStatusCounts: countsByOrder.get(String(order.id)) ?? [],
     })) as (Order & {
       items: OrderItemWithRelations[];
       foodStatusCounts: NamedFoodStatusCount[];
