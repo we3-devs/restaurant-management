@@ -29,11 +29,16 @@ import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
 import { ORDER_LABEL } from "@/lib/order-status";
 import { publicQueryKeys } from "@rms/api-client/query-keys";
-import type { PublicFood as Food, PublicFoodCategory as Category, PublicFoodVariant as Variant, PublicListValue as ListValue } from "@rms/api-client/public-types";
+import type { Food } from "@rms/api-client/hooks/use-foods";
+import type { FoodCategory as Category } from "@rms/api-client/hooks/use-food-categories";
+import type { FoodVariant as Variant } from "@rms/api-client/hooks/use-food-variants";
+import type { VariantListValue as ListValue } from "@rms/api-client/hooks/use-variant-lists";
 
-// These mirror the Public* projections from /foods/public,
-// /food-categories/public and /food-variants/public — all deliberately
-// narrower than the authenticated entities.
+// Same Food/FoodCategory/FoodVariant shapes POS reads from MenuService's
+// getBootstrap() — guest ordering used to read a separate, hand-trimmed
+// /foods/public/menu projection that never picked up FoodVariant-level
+// stock/inventoryAvailable, so the two menus silently drifted apart. Both
+// surfaces now read the exact same food items from the same place.
 interface CartItem {
   key: string;
   food: Food;
@@ -70,15 +75,15 @@ export default function MenuContent() {
   const [openSection, setOpenSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: menu, isLoading: foodsLoading } = useQuery<{ foods: Food[]; categories: Category[]; variants: Variant[]; variantNames: ListValue[]; subVariantNames: ListValue[] }>({
-    queryKey: ["public", "menu"],
-    queryFn: () => getJson("/foods/public/menu"),
+  const { data: menu, isLoading: foodsLoading } = useQuery<{ foods: Food[]; categories: Category[]; foodVariants: Variant[]; variants: ListValue[]; subVariants: ListValue[] }>({
+    queryKey: ["menu", "guest-bootstrap", tableCode],
+    queryFn: () => getJson(`/menu/guest-bootstrap?tableCode=${encodeURIComponent(tableCode!)}`),
     enabled: !!tableCode,
   });
   const foods = menu?.foods ?? [];
   const categories = menu?.categories ?? [];
-  const variantNames = menu?.variantNames ?? [];
-  const subVariantNames = menu?.subVariantNames ?? [];
+  const variantNames = menu?.variants ?? [];
+  const subVariantNames = menu?.subVariants ?? [];
 
   const nameOf = useCallback(
     (rows: ListValue[], id: number | null) =>
@@ -95,14 +100,14 @@ export default function MenuContent() {
 
   const variantsByFood = useMemo(() => {
     const map: Record<number, Variant[]> = {};
-    for (const variant of menu?.variants ?? []) {
+    for (const variant of menu?.foodVariants ?? []) {
       (map[variant.foodId] ??= []).push(variant);
     }
     for (const food of variantFoods) {
       if (!map[food.id]) map[food.id] = [];
     }
     return map;
-  }, [menu?.variants, variantFoods]);
+  }, [menu?.foodVariants, variantFoods]);
 
   // Every food item is orderable now — there are no non-sellable grouping rows.
   const leavesOf = useCallback(
@@ -114,6 +119,17 @@ export default function MenuContent() {
     (food: Food) => {
       const leaves = leavesOf(food.id);
       return leaves.length ? Math.min(...leaves.map((leaf) => leaf.price)) : 0;
+    },
+    [leavesOf]
+  );
+
+  // Same rule as POS's food-grid: a food reads as out of stock only once
+  // every one of its food items is — a Large drink running out shouldn't
+  // block ordering the Small.
+  const isFoodAvailable = useCallback(
+    (foodId: number) => {
+      const leaves = leavesOf(foodId);
+      return leaves.length === 0 || leaves.some((leaf) => leaf.inventoryAvailable !== false);
     },
     [leavesOf]
   );
@@ -189,6 +205,13 @@ export default function MenuContent() {
 
   const addItem = useCallback(
     (food: Food, variant: Variant | null, variantLabel: string | null) => {
+      const unavailable = variant
+        ? variant.inventoryAvailable === false
+        : (variantsByFood[food.id] ?? []).some((leaf) => leaf.inventoryAvailable === false);
+      if (unavailable) {
+        toast.error(`${food.name}${variantLabel ? ` · ${variantLabel}` : ""} is out of stock`);
+        return;
+      }
       const key = cartKey(food.id, variant?.id);
       const unitPrice = variant?.price ?? variantsByFood[food.id]?.[0]?.price ?? 0;
       setCart((prev) => {
@@ -210,6 +233,10 @@ export default function MenuContent() {
 
   const handleAdd = useCallback(
     (food: Food) => {
+      if (!isFoodAvailable(food.id)) {
+        toast.error(`${food.name} is out of stock`);
+        return;
+      }
       const variants = variantsByFood[food.id];
       if (food.hasVariants && variants?.length) {
         setVariantFor(food);
@@ -218,7 +245,7 @@ export default function MenuContent() {
       }
       addItem(food, null, null);
     },
-    [variantsByFood, addItem]
+    [variantsByFood, addItem, isFoodAvailable]
   );
 
   const updateQuantity = useCallback((key: string, qty: number) => {
@@ -549,6 +576,7 @@ export default function MenuContent() {
               const showsRange = food.hasVariants && leaves.length > 1;
               const quantity = quantityForFood(food.id);
               const isSelected = quantity > 0;
+              const outOfStock = !isFoodAvailable(food.id);
               return (
                 <article
                   key={food.id}
@@ -556,7 +584,7 @@ export default function MenuContent() {
                     isSelected
                       ? "border-brand-600 bg-brand-50/40 ring-1 ring-brand-600/20"
                       : "border-slate-200 hover:border-slate-300"
-                  }`}
+                  } ${outOfStock ? "opacity-60" : ""}`}
                 >
                   {food.imageUrl && (
                     <img
@@ -579,6 +607,11 @@ export default function MenuContent() {
                       {showsRange && (
                         <p className="mt-1.5 text-xs text-slate-400">
                           {leaves.length} options
+                        </p>
+                      )}
+                      {outOfStock && (
+                        <p className="mt-1.5 text-xs font-semibold text-red-600">
+                          Out of stock
                         </p>
                       )}
                     </div>
@@ -606,7 +639,8 @@ export default function MenuContent() {
                           <button
                             onClick={() => repeatFood(food)}
                             aria-label={`Increase ${food.name}`}
-                            className="rounded-md bg-brand-600 p-1.5 text-white transition hover:bg-brand-700 active:scale-95"
+                            disabled={outOfStock}
+                            className="rounded-md bg-brand-600 p-1.5 text-white transition hover:bg-brand-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                           >
                             <Plus size={16} />
                           </button>
@@ -614,9 +648,10 @@ export default function MenuContent() {
                       ) : (
                         <button
                           onClick={() => handleAdd(food)}
-                          className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95"
+                          disabled={outOfStock}
+                          className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                         >
-                          {showsRange ? "Choose" : "Add"}
+                          {outOfStock ? "Out of stock" : showsRange ? "Choose" : "Add"}
                         </button>
                       )}
                     </div>
@@ -624,7 +659,8 @@ export default function MenuContent() {
                       <button
                         type="button"
                         onClick={() => handleAdd(food)}
-                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white py-2 text-xs font-semibold text-brand-700 transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
+                        disabled={outOfStock}
+                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white py-2 text-xs font-semibold text-brand-700 transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Plus size={14} />
                         Add another variant
@@ -795,30 +831,40 @@ export default function MenuContent() {
                         );
                       })
                     : // Step two: sizes available for the chosen variant.
-                      sizeOptions.map((item) => (
-                        <li key={item.id}>
-                          <button
-                            onClick={() => {
-                              addItem(variantFor, item, variantLabelOf(item));
-                              closePicker();
-                            }}
-                            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99]"
-                          >
-                            <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                              {nameOf(subVariantNames, item.subVariantId) ??
-                                item.name}
-                              {item.isDefault && (
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
-                                  popular
-                                </span>
-                              )}
-                            </span>
-                            <span className="shrink-0 text-sm font-semibold text-slate-900">
-                              {money(item.price)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
+                      sizeOptions.map((item) => {
+                        const outOfStock = item.inventoryAvailable === false;
+                        return (
+                          <li key={item.id}>
+                            <button
+                              onClick={() => {
+                                if (outOfStock) return;
+                                addItem(variantFor, item, variantLabelOf(item));
+                                closePicker();
+                              }}
+                              disabled={outOfStock}
+                              className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-brand-600 hover:bg-brand-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-transparent"
+                            >
+                              <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                                {nameOf(subVariantNames, item.subVariantId) ??
+                                  item.name}
+                                {item.isDefault && !outOfStock && (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500">
+                                    popular
+                                  </span>
+                                )}
+                                {outOfStock && (
+                                  <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-normal text-red-600">
+                                    out of stock
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-sm font-semibold text-slate-900">
+                                {money(item.price)}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
                 </ul>
               </div>
             </>

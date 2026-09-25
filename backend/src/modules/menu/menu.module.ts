@@ -9,6 +9,7 @@ import { FoodVariant } from '../food-variants/entities/food-variant.entity';
 import { SubVariant } from '../variants/entities/sub-variant.entity';
 import { Variant } from '../variants/entities/variant.entity';
 import { AuthModule } from '../auth/auth.module';
+import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { WarehouseIngredientStock } from '../inventory-stock/entities/warehouse-ingredient-stock.entity';
 import { FoodRecipe } from '../foods/entities/food-recipe.entity';
@@ -16,7 +17,7 @@ import { MenuController } from './menu.controller';
 import { MenuService } from './menu.service';
 
 @Module({
-  imports: [AuthModule, WarehousesModule, TypeOrmModule.forFeature([Food, FoodCategory, FoodVariant, FoodRecipe, WarehouseIngredientStock, Variant, SubVariant, AddonGroup, Addon, FoodAddonGroup])],
+  imports: [AuthModule, WarehousesModule, DiningTablesModule, TypeOrmModule.forFeature([Food, FoodCategory, FoodVariant, FoodRecipe, WarehouseIngredientStock, Variant, SubVariant, AddonGroup, Addon, FoodAddonGroup])],
   controllers: [MenuController],
   providers: [MenuService],
 })
