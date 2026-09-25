@@ -8,7 +8,9 @@ import {
 } from "../customer-session"
 import { sessionFetch } from "./session-fetch"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
+// NEXT_PUBLIC_API_URL already includes a trailing /api (see layout.tsx,
+// guest-socket.ts), which sessionFetch appends itself, so it's stripped here.
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ?? ""
 
 export class CustomerUnauthorizedError extends Error {
   constructor() {
