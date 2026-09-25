@@ -1,20 +1,25 @@
 "use client";
 
 import { Check, Send, ShoppingCart, X } from "lucide-react";
+import { useGuestSession } from "@/hooks/use-guest-session";
 import { useCheckout } from "@/hooks/use-checkout";
+import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { GuestNavBar } from "@/components/guest-nav-bar";
 import { LocationPermissionHelp } from "@/components/location-permission-help";
 
 const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
 
 /**
- * Cart drawer used on the /menu page specifically — kept as a slide-over so
- * browsing and adjusting the cart happen without leaving the food grid.
- * Every other page's Cart tab navigates to the standalone /cart page
- * instead (see GuestNavBar); both share the same checkout logic via
- * useCheckout.
+ * Standalone Cart page — reached from the nav bar's Cart tab on every page
+ * except /menu, which keeps its own slide-over CartSheet so browsing and
+ * adjusting the cart don't require leaving the food grid. Same checkout
+ * logic as CartSheet via useCheckout, just a full-page layout here instead
+ * of a drawer.
  */
-export function CartSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CartContent() {
+  const { tableCode, isReady } = useGuestSession();
+  const branding = useBranding();
   const {
     cart,
     updateQuantity,
@@ -26,37 +31,54 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
     setShowLocationHelp,
     handleSubmit,
     placeOrder,
-  } = useCheckout(onClose);
+  } = useCheckout();
+
+  if (!isReady) {
+    return <div className="min-h-screen bg-slate-50" />;
+  }
+
+  if (!tableCode) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-slate-900">Invalid table code</p>
+          <p className="mt-1 text-sm text-slate-500">Scan the QR code on your table to start ordering.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {open && (
-        <div onClick={onClose} className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-[2px]" />
-      )}
-
-      <aside
-        aria-hidden={!open}
-        className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3.5">
-          <h2 className="font-semibold text-slate-900">Cart</h2>
-          <button onClick={onClose} aria-label="Close cart" className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100">
-            <X size={20} />
-          </button>
+    <div className="min-h-screen bg-slate-50">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-2xl items-center gap-2.5 px-4 py-3.5">
+          {branding.logoUrl && (
+            <img src={branding.logoUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
+          )}
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">Cart</h1>
+            <p className="truncate text-xs text-slate-500">Table {tableCode}</p>
+          </div>
         </div>
+      </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {cart.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <ShoppingCart size={32} className="text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No items yet</p>
-            </div>
-          ) : (
+      <main className="mx-auto max-w-2xl space-y-4 px-4 py-5 pb-40">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <ShoppingCart size={32} className="text-slate-300" />
+            <p className="mt-3 text-sm text-slate-500">No items yet</p>
+            <a
+              href={`/menu?table=${tableCode}`}
+              className="mt-6 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
+            >
+              Browse menu
+            </a>
+          </div>
+        ) : (
+          <>
             <ul className="space-y-2.5">
               {cart.map((item) => (
-                <li key={item.key} className="rounded-xl border border-slate-200 p-3">
+                <li key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
                   <div className="flex justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-900">{item.food.name}</p>
@@ -91,24 +113,24 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
                 </li>
               ))}
             </ul>
-          )}
-        </div>
 
-        <div className="border-t border-slate-200 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-slate-500">Total</span>
-            <span className="text-lg font-semibold text-slate-900">{money(total)}</span>
-          </div>
-          <button
-            onClick={handleSubmit}
-            disabled={cart.length === 0 || isSubmitting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            <Send size={16} />
-            {isSubmitting ? "Placing…" : "Place order"}
-          </button>
-        </div>
-      </aside>
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">Total</span>
+                <span className="text-lg font-semibold text-slate-900">{money(total)}</span>
+              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={cart.length === 0 || isSubmitting}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                <Send size={16} />
+                {isSubmitting ? "Placing…" : "Place order"}
+              </button>
+            </section>
+          </>
+        )}
+      </main>
 
       {authIntent && (
         <GuestAuthSheet
@@ -152,6 +174,8 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
           </div>
         </>
       )}
-    </>
+
+      <GuestNavBar />
+    </div>
   );
 }

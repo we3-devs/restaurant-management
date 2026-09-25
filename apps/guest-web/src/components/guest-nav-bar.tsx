@@ -12,10 +12,12 @@ import { useTableSession } from "@/hooks/use-table-session";
 import { CartSheet } from "@/components/cart-sheet";
 
 /**
- * Persistent bottom tab bar shared by /menu and /order — Menu/Ordered
- * navigate between pages, Cart opens the same CartSheet from either one
- * (cart contents come from sessionStorage via useCart, not page-local
- * state, so it's identical no matter which tab opened it).
+ * Persistent bottom tab bar shared across guest pages. Menu/Party/Ordered
+ * are plain page links; Cart is special-cased — on /menu it opens the
+ * existing slide-over CartSheet (so adjusting the cart never leaves the food
+ * grid), everywhere else it navigates to the standalone /cart page instead.
+ * Either way the cart itself comes from useCart's sessionStorage-backed
+ * store, so it's identical regardless of which page/tab touched it.
  */
 export function GuestNavBar() {
   const pathname = usePathname();
@@ -32,6 +34,7 @@ export function GuestNavBar() {
   const onMenu = pathname === "/menu";
   const onOrder = pathname === "/order";
   const onParty = pathname === "/table";
+  const onCart = pathname === "/cart";
   // Quick-order guests are anonymous — there's no verified identity to
   // attach a party of companions to, so this tab only makes sense once
   // someone has actually signed in (login-mode outlets).
@@ -56,17 +59,31 @@ export function GuestNavBar() {
               Party
             </Link>
           )}
-          <button onClick={() => setCartOpen(true)} className={tabClass(cartOpen)}>
-            <span className="relative">
-              <ShoppingCart size={20} />
-              {itemCount > 0 && (
-                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
-                  {itemCount}
-                </span>
-              )}
-            </span>
-            Cart
-          </button>
+          {onMenu ? (
+            <button onClick={() => setCartOpen(true)} className={tabClass(cartOpen)}>
+              <span className="relative">
+                <ShoppingCart size={20} />
+                {itemCount > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
+                    {itemCount}
+                  </span>
+                )}
+              </span>
+              Cart
+            </button>
+          ) : (
+            <Link href={`/cart?table=${tableParam}`} className={tabClass(onCart)}>
+              <span className="relative">
+                <ShoppingCart size={20} />
+                {itemCount > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
+                    {itemCount}
+                  </span>
+                )}
+              </span>
+              Cart
+            </Link>
+          )}
           <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
             <span className="relative">
               <ClipboardList size={20} />
@@ -81,7 +98,7 @@ export function GuestNavBar() {
         </div>
       </nav>
 
-      <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />
+      {onMenu && <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />}
     </>
   );
 }
