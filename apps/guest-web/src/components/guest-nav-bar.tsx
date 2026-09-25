@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, ShoppingCart, UtensilsCrossed } from "lucide-react";
+import { ClipboardList, ShoppingCart, Users, UtensilsCrossed } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useCart } from "@/hooks/use-cart";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
+import { useTableSession } from "@/hooks/use-table-session";
 import { CartSheet } from "@/components/cart-sheet";
 
 /**
@@ -21,6 +22,7 @@ export function GuestNavBar() {
   const { tableCode } = useGuestSession();
   const { itemCount } = useCart(tableCode);
   const { isAuthenticated } = useGuestAuth();
+  const { qrOrderingMode } = useTableSession(tableCode);
   const { data: guestOrders = [] } = useGuestOrders(tableCode);
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -29,6 +31,11 @@ export function GuestNavBar() {
   const tableParam = encodeURIComponent(tableCode);
   const onMenu = pathname === "/menu";
   const onOrder = pathname === "/order";
+  const onParty = pathname === "/table";
+  // Quick-order guests are anonymous — there's no verified identity to
+  // attach a party of companions to, so this tab only makes sense once
+  // someone has actually signed in (login-mode outlets).
+  const showParty = isAuthenticated && qrOrderingMode !== "quick_order";
 
   const tabClass = (active: boolean) =>
     `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${
@@ -43,6 +50,12 @@ export function GuestNavBar() {
             <UtensilsCrossed size={20} />
             Menu
           </Link>
+          {showParty && (
+            <Link href={`/table?table=${tableParam}`} className={tabClass(onParty)}>
+              <Users size={20} />
+              Party
+            </Link>
+          )}
           <button onClick={() => setCartOpen(true)} className={tabClass(cartOpen)}>
             <span className="relative">
               <ShoppingCart size={20} />

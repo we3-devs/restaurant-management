@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowRight, Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useBranding } from "@/hooks/use-branding";
 import { formatTableSessionTime, useTableSession } from "@/hooks/use-table-session";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
+import { GuestNavBar } from "@/components/guest-nav-bar";
 import { QuickOrderGate } from "@/components/quick-order-gate";
 import Skeleton from "@/components/skeleton";
 
@@ -128,7 +129,7 @@ export default function TableContent() {
 				</div>
 			</header>
 
-			<main className="mx-auto max-w-md space-y-6 px-4 py-6">
+			<main className="mx-auto max-w-md space-y-6 px-4 py-6 pb-24">
 				<div className="flex items-start gap-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm text-brand-800">
 					<Users size={18} className="mt-0.5 shrink-0" />
 					<p>Add anyone who isn&apos;t scanning the QR themselves.</p>
@@ -191,17 +192,7 @@ export default function TableContent() {
 				</div>
 			</main>
 
-			<div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm">
-				<div className="mx-auto max-w-md px-4">
-					<button
-						onClick={goToMenu}
-						className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
-					>
-						Continue to menu
-						<ArrowRight size={16} />
-					</button>
-				</div>
-			</div>
+			<GuestNavBar />
 		</div>
 	);
 }
