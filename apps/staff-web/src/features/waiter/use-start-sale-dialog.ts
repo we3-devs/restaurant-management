@@ -17,18 +17,20 @@ export function useStartSaleDialogState(preselectedTableId: number | undefined) 
   const [mounted, setMounted] = useState(false)
 
   // Arriving via a table-card click (?tableId=...) on an empty table — mount
-  // the dialog (and pre-fetch its table-sessions/customers data) so it's
-  // instant once actually opened, but don't pop it open on its own; staff
-  // still have to tap "Start sale" themselves. That button then opens onto
-  // whichever table was last tapped, since preselectedTableId (driven by the
-  // URL) is unchanged either way — see StartSaleDialog's own preselected-
-  // table seeding. Adjusts state during render (not an effect) per React's
-  // "adjusting state when a prop changes" pattern — same idiom
+  // the dialog (and pre-fetch its table-sessions/customers data) and open it
+  // immediately onto that table, so tapping a table goes straight into it
+  // instead of requiring a second "Start sale" tap. The button remains for
+  // starting a sale without picking a table first (grab-and-go/delivery), and
+  // still opens onto whichever table was last tapped, since preselectedTableId
+  // (driven by the URL) is unchanged either way — see StartSaleDialog's own
+  // preselected-table seeding. Adjusts state during render (not an effect)
+  // per React's "adjusting state when a prop changes" pattern — same idiom
   // CheckoutPanel/TableSessionCheckout already use for re-seeding fields.
   const [seededTableId, setSeededTableId] = useState<number | undefined>(undefined)
   if (preselectedTableId !== undefined && preselectedTableId !== seededTableId) {
     setSeededTableId(preselectedTableId)
     setMounted(true)
+    setOpen(true)
   }
 
   function openDialog() {
