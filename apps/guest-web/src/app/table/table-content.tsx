@@ -17,7 +17,7 @@ export default function TableContent() {
   const { tableCode, isReady } = useGuestSession();
 	const { isAuthenticated } = useGuestAuth();
 	const branding = useBranding();
-	const { session, members, isLoading, addCompanion, removeCompanion, qrOrderingMode, qrAccessCheckMode, diningTableName } = useTableSession(tableCode);
+	const { session, members, isLoading, addCompanion, removeCompanion, qrOrderingMode, qrAccessCheckMode, diningTableName, location, locationDenied } = useTableSession(tableCode);
 	const sessionTime = session ? formatTableSessionTime(session.startedAt) : null;
 
 	const [name, setName] = useState("");
@@ -80,6 +80,8 @@ export default function TableContent() {
 					<QuickOrderGate
 						tableCode={tableCode}
 						qrAccessCheckMode={qrAccessCheckMode}
+						location={location}
+						locationDenied={locationDenied}
 						onClose={goToMenu}
 						onSuccess={goToMenu}
 					/>

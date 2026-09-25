@@ -4,60 +4,44 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { API_URL, readError } from "@/lib/api";
 import { setSession } from "@/lib/guest-auth";
-import type { QrAccessCheckMode } from "./use-table-session";
+import type { GuestLocation, QrAccessCheckMode } from "./use-table-session";
 
 type JoinError = "geofence" | "ip" | "permission_denied" | "other";
-
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation isn't available in this browser"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 10_000,
-    });
-  });
-}
 
 /**
  * Anonymous counterpart to useTableSession's join flow — for outlets in
  * quick_order mode, skips OTP entirely and joins via
  * POST table-sessions/quick-order/join, gated server-side by IP/geofence.
+ *
+ * location/locationDenied come from useTableSession, which requests them
+ * once in parallel with the page loading — this never re-requests
+ * geolocation itself, it just reads whatever that single attempt produced.
  */
-export function useQuickOrderSession(tableCode: string | null, qrAccessCheckMode: QrAccessCheckMode | null) {
+export function useQuickOrderSession(
+  tableCode: string | null,
+  qrAccessCheckMode: QrAccessCheckMode | null,
+  location: GuestLocation | null,
+  locationDenied: boolean,
+) {
   const [errorKind, setErrorKind] = useState<JoinError | null>(null);
 
   const join = useMutation({
     mutationFn: async () => {
       setErrorKind(null);
-      let latitude: number | undefined;
-      let longitude: number | undefined;
+      const needsLocation =
+        qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both";
 
-      if (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both") {
-        try {
-          const position = await getCurrentPosition();
-          latitude = position.coords.latitude;
-          longitude = position.coords.longitude;
-        } catch (err) {
-          if (qrAccessCheckMode !== "either") {
-            // "either" can still fall through to an IP-only pass server-side;
-            // ip/geofence/both modes need the coordinates to have any chance.
-            setErrorKind(
-              err instanceof GeolocationPositionError && err.code === err.PERMISSION_DENIED
-                ? "permission_denied"
-                : "geofence",
-            );
-            throw err;
-          }
-        }
+      if (needsLocation && !location && locationDenied && qrAccessCheckMode !== "either") {
+        // "either" can still fall through to an IP-only pass server-side;
+        // ip/geofence/both modes need the coordinates to have any chance.
+        setErrorKind("permission_denied");
+        throw new Error("Location permission is required");
       }
 
       const res = await fetch(`${API_URL}/table-sessions/quick-order/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableCode, latitude, longitude }),
+        body: JSON.stringify({ tableCode, latitude: location?.latitude, longitude: location?.longitude }),
       });
 
       if (!res.ok) {

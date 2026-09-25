@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useQuickOrderSession } from "@/hooks/use-quick-order-session";
-import type { QrAccessCheckMode } from "@/hooks/use-table-session";
+import type { GuestLocation, QrAccessCheckMode } from "@/hooks/use-table-session";
 import { LocationPermissionHelp } from "./location-permission-help";
 
 const ERROR_COPY: Record<string, string> = {
@@ -20,15 +20,19 @@ const ERROR_COPY: Record<string, string> = {
 export function QuickOrderGate({
   tableCode,
   qrAccessCheckMode,
+  location,
+  locationDenied,
   onClose,
   onSuccess,
 }: {
   tableCode: string;
   qrAccessCheckMode: QrAccessCheckMode | null;
+  location: GuestLocation | null;
+  locationDenied: boolean;
   onClose?: () => void;
   onSuccess: () => void;
 }) {
-  const { join, isPending, error, errorKind } = useQuickOrderSession(tableCode, qrAccessCheckMode);
+  const { join, isPending, error, errorKind } = useQuickOrderSession(tableCode, qrAccessCheckMode, location, locationDenied);
 
   const needsLocation =
     qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both";

@@ -8,6 +8,15 @@ import { useGuestAuth } from "./use-guest-auth";
 export type QrOrderingMode = "login" | "quick_order";
 export type QrAccessCheckMode = "ip" | "geofence" | "either" | "both";
 
+export interface GuestLocation {
+  latitude: number;
+  longitude: number;
+}
+
+function needsGeofenceCheck(mode: QrAccessCheckMode | null): boolean {
+  return mode === "geofence" || mode === "either" || mode === "both";
+}
+
 export interface TablePartyMember {
   id: number;
   name: string;
@@ -46,8 +55,16 @@ export function useTableSession(tableCode: string | null) {
   // generic "Table" placeholder while the authenticated session query below
   // (gated on `joined`) hasn't run yet.
   const [scannedTableName, setScannedTableName] = useState<string | null>(null);
+  // Requested once, in parallel with the rest of the page loading — as soon
+  // as the anonymous scan reports the outlet needs a geofence check — rather
+  // than waiting for the guest to tap "Continue"/"Place order". Both the
+  // quick-order join and every subsequent order reuse this single reading;
+  // nothing re-prompts or re-fetches location later.
+  const [location, setLocation] = useState<GuestLocation | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
   const joiningRef = useRef(false);
   const scannedRef = useRef(false);
+  const locationRequestedRef = useRef(false);
   const joined = !!token && joinedToken === token;
 
   // One write on entry: attach this verified guest to the table's session
@@ -91,6 +108,17 @@ export function useTableSession(tableCode: string | null) {
       })
       .catch(() => undefined);
   }, [tableCode]);
+
+  useEffect(() => {
+    if (locationRequestedRef.current || !needsGeofenceCheck(qrAccessCheckMode)) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    locationRequestedRef.current = true;
+    navigator.geolocation.getCurrentPosition(
+      (position) => setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      (error) => setLocationDenied(error.code === error.PERMISSION_DENIED),
+      { timeout: 10_000 },
+    );
+  }, [qrAccessCheckMode]);
 
   useEffect(() => {
     if (!tableCode || !token || joined || joiningRef.current) return;
@@ -153,5 +181,7 @@ export function useTableSession(tableCode: string | null) {
     // session query (joined-only) resolves, so the header never shows a
     // generic "Table" placeholder for a guest who hasn't signed in yet.
     diningTableName: query.data?.diningTableName ?? scannedTableName,
+    location,
+    locationDenied,
   };
 }

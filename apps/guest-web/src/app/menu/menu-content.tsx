@@ -58,7 +58,7 @@ const UNCATEGORISED = -1;
 
 export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
-  const { qrOrderingMode, qrAccessCheckMode, diningTableName } = useTableSession(tableCode);
+  const { qrOrderingMode, qrAccessCheckMode, diningTableName, location, locationDenied } = useTableSession(tableCode);
   const { isAuthenticated } = useGuestAuth();
   const branding = useBranding();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -317,46 +317,19 @@ export default function MenuContent() {
   const placeOrder = async () => {
     setIsSubmitting(true);
     try {
-      // Fresh position at submit time (not reused from the join gate) so the
-      // backend's per-order geofence re-check reflects where the guest is now.
-      let latitude: number | undefined;
-      let longitude: number | undefined;
+      // location comes from useTableSession, requested once in parallel with
+      // the page loading — no fresh geolocation call happens here. A
+      // "geofence"/"both" outlet (where location isn't just one of two
+      // alternatives) with no reading and a known denial stops before
+      // hitting the network at all, instead of submitting with no
+      // coordinates and getting the backend's generic rejection.
       const needsGeofence =
         qrOrderingMode === "quick_order" &&
         (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "either" || qrAccessCheckMode === "both");
-      if (needsGeofence && navigator.geolocation) {
-        // A prior explicit denial can't be re-prompted by calling
-        // getCurrentPosition again — the browser just fails it instantly with
-        // no dialog. Checking first lets a "geofence"/"both" outlet (where
-        // location is the only or a required path, not just one of two
-        // alternatives) stop and tell the guest to fix it in their browser
-        // settings, instead of silently submitting with no coordinates and
-        // getting the backend's generic "not at the restaurant" rejection.
-        const permissionState = await navigator.permissions
-          ?.query({ name: "geolocation" })
-          .then((status) => status.state)
-          .catch(() => null);
-
-        if (permissionState === "denied" && (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "both")) {
-          setShowLocationHelp(true);
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (permissionState !== "denied") {
-          try {
-            // Triggers the browser's native permission prompt when the state
-            // is still "prompt" (i.e. never asked before).
-            const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10_000 }),
-            );
-            latitude = position.coords.latitude;
-            longitude = position.coords.longitude;
-          } catch {
-            // Fall through without coordinates — "either" mode may still pass on IP,
-            // and the backend rejects with a clear message if location was required.
-          }
-        }
+      if (needsGeofence && !location && locationDenied && qrAccessCheckMode !== "either") {
+        setShowLocationHelp(true);
+        setIsSubmitting(false);
+        return;
       }
 
       const res = await authFetch("/orders/guest", {
@@ -368,7 +341,7 @@ export default function MenuContent() {
             ...(i.variant ? { foodVariantId: i.variant.id } : {}),
             quantity: i.quantity,
           })),
-          ...(latitude !== undefined ? { latitude, longitude } : {}),
+          ...(location ? { latitude: location.latitude, longitude: location.longitude } : {}),
         }),
       });
 
@@ -1023,6 +996,8 @@ export default function MenuContent() {
         <QuickOrderGate
           tableCode={tableCode!}
           qrAccessCheckMode={qrAccessCheckMode}
+          location={location}
+          locationDenied={locationDenied}
           onClose={() => setAuthIntent(null)}
           onSuccess={() => {
             const intent = authIntent;
