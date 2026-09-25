@@ -67,19 +67,17 @@ export function GuestNavBar() {
             </span>
             Cart
           </button>
-          {isAuthenticated && (
-            <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
-              <span className="relative">
-                <ClipboardList size={20} />
-                {guestOrders.length > 0 && (
-                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
-                    {guestOrders.length}
-                  </span>
-                )}
-              </span>
-              Ordered
-            </Link>
-          )}
+          <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
+            <span className="relative">
+              <ClipboardList size={20} />
+              {guestOrders.length > 0 && (
+                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
+                  {guestOrders.length}
+                </span>
+              )}
+            </span>
+            Ordered
+          </Link>
         </div>
       </nav>
 

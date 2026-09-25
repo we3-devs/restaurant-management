@@ -5,6 +5,7 @@ import { AlertCircle, User, ChevronDown, Ban, Pause } from "lucide-react";
 import { useGuestSession } from "@/hooks/use-guest-session";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
+import { useTableSession } from "@/hooks/use-table-session";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { GuestNavBar } from "@/components/guest-nav-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
@@ -65,6 +66,7 @@ function StageTrack({
 export default function OrderContent() {
   const { tableCode, isReady } = useGuestSession();
   const { isAuthenticated } = useGuestAuth();
+  const { qrOrderingMode } = useTableSession(tableCode);
   const [authOpen, setAuthOpen] = useState(false);
   const [pickedId, setPickedId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -96,7 +98,17 @@ export default function OrderContent() {
     );
   }
 
-  if (!isAuthenticated) {
+  // Quick-order tables have no login concept at all, so a guest who hasn't
+  // ordered yet just falls through to the normal flow below — useGuestOrders'
+  // query stays disabled while unauthenticated, so orders/isLoading resolve
+  // to [] / false and it lands on the plain "No orders yet" empty state
+  // rather than being told to log in with a phone number.
+  if (!isAuthenticated && qrOrderingMode !== "quick_order") {
+    if (qrOrderingMode === null) {
+      // Still resolving whether this table even needs a login — avoid
+      // flashing the login prompt for a quick-order table.
+      return <div className="min-h-screen bg-slate-50" />;
+    }
     return (
       <>
         <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
