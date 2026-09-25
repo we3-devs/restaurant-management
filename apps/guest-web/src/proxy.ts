@@ -24,7 +24,13 @@ export function proxy(request: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
   response.headers.set("X-Content-Type-Options", "nosniff")
   response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+  // geolocation=(self): quick-order outlets geofence-check the guest at
+  // checkout (see menu-content.tsx placeOrder / use-quick-order-session.ts).
+  // A blanket geolocation=() blocks getCurrentPosition() at the browser
+  // level before the OS permission prompt can ever appear — no toggle in the
+  // browser's own site settings can undo that once it's in the page's own
+  // response headers.
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
   return response
 }
 
