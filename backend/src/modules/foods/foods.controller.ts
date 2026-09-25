@@ -24,6 +24,7 @@ import { BulkUpdateFoodsDepartmentDto } from './dto/bulk-update-foods-department
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
+import { ResetFoodsDto } from './dto/reset-foods.dto';
 import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
@@ -118,6 +119,19 @@ export class FoodsController {
   })
   bulkUpdateDepartment(@Body() dto: BulkUpdateFoodsDepartmentDto) {
     return this.foodsService.updateDepartmentMany(dto.ids, dto.departmentType);
+  }
+
+  @Post('reset')
+  @RequirePermissions('foods.manage', 'food-variants.manage')
+  @ApiOperation({
+    summary:
+      "Wipes the whole food menu (categories, foods, food items) for the tenant. Soft-deletes only — history (past orders, analytics) is preserved — and mangles food/category slugs so the same names can be reused afterward. Requires body { confirm: 'RESET FOODS' }.",
+  })
+  resetAll(@Body() dto: ResetFoodsDto) {
+    // dto exists only so ValidationPipe rejects a request that doesn't echo back the confirmation phrase —
+    // resetAll() itself needs no input.
+    void dto;
+    return this.foodsService.resetAll();
   }
 
   @Post('bulk-import-as-ingredients')

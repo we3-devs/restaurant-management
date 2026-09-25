@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  DataSource,
   FindOptionsWhere,
   ILike,
   In,
@@ -65,6 +66,19 @@ export interface PublicMenu {
 
 const PUBLIC_MENU_TTL_MS = 60_000;
 
+/** Column length the released slugs have to keep fitting into — see Food/FoodCategory's slug @Column definitions. */
+const RESET_SLUG_MAX_LENGTH = 255;
+
+/**
+ * Stamps a reset row's slug so it stops occupying the value, freeing it for a fresh food/category of the same name —
+ * same trick as IngredientsService's releasedIdentifier(): the id keeps it unique even if the same base value is
+ * reset twice, and the base (not the suffix) is trimmed when the two together would overflow the column.
+ */
+function releasedSlug(slug: string, id: number, maxLength: number): string {
+  const suffix = `-deleted-${id}`;
+  return `${slug.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
+}
+
 @Injectable()
 export class FoodsService {
   constructor(
@@ -93,6 +107,7 @@ export class FoodsService {
     private readonly unitsService: UnitsService,
     private readonly skuCompositionService: SkuCompositionService,
     private readonly tenantContext: TenantContext,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findPublicMenu(): Promise<PublicMenu> {
@@ -316,6 +331,43 @@ export class FoodsService {
     if (foods.length === 0) return { updated: 0 };
     await this.foodsRepository.update(foods.map((food) => food.id), { departmentType });
     return { updated: foods.length };
+  }
+
+  /**
+   * Wipes the whole food menu — every food category, food, and food item (FoodVariant) for the current tenant —
+   * while preserving history: rows are soft-deleted, never hard-deleted, so past orders/analytics that reference
+   * them keep resolving. Global Variant/SubVariant lists (shared taxonomy, not per-food data) are left untouched.
+   *
+   * food_categories.slug and foods.slug carry plain UNIQUE constraints that don't exclude soft-deleted rows (unlike
+   * food_variants', which are already `WHERE deleted_at IS NULL` partial indexes), so without renaming them a fresh
+   * category/food could never reuse the same slug after a reset. Mangled the same way IngredientsService.remove()
+   * frees up a deleted ingredient's code/slug.
+   */
+  async resetAll(): Promise<{ deletedCategories: number; deletedFoods: number; deletedFoodVariants: number }> {
+    return this.dataSource.transaction(async (manager) => {
+      const foodRepo = manager.getRepository(Food);
+      const categoryRepo = manager.getRepository(FoodCategory);
+      const foodVariantRepo = manager.getRepository(FoodVariant);
+
+      const [categories, foods, foodVariants] = await Promise.all([
+        categoryRepo.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, slug: true } }),
+        foodRepo.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true, slug: true } }),
+        foodVariantRepo.find({ where: scopedWhere(this.tenantContext, {}), select: { id: true } }),
+      ]);
+
+      for (const category of categories) {
+        await categoryRepo.update(category.id, { slug: releasedSlug(category.slug, category.id, RESET_SLUG_MAX_LENGTH) });
+      }
+      for (const food of foods) {
+        await foodRepo.update(food.id, { slug: releasedSlug(food.slug, food.id, RESET_SLUG_MAX_LENGTH) });
+      }
+
+      if (foodVariants.length > 0) await foodVariantRepo.softDelete(foodVariants.map((fv) => fv.id));
+      if (foods.length > 0) await foodRepo.softDelete(foods.map((food) => food.id));
+      if (categories.length > 0) await categoryRepo.softDelete(categories.map((category) => category.id));
+
+      return { deletedCategories: categories.length, deletedFoods: foods.length, deletedFoodVariants: foodVariants.length };
+    });
   }
 
   /**

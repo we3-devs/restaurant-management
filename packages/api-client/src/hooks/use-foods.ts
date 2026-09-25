@@ -128,6 +128,22 @@ export function useBulkUpdateFoodsDepartment() {
   })
 }
 
+export function useResetFoods() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiClient<{ deletedCategories: number; deletedFoods: number; deletedFoodVariants: number }>("/foods/reset", {
+        method: "POST",
+        body: JSON.stringify({ confirm: "RESET FOODS" }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.foods.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.foodCategories.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.foodVariants.lists() })
+    },
+  })
+}
+
 export function useBulkImportFoodsAsIngredients() {
   const queryClient = useQueryClient()
   return useMutation({

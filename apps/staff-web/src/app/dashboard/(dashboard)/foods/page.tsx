@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ChefHatIcon, DownloadIcon, PackagePlusIcon, Trash2Icon } from "lucide-react"
+import { ChefHatIcon, DownloadIcon, EraserIcon, PackagePlusIcon, Trash2Icon } from "lucide-react"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState } from "@tanstack/react-table"
 import { toast } from "sonner"
 
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
@@ -35,6 +36,7 @@ import {
   useBulkImportFoodsAsIngredients,
   useBulkUpdateFoodsDepartment,
   useFoods,
+  useResetFoods,
   type Food,
 } from "@/hooks/use-foods"
 import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
@@ -135,6 +137,9 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importCategoryId, setImportCategoryId] = useState<string>("")
   const [importUnitId, setImportUnitId] = useState<string>("")
+  const resetFoods = useResetFoods()
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState("")
 
   function handleExport() {
     const header = ["Name", "Category", "SKU", "Sold", "Revenue", "Availability"]
@@ -204,6 +209,20 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
       setImportUnitId("")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to import foods into inventory")
+    }
+  }
+
+  async function handleReset() {
+    try {
+      const result = await resetFoods.mutateAsync()
+      toast.success(
+        `Reset: ${result.deletedFoods} food${result.deletedFoods === 1 ? "" : "s"}, ${result.deletedCategories} categor${result.deletedCategories === 1 ? "y" : "ies"}, ${result.deletedFoodVariants} food item${result.deletedFoodVariants === 1 ? "" : "s"} soft-deleted`,
+      )
+      setRowSelection({})
+      setResetDialogOpen(false)
+      setResetConfirmText("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reset foods")
     }
   }
 
@@ -286,6 +305,48 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction variant="destructive" onClick={handleBulkDelete}>
                     Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {!readOnly && (
+            <AlertDialog
+              open={resetDialogOpen}
+              onOpenChange={(open) => {
+                setResetDialogOpen(open)
+                if (!open) setResetConfirmText("")
+              }}
+            >
+              <AlertDialogTrigger render={<Button variant="destructive" size="sm"><EraserIcon /> Reset Food</Button>} />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset all food data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This soft-deletes every food category, food, and food item for this tenant — the whole menu. Past
+                    orders and analytics keep working, but nothing will show up in the menu or POS until you rebuild
+                    it. This cannot be undone from the UI.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-1.5">
+                  <label htmlFor="reset-food-confirm" className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-semibold">RESET</span> to confirm
+                  </label>
+                  <Input
+                    id="reset-food-confirm"
+                    value={resetConfirmText}
+                    onChange={(event) => setResetConfirmText(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={resetConfirmText !== "RESET" || resetFoods.isPending}
+                    onClick={handleReset}
+                  >
+                    {resetFoods.isPending ? "Resetting…" : "Reset everything"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
