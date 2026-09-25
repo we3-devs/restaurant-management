@@ -36,9 +36,14 @@ export function subscribeCart(listener: Listener) {
 
 // Cached per tableCode so useSyncExternalStore gets a stable reference
 // between renders (re-parsing sessionStorage on every call would otherwise
-// look like a new snapshot every time and warn/loop).
+// look like a new snapshot every time and warn/loop). EMPTY_CART is its own
+// stable constant for the no-tableCode case — returning a fresh `[]` literal
+// on every call would break useSyncExternalStore's contract the same way and
+// crash the page (seen as "Maximum update depth exceeded") whenever /menu is
+// opened without a ?table= yet (e.g. before useGuestSession's effect runs).
+export const EMPTY_CART: CartItem[] = [];
 let cachedTableCode: string | null = null;
-let cachedItems: CartItem[] = [];
+let cachedItems: CartItem[] = EMPTY_CART;
 
 function storageKey(tableCode: string): string {
   return `guest_cart:${tableCode}`;
@@ -55,7 +60,7 @@ function readFromStorage(tableCode: string): CartItem[] {
 }
 
 export function getCartSnapshot(tableCode: string | null): CartItem[] {
-  if (!tableCode) return [];
+  if (!tableCode) return EMPTY_CART;
   if (cachedTableCode !== tableCode) {
     cachedTableCode = tableCode;
     cachedItems = readFromStorage(tableCode);

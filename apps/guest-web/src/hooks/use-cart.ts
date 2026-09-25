@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import toast from "react-hot-toast";
 import type { Food } from "@rms/api-client/hooks/use-foods";
 import type { FoodVariant } from "@rms/api-client/hooks/use-food-variants";
-import { cartItemKey, getCartSnapshot, setCartItems, subscribeCart, type CartItem } from "@/lib/guest-cart";
+import { cartItemKey, EMPTY_CART, getCartSnapshot, setCartItems, subscribeCart } from "@/lib/guest-cart";
 
 export type { CartItem } from "@/lib/guest-cart";
 
@@ -18,7 +18,7 @@ export function useCart(tableCode: string | null) {
   const cart = useSyncExternalStore(
     subscribeCart,
     () => getCartSnapshot(tableCode),
-    () => [] as CartItem[],
+    () => EMPTY_CART,
   );
 
   const addItem = useCallback(
