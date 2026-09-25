@@ -25,6 +25,7 @@ import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { QuickOrderGate } from "@/components/quick-order-gate";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
+import { LocationPermissionHelp } from "@/components/location-permission-help";
 import { CardGridSkeleton } from "@/components/skeleton";
 import { authFetch, getJson, readError } from "@/lib/api";
 import { ORDER_LABEL } from "@/lib/order-status";
@@ -70,6 +71,7 @@ export default function MenuContent() {
   // send an order just because the cart happens to be full.
   const [authIntent, setAuthIntent] = useState<"checkout" | "login" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLocationHelp, setShowLocationHelp] = useState(false);
   // Two-level menu: a category list, then that category's foods.
   const [openSection, setOpenSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -336,7 +338,7 @@ export default function MenuContent() {
           .catch(() => null);
 
         if (permissionState === "denied" && (qrAccessCheckMode === "geofence" || qrAccessCheckMode === "both")) {
-          toast.error("Location access is blocked. Enable it for this site in your browser settings, then try again.");
+          setShowLocationHelp(true);
           setIsSubmitting(false);
           return;
         }
@@ -1041,6 +1043,42 @@ export default function MenuContent() {
             if (intent === "checkout") void placeOrder();
           }}
         />
+      )}
+
+      {showLocationHelp && (
+        <>
+          <div
+            onClick={() => setShowLocationHelp(false)}
+            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px]"
+          />
+          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5">
+              <h2 className="font-semibold text-slate-900">Turn location back on</h2>
+              <button
+                onClick={() => setShowLocationHelp(false)}
+                aria-label="Close"
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3 p-4">
+              <p className="text-sm text-slate-600">
+                This table requires confirming your location, but it's currently blocked for this site. Follow these
+                steps, then come back and place your order again:
+              </p>
+              <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+                <LocationPermissionHelp />
+              </div>
+              <button
+                onClick={() => setShowLocationHelp(false)}
+                className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 active:scale-[0.99]"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -3,11 +3,11 @@
 import { X } from "lucide-react";
 import { useQuickOrderSession } from "@/hooks/use-quick-order-session";
 import type { QrAccessCheckMode } from "@/hooks/use-table-session";
+import { LocationPermissionHelp } from "./location-permission-help";
 
 const ERROR_COPY: Record<string, string> = {
   geofence: "You don't appear to be at the restaurant — move closer and try again.",
   ip: "This network isn't recognized for this table — connect to the restaurant's Wi-Fi and try again.",
-  permission_denied: "Location permission is required to continue — enable it in your browser settings, then try again.",
   other: "Couldn't verify you're at this table — try again.",
 };
 
@@ -67,7 +67,14 @@ export function QuickOrderGate({
         </div>
 
         <div className="space-y-3 p-4">
-          {error && (
+          {error && errorKind === "permission_denied" && (
+            <div className="rounded-lg bg-red-50 px-3 py-2.5 text-xs text-red-700">
+              <p className="font-medium">Location access is turned off for this site.</p>
+              <p className="mt-1 mb-2">Turn it back on to confirm you're at the table:</p>
+              <LocationPermissionHelp />
+            </div>
+          )}
+          {error && errorKind !== "permission_denied" && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
               {ERROR_COPY[errorKind ?? "other"]}
             </p>
