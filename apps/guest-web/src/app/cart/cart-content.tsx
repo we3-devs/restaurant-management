@@ -11,11 +11,10 @@ import { LocationPermissionHelp } from "@/components/location-permission-help";
 const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
 
 /**
- * Standalone Cart page — reached from the nav bar's Cart tab on every page
- * except /menu, which keeps its own slide-over CartSheet so browsing and
- * adjusting the cart don't require leaving the food grid. Same checkout
- * logic as CartSheet via useCheckout, just a full-page layout here instead
- * of a drawer.
+ * Standalone Cart page — the nav bar's Cart tab always lands here, from any
+ * guest page. Checkout logic (quick-order join, geofence re-check, place
+ * order) lives in useCheckout, shared with nothing else right now but kept
+ * separate so this component stays presentation-only.
  */
 export default function CartContent() {
   const { tableCode, isReady } = useGuestSession();

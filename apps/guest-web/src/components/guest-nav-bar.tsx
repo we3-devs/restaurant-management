@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ClipboardList, ShoppingCart, Users, UtensilsCrossed } from "lucide-react";
@@ -9,15 +8,13 @@ import { useCart } from "@/hooks/use-cart";
 import { useGuestOrders } from "@/hooks/use-guest-orders";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { useTableSession } from "@/hooks/use-table-session";
-import { CartSheet } from "@/components/cart-sheet";
 
 /**
- * Persistent bottom tab bar shared across guest pages. Menu/Party/Ordered
- * are plain page links; Cart is special-cased — on /menu it opens the
- * existing slide-over CartSheet (so adjusting the cart never leaves the food
- * grid), everywhere else it navigates to the standalone /cart page instead.
- * Either way the cart itself comes from useCart's sessionStorage-backed
- * store, so it's identical regardless of which page/tab touched it.
+ * Persistent bottom tab bar shared across guest pages. Every tab, including
+ * Cart, is a plain page link — Cart always goes to the standalone /cart
+ * page, never a slide-over. The cart itself comes from useCart's
+ * sessionStorage-backed store, so it's identical regardless of which page
+ * reads it.
  */
 export function GuestNavBar() {
   const pathname = usePathname();
@@ -26,7 +23,6 @@ export function GuestNavBar() {
   const { isAuthenticated } = useGuestAuth();
   const { qrOrderingMode } = useTableSession(tableCode);
   const { data: guestOrders = [] } = useGuestOrders(tableCode);
-  const [cartOpen, setCartOpen] = useState(false);
 
   if (!tableCode) return null;
 
@@ -46,59 +42,41 @@ export function GuestNavBar() {
     }`;
 
   return (
-    <>
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
-        <div className="mx-auto flex max-w-3xl items-stretch">
-          <Link href={`/menu?table=${tableParam}`} className={tabClass(onMenu)}>
-            <UtensilsCrossed size={20} />
-            Menu
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
+      <div className="mx-auto flex max-w-3xl items-stretch">
+        <Link href={`/menu?table=${tableParam}`} className={tabClass(onMenu)}>
+          <UtensilsCrossed size={20} />
+          Menu
+        </Link>
+        {showParty && (
+          <Link href={`/table?table=${tableParam}`} className={tabClass(onParty)}>
+            <Users size={20} />
+            Party
           </Link>
-          {showParty && (
-            <Link href={`/table?table=${tableParam}`} className={tabClass(onParty)}>
-              <Users size={20} />
-              Party
-            </Link>
-          )}
-          {onMenu ? (
-            <button onClick={() => setCartOpen(true)} className={tabClass(cartOpen)}>
-              <span className="relative">
-                <ShoppingCart size={20} />
-                {itemCount > 0 && (
-                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
-                    {itemCount}
-                  </span>
-                )}
+        )}
+        <Link href={`/cart?table=${tableParam}`} className={tabClass(onCart)}>
+          <span className="relative">
+            <ShoppingCart size={20} />
+            {itemCount > 0 && (
+              <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
+                {itemCount}
               </span>
-              Cart
-            </button>
-          ) : (
-            <Link href={`/cart?table=${tableParam}`} className={tabClass(onCart)}>
-              <span className="relative">
-                <ShoppingCart size={20} />
-                {itemCount > 0 && (
-                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
-                    {itemCount}
-                  </span>
-                )}
+            )}
+          </span>
+          Cart
+        </Link>
+        <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
+          <span className="relative">
+            <ClipboardList size={20} />
+            {guestOrders.length > 0 && (
+              <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
+                {guestOrders.length}
               </span>
-              Cart
-            </Link>
-          )}
-          <Link href={`/order?table=${tableParam}`} className={tabClass(onOrder)}>
-            <span className="relative">
-              <ClipboardList size={20} />
-              {guestOrders.length > 0 && (
-                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-semibold text-white">
-                  {guestOrders.length}
-                </span>
-              )}
-            </span>
-            Ordered
-          </Link>
-        </div>
-      </nav>
-
-      {onMenu && <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />}
-    </>
+            )}
+          </span>
+          Ordered
+        </Link>
+      </div>
+    </nav>
   );
 }

@@ -19,6 +19,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useBranding } from "@/hooks/use-branding";
 import { GuestAuthSheet } from "@/components/guest-auth-sheet";
 import { GuestNavBar } from "@/components/guest-nav-bar";
+import { CartSheet } from "@/components/cart-sheet";
 import { OrderTrackerBar } from "@/components/order-tracker-bar";
 import { CardGridSkeleton } from "@/components/skeleton";
 import { getJson } from "@/lib/api";
@@ -41,7 +42,7 @@ export default function MenuContent() {
   const { tableCode, isReady } = useGuestSession();
   const { qrOrderingMode, diningTableName } = useTableSession(tableCode);
   const { isAuthenticated } = useGuestAuth();
-  const { cart, addItem: addToCart, updateQuantity } = useCart(tableCode);
+  const { cart, addItem: addToCart, updateQuantity, itemCount } = useCart(tableCode);
   const branding = useBranding();
   const [variantFor, setVariantFor] = useState<Food | null>(null);
   // Step 2 of the picker: which top-level group (Veg / Chicken) is open.
@@ -49,6 +50,7 @@ export default function MenuContent() {
   // Tracks why the gate opened: signing in from the header shouldn't silently
   // send an order just because the cart happens to be full.
   const [authIntent, setAuthIntent] = useState<"login" | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
   // Two-level menu: a category list, then that category's foods.
   const [openSection, setOpenSection] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -499,10 +501,29 @@ export default function MenuContent() {
       </main>
 
       {/* Sits just above the bottom nav bar — a diner mid-second-round needs
-          both the live status and quick access to Cart/Ordered at once. */}
+          both the live status and a quick way to review what they've just
+          added at once. The "View order" bar opens the on-page cart drawer
+          (not the standalone /cart page the nav bar's own Cart tab goes to),
+          so picking items and reviewing/placing the order both stay on the
+          food grid. */}
       {tableCode && (
         <div className="fixed inset-x-0 bottom-14 z-20 bg-white/95 backdrop-blur-sm">
           <OrderTrackerBar tableCode={tableCode} />
+          {itemCount > 0 && !cartOpen && !variantFor && (
+            <div className="border-t border-slate-200">
+              <div className="mx-auto max-w-3xl px-4 py-3">
+                <button
+                  onClick={() => setCartOpen(true)}
+                  className="flex w-full items-center justify-between rounded-xl bg-brand-600 px-4 py-3.5 text-white transition hover:bg-brand-700 active:scale-[0.99]"
+                >
+                  <span className="text-sm font-medium">
+                    {itemCount} {itemCount === 1 ? "item" : "items"}
+                  </span>
+                  <span className="text-sm font-semibold">View order</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -675,6 +696,7 @@ export default function MenuContent() {
         <GuestAuthSheet onClose={() => setAuthIntent(null)} onSuccess={() => setAuthIntent(null)} />
       )}
 
+      <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />
       <GuestNavBar />
     </div>
   );

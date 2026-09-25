@@ -11,10 +11,9 @@ import { authFetch, readError } from "@/lib/api";
 
 /**
  * Cart contents + full checkout flow (quick-order join, geofence re-check,
- * place order), shared by the menu page's cart drawer (CartSheet) and the
- * standalone /cart page — same logic, two different presentations.
+ * place order), used by the standalone /cart page.
  */
-export function useCheckout(onPlaced?: () => void) {
+export function useCheckout() {
   const { tableCode } = useGuestSession();
   const { cart, updateQuantity, clearCart, total } = useCart(tableCode);
   const { isAuthenticated } = useGuestAuth();
@@ -59,7 +58,6 @@ export function useCheckout(onPlaced?: () => void) {
 
       toast.success("Order placed!");
       clearCart();
-      onPlaced?.();
       setTimeout(() => {
         window.location.href = `/order?table=${tableCode}`;
       }, 500);

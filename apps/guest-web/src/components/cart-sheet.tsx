@@ -8,11 +8,11 @@ import { LocationPermissionHelp } from "@/components/location-permission-help";
 const money = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
 
 /**
- * Cart drawer used on the /menu page specifically — kept as a slide-over so
- * browsing and adjusting the cart happen without leaving the food grid.
- * Every other page's Cart tab navigates to the standalone /cart page
- * instead (see GuestNavBar); both share the same checkout logic via
- * useCheckout.
+ * Cart drawer used only on the /menu page — opened from the "View order"
+ * bar that appears once something's in the cart, so reviewing/placing the
+ * order doesn't require leaving the food grid. The nav bar's own Cart tab
+ * always goes to the standalone /cart page instead (see GuestNavBar);
+ * both share the same checkout logic via useCheckout.
  */
 export function CartSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
@@ -26,7 +26,7 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
     setShowLocationHelp,
     handleSubmit,
     placeOrder,
-  } = useCheckout(onClose);
+  } = useCheckout();
 
   return (
     <>
