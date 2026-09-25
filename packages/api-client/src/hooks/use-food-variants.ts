@@ -18,11 +18,15 @@ export interface FoodVariant {
   name: string
   sku: string | null
   price: number
+  /** Direct-sale stock item for this specific food item; null for kitchen foods (recipe-tracked) or untracked items. */
+  inventoryIngredientId: number | null
   isDefault: boolean
   isActive: boolean
   sortOrder: number
   createdAt: string
   updatedAt: string
+  /** Derived from this food item's own linked ingredient and available (unreserved) stock — omitted for public/guest reads. */
+  inventoryAvailable?: boolean
 }
 
 export interface FoodVariantOutlet {
@@ -85,6 +89,14 @@ export function useDeleteFoodVariant() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiClient<void>(`/food-variants/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foodVariants.lists() }),
+  })
+}
+
+export function useLinkIngredientToSiblings(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<{ updated: number }>(`/food-variants/${id}/link-ingredient-to-siblings`, { method: "POST" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foodVariants.lists() }),
   })
 }

@@ -44,11 +44,29 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const items = useMemo(() => {
     const normalized = search.trim().toLowerCase()
+    // A food with no active food item (variant) can't actually be added to
+    // the cart — handleAdd would just fail with a toast — so it's dropped
+    // from the grid instead of showing as a dead tile.
+    const orderableFoodIds = new Set((menu?.foodVariants ?? []).map((variant) => variant.foodId))
     return (menu?.foods ?? []).filter((food) =>
+      orderableFoodIds.has(food.id) &&
       (categoryId === null || food.foodCategoryId === categoryId) &&
       (!normalized || food.name.toLowerCase().includes(normalized)),
     )
-  }, [menu?.foods, search, categoryId])
+  }, [menu?.foods, menu?.foodVariants, search, categoryId])
+  // Availability now lives per food item (variant), not per food — a food
+  // tile reads as out-of-stock only once every one of its food items is.
+  const foodAvailability = useMemo(() => {
+    const result = new Map<number, boolean>()
+    for (const variant of menu?.foodVariants ?? []) {
+      const isAvailable = variant.inventoryAvailable !== false
+      result.set(variant.foodId, (result.get(variant.foodId) ?? false) || isAvailable)
+    }
+    return result
+  }, [menu?.foodVariants])
+  function foodAvailable(food: Food) {
+    return foodAvailability.get(food.id) ?? true
+  }
   const rows = useMemo(() => {
     const chunked: Food[][] = []
     for (let i = 0; i < items.length; i += columns) {
@@ -67,7 +85,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   // Cart-building is entirely local/offline — the order only ever hits the
   // network once, in a single batch, when "Place order" is tapped.
   function handleAdd(food: Food) {
-    if (food.inventoryAvailable === false) {
+    if (!foodAvailable(food)) {
       toast.error(`${food.name} is out of stock`, { duration: 1600 })
       return
     }
@@ -79,6 +97,10 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)
     if (!item) {
       toast.error(`${food.name} has no active food item`)
+      return
+    }
+    if (item.inventoryAvailable === false) {
+      toast.error(`${food.name} is out of stock`, { duration: 1600 })
       return
     }
     localCart.addItem({
@@ -147,7 +169,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
-                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${food.inventoryAvailable === false ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
+                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${!foodAvailable(food) ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
                     onClick={() => handleAdd(food)}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
@@ -167,7 +189,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                           <span className="text-sm font-medium">{menu?.foodVariants.find((variant) => variant.foodId === food.id && variant.isDefault)?.price ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)?.price ?? "—"}</span>
                         )}
                         <div className="flex items-center gap-1">
-                          {food.inventoryAvailable === false && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
+                          {!foodAvailable(food) && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
                           {foodQuantity(food) > 0 ? (
                             <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5" onClick={(event) => event.stopPropagation()}>
                               <button type="button" onClick={() => handleDecrease(food)} className="rounded p-1 hover:bg-muted" aria-label={`Decrease ${food.name}`}>

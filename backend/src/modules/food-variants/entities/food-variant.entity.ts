@@ -98,6 +98,10 @@ export class FoodVariant {
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
+  /** Direct-sale stock item (beverages/consumables) for this specific food item — kitchen foods use recipes instead. Each variant of a food tracks its own (e.g. a Large drink can be out of stock while a Small isn't). */
+  @Column({ name: 'inventory_ingredient_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
+  inventoryIngredientId: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

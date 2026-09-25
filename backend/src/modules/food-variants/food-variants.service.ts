@@ -15,6 +15,7 @@ import {
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { FoodsService } from '../foods/foods.service';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import { SkuCompositionService } from '../foods/sku-composition.service';
 import { normaliseSkuSegment } from '../../common/sku.util';
 import { OutletsService } from '../outlets/outlets.service';
@@ -53,6 +54,7 @@ export class FoodVariantsService {
     @InjectRepository(SubVariant)
     private readonly subVariantsListRepository: Repository<SubVariant>,
     private readonly foodsService: FoodsService,
+    private readonly ingredientsService: IngredientsService,
     private readonly outletsService: OutletsService,
     private readonly dataSource: DataSource,
     private readonly skuCompositionService: SkuCompositionService,
@@ -199,6 +201,9 @@ export class FoodVariantsService {
   async create(dto: CreateFoodVariantDto): Promise<FoodVariant> {
     await this.foodsService.findOne(dto.foodId);
     await this.assertListValuesExist(dto.variantId, dto.subVariantId);
+    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
+      await this.ingredientsService.findOne(dto.inventoryIngredientId);
+    }
 
     try {
       const variant = await this.dataSource.transaction(async (manager) => {
@@ -218,6 +223,7 @@ export class FoodVariantsService {
           name: dto.name,
           sku: dto.sku ?? null,
           price: dto.price ?? 0,
+          inventoryIngredientId: dto.inventoryIngredientId ?? null,
           isDefault: dto.isDefault ?? false,
           sortOrder: dto.sortOrder ?? 0,
         });
@@ -240,6 +246,9 @@ export class FoodVariantsService {
     const variant = await this.findOne(id);
 
     await this.assertListValuesExist(dto.variantId, dto.subVariantId);
+    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
+      await this.ingredientsService.findOne(dto.inventoryIngredientId);
+    }
 
     // Repointing either FK changes which combination this item represents, and
     // with it the composed SKU.
@@ -256,6 +265,7 @@ export class FoodVariantsService {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.sku !== undefined && { sku: dto.sku }),
       ...(dto.price !== undefined && { price: dto.price }),
+      ...(dto.inventoryIngredientId !== undefined && { inventoryIngredientId: dto.inventoryIngredientId ?? null }),
       ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
@@ -286,6 +296,32 @@ export class FoodVariantsService {
       return this.findOne(saved.id);
     }
     return saved;
+  }
+
+  /**
+   * Copies this variant's inventoryIngredientId onto every other active
+   * variant of the same food — the "track stock together" shortcut, so a
+   * food whose sizes should share one physical stock item (e.g. all Coke
+   * variants drawing from one "Coke" ingredient) doesn't need each one
+   * edited by hand. To track a food's items separately instead, just leave
+   * them pointing at different ingredients — nothing here forces sharing.
+   */
+  async linkIngredientToSiblings(id: number): Promise<{ updated: number }> {
+    const variant = await this.findOne(id);
+    const siblingIds = (
+      await this.variantsRepository.find({
+        where: scopedWhere(this.tenantContext, { foodId: variant.foodId, isActive: true }),
+      })
+    )
+      .map((sibling) => sibling.id)
+      .filter((siblingId) => siblingId !== variant.id);
+
+    if (siblingIds.length === 0) return { updated: 0 };
+
+    await this.variantsRepository.update(siblingIds, {
+      inventoryIngredientId: variant.inventoryIngredientId,
+    });
+    return { updated: siblingIds.length };
   }
 
   async remove(id: number): Promise<void> {
@@ -404,6 +440,7 @@ export class FoodVariantsService {
       name: variant.name,
       sku: variant.sku,
       price: variant.price,
+      inventoryIngredientId: variant.inventoryIngredientId,
       isDefault: variant.isDefault,
       isActive: variant.isActive,
       sortOrder: variant.sortOrder,

@@ -9,6 +9,8 @@ export const createFoodVariantSchema = z.object({
   subVariantId: z.number().positive().nullable().optional(),
   name: z.string().min(1, "Name is required").transform(toTitleCase),
   price: z.number().min(0),
+  /** Direct-sale stock item for this specific food item; kitchen foods use recipes instead. */
+  inventoryIngredientId: z.number().int().positive().nullable().optional(),
   isDefault: z.boolean(),
 })
 
@@ -19,6 +21,7 @@ export const updateFoodVariantSchema = z.object({
   variantId: z.number().positive().nullable().optional(),
   subVariantId: z.number().positive().nullable().optional(),
   price: z.number().min(0),
+  inventoryIngredientId: z.number().int().positive().nullable().optional(),
   isDefault: z.boolean(),
   isActive: z.boolean(),
 })

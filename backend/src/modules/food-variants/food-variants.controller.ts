@@ -84,6 +84,16 @@ export class FoodVariantsController {
     return this.foodVariantsService.remove(id);
   }
 
+  @Post(':id/link-ingredient-to-siblings')
+  @RequirePermissions('food-variants.manage')
+  @ApiOperation({
+    summary:
+      "Copies this food item's inventory ingredient onto every other active food item of the same food, for foods that should track stock together",
+  })
+  linkIngredientToSiblings(@Param('id', ParseIntPipe) id: number) {
+    return this.foodVariantsService.linkIngredientToSiblings(id);
+  }
+
   @Get(':id/outlets')
   @RequirePermissions('food-variants.view')
   @ApiOperation({ summary: 'Lists per-outlet overrides for a food variant' })

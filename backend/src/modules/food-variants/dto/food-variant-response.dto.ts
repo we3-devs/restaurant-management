@@ -22,6 +22,9 @@ export class FoodVariantResponseDto {
   @ApiProperty()
   price: number;
 
+  @ApiProperty({ required: false, nullable: true })
+  inventoryIngredientId: number | null;
+
   @ApiProperty()
   isDefault: boolean;
 

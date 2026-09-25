@@ -33,9 +33,6 @@ export class FoodResponseDto {
   @ApiProperty({ required: false, nullable: true })
   departmentType: OutletDepartmentType | null;
 
-  @ApiProperty({ required: false, nullable: true })
-  inventoryIngredientId: number | null;
-
   @ApiProperty()
   hasVariants: boolean;
 

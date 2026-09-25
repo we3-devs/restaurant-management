@@ -8,6 +8,7 @@ import {
   Min,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateFoodVariantDto {
@@ -49,6 +50,15 @@ export class CreateFoodVariantDto {
   @IsNumber()
   @Min(0)
   price?: number = 0;
+
+  @ApiPropertyOptional({
+    description: 'Ingredient tracked directly for sale, without a recipe',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  inventoryIngredientId?: number | null;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

@@ -79,11 +79,6 @@ export class CreateFoodDto {
   @IsIn(OUTLET_DEPARTMENT_TYPES)
   departmentType?: OutletDepartmentType;
 
-  @ApiPropertyOptional({ description: 'Ingredient tracked directly for sale, without a recipe' })
-  @IsOptional()
-  @IsInt()
-  inventoryIngredientId?: number;
-
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()

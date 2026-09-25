@@ -16,7 +16,6 @@ export interface Food {
   description: string | null
   itemType: string
   departmentType: string | null
-  inventoryIngredientId: number | null
   hasVariants: boolean
   hasAddons: boolean
   isTaxable: boolean
@@ -27,8 +26,6 @@ export interface Food {
   sortOrder: number
   createdAt: string
   updatedAt: string
-  /** Derived from active recipes and available (unreserved) stock. */
-  inventoryAvailable?: boolean
 }
 
 export interface FoodOutlet {

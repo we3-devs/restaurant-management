@@ -124,7 +124,7 @@ export class FoodsController {
   @RequirePermissions('foods.manage', 'ingredients.manage')
   @ApiOperation({
     summary:
-      'Creates a stock-tracked Ingredient for every requested food id that belongs to the current tenant and has no inventory link yet, then links it back (Food.inventoryIngredientId)',
+      'Creates a stock-tracked Ingredient for every requested food id that belongs to the current tenant and has no inventory link yet, then links it to each of that food\'s food items (FoodVariant.inventoryIngredientId)',
   })
   bulkImportAsIngredients(@Body() dto: BulkImportFoodsAsIngredientsDto) {
     return this.foodsService.importAsIngredients(dto);

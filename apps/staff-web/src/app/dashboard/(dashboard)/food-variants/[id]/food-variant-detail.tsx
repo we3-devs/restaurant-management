@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -30,10 +30,15 @@ import {
   useDeleteFoodVariant,
   useFoodVariant,
   useFoodVariantOutlets,
+  useLinkIngredientToSiblings,
   useRemoveFoodVariantOutlet,
   useUpdateFoodVariant,
   useUpsertFoodVariantOutlet,
 } from "@/hooks/use-food-variants"
+import { useIngredients } from "@/hooks/use-ingredients"
+import { useUnits } from "@/hooks/use-units"
+import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
+import { useWarehouses } from "@/hooks/use-warehouses"
 import { useOutlets } from "@/hooks/use-outlets"
 import { useFood } from "@/hooks/use-foods"
 import {
@@ -41,6 +46,7 @@ import {
   type VariantListValue,
 } from "@/hooks/use-variant-lists"
 import { updateFoodVariantSchema, type UpdateFoodVariantInput } from "@/lib/validators/food-variants"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 export function FoodVariantDetail({ variantId }: { variantId: number }) {
@@ -48,8 +54,10 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const { data: variant, isLoading } = useFoodVariant(variantId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: food } = useFood(variant?.foodId ?? 0)
+  const { data: ingredients } = useIngredients({ limit: 500 })
   const updateVariant = useUpdateFoodVariant(variantId)
   const deleteVariant = useDeleteFoodVariant()
+  const linkIngredientToSiblings = useLinkIngredientToSiblings(variantId)
 
   const form = useForm<UpdateFoodVariantInput>({
     resolver: zodResolver(updateFoodVariantSchema),
@@ -58,6 +66,7 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       variantId: null,
       subVariantId: null,
       price: 0,
+      inventoryIngredientId: null,
       isDefault: false,
       isActive: true,
     },
@@ -70,6 +79,7 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
         variantId: variant.variantId ?? null,
         subVariantId: variant.subVariantId ?? null,
         price: variant.price,
+        inventoryIngredientId: variant.inventoryIngredientId,
         isDefault: variant.isDefault,
         isActive: variant.isActive,
       })
@@ -86,6 +96,15 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       toast.success("Food item updated")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update food item")
+    }
+  }
+
+  async function handleLinkIngredientToSiblings() {
+    try {
+      const { updated } = await linkIngredientToSiblings.mutateAsync()
+      toast.success(updated > 0 ? `Linked to ${updated} other food item${updated === 1 ? "" : "s"} of this food` : "This food has no other food items")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to link ingredient")
     }
   }
 
@@ -209,6 +228,44 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
               />
               <FormField
                 control={form.control}
+                name="inventoryIngredientId"
+                render={({ field }) => {
+                  const dirty = form.formState.dirtyFields.inventoryIngredientId
+                  return (
+                    <FormItem>
+                      <FormLabel>Direct inventory item (optional)</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked directly" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Not tracked directly</SelectItem>
+                              {ingredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={Boolean(dirty) || linkIngredientToSiblings.isPending}
+                          onClick={handleLinkIngredientToSiblings}
+                        >
+                          {linkIngredientToSiblings.isPending ? "Linking…" : "Track together"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        For beverages, consumables, or other direct-sale items. Kitchen foods should use the food&apos;s Recipe instead.
+                        By default each food item (size/variant) tracks its own stock — use &quot;Track together&quot; to copy this ingredient onto every other food item of this food so they share one stock pool instead.
+                        {dirty && " Save changes first to link the unsaved ingredient."}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
+              />
+              <FormField
+                control={form.control}
                 name="isDefault"
                 render={({ field }) => (
                   <div className="flex items-center gap-2">
@@ -244,7 +301,46 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       </Card>
 
       <FoodVariantOutletOverrides variantId={variantId} />
+      <FoodItemInventory inventoryIngredientId={variant.inventoryIngredientId} />
     </div>
+  )
+}
+
+function FoodItemInventory({ inventoryIngredientId }: { inventoryIngredientId: number | null }) {
+  const { outletId } = useActiveOutlet()
+  const { data: ingredients } = useIngredients({ limit: 500, outletId: outletId ?? undefined })
+  const { data: units } = useUnits({ limit: 500 })
+  const { data: warehouses } = useWarehouses({ limit: 100, outletId: outletId ?? undefined })
+  const [warehouseId, setWarehouseId] = useState("")
+  const selectedWarehouseId = warehouseId ? Number(warehouseId) : warehouses?.data.find((w) => w.isDefault)?.id
+  const { data: stocks, isLoading } = useWarehouseIngredientStocks({ warehouseId: selectedWarehouseId })
+  const rows = useMemo(() => {
+    const stockByIngredient = new Map((stocks?.data ?? []).map((stock) => [stock.ingredientId, stock]))
+    const ingredientById = new Map((ingredients?.data ?? []).map((ingredient) => [ingredient.id, ingredient]))
+    const unitById = new Map((units?.data ?? []).map((unit) => [unit.id, unit]))
+    if (inventoryIngredientId) {
+      const stock = stockByIngredient.get(inventoryIngredientId)
+      const ingredient = ingredientById.get(inventoryIngredientId)
+      return [{ id: inventoryIngredientId, ingredientId: inventoryIngredientId, ingredient, unit: ingredient ? unitById.get(ingredient.baseUnitId) : undefined, available: stock ? Math.max(0, stock.quantity - stock.reservedQuantity) : 0 }]
+    }
+    return []
+  }, [inventoryIngredientId, stocks, ingredients, units])
+  const unavailable = rows.filter((row) => row.available <= 0)
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2">Inventory availability <Badge variant={unavailable.length ? "destructive" : "secondary"}>{unavailable.length ? "unavailable" : "available"}</Badge></CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">Only direct-sale food items linked to an inventory ingredient are stock-controlled. Kitchen foods are not tracked here.</p>
+        <Select value={warehouseId || (selectedWarehouseId ? String(selectedWarehouseId) : "")} onValueChange={(value) => setWarehouseId(value ?? "")}>
+          <SelectTrigger className="w-full"><SelectValue placeholder="Select a warehouse" /></SelectTrigger>
+          <SelectContent>{warehouses?.data.map((warehouse) => <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}{warehouse.isDefault ? " (default)" : ""}</SelectItem>)}</SelectContent>
+        </Select>
+        {isLoading ? <p className="text-sm text-muted-foreground">Loading stock…</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">Kitchen food or no direct inventory item linked. This food item is not stock-controlled.</p> : <div className="space-y-2">
+          {rows.map(({ id, ingredientId, ingredient, unit, available }) => { const inStock = available > 0; return <div key={id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{ingredient?.name ?? `Ingredient #${ingredientId}`} <span className="text-muted-foreground">· {unit?.shortName ?? unit?.name ?? "units"}</span></span><Badge variant={inStock ? "secondary" : "destructive"}>{inStock ? `${available} available` : "out of stock"}</Badge></div> })}
+        </div>}
+      </CardContent>
+    </Card>
   )
 }
 

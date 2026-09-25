@@ -202,9 +202,6 @@ export class FoodsService {
     if (dto.foodCategoryId !== undefined) {
       await this.foodCategoriesService.findOne(dto.foodCategoryId);
     }
-    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
-      await this.ingredientsService.findOne(dto.inventoryIngredientId);
-    }
 
     const food = this.foodsRepository.create({
       foodCategoryId: dto.foodCategoryId ?? null,
@@ -217,7 +214,6 @@ export class FoodsService {
       itemType: dto.itemType ?? 'ready_made',
       departmentType:
         dto.departmentType ?? (dto.itemType === 'kitchen' ? 'kitchen' : null),
-      inventoryIngredientId: dto.inventoryIngredientId ?? null,
       isTaxable: dto.isTaxable ?? true,
       isDiscountable: dto.isDiscountable ?? true,
       isFeatured: dto.isFeatured ?? false,
@@ -260,9 +256,6 @@ export class FoodsService {
       }
       food.foodCategoryId = dto.foodCategoryId;
     }
-    if (dto.inventoryIngredientId !== undefined && dto.inventoryIngredientId !== null) {
-      await this.ingredientsService.findOne(dto.inventoryIngredientId);
-    }
 
     Object.assign(food, {
       ...(dto.name !== undefined && { name: dto.name }),
@@ -278,7 +271,6 @@ export class FoodsService {
       ...(dto.departmentType !== undefined && {
         departmentType: dto.departmentType,
       }),
-      ...(dto.inventoryIngredientId !== undefined && { inventoryIngredientId: dto.inventoryIngredientId ?? null }),
       ...(dto.isTaxable !== undefined && { isTaxable: dto.isTaxable }),
       ...(dto.isDiscountable !== undefined && {
         isDiscountable: dto.isDiscountable,
@@ -329,9 +321,12 @@ export class FoodsService {
   /**
    * Creates a new stock-tracked Ingredient (same outlet/category/unit for the
    * whole batch) for every requested food that belongs to the current tenant
-   * and isn't already linked to a live one, then links it back via
-   * Food.inventoryIngredientId. Per-food failures (e.g. a slug/code
-   * collision) are collected rather than aborting the whole batch.
+   * and isn't already linked to a live one, then links it to every one of
+   * that food's food items (FoodVariant.inventoryIngredientId) — they share
+   * this one physical stock item by default; split them apart afterward from
+   * an individual food item's edit page if they should track separately.
+   * Per-food failures (e.g. a slug/code collision, or no food item to link
+   * yet) are collected rather than aborting the whole batch.
    */
   async importAsIngredients(dto: BulkImportFoodsAsIngredientsDto): Promise<{ created: number; skipped: number; errors: string[] }> {
     // The whole point of this import is to make foods stockable, so a
@@ -344,11 +339,24 @@ export class FoodsService {
     let skipped = 0;
     const errors: string[] = [];
     for (const food of foods) {
+      const variants = await this.foodVariantsRepository.find({
+        where: scopedWhere(this.tenantContext, { foodId: food.id, isActive: true }),
+      });
+      if (variants.length === 0) {
+        errors.push(`${food.name}: has no food item to link inventory to`);
+        continue;
+      }
+
       // A link only counts while the ingredient behind it is still alive —
-      // deleting the ingredient used to leave the food pointing at a dead
-      // row and permanently "already imported", with no way to import it
-      // again.
-      if (food.inventoryIngredientId && (await this.hasLiveIngredient(food.inventoryIngredientId))) {
+      // deleting the ingredient used to leave the food item pointing at a
+      // dead row and permanently "already imported", with no way to import
+      // it again.
+      const existingIngredientId = variants[0].inventoryIngredientId;
+      const alreadyLinked =
+        existingIngredientId !== null &&
+        variants.every((variant) => variant.inventoryIngredientId === existingIngredientId) &&
+        (await this.hasLiveIngredient(existingIngredientId));
+      if (alreadyLinked) {
         skipped++;
         continue;
       }
@@ -368,7 +376,10 @@ export class FoodsService {
           slug: food.slug,
           code: `FOOD-${food.id}`,
         });
-        await this.foodsRepository.update(food.id, { inventoryIngredientId: ingredient.id });
+        await this.foodVariantsRepository.update(
+          variants.map((variant) => variant.id),
+          { inventoryIngredientId: ingredient.id },
+        );
         created++;
       } catch (error) {
         errors.push(`${food.name}: ${error instanceof Error ? error.message : 'failed to import'}`);
@@ -710,7 +721,6 @@ export class FoodsService {
       description: food.description,
       itemType: food.itemType,
       departmentType: food.departmentType,
-      inventoryIngredientId: food.inventoryIngredientId,
       hasVariants: food.hasVariants,
       hasAddons: food.hasAddons,
       isTaxable: food.isTaxable,

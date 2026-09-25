@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FoodsModule } from '../foods/foods.module';
+import { IngredientsModule } from '../ingredients/ingredients.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { VariantsModule } from '../variants/variants.module';
 import { FoodVariantOutlet } from './entities/food-variant-outlet.entity';
@@ -14,6 +15,10 @@ import { FoodVariantsService } from './food-variants.service';
     FoodsModule,
     OutletsModule,
     VariantsModule,
+    // Circular, same reasoning as FoodsModule: IngredientsModule ->
+    // InventoryStockModule -> KitchenTicketsModule -> OrdersModule ->
+    // FoodVariantsModule.
+    forwardRef(() => IngredientsModule),
   ],
   controllers: [FoodVariantsController],
   providers: [FoodVariantsService],

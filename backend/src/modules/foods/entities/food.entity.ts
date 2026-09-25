@@ -73,10 +73,6 @@ export class Food {
   @Column({ name: 'department_type', type: 'varchar', length: 255, nullable: true })
   departmentType: OutletDepartmentType | null;
 
-  /** Direct-sale stock item (beverages/consumables); kitchen foods use recipes instead. */
-  @Column({ name: 'inventory_ingredient_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
-  inventoryIngredientId: number | null;
-
   @Column({ name: 'has_variants', type: 'boolean', default: false })
   hasVariants: boolean;
 

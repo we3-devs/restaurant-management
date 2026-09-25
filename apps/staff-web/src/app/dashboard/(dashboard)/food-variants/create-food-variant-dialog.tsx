@@ -24,16 +24,18 @@ import {
   type VariantListValue,
 } from "@/hooks/use-variant-lists"
 import { useFoods } from "@/hooks/use-foods"
+import { useIngredients } from "@/hooks/use-ingredients"
 import { createFoodVariantSchema, type CreateFoodVariantInput } from "@/lib/validators/food-variants"
 
 export function CreateFoodVariantDialog() {
   const [open, setOpen] = useState(false)
   const { data: foods, isLoading: foodsLoading } = useFoods({ limit: 100 })
+  const { data: ingredients } = useIngredients({ limit: 500 })
   const createFoodVariant = useCreateFoodVariant()
 
   const form = useForm<CreateFoodVariantInput>({
     resolver: zodResolver(createFoodVariantSchema),
-    defaultValues: { foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, isDefault: false },
+    defaultValues: { foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, inventoryIngredientId: null, isDefault: false },
   })
 
   // The two global lists — the same values are offered for every food, which is
@@ -46,7 +48,7 @@ export function CreateFoodVariantDialog() {
     try {
       await createFoodVariant.mutateAsync(values)
       toast.success(`Food item "${values.name}" created`)
-      form.reset({ foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, isDefault: false })
+      form.reset({ foodId: 0, variantId: null, subVariantId: null, name: "", price: 0, inventoryIngredientId: null, isDefault: false })
       setOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create food item")
@@ -148,6 +150,24 @@ export function CreateFoodVariantDialog() {
                     value={field.value}
                     onChange={(e) => field.onChange(Number(e.target.value))}
                   />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="inventoryIngredientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Direct inventory item (optional)</FormLabel>
+                  <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked directly" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not tracked directly</SelectItem>
+                      {ingredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">For beverages, consumables, and other direct-sale items. Each food item tracks its own stock.</p>
                   <FormMessage />
                 </FormItem>
               )}

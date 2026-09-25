@@ -58,23 +58,38 @@ export class MenuService {
       this.foodAddonGroups.find({ where: scopedWhere(this.tenantContext, {}) }),
       this.getVersion(),
     ]);
-    const inventoryAvailable = await this.getInventoryAvailability(outletId, foods);
-    return { version: version.version, foods: foods.map((food) => ({ ...food, inventoryAvailable: inventoryAvailable.get(food.id) ?? true })), categories, foodVariants, variants, subVariants, addonGroups, addons, foodAddonGroups };
+    const inventoryAvailable = await this.getInventoryAvailability(outletId, foodVariants);
+    return {
+      version: version.version,
+      foods,
+      categories,
+      foodVariants: foodVariants.map((variant) => ({ ...variant, inventoryAvailable: inventoryAvailable.get(variant.id) ?? true })),
+      variants,
+      subVariants,
+      addonGroups,
+      addons,
+      foodAddonGroups,
+    };
   }
 
-  private async getInventoryAvailability(outletId: number, foods: Food[]): Promise<Map<number, boolean>> {
+  /**
+   * Per food ITEM (variant), not per food — each variant of a food (e.g. a
+   * Large vs a Small drink) can be linked to a different ingredient and so
+   * can be in-stock/out-of-stock independently of its siblings.
+   */
+  private async getInventoryAvailability(outletId: number, foodVariants: FoodVariant[]): Promise<Map<number, boolean>> {
     const result = new Map<number, boolean>();
-    const trackedFoods = foods.filter((food) => food.inventoryIngredientId !== null);
+    const trackedVariants = foodVariants.filter((variant) => variant.inventoryIngredientId !== null);
     let warehouse;
     try { warehouse = await this.warehousesService.findDefaultForOutlet(outletId); } catch {
-      for (const food of trackedFoods) result.set(food.id, false);
+      for (const variant of trackedVariants) result.set(variant.id, false);
       return result;
     }
     const stocks = await this.stocks.find({ where: { warehouseId: warehouse.id } });
     const available = new Map(stocks.map((stock) => [stock.ingredientId, Math.max(0, stock.quantity - stock.reservedQuantity)]));
-    for (const food of trackedFoods) {
-      const quantity = available.get(food.inventoryIngredientId!);
-      result.set(food.id, (quantity ?? 0) > 0);
+    for (const variant of trackedVariants) {
+      const quantity = available.get(variant.inventoryIngredientId!);
+      result.set(variant.id, (quantity ?? 0) > 0);
     }
     return result;
   }
