@@ -122,9 +122,9 @@
 .chart-y { position:absolute; left:0; top:-5px; height:150px; display:flex; flex-direction:column; justify-content:space-between; color:var(--muted-foreground); font-size:11px; font-weight:500; }
 .chart-x { position:absolute; bottom:0; left:42px; right:0; display:flex; justify-content:space-between; color:var(--muted-foreground); font-size:11px; }
 
-.dash-table { font-size:12.5px; }
+.dash-table { font-size:12.5px; max-height:396px; overflow-y:auto; }
 .dash-table-head,.dash-table-row { display:grid; grid-template-columns:1.1fr 1.6fr 1fr 1fr; align-items:center; gap:10px; min-height:44px; border-bottom:1px solid var(--border); }
-.dash-table-head { color:var(--muted-foreground); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.dash-table-head { position:sticky; top:0; z-index:1; background:var(--card); color:var(--muted-foreground); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
 .dash-table-row { color:var(--foreground); transition: background-color .15s ease; border-radius: var(--radius-sm); }
 .dash-table-row:hover { background: var(--accent); }
 .dash-status { justify-self:start; border-radius:999px; padding:5px 12px; font-size:10.5px; font-weight:650; letter-spacing:0.01em; }
