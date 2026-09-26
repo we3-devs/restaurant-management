@@ -43,6 +43,19 @@ export class SettingsController {
     return this.settingsService.getPublicBranding();
   }
 
+  // Also two path segments, ahead of :category for the same reason as
+  // branding/public above. Deliberately not gated by settings.view — every
+  // authenticated staff member's client (including waiter/kitchen, who don't
+  // have settings.view) needs this to decide whether to play a sound.
+  @Get('notification/alert-preferences')
+  @ApiOperation({
+    summary:
+      'Sound on/off toggles for guest order + check-in alerts, readable by any authenticated staff member',
+  })
+  getNotificationAlertPreferences() {
+    return this.settingsService.getNotificationAlertPreferences();
+  }
+
   @Get(':category')
   @RequirePermissions('settings.view')
   @ApiOperation({ summary: 'Returns one settings category, merged with defaults' })

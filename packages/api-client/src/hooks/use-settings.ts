@@ -79,6 +79,12 @@ export interface NotificationSettings {
   kitchenDelayThresholdMinutes?: number
   reservationReminderMinutesBefore?: number
   cashNotificationRoles?: string[]
+  /** Position slugs (e.g. 'waiter', 'kitchen') notified when a guest places or adds to an order. */
+  newOrderNotificationRoles?: string[]
+  /** Position slugs notified when a guest checks in / joins a table via QR. */
+  checkInNotificationRoles?: string[]
+  enableNewOrderSound?: boolean
+  enableCheckInSound?: boolean
 }
 
 export interface AppearanceSettings {
@@ -120,6 +126,25 @@ export function useSettingsCategory<T = Record<string, unknown>>(category: Setti
     queryKey: queryKeys.settings.category(category),
     queryFn: () => apiClient<T>(`/settings/${category}`),
     enabled: !!category,
+  })
+}
+
+export interface NotificationAlertPreferences {
+  enableNewOrderSound: boolean
+  enableCheckInSound: boolean
+}
+
+/**
+ * Unlike useSettingsCategory("notification"), not gated behind settings.view
+ * — every staff member (including waiter/kitchen, who don't have that
+ * permission) needs this to decide whether to play a sound on realtime
+ * guest-order/check-in notifications. See useNotificationsRealtime.
+ */
+export function useNotificationAlertPreferences() {
+  return useQuery({
+    queryKey: queryKeys.settings.notificationAlertPreferences(),
+    queryFn: () => apiClient<NotificationAlertPreferences>("/settings/notification/alert-preferences"),
+    staleTime: 5 * 60_000,
   })
 }
 

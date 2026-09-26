@@ -291,6 +291,32 @@ export class NotificationSettingsDto {
   @IsArray()
   @IsString({ each: true })
   cashNotificationRoles?: string[];
+
+  /** Position slugs (e.g. 'waiter', 'kitchen') notified, in addition to superadmins, when a guest places or adds to an order. */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  newOrderNotificationRoles?: string[];
+
+  /** Position slugs notified, in addition to superadmins, when a guest checks in / joins a table via QR. */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  checkInNotificationRoles?: string[];
+
+  /** Whether the distinct new-order sound alert plays on staff screens for guest orders. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enableNewOrderSound?: boolean;
+
+  /** Whether a sound alert plays on staff screens when a guest checks in. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enableCheckInSound?: boolean;
 }
 
 export class AppearanceSettingsDto {

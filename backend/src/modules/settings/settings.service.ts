@@ -110,6 +110,10 @@ const CATEGORY_DEFAULTS: Record<SettingsCategory, Record<string, unknown>> = {
     kitchenDelayThresholdMinutes: 15,
     reservationReminderMinutesBefore: 60,
     cashNotificationRoles: ['manager', 'cashier'],
+    newOrderNotificationRoles: ['waiter', 'kitchen'],
+    checkInNotificationRoles: ['waiter', 'kitchen'],
+    enableNewOrderSound: true,
+    enableCheckInSound: true,
   },
   appearance: {
     logoUrl: null,
@@ -275,6 +279,23 @@ export class SettingsService {
 
   async getNotificationSettings(): Promise<Record<string, unknown>> {
     return this.get('notification');
+  }
+
+  /**
+   * Just the sound on/off toggles for guest order + check-in alerts — its own
+   * door (like getPublicBranding) because every staff member's client needs
+   * this to decide whether to play a sound, but GET /settings/:category is
+   * gated behind settings.view, which waiter/kitchen accounts don't have.
+   */
+  async getNotificationAlertPreferences(): Promise<{
+    enableNewOrderSound: boolean;
+    enableCheckInSound: boolean;
+  }> {
+    const settings = await this.getNotificationSettings();
+    return {
+      enableNewOrderSound: (settings.enableNewOrderSound as boolean | undefined) ?? true,
+      enableCheckInSound: (settings.enableCheckInSound as boolean | undefined) ?? true,
+    };
   }
 
   async getAppearanceSettings(): Promise<Record<string, unknown>> {

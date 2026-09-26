@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiClient } from "../client"
@@ -6,6 +6,7 @@ import { acquireKdsSocket, releaseKdsSocket, useKdsSocketConnected } from "../re
 import { playNewOrderSound, playNotificationChime } from "../realtime/notification-sound"
 import { queryKeys } from "../query-keys"
 import { toQueryString, type PaginatedResponse } from "../types"
+import { useNotificationAlertPreferences } from "./use-settings"
 import {
   NOTIFICATION_TOAST_VARIANT,
   TOAST_EVEN_IF_SELF,
@@ -17,6 +18,11 @@ import {
 // staff need to notice over background noise, so it gets its own audio file
 // instead of the generic chime every other notification type shares.
 const NEW_ORDER_NOTIFICATION_TYPES: NotificationType[] = ["order_sent", "guest_order_placed"]
+
+// A guest checking in isn't as urgent as a new order, so it shares the
+// generic chime rather than getting its own audio file — but still gated by
+// its own admin-configurable on/off toggle (enableCheckInSound).
+const CHECK_IN_NOTIFICATION_TYPES: NotificationType[] = ["guest_checked_in"]
 
 export interface AppNotification {
   id: number
@@ -193,6 +199,13 @@ export function useNotificationsRealtime(
 ): void {
   const invalidate = useInvalidateNotifications()
 
+  // Admin-configurable (Settings > Notifications) sound on/off toggles. Read
+  // via a ref inside the socket handler below so a settings change doesn't
+  // force the socket subscription to tear down and reconnect.
+  const { data: alertPreferences } = useNotificationAlertPreferences()
+  const alertPreferencesRef = useRef(alertPreferences)
+  alertPreferencesRef.current = alertPreferences
+
   useEffect(() => {
     if (!outletId) return
 
@@ -204,8 +217,11 @@ export function useNotificationsRealtime(
       if (!showToast || (isSelf && !TOAST_EVEN_IF_SELF.includes(notification.type))) {
         return
       }
+      const prefs = alertPreferencesRef.current
       if (NEW_ORDER_NOTIFICATION_TYPES.includes(notification.type)) {
-        playNewOrderSound()
+        if (prefs?.enableNewOrderSound !== false) playNewOrderSound()
+      } else if (CHECK_IN_NOTIFICATION_TYPES.includes(notification.type)) {
+        if (prefs?.enableCheckInSound !== false) playNotificationChime()
       } else {
         playNotificationChime()
       }

@@ -324,6 +324,7 @@ export const queryKeys = {
     all: ["settings"] as const,
     category: (category: string) => [...queryKeys.settings.all, category] as const,
     allCategories: () => [...queryKeys.settings.all, "all-categories"] as const,
+    notificationAlertPreferences: () => [...queryKeys.settings.all, "notification-alert-preferences"] as const,
   },
   auditLogs: {
     all: ["audit-logs"] as const,

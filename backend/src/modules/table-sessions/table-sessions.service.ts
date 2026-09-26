@@ -26,6 +26,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from '../orders/entities/order.entity';
 import { OutletsService } from '../outlets/outlets.service';
 import { ReservationsService } from '../reservations/reservations.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateTableSessionDto } from './dto/create-table-session.dto';
 import { ListTableSessionsQueryDto } from './dto/list-table-sessions-query.dto';
 import { TransferTableSessionDto } from './dto/transfer-table-session.dto';
@@ -98,8 +99,17 @@ export class TableSessionsService {
     private readonly reservationsService: ReservationsService,
     private readonly notificationsService: NotificationsService,
     private readonly gateway: KitchenTicketsGateway,
+    private readonly settingsService: SettingsService,
     private readonly dataSource: DataSource,
   ) {}
+
+  /** Position slugs (in addition to superadmins) to notify when a guest checks in via QR — see runPostCreateSideEffects / attachCustomerIfMissing. */
+  private async getCheckInNotificationPositions(): Promise<string[]> {
+    const { checkInNotificationRoles } = await this.settingsService.getNotificationSettings();
+    return Array.isArray(checkInNotificationRoles)
+      ? (checkInNotificationRoles as string[])
+      : ['waiter', 'kitchen'];
+  }
 
   async findAll(
     query: ListTableSessionsQueryDto,
@@ -347,6 +357,12 @@ export class TableSessionsService {
     customerId: number,
   ): Promise<TableSession> {
     const session = await this.findOne(id);
+    // Captured before the upsert below (which is otherwise idempotent) so a
+    // guest re-opening/refreshing their own already-joined session doesn't
+    // re-fire the "guest checked in" notification on every visit — only an
+    // actually new party member should.
+    const wasAlreadyMember =
+      (await this.sessionCustomersRepository.findOne({ where: { tableSessionId: id, customerId } })) !== null;
     await this.sessionCustomersRepository.upsert({ tableSessionId: id, customerId }, ['tableSessionId', 'customerId']);
     await this.attachCustomerToOrders(id, customerId);
     let saved = session;
@@ -369,6 +385,32 @@ export class TableSessionsService {
     // dine-in visit. The no-op guard above means this only ever fires once
     // per session, even if more guests place orders on it afterwards.
     await this.customersService.upsertVisit(customerId, session.outletId);
+
+    if (!wasAlreadyMember) {
+      // Fire-and-forget: the guest's own join response doesn't depend on
+      // this, and a notification hiccup shouldn't fail an otherwise-
+      // successful join.
+      this.getCheckInNotificationPositions()
+        .then((positionSlugs) => this.notificationsService.getUserIdsByPosition(session.outletId, positionSlugs))
+        .then(async (recipientUserIds) => {
+          const notification = await this.notificationsService.create(
+            {
+              outletId: session.outletId,
+              type: 'guest_checked_in',
+              title: `${table.name} — guest checked in`,
+              body: `${saved.guestCount} guest(s)`,
+              tableName: table.name,
+              data: JSON.stringify({ tableSessionId: saved.id }),
+            },
+            recipientUserIds,
+          );
+          this.gateway.notifyUsersNotificationCreated(recipientUserIds, notification);
+        })
+        .catch((error: Error) =>
+          this.logger.error(`Failed to create guest_checked_in notification for session ${saved.id}: ${error.message}`),
+        );
+    }
+
     return saved;
   }
 
@@ -521,9 +563,39 @@ export class TableSessionsService {
     // The session insert is already committed by this point — a notification
     // hiccup shouldn't fail this otherwise-successful request, so failures
     // here are logged rather than thrown.
-    const createNotification = () =>
-      this.notificationsService
-        .create({
+    //
+    // A guest-opened session (source: 'qr_order', see ensureActiveForGuest/
+    // ensureActiveForScan) gets a distinct 'guest_checked_in' type scoped to
+    // whichever positions Settings > Notifications configures (default
+    // waiter+kitchen) — a staff-started session keeps the generic 'system'
+    // notification broadcast to every active staff member, unchanged.
+    const isGuestCheckIn = dto.source === 'qr_order';
+    const createNotification = async (): Promise<{
+      notification: Notification;
+      recipientUserIds?: number[];
+    } | null> => {
+      try {
+        if (isGuestCheckIn) {
+          const positionSlugs = await this.getCheckInNotificationPositions();
+          const recipientUserIds = await this.notificationsService.getUserIdsByPosition(
+            dto.outletId,
+            positionSlugs,
+          );
+          const notification = await this.notificationsService.create(
+            {
+              outletId: dto.outletId,
+              type: 'guest_checked_in',
+              title: `${diningTable.name} — guest checked in`,
+              body: `${saved.guestCount} guest(s)`,
+              tableName: diningTable.name,
+              actorUserId: startedBy,
+              data: JSON.stringify({ tableSessionId: saved.id }),
+            },
+            recipientUserIds,
+          );
+          return { notification, recipientUserIds };
+        }
+        const notification = await this.notificationsService.create({
           outletId: dto.outletId,
           type: 'system',
           title: `${diningTable.name} — guests checked in`,
@@ -531,30 +603,36 @@ export class TableSessionsService {
           tableName: diningTable.name,
           actorUserId: startedBy,
           data: JSON.stringify({ tableSessionId: saved.id }),
-        })
-        .catch((error: Error) => {
-          this.logger.error(
-            `Failed to create notification for table session ${saved.id}: ${error.message}`,
-          );
-          return null;
         });
+        return { notification };
+      } catch (error) {
+        this.logger.error(
+          `Failed to create notification for table session ${saved.id}: ${(error as Error).message}`,
+        );
+        return null;
+      }
+    };
 
-    let notification: Notification | null;
+    let result: { notification: Notification; recipientUserIds?: number[] } | null;
     if (options?.sequential) {
       await setStatus();
       await upsertVisit();
-      notification = await createNotification();
+      result = await createNotification();
     } else {
-      [, , notification] = await Promise.all([
+      [, , result] = await Promise.all([
         setStatus(),
         upsertVisit(),
         createNotification(),
       ]);
     }
 
-    if (!notification) return;
+    if (!result) return;
     try {
-      this.gateway.notifyNotificationCreated(notification);
+      if (result.recipientUserIds) {
+        this.gateway.notifyUsersNotificationCreated(result.recipientUserIds, result.notification);
+      } else {
+        this.gateway.notifyNotificationCreated(result.notification);
+      }
     } catch (error) {
       this.logger.error(
         `Failed to broadcast notification for table session ${saved.id}: ${(error as Error).message}`,

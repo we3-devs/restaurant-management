@@ -761,24 +761,37 @@ export class OrdersService {
     // notification row existing yet, and NotificationsService.create's own
     // external dispatch is already fire-and-forget internally — no reason to
     // make the guest wait on this DB write too.
-    this.notificationsService
-      .create({
-        outletId,
-        type: 'guest_order_placed',
-        // Urgent: this is the one event a staff member must not miss even
-        // with the app backgrounded — it's the only thing that unlocks push
-        // (see PushService#sendToUser's priority gate). A busy floor with
-        // the tab out of focus is exactly when a guest order is likely to
-        // sit unseen otherwise.
-        priority: 'urgent',
-        title: existing ? 'Guest Order Updated' : 'New Guest Order',
-        body: `${tableName} ${existing ? 'added items to their order' : 'placed a new order'}`,
-        orderId: saved.id,
-        tableName,
-        data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
+    this.settingsService
+      .getNotificationSettings()
+      .then(({ newOrderNotificationRoles }) => {
+        const positionSlugs = Array.isArray(newOrderNotificationRoles)
+          ? (newOrderNotificationRoles as string[])
+          : ['waiter', 'kitchen'];
+        return this.notificationsService
+          .getUserIdsByPosition(outletId, positionSlugs)
+          .then(async (recipientUserIds) => {
+            const notification = await this.notificationsService.create(
+              {
+                outletId,
+                type: 'guest_order_placed',
+                // Urgent: this is the one event a staff member must not miss even
+                // with the app backgrounded — it's the only thing that unlocks push
+                // (see PushService#sendToUser's priority gate). A busy floor with
+                // the tab out of focus is exactly when a guest order is likely to
+                // sit unseen otherwise.
+                priority: 'urgent',
+                title: existing ? 'Guest Order Updated' : 'New Guest Order',
+                body: `${tableName} ${existing ? 'added items to their order' : 'placed a new order'}`,
+                orderId: saved.id,
+                tableName,
+                data: JSON.stringify({ tableSessionId, diningTableId, customerId }),
+              },
+              recipientUserIds,
+            );
+            this.gateway.notifyUsersNotificationCreated(recipientUserIds, notification);
+          });
       })
-      .then((notification) => this.gateway.notifyNotificationCreated(notification))
-      .catch((error) => this.logger.error(`Failed to create guest_order_placed notification: ${(error as Error).message}`));
+      .catch((error: Error) => this.logger.error(`Failed to create guest_order_placed notification: ${error.message}`));
 
     const full = await this.findOne(saved.id);
     this.gateway.notifyGuestOrderChanged(full);
@@ -2910,6 +2923,27 @@ export class OrdersService {
         OrderItemIngredientReservation,
       );
 
+      // Stock deltas are netted per ingredient across the whole batch before
+      // touching warehouse_ingredient_stocks, instead of one locked
+      // SELECT+UPDATE per item-ingredient pair — items in the same cart
+      // commonly share ingredients (rice, oil, ...), and each reserve() call
+      // is a pessimistic_write round trip (~150-200ms on this DB's remote
+      // pooler), so this cuts the dominant cost of adding a multi-item order.
+      const netDeltaByStockKey = new Map<
+        string,
+        { warehouseId: number; ingredientId: number; delta: number }
+      >();
+      const addDelta = (warehouseId: number, ingredientId: number, delta: number) => {
+        if (delta === 0) return;
+        const key = `${warehouseId}:${ingredientId}`;
+        const prior = netDeltaByStockKey.get(key)?.delta ?? 0;
+        netDeltaByStockKey.set(key, {
+          warehouseId,
+          ingredientId,
+          delta: round4(prior + delta),
+        });
+      };
+
       for (const item of items) {
         const required = requiredByItemId.get(item.id) ?? new Map();
         const existing = existingByItemId.get(item.id) ?? [];
@@ -2919,12 +2953,7 @@ export class OrdersService {
 
         for (const reservation of existing) {
           if (!required.has(reservation.ingredientId)) {
-            await this.warehouseIngredientStocksService.reserve(
-              reservation.warehouseId,
-              reservation.ingredientId,
-              -reservation.reservedQuantity,
-              manager,
-            );
+            addDelta(reservation.warehouseId, reservation.ingredientId, -reservation.reservedQuantity);
             await reservationRepo.remove(reservation);
           }
         }
@@ -2934,14 +2963,7 @@ export class OrdersService {
           const currentReserved = existingReservation?.reservedQuantity ?? 0;
           const delta = round4(requiredQty - currentReserved);
 
-          if (delta !== 0) {
-            await this.warehouseIngredientStocksService.reserve(
-              warehouse.id,
-              ingredientId,
-              delta,
-              manager,
-            );
-          }
+          addDelta(warehouse.id, ingredientId, delta);
 
           if (existingReservation) {
             existingReservation.reservedQuantity = requiredQty;
@@ -2960,6 +2982,15 @@ export class OrdersService {
             );
           }
         }
+      }
+
+      for (const { warehouseId, ingredientId, delta } of netDeltaByStockKey.values()) {
+        await this.warehouseIngredientStocksService.reserve(
+          warehouseId,
+          ingredientId,
+          delta,
+          manager,
+        );
       }
     };
 

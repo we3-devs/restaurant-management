@@ -10,6 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { Order } from '../orders/entities/order.entity';
 import { OutletsModule } from '../outlets/outlets.module';
 import { ReservationsModule } from '../reservations/reservations.module';
+import { SettingsModule } from '../settings/settings.module';
 import { TableSession } from './entities/table-session.entity';
 import { TableSessionCustomer } from './entities/table-session-customer.entity';
 import { GuestQuickOrderSessionsController } from './guest-quick-order-sessions.controller';
@@ -31,6 +32,7 @@ import { TableSessionsService } from './table-sessions.service';
     CustomerAuthModule,
     forwardRef(() => ReservationsModule),
     NotificationsModule,
+    SettingsModule,
     // Circular: KitchenTicketsModule imports OrdersModule, which imports
     // TableSessionsModule — without forwardRef this chain can resolve to
     // `undefined` mid-cycle at module-load time.
