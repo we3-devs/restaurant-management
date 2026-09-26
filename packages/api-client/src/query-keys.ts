@@ -55,6 +55,7 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.outletDepartments.all, "detail", id] as const,
     assigned: (outletId: number | null) =>
       [...queryKeys.outletDepartments.all, "assigned", outletId] as const,
+    employees: (id: number) => [...queryKeys.outletDepartments.all, "employees", id] as const,
   },
   warehouses: {
     all: ["warehouses"] as const,

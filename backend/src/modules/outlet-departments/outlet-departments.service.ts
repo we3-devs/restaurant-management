@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, QueryFailedError, Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { OutletsService } from '../outlets/outlets.service';
 import { CreateOutletDepartmentDto } from './dto/create-outlet-department.dto';
 import { ListOutletDepartmentsQueryDto } from './dto/list-outlet-departments-query.dto';
@@ -18,26 +19,37 @@ export class OutletDepartmentsService {
     @InjectRepository(OutletDepartment)
     private readonly departmentsRepository: Repository<OutletDepartment>,
     private readonly outletsService: OutletsService,
+    private readonly tenantContext: TenantContext,
   ) {}
+
+  /** outlet_departments has no tenant_id column of its own — scope through the owning outlet. */
+  private tenantScopedQuery(alias = 'department') {
+    const qb = this.departmentsRepository
+      .createQueryBuilder(alias)
+      .innerJoin(`${alias}.outlet`, 'outlet');
+    const tenantId = this.tenantContext.getTenantId();
+    if (tenantId !== null) {
+      qb.andWhere('outlet.tenantId = :tenantId', { tenantId });
+    }
+    return qb;
+  }
 
   async findAll(
     query: ListOutletDepartmentsQueryDto,
   ): Promise<PaginatedResponse<OutletDepartment>> {
     const { page, limit, search, outletId } = query;
-    const where: FindOptionsWhere<OutletDepartment> = {};
+    const qb = this.tenantScopedQuery();
     if (outletId !== undefined) {
-      where.outletId = outletId;
+      qb.andWhere('department.outletId = :outletId', { outletId });
     }
     if (search) {
-      where.name = ILike(`%${search}%`);
+      qb.andWhere('department.name ILIKE :search', { search: `%${search}%` });
     }
+    qb.orderBy('department.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    const [departments, total] = await this.departmentsRepository.findAndCount({
-      where,
-      order: { name: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [departments, total] = await qb.getManyAndCount();
 
     return {
       data: departments,
@@ -47,17 +59,17 @@ export class OutletDepartmentsService {
 
   /** Unpaginated, single-outlet lookup used by GET /outlet-departments/assigned — no `outlet-departments.view` permission required to see the departments at your own outlet. */
   async findByOutlet(outletId: number): Promise<OutletDepartment[]> {
-    return this.departmentsRepository.find({
-      where: { outletId },
-      order: { name: 'ASC' },
-    });
+    return this.tenantScopedQuery()
+      .andWhere('department.outletId = :outletId', { outletId })
+      .orderBy('department.name', 'ASC')
+      .getMany();
   }
 
   /** Internal lookup used by WarehousesService to validate an outletDepartmentId. */
   async findOne(id: number): Promise<OutletDepartment> {
-    const department = await this.departmentsRepository.findOne({
-      where: { id },
-    });
+    const department = await this.tenantScopedQuery()
+      .andWhere('department.id = :id', { id })
+      .getOne();
     if (!department) {
       throw new NotFoundException(`Outlet department ${id} not found`);
     }

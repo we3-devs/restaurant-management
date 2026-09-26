@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { EmployeesModule } from '../employees/employees.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { OutletDepartment } from './entities/outlet-department.entity';
 import { OutletDepartmentsController } from './outlet-departments.controller';
@@ -11,6 +12,7 @@ import { OutletDepartmentsService } from './outlet-departments.service';
     TypeOrmModule.forFeature([OutletDepartment]),
     OutletsModule,
     AuthModule,
+    EmployeesModule,
   ],
   controllers: [OutletDepartmentsController],
   providers: [OutletDepartmentsService],

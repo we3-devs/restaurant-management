@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -25,7 +25,16 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useDeleteOutletDepartment, useOutletDepartment, useUpdateOutletDepartment } from "@/hooks/use-outlet-departments"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
+import {
+  useAssignDepartmentEmployee,
+  useDeleteOutletDepartment,
+  useDepartmentEmployees,
+  useOutletDepartment,
+  useRemoveDepartmentEmployee,
+  useUpdateOutletDepartment,
+} from "@/hooks/use-outlet-departments"
+import { useEmployees } from "@/hooks/use-employees"
 import { useOutlet } from "@/hooks/use-outlets"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import {
@@ -36,11 +45,18 @@ import {
 
 export function OutletDepartmentDetail({ departmentId }: { departmentId: number }) {
   const router = useRouter()
+  const { permissions } = useCurrentUser()
+  const canManage = permissions.includes("outlet-departments.manage")
   const { data: department, isLoading } = useOutletDepartment(departmentId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: outlet } = useOutlet(department?.outletId ?? 0)
   const updateDepartment = useUpdateOutletDepartment(departmentId)
   const deleteDepartment = useDeleteOutletDepartment()
+  const { data: departmentEmployees = [] } = useDepartmentEmployees(departmentId)
+  const { data: outletEmployees } = useEmployees({ outletId: department?.outletId, limit: 100 })
+  const assignEmployee = useAssignDepartmentEmployee(departmentId)
+  const removeEmployee = useRemoveDepartmentEmployee(departmentId)
+  const [employeeToAdd, setEmployeeToAdd] = useState("")
 
   const form = useForm<UpdateOutletDepartmentInput>({
     resolver: zodResolver(updateOutletDepartmentSchema),
@@ -211,6 +227,70 @@ export function OutletDepartmentDetail({ departmentId }: { departmentId: number 
               </Button>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assigned staff</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Assign staff members from {outlet?.name ?? "this outlet"} to this department.</p>
+          {canManage && (
+            <Select
+              items={(outletEmployees?.data ?? [])
+                .filter((employee) => !departmentEmployees.some((assigned) => assigned.id === employee.id))
+                .map((employee) => ({ value: String(employee.id), label: employee.name }))}
+              value={employeeToAdd}
+              onValueChange={async (value) => {
+                const nextValue = value ?? ""
+                setEmployeeToAdd(nextValue)
+                if (!nextValue) return
+                try {
+                  await assignEmployee.mutateAsync(Number(nextValue))
+                  toast.success("Staff member assigned")
+                  setEmployeeToAdd("")
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to assign staff member")
+                }
+              }}
+              disabled={assignEmployee.isPending}
+            >
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Add a staff member" />
+              </SelectTrigger>
+              <SelectContent>
+                {(outletEmployees?.data ?? [])
+                  .filter((employee) => !departmentEmployees.some((assigned) => assigned.id === employee.id))
+                  .map((employee) => <SelectItem key={employee.id} value={String(employee.id)}>{employee.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {departmentEmployees.length === 0 && <p className="text-sm text-muted-foreground">No staff assigned.</p>}
+            {departmentEmployees.map((employee) => (
+              <div key={employee.id} className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                <span>{employee.name}</span>
+                {canManage && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await removeEmployee.mutateAsync(employee.id)
+                        toast.success("Staff member removed")
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Failed to remove staff member")
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

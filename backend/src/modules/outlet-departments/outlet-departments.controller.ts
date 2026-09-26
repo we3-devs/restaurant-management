@@ -15,8 +15,11 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
+import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
+import { EmployeesService } from '../employees/employees.service';
 import { User } from '../users/entities/user.entity';
+import { AssignEmployeeDto } from './dto/assign-employee.dto';
 import { CreateOutletDepartmentDto } from './dto/create-outlet-department.dto';
 import { ListOutletDepartmentsQueryDto } from './dto/list-outlet-departments-query.dto';
 import { UpdateOutletDepartmentDto } from './dto/update-outlet-department.dto';
@@ -29,6 +32,8 @@ export class OutletDepartmentsController {
   constructor(
     private readonly outletDepartmentsService: OutletDepartmentsService,
     private readonly permissionsService: PermissionsService,
+    private readonly employeesService: EmployeesService,
+    private readonly outletAccess: OutletAccessService,
   ) {}
 
   @Get()
@@ -116,5 +121,44 @@ export class OutletDepartmentsController {
   @ApiOperation({ summary: 'Soft-deletes an outlet department' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.outletDepartmentsService.remove(id);
+  }
+
+  @Get(':id/employees')
+  @RequirePermissions('outlet-departments.view')
+  @ApiOperation({ summary: 'Lists the staff assigned to this department' })
+  async listEmployees(@Param('id', ParseIntPipe) id: number) {
+    await this.outletDepartmentsService.findOne(id);
+    return this.employeesService.listEmployeesByDepartment(id);
+  }
+
+  @Post(':id/employees')
+  @RequirePermissions('outlet-departments.manage')
+  @ApiOperation({ summary: 'Assigns a staff member to this department' })
+  async assignEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignEmployeeDto,
+    @CurrentUser() user: User,
+  ) {
+    const department = await this.outletDepartmentsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(user.id, department.outletId);
+    return this.employeesService.assignDepartment(
+      dto.employeeId,
+      id,
+      user.id,
+    );
+  }
+
+  @Delete(':id/employees/:employeeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('outlet-departments.manage')
+  @ApiOperation({ summary: 'Removes a staff member from this department' })
+  async removeEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('employeeId', ParseIntPipe) employeeId: number,
+    @CurrentUser() user: User,
+  ) {
+    const department = await this.outletDepartmentsService.findOne(id);
+    await this.outletAccess.assertOutletAccess(user.id, department.outletId);
+    await this.employeesService.removeDepartment(employeeId, id);
   }
 }

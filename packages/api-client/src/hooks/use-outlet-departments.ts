@@ -3,6 +3,7 @@ import { apiClient } from "../client"
 import { toQueryString, type PaginatedResponse } from "../types"
 import { queryKeys } from "../query-keys"
 import { STALE_TIME } from "../query-config"
+import type { Employee } from "./use-employees"
 import type {
   CreateOutletDepartmentInput,
   UpdateOutletDepartmentInput,
@@ -83,5 +84,31 @@ export function useDeleteOutletDepartment() {
   return useMutation({
     mutationFn: (id: number) => apiClient<void>(`/outlet-departments/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.lists() }),
+  })
+}
+
+/** The staff roster for a department's detail page. */
+export function useDepartmentEmployees(id: number) {
+  return useQuery({
+    queryKey: queryKeys.outletDepartments.employees(id),
+    queryFn: () => apiClient<Employee[]>(`/outlet-departments/${id}/employees`),
+    enabled: id > 0,
+  })
+}
+
+export function useAssignDepartmentEmployee(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (employeeId: number) =>
+      apiClient<void>(`/outlet-departments/${id}/employees`, { method: "POST", body: JSON.stringify({ employeeId }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.employees(id) }),
+  })
+}
+
+export function useRemoveDepartmentEmployee(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (employeeId: number) => apiClient<void>(`/outlet-departments/${id}/employees/${employeeId}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outletDepartments.employees(id) }),
   })
 }

@@ -391,6 +391,20 @@ export class EmployeesService {
     await this.departmentAssignments.delete({ employeeId, departmentId });
   }
 
+  /** Reverse of listDepartments — the staff roster for a department's detail page. */
+  async listEmployeesByDepartment(
+    departmentId: number,
+  ): Promise<EmployeeResponseDto[]> {
+    const assignments = await this.departmentAssignments.find({
+      where: { departmentId },
+      relations: { employee: { position: true, user: true } },
+      order: { createdAt: 'ASC' },
+    });
+    return Promise.all(
+      assignments.map((assignment) => this.toResponse(assignment.employee)),
+    );
+  }
+
   /** Users are the canonical identity record for linked employees. */
   private async syncIdentityToUser(
     userId: number | null | undefined,
