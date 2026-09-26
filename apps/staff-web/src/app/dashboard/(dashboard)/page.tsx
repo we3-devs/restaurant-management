@@ -64,6 +64,15 @@ function money(value: number) {
 function time(value: string) {
 	return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+const ORDER_TYPE_LABELS: Record<string, string> = {
+	grab_and_go: "Grab & Go",
+	table: "Table",
+	stay: "Stay",
+	delivery: "Delivery",
+};
+function orderTypeLabel(orderType: string) {
+	return ORDER_TYPE_LABELS[orderType] ?? orderType;
+}
 function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
 	return (
 		<motion.section
@@ -350,8 +359,8 @@ export default function DashboardPage() {
 							{orders.data!.data.length ? (
 								orders.data!.data.map((order) => (
 									<div className="dash-table-row" key={order.id}>
-										<span>{order.tableName ?? "—"}</span>
-										<span>{order.customerName ?? "—"}</span>
+										<span>{order.tableName ?? orderTypeLabel(order.orderType)}</span>
+										<span>{order.customerName ?? "Walk-in"}</span>
 										<span>{time(order.createdAt)}</span>
 										<Status>{order.status}</Status>
 									</div>
