@@ -13,7 +13,11 @@ const iso = (d: Date) => d.toISOString().slice(0, 10)
 const initialRange = (): DateRange => { const to = new Date(); const from = new Date(to); from.setDate(from.getDate() - 29); return { dateFrom: iso(from), dateTo: iso(to) } }
 const money = (v: number) => "NPR " + Math.round(v).toLocaleString()
 const compactNumber = (v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : String(v))
-const axisTick = { fontSize: 11, fill: "hsl(var(--muted-foreground))" }
+// --muted-foreground is a plain hex value (see packages/ui/src/globals.css),
+// not bare HSL components like --chart-1..5 — wrapping it in hsl(...) made
+// this an invalid fill, which browsers silently drop to the SVG default
+// (black), rendering every axis label near-invisible on the dark theme.
+const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" }
 const gridStroke = { stroke: "var(--border)", strokeDasharray: "3 3" }
 const revenueChartConfig = { revenue: { label: "Revenue", color: "hsl(var(--chart-1))" }, orders: { label: "Orders", color: "hsl(var(--chart-3))" } }
 const paymentChartConfig = { amount: { label: "Amount", color: "hsl(var(--chart-2))" } }
@@ -253,9 +257,9 @@ function MixDonutCard({ title, subtitle, rows }: { title: string; subtitle: stri
                     <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: `hsl(var(--chart-${(index % 5) + 1}))` }} />
                     {row.name.replaceAll("_", " ")}
                   </span>
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-xs tabular-nums text-muted-foreground">{total ? Math.round((row.value / total) * 100) : 0}%</span>
+                  <span className="flex items-baseline gap-1.5">
                     <span className="font-semibold tabular-nums">{row.value}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">({total ? Math.round((row.value / total) * 100) : 0}%)</span>
                   </span>
                 </div>
               ))}
@@ -382,16 +386,24 @@ function formatCell(value: unknown) {
 
 function MixCard({ title, subtitle, rows }: { title: string; subtitle?: string; rows: { name: string; value: string | number; detail?: string }[] }) {
   return (
-    <Panel title={title} subtitle={subtitle}>
-      {rows.length ? rows.map((row) => (
-        <div key={row.name} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0">
-          <span className="min-w-0 truncate capitalize">
-            {row.name.replaceAll("_", " ")}
-            {row.detail && <small className="ml-2 text-muted-foreground">{row.detail}</small>}
-          </span>
-          <span className="font-medium">{row.value}</span>
+    <Panel title={title} subtitle={subtitle} className="flex h-full flex-col">
+      {rows.length ? (
+        // flex-1 + justify-between: the grid stretches this card to match its
+        // taller sibling (a fixed-height chart), so a short list needs to
+        // spread across that height instead of leaving one big empty gap
+        // below the last row.
+        <div className="flex flex-1 flex-col justify-between">
+          {rows.map((row) => (
+            <div key={row.name} className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0">
+              <span className="min-w-0 truncate capitalize">
+                {row.name.replaceAll("_", " ")}
+                {row.detail && <small className="ml-2 text-muted-foreground">{row.detail}</small>}
+              </span>
+              <span className="font-medium">{row.value}</span>
+            </div>
+          ))}
         </div>
-      )) : (
+      ) : (
         <p className="py-8 text-center text-sm text-muted-foreground">No data for this range.</p>
       )}
     </Panel>
