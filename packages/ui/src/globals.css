@@ -177,36 +177,60 @@
   }
 }
 
-@page {
-  size: 80mm auto;
-  margin: 0;
+/*
+ * Thermal bill print sheet — see ReceiptPrintButton (receipt-print.tsx). It
+ * sits off-screen until a bill print is in progress, then it's the only thing
+ * on the page. Unlayered on purpose so it beats the Tailwind utilities used
+ * inside BillReceipt. Side padding keeps text inside the printable band:
+ * 58mm rolls print 48mm, 80mm rolls print 72mm.
+ */
+.receipt-print-sheet {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  box-sizing: border-box;
+  width: 80mm;
+  padding: 2mm 4mm 4mm;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.receipt-print-sheet[data-paper="58"] {
+  width: 58mm;
+  padding-inline: 5mm;
+  font-size: 12px;
+}
+/* Thermal heads can't print gray — they dither it into faint, broken text. */
+.receipt-print-sheet * {
+  color: #000;
+}
+.receipt-print-sheet .text-sm {
+  font-size: 1em;
+  line-height: inherit;
+}
+.receipt-print-sheet .text-xs {
+  font-size: 0.92em;
+  line-height: inherit;
+}
+.receipt-print-sheet .font-medium,
+.receipt-print-sheet .font-semibold {
+  font-weight: 700;
+}
+.receipt-print-sheet [data-slot="separator"] {
+  height: 0;
+  background: none;
+  border-top: 1px dashed #000;
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  #receipt,
-  #receipt * {
-    visibility: visible;
-  }
-  #receipt {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 80mm;
-    padding: 2mm 3mm;
-    margin: 0;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    font-family: "Courier New", monospace;
-    font-size: 11px;
-    line-height: 1.35;
-    color: #000;
-  }
   .no-print {
     display: none !important;
+  }
+  html.printing-receipt body > :not(.receipt-print-sheet) {
+    display: none !important;
+  }
+  html.printing-receipt .receipt-print-sheet {
+    position: static;
   }
 }
 

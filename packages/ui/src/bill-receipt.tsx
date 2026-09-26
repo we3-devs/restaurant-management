@@ -131,11 +131,11 @@ function BillItemRow({ item, name }: { item: OrderItem; name: string }) {
 
   return (
     <div>
-      <div className="flex justify-between">
-        <span>
+      <div className="flex justify-between gap-2">
+        <span className="min-w-0 break-words">
           {item.quantity} &times; {name}
         </span>
-        <span>{item.totalAmount}</span>
+        <span className="shrink-0">{item.totalAmount}</span>
       </div>
       {item.addons.map((link) => (
         <p key={link.id} className="pl-4 text-xs text-muted-foreground">

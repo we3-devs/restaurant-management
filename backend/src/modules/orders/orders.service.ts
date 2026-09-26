@@ -28,6 +28,7 @@ import { DiningTablesService } from '../dining-tables/dining-tables.service';
 import { CreateTableSessionDto } from '../table-sessions/dto/create-table-session.dto';
 import { OpenTableSessionDto } from '../table-sessions/dto/open-table-session.dto';
 import { TableSession } from '../table-sessions/entities/table-session.entity';
+import { FoodVariant } from '../food-variants/entities/food-variant.entity';
 import { FoodVariantsService } from '../food-variants/food-variants.service';
 import { Food } from '../foods/entities/food.entity';
 import { FoodsService } from '../foods/foods.service';
@@ -2138,10 +2139,19 @@ export class OrdersService {
       ]);
       const itemIdsWithAddons = new Set(allAddons.map((addon) => addon.orderItemId));
       const itemIdsWithExisting = new Set(allExisting.map((reservation) => reservation.orderItemId));
+      const variantById = new Map(
+        [...priceByVariantId.values()].map(({ variant }) => [variant.id, variant]),
+      );
       const itemsNeedingReservationWork = saved.filter((item) => {
         const food = foodById.get(item.foodId);
+        // Ready-made items stock-tracked per size (Coke 1L / 1.5L, bottled
+        // beer) carry their stock link on the variant, not a recipe.
+        const isDirectSaleTracked =
+          item.foodVariantId !== null &&
+          (variantById.get(item.foodVariantId)?.inventoryIngredientId ?? null) !== null;
         return (
           food?.itemType === 'kitchen' ||
+          isDirectSaleTracked ||
           itemIdsWithAddons.has(item.id) ||
           itemIdsWithExisting.has(item.id)
         );
@@ -2162,6 +2172,7 @@ export class OrdersService {
               order,
               itemsNeedingReservationWork,
               foodById,
+              variantById,
               manager,
             );
           }
@@ -2751,6 +2762,47 @@ export class OrdersService {
     }
   }
 
+  /**
+   * Direct-sale variant tracking (FoodVariant.inventoryIngredientId — the
+   * "Track together"/"Untrack" pair manages this field), for non-kitchen
+   * foods only. A variant sharing its ingredient with sibling variants
+   * ("tracked together", e.g. Beer 350ml/500ml pouring from one bottle pool)
+   * needs a recipe row to say how much of the shared ingredient each variant
+   * consumes; a variant that is the sole holder of its ingredient
+   * ("separate", e.g. Coke 1L / 1.5L each its own stock item) has nothing to
+   * be proportional to, so it deducts one base unit of that ingredient per
+   * unit sold. Callers skip itemType 'kitchen': that food-level BOM path
+   * already resolves every recipe row (including variant-scoped ones), so
+   * running this too would double-deduct the same ingredient.
+   *
+   * Shared by the single-item and the batch (POS cart / order create)
+   * reservation paths so the two can't drift apart again.
+   */
+  private async resolveDirectSaleRecipe(
+    variant: FoodVariant,
+  ): Promise<{ ingredientId: number; unitId: number; quantity: number; wastageQuantity: number } | null> {
+    if (variant.inventoryIngredientId === null) return null;
+
+    const recipes = await this.foodsService.resolveRecipes(variant.foodId, variant.id);
+    const trackedRecipe = recipes.find((recipe) => recipe.ingredientId === variant.inventoryIngredientId);
+    if (trackedRecipe) {
+      return {
+        ingredientId: trackedRecipe.ingredientId,
+        unitId: trackedRecipe.unitId,
+        quantity: trackedRecipe.quantity,
+        wastageQuantity: trackedRecipe.wastageQuantity,
+      };
+    }
+
+    const ingredient = await this.ingredientsService.findOne(variant.inventoryIngredientId);
+    return {
+      ingredientId: variant.inventoryIngredientId,
+      unitId: ingredient.baseUnitId,
+      quantity: 1,
+      wastageQuantity: 0,
+    };
+  }
+
   private async resolveRequiredIngredients(
     item: OrderItem,
     knownFood?: Food,
@@ -2779,43 +2831,11 @@ export class OrdersService {
       });
     }
 
-    // Direct-sale variant tracking (FoodVariant.inventoryIngredientId — the
-    // "Track together"/"Untrack" pair manages this field). A variant sharing
-    // its ingredient with sibling variants ("tracked together", e.g. Beer
-    // 350ml/500ml pouring from one bottle pool) needs a recipe row to say how
-    // much of the shared ingredient each variant consumes; a variant that is
-    // the sole holder of its ingredient ("separate") has nothing to be
-    // proportional to, so it deducts one base unit of that ingredient per
-    // unit sold. Skipped for itemType 'kitchen': that food-level BOM path
-    // above already resolves every recipe row (including variant-scoped
-    // ones), so running this too would double-deduct the same ingredient.
     if (food.itemType !== 'kitchen' && item.foodVariantId) {
       const variant = await this.foodVariantsService.findOne(item.foodVariantId);
-      if (variant.inventoryIngredientId !== null) {
-        const recipes = await this.foodsService.resolveRecipes(item.foodId, item.foodVariantId);
-        const trackedRecipe = recipes.find((recipe) => recipe.ingredientId === variant.inventoryIngredientId);
-        if (trackedRecipe) {
-          recipeGroups.push({
-            recipes: [{
-              ingredientId: trackedRecipe.ingredientId,
-              unitId: trackedRecipe.unitId,
-              quantity: trackedRecipe.quantity,
-              wastageQuantity: trackedRecipe.wastageQuantity,
-            }],
-            quantityMultiplier: item.quantity,
-          });
-        } else {
-          const ingredient = await this.ingredientsService.findOne(variant.inventoryIngredientId);
-          recipeGroups.push({
-            recipes: [{
-              ingredientId: variant.inventoryIngredientId,
-              unitId: ingredient.baseUnitId,
-              quantity: 1,
-              wastageQuantity: 0,
-            }],
-            quantityMultiplier: item.quantity,
-          });
-        }
+      const directSale = await this.resolveDirectSaleRecipe(variant);
+      if (directSale) {
+        recipeGroups.push({ recipes: [directSale], quantityMultiplier: item.quantity });
       }
     }
 
@@ -2888,6 +2908,7 @@ export class OrdersService {
     order: Order,
     items: OrderItem[],
     foodById: Map<number, Food>,
+    variantById: Map<number, FoodVariant>,
     sharedManager?: EntityManager,
   ): Promise<void> {
     if (items.length === 0) return;
@@ -2932,6 +2953,16 @@ export class OrdersService {
             item.quantity,
             required,
           );
+        } else if (item.foodVariantId) {
+          const variant = variantById.get(item.foodVariantId);
+          const directSale = variant ? await this.resolveDirectSaleRecipe(variant) : null;
+          if (directSale) {
+            await this.accumulateRecipeContributions(
+              [directSale],
+              item.quantity,
+              required,
+            );
+          }
         }
 
         const addonRecipeGroups = await Promise.all(

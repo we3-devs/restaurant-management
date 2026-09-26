@@ -6,6 +6,7 @@ import { PrinterIcon } from "lucide-react"
 import { BillReceipt } from "./bill-receipt"
 import { Button } from "./button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./dialog"
+import { ReceiptPrintButton } from "./receipt-print"
 
 /**
  * The "View / print bill" trigger plus the receipt itself, opened in a
@@ -36,12 +37,9 @@ export function BillReceiptDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[440px]">
         <DialogHeader className="no-print flex-row items-center justify-between">
           <DialogTitle>Bill</DialogTitle>
-          <Button size="sm" onClick={() => window.print()}>
-            <PrinterIcon />
-            Print
-          </Button>
+          <ReceiptPrintButton orderId={orderId} />
         </DialogHeader>
-        <div id="receipt" className="rounded-lg border border-input p-4 print:w-[80mm]">
+        <div className="rounded-lg border border-input p-4">
           <BillReceipt orderId={orderId} />
         </div>
       </DialogContent>
