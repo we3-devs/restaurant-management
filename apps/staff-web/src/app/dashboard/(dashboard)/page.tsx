@@ -337,7 +337,7 @@ export default function DashboardPage() {
 					) : (
 						<div className="dash-table">
 							<div className="dash-table-head">
-								<span>Table #</span>
+								<span>Table</span>
 								<span>Customer</span>
 								<span>Time</span>
 								<span>Status</span>
@@ -345,7 +345,7 @@ export default function DashboardPage() {
 							{orders.data!.data.length ? (
 								orders.data!.data.map((order) => (
 									<div className="dash-table-row" key={order.id}>
-										<span>{order.tableName ?? order.orderNumber}</span>
+										<span>{order.tableName ?? "—"}</span>
 										<span>{order.customerName ?? "—"}</span>
 										<span>{time(order.createdAt)}</span>
 										<Status>{order.status}</Status>
