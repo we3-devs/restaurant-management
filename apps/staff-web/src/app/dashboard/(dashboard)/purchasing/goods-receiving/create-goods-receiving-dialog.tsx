@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
+import { Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +30,21 @@ interface ReceivingRow {
   expiryDate: string
 }
 
+interface StandaloneLine {
+  key: number
+  ingredientId: string
+  quantity: string
+  unitCost: string
+  batchNo: string
+  expiryDate: string
+}
+
+let standaloneLineSeq = 0
+function emptyStandaloneLine(): StandaloneLine {
+  standaloneLineSeq += 1
+  return { key: standaloneLineSeq, ingredientId: "", quantity: "", unitCost: "", batchNo: "", expiryDate: "" }
+}
+
 export function CreateGoodsReceivingDialog() {
   const [open, setOpen] = useState(false)
   const [poId, setPoId] = useState<string>("")
@@ -37,9 +53,7 @@ export function CreateGoodsReceivingDialog() {
   const [rows, setRows] = useState<Record<number, ReceivingRow>>({})
   const [standaloneSupplierId, setStandaloneSupplierId] = useState("")
   const [standaloneWarehouseId, setStandaloneWarehouseId] = useState("")
-  const [standaloneIngredientId, setStandaloneIngredientId] = useState("")
-  const [standaloneQuantity, setStandaloneQuantity] = useState("")
-  const [standaloneUnitCost, setStandaloneUnitCost] = useState("")
+  const [standaloneLines, setStandaloneLines] = useState<StandaloneLine[]>([emptyStandaloneLine()])
 
   const { data: pos, isLoading: posLoading } = usePurchaseOrders({ limit: 100 })
   const { data: suppliers } = useSuppliers({ limit: 100 })
@@ -59,9 +73,7 @@ export function CreateGoodsReceivingDialog() {
     setRows({})
     setStandaloneSupplierId("")
     setStandaloneWarehouseId("")
-    setStandaloneIngredientId("")
-    setStandaloneQuantity("")
-    setStandaloneUnitCost("")
+    setStandaloneLines([emptyStandaloneLine()])
   }
 
   const emptyRow: ReceivingRow = { quantityReceived: "", unitCost: "", batchNo: "", expiryDate: "" }
@@ -73,21 +85,41 @@ export function CreateGoodsReceivingDialog() {
     }))
   }
 
+  function updateStandaloneLine(key: number, patch: Partial<StandaloneLine>) {
+    setStandaloneLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)))
+  }
+
+  function addStandaloneLine() {
+    setStandaloneLines((prev) => [...prev, emptyStandaloneLine()])
+  }
+
+  function removeStandaloneLine(key: number) {
+    setStandaloneLines((prev) => (prev.length > 1 ? prev.filter((line) => line.key !== key) : prev))
+  }
+
   async function handleSubmit() {
     if (poId === "standalone") {
       const warehouse = warehouses?.data.find((w) => w.id === Number(standaloneWarehouseId))
-      const quantity = Number(standaloneQuantity)
-      if (!standaloneSupplierId || !warehouse || !standaloneIngredientId || quantity <= 0) {
-        toast.error("Select supplier, warehouse, item, and enter a quantity")
+      const standaloneItems = standaloneLines
+        .filter((line) => line.ingredientId && Number(line.quantity) > 0)
+        .map((line) => ({
+          ingredientId: Number(line.ingredientId),
+          quantityReceived: Number(line.quantity),
+          unitCost: line.unitCost ? Number(line.unitCost) : undefined,
+          batchNo: line.batchNo || undefined,
+          expiryDate: line.expiryDate || undefined,
+        }))
+      if (!standaloneSupplierId || !warehouse || standaloneItems.length === 0) {
+        toast.error("Select supplier, warehouse, and enter at least one item with a quantity")
         return
       }
       try {
         await createGrn.mutateAsync({
           supplierId: Number(standaloneSupplierId), outletId: warehouse.outletId, warehouseId: warehouse.id,
           receivedDate, notes: notes || undefined,
-          items: [{ ingredientId: Number(standaloneIngredientId), quantityReceived: quantity, unitCost: standaloneUnitCost ? Number(standaloneUnitCost) : undefined }],
+          items: standaloneItems,
         })
-        toast.success("Standalone goods receiving recorded")
+        toast.success("Goods receiving recorded")
         resetAll(); setOpen(false)
       } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to record goods receiving") }
       return
@@ -171,11 +203,63 @@ export function CreateGoodsReceivingDialog() {
           </div>
 
           {poId === "standalone" && (
-            <div className="grid grid-cols-2 gap-3 rounded-md border p-3">
-              <div className="space-y-1.5"><Label>Supplier</Label><Select value={standaloneSupplierId} onValueChange={(v) => setStandaloneSupplierId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select supplier" /></SelectTrigger><SelectContent>{(suppliers?.data ?? []).map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.companyName}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label>Warehouse</Label><Select value={standaloneWarehouseId} onValueChange={(v) => setStandaloneWarehouseId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select warehouse" /></SelectTrigger><SelectContent>{(warehouses?.data ?? []).map((w) => <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label>Item</Label><Select value={standaloneIngredientId} onValueChange={(v) => setStandaloneIngredientId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select inventory item" /></SelectTrigger><SelectContent>{(ingredients?.data ?? []).map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="grid grid-cols-2 gap-2"><div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min="0" step="0.01" value={standaloneQuantity} onChange={(e) => setStandaloneQuantity(e.target.value)} /></div><div className="space-y-1.5"><Label>Unit cost</Label><Input type="number" min="0" step="0.01" value={standaloneUnitCost} onChange={(e) => setStandaloneUnitCost(e.target.value)} placeholder="Buying price" /></div></div>
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label>Supplier</Label><Select value={standaloneSupplierId} onValueChange={(v) => setStandaloneSupplierId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select supplier" /></SelectTrigger><SelectContent>{(suppliers?.data ?? []).map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.companyName}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1.5"><Label>Warehouse</Label><Select value={standaloneWarehouseId} onValueChange={(v) => setStandaloneWarehouseId(v ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select warehouse" /></SelectTrigger><SelectContent>{(warehouses?.data ?? []).map((w) => <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>)}</SelectContent></Select></div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Unit cost</TableHead>
+                    <TableHead>Batch #</TableHead>
+                    <TableHead>Expiry</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {standaloneLines.map((line) => (
+                    <TableRow key={line.key}>
+                      <TableCell>
+                        <Select value={line.ingredientId} onValueChange={(v) => updateStandaloneLine(line.key, { ingredientId: v ?? "" })}>
+                          <SelectTrigger className="w-full min-w-40"><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectContent>{(ingredients?.data ?? []).map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" min="0" step="0.01" className="w-24" value={line.quantity} onChange={(e) => updateStandaloneLine(line.key, { quantity: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" min="0" step="0.01" className="w-24" placeholder="Buying price" value={line.unitCost} onChange={(e) => updateStandaloneLine(line.key, { unitCost: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input className="w-24" value={line.batchNo} onChange={(e) => updateStandaloneLine(line.key, { batchNo: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input type="date" className="w-36" value={line.expiryDate} onChange={(e) => updateStandaloneLine(line.key, { expiryDate: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={standaloneLines.length === 1}
+                          onClick={() => removeStandaloneLine(line.key)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <Button type="button" variant="outline" size="sm" onClick={addStandaloneLine}>
+                <Plus className="size-4" /> Add item
+              </Button>
             </div>
           )}
 
