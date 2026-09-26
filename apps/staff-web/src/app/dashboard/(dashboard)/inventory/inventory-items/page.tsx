@@ -6,7 +6,6 @@ import { DownloadIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableSkeleton } from "@/components/ui/skeletons"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -15,7 +14,6 @@ import { useIngredients } from "@/hooks/use-ingredients"
 import { useWarehouseIngredientStocks } from "@/hooks/use-inventory-stock"
 import { useUnits } from "@/hooks/use-units"
 import { useWarehouses } from "@/hooks/use-warehouses"
-import { useAnalyticsInventory } from "@/hooks/use-analytics"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { CreateIngredientDialog } from "../ingredients/create-ingredient-dialog"
@@ -46,9 +44,6 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   const { data: stocks, isLoading: stocksLoading } = useWarehouseIngredientStocks({
     warehouseId: selectedWarehouseId,
   })
-  const today = new Date().toISOString().slice(0, 10)
-  const from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
-  const inventoryAnalytics = useAnalyticsInventory({ outletId, dateFrom: from, dateTo: today })
 
   const rows = useMemo(() => {
     const ingredientById = new Map((ingredients?.data ?? []).map((ingredient) => [ingredient.id, ingredient]))
@@ -73,14 +68,12 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
   const showSkeleton = useDelayedLoading(isLoading)
 
   function handleExport() {
-    const header = ["Name", "Item code", "Tenant", "Outlet", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost", "Buying price", "Selling price"]
+    const header = ["Name", "Item code", "Category", "Unit", "Location", "Total quantity", "Available", "Avg. cost", "Total cost", "Buying price", "Selling price"]
     const data = rows.map(({ ingredient, stock, unit }) => {
       const location = warehouses?.data.find((warehouse) => warehouse.id === stock.warehouseId)
       return [
         ingredient.name,
         ingredient.code,
-        ingredient.outlet?.tenant?.name ?? "",
-        ingredient.outlet?.name ?? "",
         ingredient.category.name,
         unit?.shortName ?? unit?.name ?? "",
         location?.name ?? `Warehouse #${stock.warehouseId}`,
@@ -139,7 +132,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {showSkeleton ? (
-        <TableSkeleton rows={6} columns={14} />
+        <TableSkeleton rows={6} columns={12} />
       ) : (
         <>
         <div className="space-y-3 md:hidden">
@@ -160,7 +153,6 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                   <div className="min-w-0 flex-1">
                     {readOnly ? <p className="truncate font-medium">{ingredient.name}</p> : <Link href={`/dashboard/inventory/ingredients/${ingredient.id}`} className="block truncate font-medium hover:underline">{ingredient.name}</Link>}
                     <p className="truncate text-xs text-muted-foreground">{ingredient.code} · {ingredient.category.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{ingredient.outlet?.tenant?.name ?? "—"} · {ingredient.outlet?.name ?? "—"}</p>
                   </div>
                   {!ingredient.isActive && <Badge variant="destructive">inactive</Badge>}
                 </div>
@@ -182,8 +174,6 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Item code</TableHead>
-              <TableHead>Tenant</TableHead>
-              <TableHead>Outlet</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Location</TableHead>
@@ -199,7 +189,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                   {warehouses?.data.length ? "No inventory items in these warehouses." : "No warehouses found."}
                 </TableCell>
               </TableRow>
@@ -212,8 +202,6 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                     {!ingredient.isActive && <Badge variant="destructive" className="ml-2">inactive</Badge>}
                   </TableCell>
                   <TableCell>{ingredient.code}</TableCell>
-                  <TableCell>{ingredient.outlet?.tenant?.name ?? "—"}</TableCell>
-                  <TableCell>{ingredient.outlet?.name ?? "—"}</TableCell>
                   <TableCell>{ingredient.category.name}</TableCell>
                   <TableCell>{unit?.shortName ?? unit?.name ?? "—"}</TableCell>
                   <TableCell>{location?.name ?? `Warehouse #${stock.warehouseId}`}</TableCell>
@@ -235,7 +223,6 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
         </Table></div>
         </>
       )}
-      {readOnly && <Card className="overflow-hidden rounded-md border border-border"><CardHeader><CardTitle>Recent inventory movement</CardTitle><CardDescription>Movement totals for the last 30 days</CardDescription></CardHeader><CardContent>{inventoryAnalytics.data?.movement.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{inventoryAnalytics.data.movement.map((movement) => <div key={movement.type} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm"><span className="capitalize">{movement.type.replaceAll("_", " ")}</span><span className="font-semibold tabular-nums">{movement.quantity.toLocaleString()}</span></div>)}</div> : <p className="py-6 text-center text-sm text-muted-foreground">No inventory movement in this period.</p>}</CardContent></Card>}
     </div>
   )
 }
