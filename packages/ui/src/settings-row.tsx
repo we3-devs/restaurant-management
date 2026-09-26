@@ -86,7 +86,7 @@ function SettingsRow({
 function SettingsRowGroup({ className, ...props }: ComponentProps<"div">) {
   return (
     <Card
-      className={cn("gap-0 divide-y divide-border rounded-2xl border-border/60 p-0 shadow-none", className)}
+      className={cn("gap-0 divide-y divide-border rounded-xl border-border p-0 shadow-none", className)}
       {...props}
     />
   )

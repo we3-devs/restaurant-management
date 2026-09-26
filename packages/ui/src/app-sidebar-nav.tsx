@@ -59,10 +59,10 @@ export function AppSidebarNav({
               aria-label={`Expand ${group.label}`}
               onClick={() => onExpandGroup?.(group.label)}
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                "flex size-9 shrink-0 items-center justify-center rounded-md transition-colors",
                 active
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
             >
               <Icon className="size-4.5" />
@@ -108,7 +108,7 @@ function NavSection({
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted hover:text-foreground"
+        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       >
         <Icon className="size-3.5 shrink-0" />
         <span className="flex-1 text-left">{group.label}</span>
@@ -121,7 +121,7 @@ function NavSection({
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="relative mt-0.5 flex flex-col gap-0.5 pl-5 before:absolute before:inset-y-0 before:left-3 before:w-px before:bg-border/60">
+          <div className="mt-0.5 flex flex-col gap-0.5 pl-5">
             {group.links.map((link) => {
               const active = isNavLinkActive(pathname, link.href)
               return (
@@ -130,10 +130,10 @@ function NavSection({
                   href={link.href}
                   tabIndex={open ? 0 : -1}
                   className={cn(
-                    "relative rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
+                    "rounded-md px-2 py-1.5 text-sm transition-colors duration-150",
                     active
-                      ? "bg-primary/10 font-medium text-primary before:absolute before:top-1/2 before:-left-2 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )}
                 >
                   {link.label}

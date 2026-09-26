@@ -88,12 +88,12 @@ function Heading({
 	href?: string;
 }) {
 	const destinations: Record<string, string> = {
-		"Sales Overview": "/dashboard/analytics",
-		"Recent Orders": "/dashboard/orders",
-		"Top Selling Items": "/dashboard/foods",
-		"Table Occupancy": "/dashboard/dining-areas",
-		"Kitchen Queue": "/dashboard/orders",
-		"Today's domain activity": "/dashboard/analytics",
+		"Sales Overview": "/dashboard/overview/analytics",
+		"Recent Orders": "/dashboard/overview/orders",
+		"Top Selling Items": "/dashboard/menu/foods",
+		"Table Occupancy": "/dashboard/floor-management/dining-areas",
+		"Kitchen Queue": "/dashboard/overview/orders",
+		"Today's domain activity": "/dashboard/overview/analytics",
 	};
 	const destination = title === "Sales Overview" || action === "" ? undefined : (href ?? destinations[title]);
 	const label = action || "View All";
@@ -361,7 +361,7 @@ export default function DashboardPage() {
 				) : bestSelling.length ? (
 					<div className="item-grid">
 						{bestSelling.map((item) => (
-							<Link href={`/dashboard/foods/${item.foodId}`} className="selling-item" key={item.foodId}>
+							<Link href={`/dashboard/menu/foods/${item.foodId}`} className="selling-item" key={item.foodId}>
 								<div className="item-emoji">🍽️</div>
 								<div>
 									<strong>{item.foodName}</strong>

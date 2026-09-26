@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon } from "lucide-react"
+import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "./badge"
@@ -47,6 +47,8 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
       return <CheckCircle2Icon className={cn(className, "text-emerald-500")} />
     case "service_request":
       return notification.tableName ? <DropletIcon className={cn(className, "text-sky-500")} /> : <HandIcon className={cn(className, "text-sky-500")} />
+    case "guest_checked_in":
+      return <UserPlusIcon className={cn(className, "text-violet-500")} />
     default:
       return <BellIcon className={className} />
   }

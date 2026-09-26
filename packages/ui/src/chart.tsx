@@ -24,7 +24,7 @@ export function ChartContainer({ id = "chart", config, className, children }: { 
 export function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: { name?: string; value?: unknown; color?: string; stroke?: string; fill?: string }[]; label?: React.ReactNode }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-border/70 bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-popover">
       {label != null && <p className="mb-1 font-medium text-popover-foreground">{label}</p>}
       {payload.map((entry, index) => {
         const color = entry.color ?? entry.stroke ?? entry.fill

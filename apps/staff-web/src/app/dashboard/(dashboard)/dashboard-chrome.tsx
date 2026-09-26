@@ -50,7 +50,7 @@ export function DashboardChrome({
                 <ThemeToggle />
                 <NotificationBell pushApp="dashboard" />
                 <Separator orientation="vertical" className="mx-1 h-6" />
-                <UserMenu profileHref="/dashboard/profile" />
+                <UserMenu profileHref="/dashboard/account/profile" />
               </div>
             </header>
             <main className="flex flex-1 flex-col p-4 sm:p-6">{allowed ? children : <AccessDenied />}</main>

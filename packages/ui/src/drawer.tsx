@@ -45,7 +45,7 @@ function DrawerContent({
         <DrawerPrimitive.Popup
           data-slot="drawer-content"
           className={cn(
-            "flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none [transform:translateX(var(--drawer-swipe-movement-x))] data-open:animate-in data-open:slide-in-from-right-4 data-open:fade-in-0 data-closed:animate-out data-closed:slide-out-to-right-4 data-closed:fade-out-0",
+            "flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-popover outline-none [transform:translateX(var(--drawer-swipe-movement-x))] data-open:animate-in data-open:slide-in-from-right-4 data-open:fade-in-0 data-closed:animate-out data-closed:slide-out-to-right-4 data-closed:fade-out-0",
             className,
           )}
           {...props}

@@ -172,7 +172,7 @@ export function LiveOrdersSection({ outletId, enabled }: OperationalSectionProps
                   return (
                     <Link
                       key={order.id}
-                      href={`/dashboard/orders/${order.id}`}
+                      href={`/dashboard/overview/orders/${order.id}`}
                       className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
                     >
                       <span className="min-w-0 flex-1 truncate font-medium">#{order.orderNumber}<span className="ml-2 text-xs font-normal text-muted-foreground">{order.orderType.replaceAll("_", " ")}</span></span>
@@ -247,7 +247,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
         id: "low-stock",
         severity: "warning",
         label: `${lowStock.length} ingredient${lowStock.length > 1 ? "s" : ""} at or below reorder level`,
-        href: "/dashboard/ingredients",
+        href: "/dashboard/inventory/ingredients",
       })
     }
 
@@ -267,7 +267,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
         id: "pending-approval",
         severity: "warning",
         label: `${pendingApproval.length} order${pendingApproval.length > 1 ? "s" : ""} pending approval`,
-        href: "/dashboard/orders",
+        href: "/dashboard/overview/orders",
       })
     }
 
@@ -277,7 +277,7 @@ export function NeedsAttentionSection({ outletId, enabled, canViewOrders, canVie
         id: "unpaid-completed",
         severity: "critical",
         label: `${unpaidCompleted.length} completed order${unpaidCompleted.length > 1 ? "s" : ""} unpaid`,
-        href: "/dashboard/invoices",
+        href: "/dashboard/overview/invoices",
       })
     }
 
@@ -375,7 +375,7 @@ export function TableStatusSection({ outletId, enabled }: OperationalSectionProp
                 </div>
               ))}
             </div>
-            <Button variant="outline" size="sm" className="w-full" render={<Link href="/dashboard/tables" />}>
+            <Button variant="outline" size="sm" className="w-full" render={<Link href="/dashboard/floor-management/tables" />}>
               View floor plan
             </Button>
           </div>
@@ -427,7 +427,7 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((row) => (
-              <div key={row.id} className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 p-4 shadow-sm">
+              <div key={row.id} className="rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold tracking-tight">{row.name}</p>
@@ -444,10 +444,10 @@ export function DiningAreasSection({ outletId, enabled }: OperationalSectionProp
                   {row.tables.map((table) => (
                     <Link
                       key={table.id}
-                      href={`/dashboard/tables/${table.id}`}
+                      href={`/dashboard/floor-management/tables/${table.id}`}
                       title={`${table.name} · ${table.status}`}
                       className={cn(
-                        "flex min-h-16 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border px-1.5 py-2 text-center text-xs transition-all hover:-translate-y-0.5 hover:shadow-sm",
+                        "flex min-h-16 min-w-0 flex-col items-center justify-center overflow-hidden rounded-md border px-1.5 py-2 text-center text-xs transition-colors",
                         table.status === "occupied" && "border-destructive/30 bg-destructive/10 text-destructive",
                         table.status === "reserved" && "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
                         table.status === "available" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -498,7 +498,7 @@ export function KitchenStatusSection({ outletId, enabled }: OperationalSectionPr
         ) : (
           <div className="space-y-1.5">
             {queue.map((ticket) => (
-              <Link key={ticket.id} href={`/dashboard/orders/${ticket.orderId}`} className="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm transition-colors hover:border-border hover:bg-muted/50">
+              <Link key={ticket.id} href={`/dashboard/overview/orders/${ticket.orderId}`} className="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm transition-colors hover:border-border hover:bg-muted/50">
                 <span className={cn("size-2 shrink-0 rounded-full", ticket.status === "in_progress" ? "bg-amber-500" : "bg-sky-500")} />
                 <span className="min-w-0 flex-1 truncate font-medium">#{ticket.order?.orderNumber ?? ticket.orderId}</span>
                 <span className="text-xs capitalize text-muted-foreground">{ticket.status.replaceAll("_", " ")}</span>
@@ -580,7 +580,7 @@ export function PaymentStatusSection({ outletId, enabled }: OperationalSectionPr
               </div>
             )}
             <Link
-              href="/dashboard/orders"
+              href="/dashboard/overview/orders"
               className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
             >
               <span className="flex items-center gap-2 text-muted-foreground">
@@ -653,12 +653,12 @@ export interface QuickAction {
 }
 
 export const QUICK_ACTIONS: QuickAction[] = [
-  { href: "/dashboard/orders", label: "Orders", icon: ShoppingBagIcon, permission: "orders.view" },
-  { href: "/dashboard/tables", label: "Tables", icon: UtensilsCrossedIcon, permission: "dining-tables.view" },
+  { href: "/dashboard/overview/orders", label: "Orders", icon: ShoppingBagIcon, permission: "orders.view" },
+  { href: "/dashboard/floor-management/tables", label: "Tables", icon: UtensilsCrossedIcon, permission: "dining-tables.view" },
   { href: "/dashboard/notifications", label: "Notifications", icon: AlertTriangleIcon, permission: true },
-  { href: "/dashboard/attendance", label: "Attendance", icon: UsersIcon, permission: "attendance.view" },
-  { href: "/dashboard/ingredients", label: "Ingredients", icon: ChefHatIcon, permission: "ingredients.view" },
-  { href: "/dashboard/reports", label: "Reports", icon: ReceiptIcon, permission: "reports.view" },
+  { href: "/dashboard/staff/attendance", label: "Attendance", icon: UsersIcon, permission: "attendance.view" },
+  { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: ChefHatIcon, permission: "ingredients.view" },
+  { href: "/dashboard/overview/reports", label: "Reports", icon: ReceiptIcon, permission: "reports.view" },
 ]
 
 export function DomainTodaySection({ outletId, enabled }: OperationalSectionProps) {

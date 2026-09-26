@@ -27,7 +27,7 @@ export function FloatingCart({ orderId, basePath = "/operational/pos" }: { order
       <Button
         onClick={() => setOpen(true)}
         aria-label="Open cart"
-        className="fixed right-6 bottom-6 z-30 size-16 rounded-full p-0 shadow-lg"
+        className="fixed right-6 bottom-6 z-30 size-16 rounded-full p-0 shadow-popover"
       >
         <ShoppingCartIcon className="size-6" />
         {isLoading ? (

@@ -11,7 +11,7 @@ function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "relative inline-flex h-9 w-fit items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+        "relative inline-flex h-9 w-fit items-center gap-4 border-b border-border text-muted-foreground",
         className,
       )}
       {...props}
@@ -24,7 +24,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative z-10 inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors select-none data-selected:text-foreground disabled:pointer-events-none disabled:opacity-50",
+        "relative z-10 inline-flex h-9 items-center justify-center gap-1.5 px-0.5 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors select-none hover:text-foreground data-selected:text-foreground disabled:pointer-events-none disabled:opacity-50",
         className,
       )}
       {...props}
@@ -37,7 +37,7 @@ function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
     <TabsPrimitive.Indicator
       data-slot="tabs-indicator"
       className={cn(
-        "absolute top-1 left-0 z-0 h-7 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-md bg-background shadow-sm transition-all duration-200 ease-in-out",
+        "absolute bottom-0 left-0 z-0 h-[2px] w-(--active-tab-width) translate-x-(--active-tab-left) rounded-full bg-foreground transition-all duration-200 ease-in-out",
         className,
       )}
       {...props}

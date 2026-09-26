@@ -58,7 +58,7 @@ export function DashboardAssistantChatbot() {
   return (
     <div className="fixed right-4 bottom-4 z-50 sm:right-6 sm:bottom-6">
       {open && (
-        <Card className="mb-3 flex h-[min(680px,calc(100dvh-2rem))] w-[560px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden bg-card bg-none shadow-xl">
+        <Card className="mb-3 flex h-[min(680px,calc(100dvh-2rem))] w-[560px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden bg-card shadow-popover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <div><CardTitle className="text-base">Restra AI</CardTitle><p className="text-xs text-muted-foreground">Your restaurant’s smart sidekick</p></div>
             <div className="flex items-center gap-1">
@@ -86,7 +86,7 @@ export function DashboardAssistantChatbot() {
       {!open && (
         <Button
           size="icon"
-          className="ml-auto size-12 rounded-full bg-primary p-0 text-primary-foreground shadow-lg ring-1 ring-primary/30 transition-transform hover:scale-105 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="ml-auto size-12 rounded-full bg-primary p-0 text-primary-foreground shadow-popover transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           onClick={() => setOpen(true)}
           aria-label="Talk to Restra AI"
           title="Talk to Restra AI"

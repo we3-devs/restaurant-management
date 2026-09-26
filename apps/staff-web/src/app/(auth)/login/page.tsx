@@ -5,7 +5,7 @@ import { LoginForm } from "./login-form"
 
 export default function LoginPage() {
   return (
-    <Card className="shadow-md sm:shadow-lg">
+    <Card className="shadow-popover">
       <CardHeader className="lg:hidden">
         <CardTitle className="text-lg">Staff sign in</CardTitle>
       </CardHeader>

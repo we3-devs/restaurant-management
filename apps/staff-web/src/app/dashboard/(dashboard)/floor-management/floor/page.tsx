@@ -1,0 +1,103 @@
+"use client"
+
+import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { ArmchairIcon, GripIcon } from "lucide-react"
+
+import { Button } from "@rms/ui/button"
+import { cn } from "@rms/ui/cn"
+import { Badge } from "@rms/ui/badge"
+import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
+import { useDiningAreas } from "@rms/api-client/hooks/use-dining-areas"
+import { useDiningTables, useUpdateDiningTable, type DiningTable } from "@rms/api-client/hooks/use-dining-tables"
+import { usePageTitle } from "@rms/ui/use-page-title"
+import { CreateDiningTableDialog } from "@/app/operational/(operational)/dining-tables/create-dining-table-dialog"
+
+type Point = { x: number; y: number }
+const STATUS_STYLES: Record<string, string> = {
+  available: "border-emerald-500/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
+  occupied: "border-destructive/70 bg-destructive/15 text-destructive",
+  reserved: "border-amber-500/70 bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  cleaning: "border-muted-foreground/40 bg-muted text-muted-foreground",
+  inactive: "border-muted-foreground/30 bg-muted/60 text-muted-foreground opacity-60",
+}
+
+export default function FloorPlanPage() {
+  const { outletId } = useActiveOutlet()
+  const [arrangeMode, setArrangeMode] = useState(false)
+  const [positions, setPositions] = useState<Record<number, Point>>({})
+  const { data: areas, isLoading } = useDiningAreas({ outletId: outletId ?? undefined, limit: 100 })
+
+  usePageTitle("Floor Plan")
+
+  if (!outletId) return <p className="text-sm text-muted-foreground">Select an outlet to design its floor plan.</p>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Floor Plan</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <CreateDiningTableDialog />
+          <Button variant={arrangeMode ? "default" : "outline"} size="sm" onClick={() => setArrangeMode((value) => !value)}>
+            <GripIcon /> {arrangeMode ? "Done arranging" : "Arrange floor"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3 py-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" /> Available</span>
+        <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-destructive" /> Occupied</span>
+        <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" /> Reserved</span>
+        <span className="w-full sm:ml-auto sm:w-auto">{arrangeMode ? "Drag tables to position them on the map." : "Tap a table to edit or delete it."}</span>
+      </div>
+
+      {isLoading && <div className="h-80 animate-pulse rounded-xl border bg-muted/30" />}
+      {!isLoading && (areas?.data.length ?? 0) === 0 && <p className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">Create a dining area first, then place its tables here.</p>}
+      <div className="space-y-5">
+        {areas?.data.map((area) => <AreaMap key={area.id} outletId={outletId} area={area} arrangeMode={arrangeMode} positions={positions} onPositionChange={(tableId, point) => setPositions((current) => ({ ...current, [tableId]: point }))} />)}
+      </div>
+    </div>
+  )
+}
+
+function AreaMap({ outletId, area, arrangeMode, positions, onPositionChange }: { outletId: number; area: { id: number; name: string; code: string | null; isActive: boolean }; arrangeMode: boolean; positions: Record<number, Point>; onPositionChange: (tableId: number, point: Point) => void }) {
+  const { data: tables } = useDiningTables({ outletId, diningAreaId: area.id, limit: 100 })
+
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{area.name}</h2>{area.code && <span className="text-xs text-muted-foreground">{area.code}</span>}{!area.isActive && <Badge variant="destructive">inactive</Badge>}</div><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{tables?.data.length ?? 0} tables</span></div></div>
+      <div className="relative h-[420px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:h-[360px]">
+        {(tables?.data ?? []).map((table, index) => <MapTable key={table.id} table={table} index={index} arrangeMode={arrangeMode} position={positions[table.id]} onPositionChange={onPositionChange} />)}
+        {(tables?.data.length ?? 0) === 0 && <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">No tables in this area yet.</p>}
+      </div>
+    </section>
+  )
+}
+
+function MapTable({ table, index, arrangeMode, position, onPositionChange }: { table: DiningTable; index: number; arrangeMode: boolean; position?: Point; onPositionChange: (tableId: number, point: Point) => void }) {
+  const router = useRouter()
+  const [dragging, setDragging] = useState(false)
+  const lastPoint = useRef<Point | null>(null)
+  const updateTable = useUpdateDiningTable(table.id)
+  const point = position ?? ((table.positionX !== 0 || table.positionY !== 0) ? { x: table.positionX, y: table.positionY } : { x: 12 + (index % 4) * 23, y: 18 + Math.floor(index / 4) * 30 })
+
+  function move(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!dragging) return
+    const board = event.currentTarget.parentElement
+    if (!board) return
+    const bounds = board.getBoundingClientRect()
+    const nextPoint = { x: Math.max(7, Math.min(93, ((event.clientX - bounds.left) / bounds.width) * 100)), y: Math.max(10, Math.min(90, ((event.clientY - bounds.top) / bounds.height) * 100)) }
+    lastPoint.current = nextPoint
+    onPositionChange(table.id, nextPoint)
+  }
+
+  return (
+    <button type="button" className={cn("absolute w-20 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 px-1 py-2 text-center transition-shadow sm:w-28 sm:px-2 sm:py-3", STATUS_STYLES[table.status] ?? STATUS_STYLES.available, arrangeMode && "touch-none", !arrangeMode && "cursor-pointer hover:brightness-95", dragging && "z-10 shadow-popover ring-2 ring-primary/30")} style={{ left: `${point.x}%`, top: `${point.y}%` }} onPointerDown={arrangeMode ? (event) => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) } : undefined} onPointerMove={arrangeMode ? move : undefined} onPointerUp={arrangeMode ? () => { setDragging(false); const saved = lastPoint.current; if (saved) updateTable.mutate({ positionX: saved.x, positionY: saved.y } as never) } : undefined} onPointerCancel={arrangeMode ? () => setDragging(false) : undefined} onClick={!arrangeMode ? () => router.push(`/dashboard/floor-management/tables/${table.id}`) : undefined}>
+      {arrangeMode ? <GripIcon className="mx-auto mb-1 size-4 opacity-50" /> : <ArmchairIcon className="mx-auto mb-1 size-4 opacity-60" />}
+      <span className="block text-xs font-semibold sm:text-sm">{table.name}</span>
+      <span className="mt-0.5 block text-[10px] capitalize opacity-75 sm:text-[11px]">{table.status} · {table.capacity} seats</span>
+    </button>
+  )
+}

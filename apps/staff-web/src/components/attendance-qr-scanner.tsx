@@ -87,7 +87,7 @@ export function AttendanceQrScanner({ onComplete, status }: { onComplete: () => 
     <>
       <SettingsRow icon={CameraIcon} label="Attendance" trailing={<span className="text-right text-sm text-muted-foreground">{status}</span>} onClick={() => void start()} />
       <div className={`${scanning ? "fixed flex" : "hidden"} inset-0 z-50 items-center justify-center bg-black/70 p-4`}>
-          <div className="w-full max-w-sm rounded-2xl bg-card p-4 shadow-2xl">
+          <div className="w-full max-w-sm rounded-xl bg-card p-4 shadow-popover">
             <div className="mb-3 flex items-center justify-between">
               <div><p className="font-semibold">Scan attendance QR</p><p className="text-sm text-muted-foreground">Use clock-in or clock-out QR</p></div>
               <Button variant="ghost" size="icon" onClick={stop} aria-label="Close scanner"><XIcon className="size-5" /></Button>

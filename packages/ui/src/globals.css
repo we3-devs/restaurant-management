@@ -19,10 +19,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Keep builds and first paint independent of external font providers. */
+/* Keep builds and first paint independent of external font providers. Notion
+   itself ships no custom webfont for UI text — it renders in the platform's
+   own system-ui stack, so matching that stack (rather than substituting a
+   webfont) is the accurate way to match its look. */
 :root {
-  --font-geist-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-geist-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
@@ -68,6 +71,7 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --shadow-popover: var(--popover-shadow);
   --animate-skeleton: skeleton-shimmer 1.8s ease-in-out infinite;
 
   @keyframes skeleton-shimmer {
@@ -80,75 +84,85 @@
   }
 }
 
+/*
+ * Notion's own design language: a near-white canvas, near-black (not pure
+ * black) text, hairline borders at ~9% black rather than a gray fill, a
+ * single restrained blue for interactive accents, and soft multi-layer
+ * popover shadows instead of a hard drop shadow. Radii stay small (Notion's
+ * own buttons/inputs sit around 3-6px) rather than the rounder "SaaS card"
+ * default.
+ */
 :root {
-  --background: #F8FAFC;
-  --foreground: #0F172A;
+  --background: #FFFFFF;
+  --foreground: #37352F;
   --card: #FFFFFF;
-  --card-foreground: #0F172A;
+  --card-foreground: #37352F;
   --popover: #FFFFFF;
-  --popover-foreground: #0F172A;
-  --primary: #0430de;
+  --popover-foreground: #37352F;
+  --primary: #2383E2;
   --primary-foreground: #FFFFFF;
-  --secondary: #F1F5F9;
-  --secondary-foreground: #0F172A;
-  --muted: #F1F5F9;
-  --skeleton-highlight: #E2E8F0;
-  --muted-foreground: #475569;
-  --accent: #EEF2FF;
-  --accent-foreground: #4338CA;
-  --destructive: #DC2626;
-  --border: #E2E8F0;
-  --input: #E2E8F0;
-  --ring: #6366F1;
-  --chart-1: 243 75% 59%;
-  --chart-2: 258 90% 66%;
-  --chart-3: 199 89% 48%;
-  --chart-4: 38 92% 50%;
-  --chart-5: 160 84% 39%;
-  --radius: 0.75rem;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #0F172A;
-  --sidebar-primary: #4F46E5;
+  --secondary: #F1F1EF;
+  --secondary-foreground: #37352F;
+  --muted: #F7F7F5;
+  --skeleton-highlight: #EDECE9;
+  --muted-foreground: #8A8A86;
+  --accent: #EDEDEC;
+  --accent-foreground: #37352F;
+  --destructive: #E03E3E;
+  --border: #E9E9E7;
+  --input: #DFDFDD;
+  --ring: #2383E2;
+  --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.05), 0 3px 6px rgba(15, 15, 15, 0.05), 0 9px 24px rgba(15, 15, 15, 0.08);
+  --chart-1: 206 74% 51%;
+  --chart-2: 273 27% 55%;
+  --chart-3: 328 60% 60%;
+  --chart-4: 29 86% 45%;
+  --chart-5: 172 78% 27%;
+  --radius: 0.4rem;
+  --sidebar: #FBFBFA;
+  --sidebar-foreground: #37352F;
+  --sidebar-primary: #2383E2;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EEF2FF;
-  --sidebar-accent-foreground: #4338CA;
-  --sidebar-border: #E2E8F0;
-  --sidebar-ring: #6366F1;
+  --sidebar-accent: #EDEDEC;
+  --sidebar-accent-foreground: #37352F;
+  --sidebar-border: #E9E9E7;
+  --sidebar-ring: #2383E2;
 }
 
 .dark {
-  --background: rgb(15, 16, 14);
-  --foreground: #E2E8F0;
-  --card: rgb(23, 24, 21);
-  --card-foreground: #E2E8F0;
-  --popover: rgb(23, 24, 21);
-  --popover-foreground: #E2E8F0;
-  --primary: #6366F1;
+  --background: #191919;
+  --foreground: #D4D4D4;
+  --card: #202020;
+  --card-foreground: #D4D4D4;
+  --popover: #252525;
+  --popover-foreground: #D4D4D4;
+  --primary: #529CCA;
   --primary-foreground: #FFFFFF;
-  --secondary: rgb(31, 32, 28);
-  --secondary-foreground: #E2E8F0;
-  --muted: rgb(31, 32, 28);
-  --skeleton-highlight: rgb(40, 41, 36);
-  --muted-foreground: #94A3B8;
-  --accent: color-mix(in srgb, #6366F1 18%, rgb(23, 24, 21));
-  --accent-foreground: #C7D2FE;
-  --destructive: #F87171;
-  --border: rgb(36, 37, 33);
-  --input: rgb(36, 37, 33);
-  --ring: #6366F1;
-  --chart-1: 234 89% 74%;
-  --chart-2: 255 92% 76%;
-  --chart-3: 198 93% 60%;
-  --chart-4: 43 96% 56%;
-  --chart-5: 158 64% 52%;
-  --sidebar: rgb(19, 20, 18);
-  --sidebar-foreground: #E2E8F0;
-  --sidebar-primary: #6366F1;
+  --secondary: #2F2F2F;
+  --secondary-foreground: #D4D4D4;
+  --muted: #252525;
+  --skeleton-highlight: #2F2F2F;
+  --muted-foreground: #999999;
+  --accent: #2F2F2F;
+  --accent-foreground: #E9E9E7;
+  --destructive: #FF7369;
+  --border: #2F2F2F;
+  --input: #373737;
+  --ring: #529CCA;
+  --popover-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 3px 6px rgba(0, 0, 0, 0.3), 0 9px 24px rgba(0, 0, 0, 0.35);
+  --chart-1: 202 65% 60%;
+  --chart-2: 270 35% 68%;
+  --chart-3: 328 55% 68%;
+  --chart-4: 33 80% 58%;
+  --chart-5: 165 55% 42%;
+  --sidebar: #202020;
+  --sidebar-foreground: #D4D4D4;
+  --sidebar-primary: #529CCA;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: color-mix(in srgb, #6366F1 18%, rgb(23, 24, 21));
-  --sidebar-accent-foreground: #C7D2FE;
-  --sidebar-border: rgb(36, 37, 33);
-  --sidebar-ring: #6366F1;
+  --sidebar-accent: #2F2F2F;
+  --sidebar-accent-foreground: #E9E9E7;
+  --sidebar-border: #2F2F2F;
+  --sidebar-ring: #529CCA;
 }
 
 @layer base {
@@ -199,17 +213,6 @@
 @layer components {
   .page-shell {
     min-width: 0;
-  }
-
-  /* The live dashboard uses the same soft color language as Settings while
-     keeping operational states (alerts and tables) visually stronger. */
-  .dashboard-page [data-slot="card"] {
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, hsl(var(--chart-1)) 4%, var(--card)),
-      var(--card) 56%,
-      color-mix(in srgb, hsl(var(--chart-3)) 5%, var(--card))
-    );
   }
 
   .dashboard-page [data-slot="card"] [data-slot="card-title"] {
