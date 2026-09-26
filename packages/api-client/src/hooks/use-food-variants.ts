@@ -101,6 +101,14 @@ export function useLinkIngredientToSiblings(id: number) {
   })
 }
 
+export function useUntrackSiblings(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<{ updated: number }>(`/food-variants/${id}/untrack-siblings`, { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foodVariants.lists() }),
+  })
+}
+
 export function useFoodVariantOutlets(variantId: number) {
   return useQuery({
     queryKey: queryKeys.foodVariants.outlets(variantId),

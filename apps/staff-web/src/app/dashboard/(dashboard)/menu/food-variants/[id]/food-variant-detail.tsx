@@ -32,6 +32,7 @@ import {
   useFoodVariantOutlets,
   useLinkIngredientToSiblings,
   useRemoveFoodVariantOutlet,
+  useUntrackSiblings,
   useUpdateFoodVariant,
   useUpsertFoodVariantOutlet,
 } from "@/hooks/use-food-variants"
@@ -58,6 +59,7 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const updateVariant = useUpdateFoodVariant(variantId)
   const deleteVariant = useDeleteFoodVariant()
   const linkIngredientToSiblings = useLinkIngredientToSiblings(variantId)
+  const untrackSiblings = useUntrackSiblings(variantId)
 
   const form = useForm<UpdateFoodVariantInput>({
     resolver: zodResolver(updateFoodVariantSchema),
@@ -105,6 +107,19 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       toast.success(updated > 0 ? `Linked to ${updated} other food item${updated === 1 ? "" : "s"} of this food` : "This food has no other food items")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to link ingredient")
+    }
+  }
+
+  async function handleUntrackSiblings() {
+    try {
+      const { updated } = await untrackSiblings.mutateAsync()
+      toast.success(
+        updated > 0
+          ? `Untracked ${updated} other food item${updated === 1 ? "" : "s"} that shared this ingredient`
+          : "No other food items were sharing this ingredient",
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to untrack siblings")
     }
   }
 
@@ -253,11 +268,21 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
                         >
                           {linkIngredientToSiblings.isPending ? "Linking…" : "Track together"}
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={Boolean(dirty) || !field.value || untrackSiblings.isPending}
+                          onClick={handleUntrackSiblings}
+                        >
+                          {untrackSiblings.isPending ? "Untracking…" : "Untrack"}
+                        </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         For beverages, consumables, or other direct-sale items. Kitchen foods should use the food&apos;s Recipe instead.
-                        By default each food item (size/variant) tracks its own stock — use &quot;Track together&quot; to copy this ingredient onto every other food item of this food so they share one stock pool instead.
-                        {dirty && " Save changes first to link the unsaved ingredient."}
+                        By default each food item (size/variant) tracks its own stock — use &quot;Track together&quot; to copy this ingredient onto every other food item of this food so they share one stock pool instead,
+                        or &quot;Untrack&quot; to set every other food item currently sharing this same ingredient back to not tracked directly.
+                        {dirty && " Save changes first to link/untrack the unsaved ingredient."}
                       </p>
                       <FormMessage />
                     </FormItem>

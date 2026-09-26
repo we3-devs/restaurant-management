@@ -324,6 +324,37 @@ export class FoodVariantsService {
     return { updated: siblingIds.length };
   }
 
+  /**
+   * Reverses linkIngredientToSiblings: every other active variant of the
+   * same food that currently points at this variant's exact ingredient gets
+   * set back to "not tracked directly" (null), so each goes back to
+   * tracking its own stock. This variant's own ingredient is left as-is —
+   * clear it via the ordinary update endpoint if it should stop too. A
+   * no-op if this variant has no ingredient set, since nothing could be
+   * "sharing" it.
+   */
+  async untrackSiblings(id: number): Promise<{ updated: number }> {
+    const variant = await this.findOne(id);
+    if (variant.inventoryIngredientId === null) return { updated: 0 };
+
+    const siblingIds = (
+      await this.variantsRepository.find({
+        where: scopedWhere(this.tenantContext, {
+          foodId: variant.foodId,
+          isActive: true,
+          inventoryIngredientId: variant.inventoryIngredientId,
+        }),
+      })
+    )
+      .map((sibling) => sibling.id)
+      .filter((siblingId) => siblingId !== variant.id);
+
+    if (siblingIds.length === 0) return { updated: 0 };
+
+    await this.variantsRepository.update(siblingIds, { inventoryIngredientId: null });
+    return { updated: siblingIds.length };
+  }
+
   async remove(id: number): Promise<void> {
     await this.findOne(id);
     // deleted_at column present — soft delete avoids the order_items
