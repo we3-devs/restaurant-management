@@ -6,14 +6,17 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BigIntTransformer } from '../../../common/transformers/bigint.transformer';
+import { NumericTransformer } from '../../../common/transformers/numeric.transformer';
 
 /**
- * One size variance of a kit (e.g. "250ml", "300ml", "600ml"), backed by
- * its own stock-tracked Ingredient so existing stock-in/out and costing
- * keep working unmodified.
+ * A sellable fraction of one variant (e.g. "Quarter Peg" = 0.25 of a 250ml
+ * bottle), modeled on FoodRecipe's quantity/unit shape so it can be copied
+ * straight into a food_recipes row when attached to a menu item — actual
+ * stock deduction at order time flows through that existing pipeline, not a
+ * new one.
  */
-@Entity({ name: 'inventory_kit_items' })
-export class InventoryKitItem {
+@Entity({ name: 'ingredient_variant_portions' })
+export class IngredientVariantPortion {
   @PrimaryColumn({
     type: 'bigint',
     generated: 'increment',
@@ -24,20 +27,22 @@ export class InventoryKitItem {
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, transformer: new BigIntTransformer() })
   tenantId: number | null;
 
-  @Column({ name: 'kit_id', type: 'bigint', transformer: new BigIntTransformer() })
-  kitId: number;
-
-  @Column({ name: 'ingredient_id', type: 'bigint', transformer: new BigIntTransformer() })
-  ingredientId: number;
+  @Column({ name: 'ingredient_variant_id', type: 'bigint', transformer: new BigIntTransformer() })
+  ingredientVariantId: number;
 
   @Column({ type: 'varchar', length: 100 })
-  label: string;
+  name: string;
 
   @Column({ name: 'unit_id', type: 'bigint', transformer: new BigIntTransformer() })
   unitId: number;
 
-  @Column({ name: 'sort_order', type: 'int', default: 0 })
-  sortOrder: number;
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 4,
+    transformer: new NumericTransformer(),
+  })
+  quantity: number;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;

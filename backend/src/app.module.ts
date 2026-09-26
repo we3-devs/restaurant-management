@@ -42,8 +42,8 @@ import { HealthModule } from './modules/health/health.module';
 import { IngredientCategoriesModule } from './modules/ingredient-categories/ingredient-categories.module';
 import { IngredientWastagesModule } from './modules/ingredient-wastages/ingredient-wastages.module';
 import { IngredientsModule } from './modules/ingredients/ingredients.module';
+import { IngredientVariantsModule } from './modules/ingredient-variants/ingredient-variants.module';
 import { InventoryStockModule } from './modules/inventory-stock/inventory-stock.module';
-import { InventoryKitsModule } from './modules/inventory-kits/inventory-kits.module';
 import { KitchenTicketsModule } from './modules/kitchen-tickets/kitchen-tickets.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { MenuModule } from './modules/menu/menu.module';
@@ -195,8 +195,8 @@ import { AssetsModule } from './modules/assets/assets.module';
     IngredientCategoriesModule,
     IngredientsModule,
     InventoryStockModule,
-    InventoryKitsModule,
     StockInsModule,
+    IngredientVariantsModule,
     StockOutsModule,
     StockTransfersModule,
     IngredientWastagesModule,

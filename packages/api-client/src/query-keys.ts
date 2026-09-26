@@ -189,14 +189,14 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.ingredients.lists(), params] as const,
     detail: (id: number) => [...queryKeys.ingredients.all, "detail", id] as const,
   },
-  inventoryKits: {
-    all: ["inventory-kits"] as const,
-    lists: () => [...queryKeys.inventoryKits.all, "list"] as const,
-    list: (params?: unknown) => [...queryKeys.inventoryKits.lists(), params] as const,
-    detail: (id: number) => [...queryKeys.inventoryKits.all, "detail", id] as const,
-    items: (kitId: number) => [...queryKeys.inventoryKits.all, "items", kitId] as const,
-    portions: (kitId: number, itemId: number) =>
-      [...queryKeys.inventoryKits.all, "portions", kitId, itemId] as const,
+  ingredientVariants: {
+    all: ["ingredient-variants"] as const,
+    forParent: (parentIngredientId: number) =>
+      [...queryKeys.ingredientVariants.all, "for-parent", parentIngredientId] as const,
+    forIngredient: (ingredientId: number) =>
+      [...queryKeys.ingredientVariants.all, "for-ingredient", ingredientId] as const,
+    portions: (parentIngredientId: number, variantId: number) =>
+      [...queryKeys.ingredientVariants.all, "portions", parentIngredientId, variantId] as const,
   },
   warehouseIngredientStocks: {
     all: ["warehouse-ingredient-stocks"] as const,
