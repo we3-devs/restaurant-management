@@ -29,6 +29,8 @@ interface ReceivingRow {
   unitCost: string
   batchNo: string
   expiryDate: string
+  /** Package default for this exact ingredient (e.g. "24/Carton") — the PO line stays tied to its own ingredient/purchaseOrderItemId, only the entered quantity is reinterpreted as a package count and converted via unitsPerPackage. */
+  packageVariant: { unitsPerPackage: number | null; label: string } | null
 }
 
 interface StandaloneLine {
@@ -79,7 +81,7 @@ export function CreateGoodsReceivingDialog() {
     setStandaloneLines([emptyStandaloneLine()])
   }
 
-  const emptyRow: ReceivingRow = { quantityReceived: "", unitCost: "", batchNo: "", expiryDate: "" }
+  const emptyRow: ReceivingRow = { quantityReceived: "", unitCost: "", batchNo: "", expiryDate: "", packageVariant: null }
 
   function updateRow(itemId: number, patch: Partial<ReceivingRow>) {
     setRows((prev) => ({
@@ -142,8 +144,12 @@ export function CreateGoodsReceivingDialog() {
     const receivingItems = (items ?? [])
       .map((item) => {
         const row = rows[item.id]
-        const qty = row ? Number(row.quantityReceived) : 0
-        if (!qty || qty <= 0) return null
+        const enteredQty = row ? Number(row.quantityReceived) : 0
+        if (!enteredQty || enteredQty <= 0) return null
+        // Same package-conversion as standalone receiving: entering "3" while
+        // a package (e.g. "24/Carton") is picked means 3 cartons, not 3
+        // bottles.
+        const qty = row.packageVariant ? enteredQty * (row.packageVariant.unitsPerPackage ?? 1) : enteredQty
         return {
           purchaseOrderItemId: item.id,
           ingredientId: item.ingredientId,
@@ -261,6 +267,7 @@ export function CreateGoodsReceivingDialog() {
                 <TableRow>
                   <TableHead>Ingredient</TableHead>
                   <TableHead>Remaining</TableHead>
+                  <TableHead>Package</TableHead>
                   <TableHead>Receive qty</TableHead>
                   <TableHead>Unit cost</TableHead>
                   <TableHead>Batch #</TableHead>
@@ -270,49 +277,18 @@ export function CreateGoodsReceivingDialog() {
               <TableBody>
                 {items
                   .filter((item) => item.remainingQuantity > 0)
-                  .map((item) => {
-                    const row = rows[item.id]
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>{ingredientName(item.ingredientId)}</TableCell>
-                        <TableCell>{item.remainingQuantity}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-24"
-                            value={row?.quantityReceived ?? ""}
-                            onChange={(e) => updateRow(item.id, { quantityReceived: e.target.value })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-24"
-                            placeholder={String(item.unitCost)}
-                            value={row?.unitCost ?? ""}
-                            onChange={(e) => updateRow(item.id, { unitCost: e.target.value })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            className="w-24"
-                            value={row?.batchNo ?? ""}
-                            onChange={(e) => updateRow(item.id, { batchNo: e.target.value })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="date"
-                            className="w-36"
-                            value={row?.expiryDate ?? ""}
-                            onChange={(e) => updateRow(item.id, { expiryDate: e.target.value })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
+                  .map((item) => (
+                    <PurchaseOrderReceivingRow
+                      key={item.id}
+                      itemId={item.id}
+                      ingredientId={item.ingredientId}
+                      ingredientLabel={ingredientName(item.ingredientId)}
+                      remainingQuantity={item.remainingQuantity}
+                      defaultUnitCost={item.unitCost}
+                      row={rows[item.id]}
+                      onUpdate={(patch) => updateRow(item.id, patch)}
+                    />
+                  ))}
               </TableBody>
             </Table>
           )}
@@ -330,6 +306,97 @@ export function CreateGoodsReceivingDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function PurchaseOrderReceivingRow({
+  itemId,
+  ingredientId,
+  ingredientLabel,
+  remainingQuantity,
+  defaultUnitCost,
+  row,
+  onUpdate,
+}: {
+  itemId: number
+  ingredientId: number
+  ingredientLabel: string
+  remainingQuantity: number
+  defaultUnitCost: number
+  row: ReceivingRow | undefined
+  onUpdate: (patch: Partial<ReceivingRow>) => void
+}) {
+  const { data: packageVariants } = useIngredientVariants(ingredientId)
+  // Only the ingredient's own package default (self-referencing, e.g.
+  // "24/Carton" on Coke itself) is offered here — a PO line is already
+  // pinned to one specific ingredient, so a cross-ingredient variant would
+  // silently receive stock for a different item than the one this line and
+  // its purchaseOrderItemId are actually for.
+  const ownPackage = packageVariants?.find((v) => v.ingredientId === ingredientId && v.unitsPerPackage)
+
+  function handlePackageChange(value: string) {
+    if (value === "raw" || !ownPackage) {
+      onUpdate({ packageVariant: null })
+      return
+    }
+    onUpdate({ packageVariant: { unitsPerPackage: ownPackage.unitsPerPackage, label: ownPackage.label } })
+  }
+
+  return (
+    <TableRow key={itemId}>
+      <TableCell>{ingredientLabel}</TableCell>
+      <TableCell>{remainingQuantity}</TableCell>
+      <TableCell>
+        {ownPackage ? (
+          <Select value={row?.packageVariant ? "package" : "raw"} onValueChange={(v) => handlePackageChange(v ?? "raw")}>
+            <SelectTrigger className="w-full min-w-32"><SelectValue placeholder="Raw quantity" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="raw">Raw quantity</SelectItem>
+              <SelectItem value="package">
+                {ownPackage.label}{ownPackage.packageLabel ? ` (${ownPackage.packageLabel})` : ""}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          step="0.01"
+          className="w-24"
+          placeholder={row?.packageVariant ? "Packages" : "Quantity"}
+          value={row?.quantityReceived ?? ""}
+          onChange={(e) => onUpdate({ quantityReceived: e.target.value })}
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          step="0.01"
+          className="w-24"
+          placeholder={String(defaultUnitCost)}
+          value={row?.unitCost ?? ""}
+          onChange={(e) => onUpdate({ unitCost: e.target.value })}
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          className="w-24"
+          value={row?.batchNo ?? ""}
+          onChange={(e) => onUpdate({ batchNo: e.target.value })}
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="date"
+          className="w-36"
+          value={row?.expiryDate ?? ""}
+          onChange={(e) => onUpdate({ expiryDate: e.target.value })}
+        />
+      </TableCell>
+    </TableRow>
   )
 }
 
