@@ -21,6 +21,7 @@ export type AuditAction =
   | "permission_change"
   | "order_change"
   | "kitchen_status_change"
+  | "operational_override"
 
 export interface AuditLog {
   id: number

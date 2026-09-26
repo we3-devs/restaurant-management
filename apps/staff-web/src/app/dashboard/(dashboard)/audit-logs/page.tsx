@@ -39,6 +39,7 @@ const AUDIT_ACTIONS: AuditAction[] = [
   "permission_change",
   "order_change",
   "kitchen_status_change",
+  "operational_override",
 ]
 
 function isoDate(d: Date): string {
@@ -57,6 +58,7 @@ export default function AuditLogsPage() {
 
   const [search, setSearch] = useState("")
   const [actionFilter, setActionFilter] = useState("all")
+  const [userFilter, setUserFilter] = useState("all")
   const [range, setRange] = useState(defaultRange)
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState(false)
@@ -66,6 +68,7 @@ export default function AuditLogsPage() {
     limit: PAGE_SIZE,
     search: search || undefined,
     action: actionFilter !== "all" ? actionFilter : undefined,
+    userId: userFilter !== "all" ? Number(userFilter) : undefined,
     ...range,
   }
 
@@ -172,12 +175,35 @@ export default function AuditLogsPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="w-56 space-y-1.5">
+          <label className="text-sm font-medium">Filter by user</label>
+          <Select
+            value={userFilter}
+            onValueChange={(value) => {
+              setUserFilter(value ?? "all")
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All users" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All users</SelectItem>
+              {users?.data.map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <DateRangeFilter
           value={range}
           onChange={(v) => {
             setRange(v)
             setPage(1)
           }}
+          showQuickRanges
         />
       </div>
 

@@ -65,9 +65,14 @@ export class AuditLogsService {
       });
     }
     if (query.dateTo) {
-      qb.andWhere('log.created_at <= :dateTo', {
-        dateTo: new Date(query.dateTo),
-      });
+      // dateTo arrives as a date-only string (e.g. "2026-09-26"); parsing
+      // that directly yields midnight UTC, which would exclude the entire
+      // day it names. Treat date-only values as inclusive of the full day.
+      const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(query.dateTo);
+      const dateTo = dateOnly
+        ? new Date(`${query.dateTo}T23:59:59.999Z`)
+        : new Date(query.dateTo);
+      qb.andWhere('log.created_at <= :dateTo', { dateTo });
     }
     if (query.search) {
       qb.andWhere(
