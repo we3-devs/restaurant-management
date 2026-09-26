@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { BackendUnauthorizedError, backendFetch } from "@/lib/server/backend-client"
+import { BackendUnauthorizedError, BackendUnavailableError, backendFetch } from "@/lib/server/backend-client"
 import { tenantHeaders } from "@rms/auth/tenant"
 
 async function proxy(request: NextRequest, params: Promise<{ path: string[] }>): Promise<NextResponse> {
@@ -57,6 +57,11 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>):
   } catch (error) {
     if (error instanceof BackendUnauthorizedError) {
       return NextResponse.json({ message: "Session expired" }, { status: 401 })
+    }
+    // Refresh failed transiently: a 503 lets react-query retry instead of
+    // apiClient treating it as a 401 and chasing a refresh of its own.
+    if (error instanceof BackendUnavailableError) {
+      return NextResponse.json({ message: error.message }, { status: 503 })
     }
     throw error
   }

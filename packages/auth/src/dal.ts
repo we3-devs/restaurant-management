@@ -1,8 +1,9 @@
 import "server-only"
 
 import { cache } from "react"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { backendFetch, BackendUnauthorizedError } from "./server/backend-client"
+import { backendFetch } from "./server/backend-client"
 
 export interface CurrentUser {
   id: number
@@ -30,18 +31,26 @@ export interface CurrentUser {
  * cheap cookie-presence check, this is the actual gate.
  */
 export const verifySession = cache(async (): Promise<CurrentUser> => {
-  try {
-    const response = await backendFetch("/auth/me")
-    if (!response.ok) {
-      redirect("/api/auth/clear-session")
-    }
-    return (await response.json()) as CurrentUser
-  } catch (error) {
-    if (error instanceof BackendUnauthorizedError) {
-      redirect("/api/auth/clear-session")
-    }
-    throw error
+  // No in-render refresh: Server Components can't write cookies, so it would
+  // rotate the refresh token without the browser ever receiving the new one,
+  // and the browser's next refresh would replay the rotated-away token and
+  // trip reuse detection. proxy.ts refreshes ahead of every render; if the
+  // access token is still rejected here, detour through the refresh Route
+  // Handler (which can persist cookies) and come back.
+  const response = await backendFetch("/auth/me", {}, { refresh: false })
+  if (response.status === 401) {
+    const returnTo = (await headers()).get("x-pathname") ?? "/"
+    redirect(`/api/auth/refresh?next=${encodeURIComponent(returnTo)}`)
   }
+  if (response.status === 403) {
+    redirect("/api/auth/clear-session")
+  }
+  if (!response.ok) {
+    // Backend hiccup (5xx, cold start) — the session may be fine, so surface
+    // an error instead of logging the user out.
+    throw new Error(`Session check failed with status ${response.status}`)
+  }
+  return (await response.json()) as CurrentUser
 })
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser> => {

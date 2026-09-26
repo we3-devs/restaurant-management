@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { randomBytes, createHash } from 'crypto';
-import { IsNull, Repository } from 'typeorm';
+import { randomBytes, createHash, createHmac } from 'crypto';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AppConfig } from '../../config/configuration';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -16,6 +16,16 @@ export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * How long after a refresh token is rotated a replay of it still counts as a
+ * duplicate of that same rotation (a concurrent refresh from another Next.js
+ * runtime/instance, or a retry after the rotating response never reached the
+ * browser) rather than reuse of a stale, possibly stolen token.
+ */
+const ROTATION_GRACE_MS = 60_000;
+/** Successor hops a replay inside the grace window may follow to reach the live token. */
+const MAX_GRACE_HOPS = 5;
 
 @Injectable()
 export class AuthService {
@@ -143,73 +153,27 @@ export class AuthService {
     rawRefreshToken: string,
   ): Promise<{ tokens: TokenPair; user: User }> {
     const tokenHash = this.hashToken(rawRefreshToken);
+    // The successor is derived from the presented token instead of being
+    // random, so every request that redeems the same token — however many
+    // there are, in whatever order they land — is handed the exact same new
+    // refresh token. Several Next.js runtimes/instances refresh
+    // independently (proxy.ts ahead of a render, every /api/backend route
+    // handler on a 401) and can't dedupe against each other; with random
+    // successors each duplicate forked the chain, the browser kept whichever
+    // Set-Cookie happened to land last, and the next refresh with a
+    // forked-off token tripped reuse detection and logged the user out.
+    const successorToken = this.successorRefreshToken(rawRefreshToken);
+    const successorHash = this.hashToken(successorToken);
 
     // Atomic conditional UPDATE is the rotation gate: only the request that
-    // flips revokedAt from NULL here "wins" the rotation. A concurrent
-    // replay of the same token (double-submit, retry storm) sees
-    // affected === 0 and is rejected below, before any new pair is minted —
-    // this closes the find -> mint -> revoke race window the old code had.
+    // flips revokedAt from NULL here "wins" the rotation. It records the
+    // successor link in the same statement, so a duplicate arriving before
+    // the winner has inserted the successor row can already tell this was a
+    // rotation rather than a logout or a revoked family.
     const claim = await this.refreshTokensRepository.update(
-      { tokenHash, revokedAt: IsNull() },
-      { revokedAt: new Date() },
+      { tokenHash, revokedAt: IsNull(), expiresAt: MoreThan(new Date()) },
+      { revokedAt: new Date(), replacedByTokenHash: successorHash },
     );
-
-    if (claim.affected !== 1) {
-      const existing = await this.refreshTokensRepository.findOne({
-        where: { tokenHash },
-        relations: { user: true },
-      });
-      if (!existing) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      // The frontend has two independent call sites that can each decide to
-      // refresh around the same moment — proxy.ts's proactive refresh ahead
-      // of a page render, and the reactive refresh-on-401 fallback used by
-      // API mutations — and they don't share in-process state (different
-      // Next.js runtimes), so they can't dedupe a simultaneous refresh of
-      // the same still-valid token the way proxy.ts already dedupes against
-      // itself. Without this, the loser of that race reuses an
-      // already-rotated token a few milliseconds after the winner, and the
-      // theft-detection below nukes the whole chain — logging the user out
-      // over a timing race, not a real reuse. If the token was revoked only
-      // moments ago as part of its own rotation (not stale reuse of a token
-      // whose replacement has long since moved on), rotate the successor
-      // again for this request instead, so the loser also gets a valid pair.
-      const REUSE_GRACE_MS = 15_000;
-      const revokedJustNow =
-        existing.revokedAt !== null &&
-        Date.now() - existing.revokedAt.getTime() < REUSE_GRACE_MS;
-      if (revokedJustNow && existing.replacedByTokenHash) {
-        const successorClaim = await this.refreshTokensRepository.update(
-          { tokenHash: existing.replacedByTokenHash, revokedAt: IsNull() },
-          { revokedAt: new Date() },
-        );
-        if (successorClaim.affected === 1) {
-          const successor = await this.refreshTokensRepository.findOne({
-            where: { tokenHash: existing.replacedByTokenHash },
-            relations: { user: true },
-          });
-          if (successor && successor.expiresAt.getTime() >= Date.now()) {
-            const tokens = await this.issueTokenPair(successor.user);
-            await this.refreshTokensRepository.update(
-              { tokenHash: successor.tokenHash },
-              { replacedByTokenHash: this.hashToken(tokens.refreshToken) },
-            );
-            return { tokens, user: successor.user };
-          }
-        }
-      }
-
-      // Outside the grace window, or the successor was already claimed by
-      // someone else too: genuine reuse of a stale token — possible theft.
-      // Revoke the whole chain for this user.
-      await this.refreshTokensRepository.update(
-        { userId: existing.userId, revokedAt: IsNull() },
-        { revokedAt: new Date() },
-      );
-      throw new UnauthorizedException('Refresh token has already been used');
-    }
 
     const existing = await this.refreshTokensRepository.findOne({
       where: { tokenHash },
@@ -219,17 +183,68 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (existing.expiresAt.getTime() < Date.now()) {
+    if (claim.affected === 1) {
+      await this.insertRefreshToken(existing.userId, successorHash);
+      return {
+        tokens: {
+          accessToken: await this.signAccessToken(existing.user),
+          refreshToken: successorToken,
+        },
+        user: existing.user,
+      };
+    }
+
+    if (existing.revokedAt === null) {
+      // Still unrevoked, so the claim only failed on its expiry condition.
       throw new UnauthorizedException('Refresh token has expired');
     }
 
-    const tokens = await this.issueTokenPair(existing.user);
-    await this.refreshTokensRepository.update(
-      { tokenHash },
-      { replacedByTokenHash: this.hashToken(tokens.refreshToken) },
-    );
+    const rotatedHere = existing.replacedByTokenHash === successorHash;
+    const withinGrace =
+      Date.now() - existing.revokedAt.getTime() < ROTATION_GRACE_MS;
 
-    return { tokens, user: existing.user };
+    if (rotatedHere && withinGrace) {
+      // A duplicate of a rotation that just happened. The winner may still
+      // be between its claim and its insert, so make sure the successor row
+      // exists (idempotent), then hand back the family's live token.
+      await this.insertRefreshToken(existing.userId, successorHash);
+      let candidate = successorToken;
+      for (let hop = 0; hop < MAX_GRACE_HOPS; hop += 1) {
+        const current = await this.refreshTokensRepository.findOne({
+          where: { tokenHash: this.hashToken(candidate) },
+        });
+        if (!current) break;
+        if (current.revokedAt === null) {
+          if (current.expiresAt.getTime() < Date.now()) break;
+          return {
+            tokens: {
+              accessToken: await this.signAccessToken(existing.user),
+              refreshToken: candidate,
+            },
+            user: existing.user,
+          };
+        }
+        // Rotated again within the window: follow it. Anything else (logout,
+        // revoked family) means there's no live session left to return.
+        const next = this.successorRefreshToken(candidate);
+        if (current.replacedByTokenHash !== this.hashToken(next)) break;
+        candidate = next;
+      }
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+
+    if (existing.replacedByTokenHash) {
+      // Rotated long ago and presented again: genuine reuse of a stale token
+      // — possible theft. Revoke this login's token family. The same
+      // account's logins on other devices were not exposed by this token,
+      // so they stay up.
+      await this.revokeTokenFamily(tokenHash);
+      throw new UnauthorizedException('Refresh token has already been used');
+    }
+
+    // Revoked without a successor: logged out, or its family was already
+    // revoked. Nothing further to revoke.
+    throw new UnauthorizedException('Refresh token has been revoked');
   }
 
   async logout(rawRefreshToken: string): Promise<void> {
@@ -258,29 +273,75 @@ export class AuthService {
   }
 
   private async issueTokenPair(user: User): Promise<TokenPair> {
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
-      email: user.email,
-    });
-
+    // A login starts a new token family from a random token; refresh()
+    // derives every later token in the family from its predecessor.
     const rawRefreshToken = randomBytes(48).toString('hex');
+    const [accessToken] = await Promise.all([
+      this.signAccessToken(user),
+      this.insertRefreshToken(user.id, this.hashToken(rawRefreshToken)),
+    ]);
+    return { accessToken, refreshToken: rawRefreshToken };
+  }
+
+  private signAccessToken(user: User): Promise<string> {
+    return this.jwtService.signAsync({ sub: user.id, email: user.email });
+  }
+
+  /** Inserts a refresh token row, or does nothing if that hash already exists (a duplicate of the same rotation got there first). */
+  private async insertRefreshToken(
+    userId: number,
+    tokenHash: string,
+  ): Promise<void> {
     const refreshExpiresIn = this.configService.get('jwt', {
       infer: true,
     })!.refreshExpiresIn;
 
-    // .insert() instead of .create()+.save(): same entity listeners/
+    // A single INSERT instead of .create()+.save(): same entity listeners/
     // subscribers run either way (TypeORM's InsertQueryBuilder calls them
-    // regardless — see callListeners, on by default), but .insert() skips
-    // the transaction .save() wraps a single new entity in (useTransaction
-    // defaults to false for .insert(), true for .save()), cutting 3 network
+    // regardless — see callListeners, on by default), but it skips the
+    // transaction .save() wraps a single new entity in, cutting 3 network
     // round trips down to 1 on this remote DB.
-    await this.refreshTokensRepository.insert({
-      userId: user.id,
-      tokenHash: this.hashToken(rawRefreshToken),
-      expiresAt: new Date(Date.now() + parseDurationToMs(refreshExpiresIn)),
-    });
+    await this.refreshTokensRepository
+      .createQueryBuilder()
+      .insert()
+      .into(RefreshToken)
+      .values({
+        userId,
+        tokenHash,
+        expiresAt: new Date(Date.now() + parseDurationToMs(refreshExpiresIn)),
+      })
+      .orIgnore()
+      .execute();
+  }
 
-    return { accessToken, refreshToken: rawRefreshToken };
+  /** Revokes the given token and every token rotated from it, following the replaced_by links in one statement. */
+  private async revokeTokenFamily(tokenHash: string): Promise<void> {
+    await this.refreshTokensRepository.query(
+      `WITH RECURSIVE family AS (
+         SELECT id, replaced_by_token_hash FROM refresh_tokens WHERE token_hash = $1
+         UNION
+         SELECT rt.id, rt.replaced_by_token_hash
+         FROM refresh_tokens rt
+         JOIN family f ON rt.token_hash = f.replaced_by_token_hash
+       )
+       UPDATE refresh_tokens
+       SET revoked_at = $2, updated_at = $2
+       WHERE id IN (SELECT id FROM family) AND revoked_at IS NULL`,
+      [tokenHash, new Date()],
+    );
+  }
+
+  /**
+   * The next refresh token in a family: an HMAC of the current raw token.
+   * Only the server can compute it (the key never leaves the backend), and
+   * the DB only ever stores SHA-256 hashes, so neither a stolen stale token
+   * nor a DB leak is enough to derive a live one.
+   */
+  private successorRefreshToken(rawToken: string): string {
+    const secret = this.configService.get('jwt', { infer: true })!.accessSecret;
+    return createHmac('sha256', secret)
+      .update(`refresh-token-rotation:${rawToken}`)
+      .digest('hex');
   }
 
   private hashToken(rawToken: string): string {
