@@ -382,7 +382,12 @@ export default function DashboardPage() {
 					<div className="item-grid">
 						{bestSelling.map((item) => (
 							<Link href={`/dashboard/menu/foods/${item.foodId}`} className="selling-item" key={item.foodId}>
-								<div className="item-emoji">🍽️</div>
+								{item.imageUrl ? (
+									// eslint-disable-next-line @next/next/no-img-element -- external upload host, same pattern as ImageUploadField
+									<img className="item-emoji" src={item.imageUrl} alt="" />
+								) : (
+									<div className="item-emoji">🍽️</div>
+								)}
 								<div>
 									<strong>{item.foodName}</strong>
 									<small>

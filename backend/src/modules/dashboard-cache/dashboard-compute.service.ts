@@ -565,6 +565,7 @@ export class DashboardComputeService {
       .createQueryBuilder()
       .select('food.id', 'foodId')
       .addSelect('food.name', 'foodName')
+      .addSelect('food.image_url', 'imageUrl')
       .addSelect('COALESCE(SUM(item.quantity), 0)', 'quantitySold')
       .addSelect('COALESCE(SUM(item.total_amount), 0)', 'revenue')
       .from('order_items', 'item')
@@ -586,12 +587,14 @@ export class DashboardComputeService {
     const rows = await qb.getRawMany<{
       foodId: number;
       foodName: string;
+      imageUrl: string | null;
       quantitySold: string;
       revenue: string;
     }>();
     return rows.map((row) => ({
       foodId: Number(row.foodId),
       foodName: row.foodName,
+      imageUrl: row.imageUrl,
       quantitySold: Number(row.quantitySold),
       revenue: Number(row.revenue),
     }));

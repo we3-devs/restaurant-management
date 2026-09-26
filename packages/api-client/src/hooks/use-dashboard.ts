@@ -23,7 +23,7 @@ export interface DashboardStats {
 export interface DashboardCharts {
   revenueTrend: { date: string; orderCount: number; grandTotal: number }[]
   hourlyTrend: { hour: string; orderCount: number; grandTotal: number }[]
-  bestSellingFoods: { foodId: number; foodName: string; quantitySold: number; revenue: number }[]
+  bestSellingFoods: { foodId: number; foodName: string; imageUrl: string | null; quantitySold: number; revenue: number }[]
 }
 
 export interface DashboardBreakdown {

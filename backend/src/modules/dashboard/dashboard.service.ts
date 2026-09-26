@@ -56,6 +56,7 @@ export interface DashboardSummary {
   bestSellingFoods: {
     foodId: number;
     foodName: string;
+    imageUrl: string | null;
     quantitySold: number;
     revenue: number;
   }[];
