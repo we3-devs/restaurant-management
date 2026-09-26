@@ -70,11 +70,12 @@ export class DashboardComputeService {
   }
 
   async computeCharts(range: ResolvedRange): Promise<DashboardCharts> {
-    const [revenueTrend, bestSellingFoods] = await Promise.all([
+    const [revenueTrend, hourlyTrend, bestSellingFoods] = await Promise.all([
       this.getRevenueTrend(range),
+      this.getHourlyTrend(range),
       this.getBestSellingFoods(range),
     ]);
-    return { revenueTrend, bestSellingFoods };
+    return { revenueTrend, hourlyTrend, bestSellingFoods };
   }
 
   async computeBreakdown(range: ResolvedRange): Promise<DashboardBreakdown> {
@@ -255,6 +256,65 @@ export class DashboardComputeService {
     return [...byDate.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, totals]) => ({ date, ...totals }));
+  }
+
+  /**
+   * Bucketed by hour-of-day in the business timezone rather than by
+   * calendar date — for a single-day range (the dashboard home page always
+   * requests "today"), getRevenueTrend collapses to 0 or 1 points, which
+   * can't show a trend at all. Hour buckets always span the full day, so
+   * there's always something to plot. Zero-filled for every hour (not just
+   * ones with orders) so the line has a consistent 24-point x-axis.
+   *
+   * created_at is stored as a naive `timestamp` written in UTC wall-clock —
+   * `AT TIME ZONE 'UTC' AT TIME ZONE range.timezone` is the standard
+   * Postgres idiom to reinterpret it as a timestamptz and then convert that
+   * to the business zone's local wall-clock before extracting the hour.
+   */
+  private async getHourlyTrend(
+    range: ResolvedRange,
+  ): Promise<DashboardSummary['hourlyTrend']> {
+    const hourExpr = (column: string) =>
+      `TO_CHAR(${column} AT TIME ZONE 'UTC' AT TIME ZONE :timezone, 'HH24')`;
+    const [rows, settlementRows] = await Promise.all([
+      this.ordersInRange(range)
+        .select(hourExpr('order.created_at'), 'hour')
+        .addSelect('COUNT(*)', 'orderCount')
+        .addSelect(
+          `COALESCE(SUM(${DashboardComputeService.COLLECTED_TOTAL_SQL}), 0)`,
+          'grandTotal',
+        )
+        .setParameter('timezone', range.timezone)
+        .groupBy('hour')
+        .getRawMany<{ hour: string; orderCount: string; grandTotal: string }>(),
+      this.settlementsInRange(range)
+        .select(hourExpr('settlement.created_at'), 'hour')
+        .addSelect('COALESCE(SUM(-settlement.amount), 0)', 'amount')
+        .setParameter('timezone', range.timezone)
+        .groupBy('hour')
+        .getRawMany<{ hour: string; amount: string }>(),
+    ]);
+
+    const byHour = new Map<string, { orderCount: number; grandTotal: number }>();
+    for (let h = 0; h < 24; h++) {
+      byHour.set(String(h).padStart(2, '0'), { orderCount: 0, grandTotal: 0 });
+    }
+    for (const row of rows) {
+      byHour.set(row.hour, { orderCount: Number(row.orderCount), grandTotal: Number(row.grandTotal) });
+    }
+    for (const settlementRow of settlementRows) {
+      const existing = byHour.get(settlementRow.hour);
+      const settled = Number(settlementRow.amount);
+      if (existing) {
+        existing.grandTotal += settled;
+      } else {
+        byHour.set(settlementRow.hour, { orderCount: 0, grandTotal: settled });
+      }
+    }
+
+    return [...byHour.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([hour, totals]) => ({ hour: `${hour}:00`, ...totals }));
   }
 
   private async getOrdersOverview(

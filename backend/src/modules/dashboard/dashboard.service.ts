@@ -9,7 +9,7 @@ import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
 import { SettingsService } from '../settings/settings.service';
-import { businessDateRange } from '../../common/reporting/reporting-date.util';
+import { businessDateRange, DEFAULT_BUSINESS_TIMEZONE } from '../../common/reporting/reporting-date.util';
 
 const CACHE_TTL_MS = 60_000;
 export { DEFAULT_RANGE_DAYS };
@@ -18,6 +18,7 @@ export interface ResolvedRange {
   outletId?: number;
   from: Date;
   to: Date;
+  timezone: string;
 }
 
 export interface DashboardSummary {
@@ -29,6 +30,8 @@ export interface DashboardSummary {
     avgOrderValue: number;
   };
   revenueTrend: { date: string; orderCount: number; grandTotal: number }[];
+  /** Same shape as revenueTrend but bucketed by hour-of-day (00:00–23:00) in the business timezone, zero-filled — meant for single-day ranges, where a day-level trend would collapse to one point. */
+  hourlyTrend: { hour: string; orderCount: number; grandTotal: number }[];
   ordersOverview: { status: string; count: number }[];
   activeTableSessions: number;
   reservationsSummary: { status: string; count: number }[];
@@ -76,7 +79,7 @@ export type DashboardStats = Pick<
 
 export type DashboardCharts = Pick<
   DashboardSummary,
-  'revenueTrend' | 'bestSellingFoods'
+  'revenueTrend' | 'hourlyTrend' | 'bestSellingFoods'
 >;
 
 export type DashboardBreakdown = Pick<
@@ -193,10 +196,11 @@ export class DashboardService {
    */
   private async resolveRange(user: User, query: DashboardQueryDto): Promise<ResolvedRange> {
     const business = await this.settings.getBusinessSettings();
-    const timezone = typeof business.timezone === 'string' && business.timezone ? business.timezone : undefined;
+    const timezone =
+      typeof business.timezone === 'string' && business.timezone ? business.timezone : DEFAULT_BUSINESS_TIMEZONE;
     const bounds = businessDateRange(query.dateFrom, query.dateTo, timezone);
     const outletId = await this.outletAccess.resolveReportingOutlet(user, query.outletId);
-    return { outletId, from: bounds.from, to: bounds.to };
+    return { outletId, from: bounds.from, to: bounds.to, timezone };
   }
 
   /**
@@ -213,7 +217,7 @@ export class DashboardService {
   ): boolean {
     if (!query.dateFrom && !query.dateTo) return true;
     const now = new Date();
-    const expected: ResolvedRange = {
+    const expected: Pick<ResolvedRange, 'outletId' | 'from' | 'to'> = {
       outletId: query.outletId,
       from: new Date(now.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000),
       to: now,

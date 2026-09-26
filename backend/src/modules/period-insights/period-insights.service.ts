@@ -65,6 +65,7 @@ export class PeriodInsightsService {
       outletId,
       from: window.periodStart,
       to: window.periodEnd,
+      timezone: timeZone,
     });
     await this.repo.upsert(
       {

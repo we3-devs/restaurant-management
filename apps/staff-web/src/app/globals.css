@@ -65,14 +65,15 @@
 .dash-empty-row { min-height: 92px; display:grid; place-items:center; color:var(--muted-foreground); font-size:12px; }
 .sales-panel .chart-wrap { height: 172px; }
 .sales-panel .chart-wrap svg { height: 145px; }
-.sales-panel .chart-wrap.is-empty .chart-y { display: none; }
+.sales-hero { height: 172px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.sales-hero strong { font-size: 40px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
+.sales-hero span { font-size: 13px; color: var(--muted-foreground); }
 .items-panel .dash-empty-row { min-height: 48px; }
 .lower-grid .dash-panel { min-height: 0; }
 .lower-grid .occupancy { min-height: 104px; }
 .lower-grid .dash-empty-row { min-height: 104px; }
 .dash-inline-retry { border:0; background:none; color:var(--primary); cursor:pointer; text-decoration:underline; }
 .dash-skeleton-queue { min-height:148px; width:100%; }
-.dash-empty-chart { position:absolute; inset:50% 0 auto; transform:translateY(-50%); text-align:center; color:var(--muted-foreground); font-size:12px; }
 @keyframes dash-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -20% 0; } }
 
 /* Header */

@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OutletsService } from '../outlets/outlets.service';
+import { SettingsService } from '../settings/settings.service';
+import { DEFAULT_BUSINESS_TIMEZONE } from '../../common/reporting/reporting-date.util';
 import type {
   DashboardBreakdown,
   DashboardCharts,
@@ -43,13 +45,17 @@ export class DashboardCacheService {
     private readonly inventoryRepo: Repository<DashboardInventoryCache>,
     private readonly compute: DashboardComputeService,
     private readonly outletsService: OutletsService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** The default range the cache represents: rolling N days ending now, same as DashboardService.resolveRange's no-params default. */
-  defaultRange(outletId?: number): ResolvedRange {
+  async defaultRange(outletId?: number): Promise<ResolvedRange> {
     const to = new Date();
     const from = new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60_000);
-    return { outletId, from, to };
+    const business = await this.settings.getBusinessSettings();
+    const timezone =
+      typeof business.timezone === 'string' && business.timezone ? business.timezone : DEFAULT_BUSINESS_TIMEZONE;
+    return { outletId, from, to, timezone };
   }
 
   private pk(outletId?: number): number {
@@ -93,7 +99,7 @@ export class DashboardCacheService {
   }
 
   private async rebuildStats(outletId?: number): Promise<DashboardStats> {
-    const range = this.defaultRange(outletId);
+    const range = await this.defaultRange(outletId);
     const payload = await this.compute.computeStats(range);
     await this.statsRepo.upsert(
       {
@@ -108,7 +114,7 @@ export class DashboardCacheService {
   }
 
   private async rebuildCharts(outletId?: number): Promise<DashboardCharts> {
-    const range = this.defaultRange(outletId);
+    const range = await this.defaultRange(outletId);
     const payload = await this.compute.computeCharts(range);
     await this.chartRepo.upsert(
       {
@@ -125,7 +131,7 @@ export class DashboardCacheService {
   private async rebuildBreakdown(
     outletId?: number,
   ): Promise<DashboardBreakdown> {
-    const range = this.defaultRange(outletId);
+    const range = await this.defaultRange(outletId);
     const payload = await this.compute.computeBreakdown(range);
     await this.breakdownRepo.upsert(
       {
@@ -142,7 +148,7 @@ export class DashboardCacheService {
   private async rebuildInventoryActivity(
     outletId?: number,
   ): Promise<DashboardInventoryActivity> {
-    const range = this.defaultRange(outletId);
+    const range = await this.defaultRange(outletId);
     const payload = await this.compute.computeInventoryActivity(range);
     await this.inventoryRepo.upsert(
       { outletId: this.pk(outletId), payload },

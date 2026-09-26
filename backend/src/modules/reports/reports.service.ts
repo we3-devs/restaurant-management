@@ -744,7 +744,10 @@ export class ReportsService {
       .addSelect('grn.received_date', 'receivedDate')
       .addSelect('grn.status', 'status')
       .from('goods_receivings', 'grn')
-      .innerJoin('purchase_orders', 'po', 'po.id = grn.purchase_order_id')
+      // LEFT: purchase_order_id is nullable — a receipt taken without a PO
+      // (goods-receiving's "Receive without purchase order") must still be
+      // counted, not silently dropped because it has no PO to join to.
+      .leftJoin('purchase_orders', 'po', 'po.id = grn.purchase_order_id')
       .innerJoin('suppliers', 'supplier', 'supplier.id = grn.supplier_id')
       .innerJoin('warehouses', 'warehouse', 'warehouse.id = grn.warehouse_id')
       .where('grn.received_date BETWEEN :from AND :to', {

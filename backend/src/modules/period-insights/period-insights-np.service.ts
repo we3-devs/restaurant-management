@@ -7,6 +7,7 @@ import {
   type PeriodType,
 } from './entities/period-insight-np.entity';
 import { PeriodInsightsComputeService } from './period-insights-compute.service';
+import { DEFAULT_BUSINESS_TIMEZONE } from '../../common/reporting/reporting-date.util';
 import { toDateOnlyString } from './period-insights.util';
 import {
   type PeriodWindowNp,
@@ -57,6 +58,7 @@ export class PeriodInsightsNpService {
       outletId,
       from: window.periodStartAd,
       to: window.periodEndAd,
+      timezone: DEFAULT_BUSINESS_TIMEZONE,
     });
     await this.repo.upsert(
       {

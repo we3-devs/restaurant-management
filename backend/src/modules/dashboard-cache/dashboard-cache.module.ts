@@ -4,6 +4,7 @@ import { KitchenTicket } from '../kitchen-tickets/entities/kitchen-ticket.entity
 import { NotificationsModule } from '../notifications/notifications.module';
 import { Order } from '../orders/entities/order.entity';
 import { OutletsModule } from '../outlets/outlets.module';
+import { SettingsModule } from '../settings/settings.module';
 import { DashboardCacheScheduler } from './dashboard-cache.scheduler';
 import { DashboardCacheService } from './dashboard-cache.service';
 import { DashboardComputeService } from './dashboard-compute.service';
@@ -24,6 +25,7 @@ import { DashboardStatsCache } from './entities/dashboard-stats-cache.entity';
     ]),
     NotificationsModule,
     OutletsModule,
+    SettingsModule,
   ],
   providers: [DashboardComputeService, DashboardCacheService, DashboardCacheScheduler],
   exports: [DashboardCacheService, DashboardComputeService],

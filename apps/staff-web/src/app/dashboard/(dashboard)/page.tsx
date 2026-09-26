@@ -205,17 +205,24 @@ export default function DashboardPage() {
 			]
 		: [];
 
-	const trend = charts.data?.revenueTrend ?? [];
+	// Hourly (not daily) buckets: "today" is always a single day, so a
+	// day-level trend collapses to 0-1 points. Hour-of-day always has 24
+	// zero-filled buckets, so there's always an actual trend to draw.
+	const trend = charts.data?.hourlyTrend ?? [];
 	const maxRevenue = Math.max(...trend.map((p) => p.grandTotal), 0);
-	const points =
-		maxRevenue > 0
-			? trend
-					.map(
-						(point, index) =>
-							`${trend.length === 1 ? 400 : (index / (trend.length - 1)) * 800},${190 - (point.grandTotal / maxRevenue) * 160}`,
-					)
-					.join(" ")
-			: "";
+	// A trend line needs at least two points and something to actually plot
+	// (an all-zero day would otherwise divide by zero for every y-value) —
+	// short of that, a hero number is more honest than an empty/broken shape.
+	const hasTrend = trend.length >= 2 && maxRevenue > 0;
+	const points = hasTrend
+		? trend
+				.map((point, index) => `${(index / (trend.length - 1)) * 800},${190 - (point.grandTotal / maxRevenue) * 160}`)
+				.join(" ")
+		: "";
+	// 24 labels crowd the x-axis — show every 4th hour (00:00, 04:00, …).
+	const trendXLabels = trend.filter((_, index) => index % 4 === 0);
+	const trendRevenue = trend.reduce((sum, point) => sum + point.grandTotal, 0);
+	const trendOrders = trend.reduce((sum, point) => sum + point.orderCount, 0);
 
 	const tableCounts = (tables.data?.data ?? []).reduce<Record<string, number>>((acc, table) => {
 		acc[table.status] = (acc[table.status] ?? 0) + 1;
@@ -275,20 +282,14 @@ export default function DashboardPage() {
 				<Panel className="sales-panel">
 					<Heading
 						title="Sales Overview"
-						subtitle={
-							charts.isLoading
-								? undefined
-								: trend.length
-									? `${trend.length} revenue data point${trend.length === 1 ? "" : "s"}`
-									: "No sales data for today"
-						}
+						subtitle={charts.isLoading ? undefined : hasTrend ? "Today's revenue by hour" : undefined}
 					/>
 					{charts.isLoading ? (
 						<div className="dash-skeleton dash-skeleton-chart" />
 					) : charts.isError ? (
 						<ErrorState retry={() => void charts.refetch()} />
-					) : (
-						<div className={`chart-wrap ${trend.length ? "" : "is-empty"}`}>
+					) : hasTrend ? (
+						<div className="chart-wrap">
 							<div className="chart-y">
 								<span>{money(maxRevenue)}</span>
 								<span>{money(maxRevenue * 0.75)}</span>
@@ -303,26 +304,30 @@ export default function DashboardPage() {
 										<stop offset="1" style={{ stopColor: "var(--primary)" }} stopOpacity=".02" />
 									</linearGradient>
 								</defs>
-								{points && (
-									<>
-										<polyline points={`${points} 800,220 0,220`} fill="url(#salesFill)" />
-										<polyline
-											points={points}
-											fill="none"
-											style={{ stroke: "var(--primary)" }}
-											strokeWidth="2.5"
-											strokeLinecap="round"
-											strokeLinejoin="round"
-										/>
-									</>
-								)}
+								<polyline points={`${points} 800,220 0,220`} fill="url(#salesFill)" />
+								<polyline
+									points={points}
+									fill="none"
+									style={{ stroke: "var(--primary)" }}
+									strokeWidth="2.5"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								/>
 							</svg>
 							<div className="chart-x">
-								{trend.map((point) => (
-									<span key={point.date}>{point.date}</span>
+								{trendXLabels.map((point) => (
+									<span key={point.hour}>{point.hour}</span>
 								))}
 							</div>
-							{!trend.length && <span className="dash-empty-chart">No sales data for today</span>}
+						</div>
+					) : (
+						// Fewer than 2 hourly buckets means the backend sent something
+						// unexpected (it always zero-fills 24) — fall back to the
+						// number itself rather than stretching too little data into a
+						// shape.
+						<div className="sales-hero">
+							<strong>{money(trendRevenue)}</strong>
+							<span>{trendOrders} order{trendOrders === 1 ? "" : "s"} today</span>
 						</div>
 					)}
 				</Panel>
