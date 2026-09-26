@@ -63,9 +63,9 @@
 .dash-skeleton-stat i { float:left; width:44px; height:44px; margin:20px 14px 0 0; border-radius:var(--radius-xl); }.dash-skeleton-stat span { width:60%; height:12px; margin-top:20px; }.dash-skeleton-stat b { width:35%; height:24px; margin-top:9px; }.dash-skeleton-stat small { width:42%; height:10px; margin-top:8px; }
 .dash-skeleton-chart,.dash-skeleton-orders { height:250px; }.dash-skeleton-items { height:76px; }.dash-skeleton-lower { height:220px; }.dash-skeleton-activity { height:78px; }
 .dash-empty-row { min-height: 92px; display:grid; place-items:center; color:var(--muted-foreground); font-size:12px; }
-.sales-panel .chart-wrap { height: 172px; }
-.sales-panel .chart-wrap svg { height: 145px; }
-.sales-hero { height: 172px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.sales-panel { display: flex; flex-direction: column; }
+.sales-panel .chart-wrap { flex: 1; height: auto; min-height: 172px; }
+.sales-hero { flex: 1; min-height: 172px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
 .sales-hero strong { font-size: 40px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
 .sales-hero span { font-size: 13px; color: var(--muted-foreground); }
 .items-panel .dash-empty-row { min-height: 48px; }
@@ -118,9 +118,9 @@
 .dash-link span { font-size:15px; margin-left:2px; display:inline-block; transition: transform .18s ease; }
 .dash-link:hover span { transform: translateX(2px); }
 
-.chart-wrap { position:relative; height:190px; padding:0 0 24px 42px; }
-.chart-wrap svg { width:100%; height:150px; display:block; }
-.chart-y { position:absolute; left:0; top:-5px; height:150px; display:flex; flex-direction:column; justify-content:space-between; color:var(--muted-foreground); font-size:11px; font-weight:500; }
+.chart-wrap { position:relative; height:190px; padding:12px 0 24px 42px; }
+.chart-wrap svg { width:100%; height:100%; display:block; }
+.chart-y { position:absolute; left:0; top:12px; bottom:24px; height:auto; display:flex; flex-direction:column; justify-content:space-between; color:var(--muted-foreground); font-size:11px; font-weight:500; }
 .chart-x { position:absolute; bottom:0; left:42px; right:0; display:flex; justify-content:space-between; color:var(--muted-foreground); font-size:11px; }
 
 .dash-table { font-size:12.5px; max-height:250px; overflow-y:auto; }
