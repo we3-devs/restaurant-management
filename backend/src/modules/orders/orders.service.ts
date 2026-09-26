@@ -2779,6 +2779,46 @@ export class OrdersService {
       });
     }
 
+    // Direct-sale variant tracking (FoodVariant.inventoryIngredientId — the
+    // "Track together"/"Untrack" pair manages this field). A variant sharing
+    // its ingredient with sibling variants ("tracked together", e.g. Beer
+    // 350ml/500ml pouring from one bottle pool) needs a recipe row to say how
+    // much of the shared ingredient each variant consumes; a variant that is
+    // the sole holder of its ingredient ("separate") has nothing to be
+    // proportional to, so it deducts one base unit of that ingredient per
+    // unit sold. Skipped for itemType 'kitchen': that food-level BOM path
+    // above already resolves every recipe row (including variant-scoped
+    // ones), so running this too would double-deduct the same ingredient.
+    if (food.itemType !== 'kitchen' && item.foodVariantId) {
+      const variant = await this.foodVariantsService.findOne(item.foodVariantId);
+      if (variant.inventoryIngredientId !== null) {
+        const recipes = await this.foodsService.resolveRecipes(item.foodId, item.foodVariantId);
+        const trackedRecipe = recipes.find((recipe) => recipe.ingredientId === variant.inventoryIngredientId);
+        if (trackedRecipe) {
+          recipeGroups.push({
+            recipes: [{
+              ingredientId: trackedRecipe.ingredientId,
+              unitId: trackedRecipe.unitId,
+              quantity: trackedRecipe.quantity,
+              wastageQuantity: trackedRecipe.wastageQuantity,
+            }],
+            quantityMultiplier: item.quantity,
+          });
+        } else {
+          const ingredient = await this.ingredientsService.findOne(variant.inventoryIngredientId);
+          recipeGroups.push({
+            recipes: [{
+              ingredientId: variant.inventoryIngredientId,
+              unitId: ingredient.baseUnitId,
+              quantity: 1,
+              wastageQuantity: 0,
+            }],
+            quantityMultiplier: item.quantity,
+          });
+        }
+      }
+    }
+
     const addonRecipeGroups = await Promise.all(
       itemAddons.map(async (itemAddon) => {
         const addon = await this.addonsService.findOne(itemAddon.addonId);

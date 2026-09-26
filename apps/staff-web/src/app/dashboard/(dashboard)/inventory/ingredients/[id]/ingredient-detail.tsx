@@ -295,7 +295,14 @@ function VariantsCard({ parentIngredientId }: { parentIngredientId: number }) {
   const [packageLabel, setPackageLabel] = useState("Carton")
   const [expandedVariantId, setExpandedVariantId] = useState<number | null>(null)
 
+  // The item itself is a valid pick here, not just other ingredients: most
+  // items (e.g. Coke) don't have separate SKUs per size, they just always
+  // arrive packaged the same way (24 bottles per carton) — self-selecting
+  // sets that package default on the item without inventing a second
+  // Ingredient record for it. Listed first since it's the common case.
+  const parentIngredient = ingredients?.data.find((ingredient) => ingredient.id === parentIngredientId)
   const otherIngredients = ingredients?.data.filter((ingredient) => ingredient.id !== parentIngredientId)
+  const pickableIngredients = parentIngredient ? [parentIngredient, ...(otherIngredients ?? [])] : otherIngredients
 
   async function handleAdd() {
     if (!ingredientId || !label || !unitId) return
@@ -353,7 +360,11 @@ function VariantsCard({ parentIngredientId }: { parentIngredientId: number }) {
                   <>
                     <TableRow key={variant.id}>
                       <TableCell>{variant.label}</TableCell>
-                      <TableCell>{variantIngredient?.name ?? variant.ingredientId}</TableCell>
+                      <TableCell>
+                        {variant.ingredientId === parentIngredientId
+                          ? `${variantIngredient?.name ?? "This item"} (this item)`
+                          : (variantIngredient?.name ?? variant.ingredientId)}
+                      </TableCell>
                       <TableCell>{unit?.shortName ?? variant.unitId}</TableCell>
                       <TableCell>
                         {variant.unitsPerPackage
@@ -408,9 +419,9 @@ function VariantsCard({ parentIngredientId }: { parentIngredientId: number }) {
                 <SelectValue placeholder="Select an ingredient" />
               </SelectTrigger>
               <SelectContent>
-                {otherIngredients?.map((ingredient) => (
+                {pickableIngredients?.map((ingredient) => (
                   <SelectItem key={ingredient.id} value={String(ingredient.id)}>
-                    {ingredient.name}
+                    {ingredient.id === parentIngredientId ? `${ingredient.name} (this item)` : ingredient.name}
                   </SelectItem>
                 ))}
               </SelectContent>

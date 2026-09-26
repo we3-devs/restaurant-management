@@ -17,9 +17,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useIngredients } from "@/hooks/use-ingredients"
+import { useIngredients, type Ingredient } from "@/hooks/use-ingredients"
 import { usePurchaseOrder, usePurchaseOrderItems, usePurchaseOrders } from "@/hooks/use-purchase-orders"
 import { useCreateGoodsReceiving } from "@/hooks/use-goods-receiving"
+import { useIngredientVariants } from "@/hooks/use-ingredient-variants"
 import { useSuppliers } from "@/hooks/use-suppliers"
 import { useWarehouses } from "@/hooks/use-warehouses"
 
@@ -37,12 +38,14 @@ interface StandaloneLine {
   unitCost: string
   batchNo: string
   expiryDate: string
+  /** Set when a package variant (e.g. "Carton of 4×750ml") is picked instead of the raw ingredient — quantity is then a package count, converted via unitsPerPackage at submit time. */
+  packageVariant: { ingredientId: number; unitsPerPackage: number | null; label: string } | null
 }
 
 let standaloneLineSeq = 0
 function emptyStandaloneLine(): StandaloneLine {
   standaloneLineSeq += 1
-  return { key: standaloneLineSeq, ingredientId: "", quantity: "", unitCost: "", batchNo: "", expiryDate: "" }
+  return { key: standaloneLineSeq, ingredientId: "", quantity: "", unitCost: "", batchNo: "", expiryDate: "", packageVariant: null }
 }
 
 export function CreateGoodsReceivingDialog() {
@@ -102,13 +105,24 @@ export function CreateGoodsReceivingDialog() {
       const warehouse = warehouses?.data.find((w) => w.id === Number(standaloneWarehouseId))
       const standaloneItems = standaloneLines
         .filter((line) => line.ingredientId && Number(line.quantity) > 0)
-        .map((line) => ({
-          ingredientId: Number(line.ingredientId),
-          quantityReceived: Number(line.quantity),
-          unitCost: line.unitCost ? Number(line.unitCost) : undefined,
-          batchNo: line.batchNo || undefined,
-          expiryDate: line.expiryDate || undefined,
-        }))
+        .map((line) => {
+          const enteredQty = Number(line.quantity)
+          // A package variant (e.g. "Carton of 4×750ml") means the entered
+          // quantity is a package count — convert it to the variant's own
+          // ingredient and base-unit quantity, same math as the Inventory
+          // Item page's "receive stock" for variants.
+          const ingredientId = line.packageVariant ? line.packageVariant.ingredientId : Number(line.ingredientId)
+          const quantityReceived = line.packageVariant
+            ? enteredQty * (line.packageVariant.unitsPerPackage ?? 1)
+            : enteredQty
+          return {
+            ingredientId,
+            quantityReceived,
+            unitCost: line.unitCost ? Number(line.unitCost) : undefined,
+            batchNo: line.batchNo || undefined,
+            expiryDate: line.expiryDate || undefined,
+          }
+        })
       if (!standaloneSupplierId || !warehouse || standaloneItems.length === 0) {
         toast.error("Select supplier, warehouse, and enter at least one item with a quantity")
         return
@@ -213,6 +227,7 @@ export function CreateGoodsReceivingDialog() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Item</TableHead>
+                    <TableHead>Package</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Unit cost</TableHead>
                     <TableHead>Batch #</TableHead>
@@ -222,37 +237,14 @@ export function CreateGoodsReceivingDialog() {
                 </TableHeader>
                 <TableBody>
                   {standaloneLines.map((line) => (
-                    <TableRow key={line.key}>
-                      <TableCell>
-                        <Select value={line.ingredientId} onValueChange={(v) => updateStandaloneLine(line.key, { ingredientId: v ?? "" })}>
-                          <SelectTrigger className="w-full min-w-40"><SelectValue placeholder="Select item" /></SelectTrigger>
-                          <SelectContent>{(ingredients?.data ?? []).map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input type="number" min="0" step="0.01" className="w-24" value={line.quantity} onChange={(e) => updateStandaloneLine(line.key, { quantity: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Input type="number" min="0" step="0.01" className="w-24" placeholder="Buying price" value={line.unitCost} onChange={(e) => updateStandaloneLine(line.key, { unitCost: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Input className="w-24" value={line.batchNo} onChange={(e) => updateStandaloneLine(line.key, { batchNo: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Input type="date" className="w-36" value={line.expiryDate} onChange={(e) => updateStandaloneLine(line.key, { expiryDate: e.target.value })} />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={standaloneLines.length === 1}
-                          onClick={() => removeStandaloneLine(line.key)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <StandaloneReceivingRow
+                      key={line.key}
+                      line={line}
+                      ingredients={ingredients?.data ?? []}
+                      onUpdate={(patch) => updateStandaloneLine(line.key, patch)}
+                      onRemove={() => removeStandaloneLine(line.key)}
+                      removeDisabled={standaloneLines.length === 1}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -338,5 +330,91 @@ export function CreateGoodsReceivingDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function StandaloneReceivingRow({
+  line,
+  ingredients,
+  onUpdate,
+  onRemove,
+  removeDisabled,
+}: {
+  line: StandaloneLine
+  ingredients: Ingredient[]
+  onUpdate: (patch: Partial<StandaloneLine>) => void
+  onRemove: () => void
+  removeDisabled: boolean
+}) {
+  const { data: packageVariants } = useIngredientVariants(Number(line.ingredientId) || 0)
+  const hasPackages = (packageVariants?.length ?? 0) > 0
+
+  function handleIngredientChange(value: string) {
+    onUpdate({ ingredientId: value, packageVariant: null })
+  }
+
+  function handlePackageChange(value: string) {
+    if (value === "raw") {
+      onUpdate({ packageVariant: null })
+      return
+    }
+    const variant = packageVariants?.find((v) => String(v.id) === value)
+    if (!variant) return
+    onUpdate({
+      packageVariant: { ingredientId: variant.ingredientId, unitsPerPackage: variant.unitsPerPackage, label: variant.label },
+    })
+  }
+
+  return (
+    <TableRow>
+      <TableCell>
+        <Select value={line.ingredientId} onValueChange={(v) => handleIngredientChange(v ?? "")}>
+          <SelectTrigger className="w-full min-w-40"><SelectValue placeholder="Select item" /></SelectTrigger>
+          <SelectContent>{ingredients.map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        {hasPackages ? (
+          <Select value={line.packageVariant ? String(packageVariants!.find((v) => v.ingredientId === line.packageVariant!.ingredientId)?.id ?? "") : "raw"} onValueChange={(v) => handlePackageChange(v ?? "raw")}>
+            <SelectTrigger className="w-full min-w-32"><SelectValue placeholder="Raw quantity" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="raw">Raw quantity</SelectItem>
+              {packageVariants!.map((v) => (
+                <SelectItem key={v.id} value={String(v.id)}>
+                  {v.label}{v.packageLabel ? ` (${v.packageLabel})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          className="w-24"
+          placeholder={line.packageVariant ? "Packages" : "Quantity"}
+          value={line.quantity}
+          onChange={(e) => onUpdate({ quantity: e.target.value })}
+        />
+      </TableCell>
+      <TableCell>
+        <Input type="number" min="0" step="0.01" className="w-24" placeholder="Buying price" value={line.unitCost} onChange={(e) => onUpdate({ unitCost: e.target.value })} />
+      </TableCell>
+      <TableCell>
+        <Input className="w-24" value={line.batchNo} onChange={(e) => onUpdate({ batchNo: e.target.value })} />
+      </TableCell>
+      <TableCell>
+        <Input type="date" className="w-36" value={line.expiryDate} onChange={(e) => onUpdate({ expiryDate: e.target.value })} />
+      </TableCell>
+      <TableCell>
+        <Button type="button" variant="ghost" size="icon" disabled={removeDisabled} onClick={onRemove}>
+          <Trash2 className="size-4" />
+        </Button>
+      </TableCell>
+    </TableRow>
   )
 }
