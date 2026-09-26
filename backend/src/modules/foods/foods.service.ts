@@ -372,11 +372,14 @@ export class FoodsService {
 
   /**
    * Creates a new stock-tracked Ingredient (same outlet/category/unit for the
-   * whole batch) for every requested food that belongs to the current tenant
-   * and isn't already linked to a live one, then links it to every one of
-   * that food's food items (FoodVariant.inventoryIngredientId) — they share
-   * this one physical stock item by default; split them apart afterward from
-   * an individual food item's edit page if they should track separately.
+   * whole batch) for every requested food that belongs to the current tenant,
+   * then links it to that food's food items (FoodVariant.inventoryIngredientId)
+   * that aren't already linked to a live ingredient — those share this one
+   * physical stock item by default. Food items already pointing at their own
+   * stock item (e.g. Coke 1L -> "Coke 1L", Coke 1.5L -> "Coke 1.5L") are left
+   * alone, and a food whose items are all linked is skipped. If an earlier
+   * import already created this food's ingredient, newly added food items
+   * join it instead of a second one being created.
    * Per-food failures (e.g. a slug/code collision, or no food item to link
    * yet) are collected rather than aborting the whole batch.
    */
@@ -403,34 +406,46 @@ export class FoodsService {
       // deleting the ingredient used to leave the food item pointing at a
       // dead row and permanently "already imported", with no way to import
       // it again.
-      const existingIngredientId = variants[0].inventoryIngredientId;
-      const alreadyLinked =
-        existingIngredientId !== null &&
-        variants.every((variant) => variant.inventoryIngredientId === existingIngredientId) &&
-        (await this.hasLiveIngredient(existingIngredientId));
-      if (alreadyLinked) {
+      const linkedIds = [
+        ...new Set(
+          variants
+            .map((variant) => variant.inventoryIngredientId)
+            .filter((id): id is number => id !== null),
+        ),
+      ];
+      const liveLinked = new Map<number, { id: number; code: string }>();
+      for (const id of linkedIds) {
+        const ingredient = await this.findLiveIngredient(id);
+        if (ingredient) liveLinked.set(id, ingredient);
+      }
+      const unlinked = variants.filter(
+        (variant) => variant.inventoryIngredientId === null || !liveLinked.has(variant.inventoryIngredientId),
+      );
+      if (unlinked.length === 0) {
         skipped++;
         continue;
       }
       try {
-        // Soft-deleted ingredients kept their code/slug until remove()
-        // started releasing them, so anything deleted before that still
-        // squats on the values this import needs.
-        await this.ingredientsService.releaseDeletedIdentifiers({
-          code: `FOOD-${food.id}`,
-          slug: food.slug,
-        });
-        const ingredient = await this.ingredientsService.create({
-          outletId: dto.outletId,
-          ingredientCategoryId: dto.ingredientCategoryId,
-          baseUnitId: dto.baseUnitId,
-          name: food.name,
-          slug: food.slug,
-          code: `FOOD-${food.id}`,
-        });
+        const code = `FOOD-${food.id}`;
+        let ingredientId = [...liveLinked.values()].find((ingredient) => ingredient.code === code)?.id;
+        if (ingredientId === undefined) {
+          // Soft-deleted ingredients kept their code/slug until remove()
+          // started releasing them, so anything deleted before that still
+          // squats on the values this import needs.
+          await this.ingredientsService.releaseDeletedIdentifiers({ code, slug: food.slug });
+          const ingredient = await this.ingredientsService.create({
+            outletId: dto.outletId,
+            ingredientCategoryId: dto.ingredientCategoryId,
+            baseUnitId: dto.baseUnitId,
+            name: food.name,
+            slug: food.slug,
+            code,
+          });
+          ingredientId = ingredient.id;
+        }
         await this.foodVariantsRepository.update(
-          variants.map((variant) => variant.id),
-          { inventoryIngredientId: ingredient.id },
+          unlinked.map((variant) => variant.id),
+          { inventoryIngredientId: ingredientId },
         );
         created++;
       } catch (error) {
@@ -440,13 +455,12 @@ export class FoodsService {
     return { created, skipped, errors };
   }
 
-  /** True only when the id resolves to an ingredient that hasn't been deleted. */
-  private async hasLiveIngredient(ingredientId: number): Promise<boolean> {
+  /** The ingredient behind this id, or null if it has been deleted. */
+  private async findLiveIngredient(ingredientId: number): Promise<{ id: number; code: string } | null> {
     try {
-      await this.ingredientsService.findOne(ingredientId);
-      return true;
+      return await this.ingredientsService.findOne(ingredientId);
     } catch {
-      return false;
+      return null;
     }
   }
 

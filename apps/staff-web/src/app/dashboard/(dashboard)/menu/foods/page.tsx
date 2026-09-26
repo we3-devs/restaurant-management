@@ -265,7 +265,7 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
                   <DialogTitle>Import {selectedIds.length} food{selectedIds.length === 1 ? "" : "s"} into inventory</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Creates a stock-tracked ingredient for each selected food (already-linked foods are skipped) in the active outlet.</p>
+                  <p className="text-xs text-muted-foreground">Creates a stock-tracked ingredient for each selected food in the active outlet and links it to the food items that aren&apos;t linked yet. Food items already linked to their own inventory item keep that link, and fully linked foods are skipped.</p>
                   <Select value={importCategoryId} onValueChange={(value) => setImportCategoryId(value ?? "")}>
                     <SelectTrigger className="w-full" disabled={stockTrackedCategories.length === 0}>
                       <SelectValue placeholder={stockTrackedCategories.length === 0 ? "No stock-tracked categories" : "Ingredient category"} />
