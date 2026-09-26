@@ -18,6 +18,7 @@ import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 
 const ITEM_STATUS_LABELS: Record<string, string> = {
   stock_reserved: "Pending",
@@ -58,6 +59,7 @@ export function TableSessionCheckout({
   const parsedPaymentAmount = Number(paymentAmount)
   const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
   const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   async function handlePay() {
@@ -134,7 +136,13 @@ export function TableSessionCheckout({
           when charging a tab, optional attribution otherwise. */}
       <Select
         value={paymentCustomerId ? String(paymentCustomerId) : "none"}
-        onValueChange={(value) => setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)}
+        onValueChange={(value) => {
+          if (value === "create") {
+            setCreateCustomerOpen(true)
+            return
+          }
+          setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)
+        }}
       >
         <SelectTrigger className="w-full" disabled={customersLoading}>
           <SelectValue
@@ -143,6 +151,7 @@ export function TableSessionCheckout({
         </SelectTrigger>
         <SelectContent>
           {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+          <SelectItem value="create">+ Create customer</SelectItem>
           {customers?.data.map((customer) => (
             <SelectItem key={customer.id} value={String(customer.id)}>
               {customer.name}
@@ -151,6 +160,11 @@ export function TableSessionCheckout({
           ))}
         </SelectContent>
       </Select>
+      <CreateCustomerDialog
+        open={createCustomerOpen}
+        onOpenChange={setCreateCustomerOpen}
+        onCreated={(customer) => setPaymentCustomerId(customer.id)}
+      />
       <Button
         variant="outline"
         size="sm"

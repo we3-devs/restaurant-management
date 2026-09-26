@@ -176,6 +176,12 @@ export default function DashboardPage() {
 				},
 				{
 					label: "Total Revenue",
+					value: money(stats.data.salesOverview.billedTotal),
+					icon: FileText,
+					direction: "up",
+				},
+				{
+					label: "Paid Revenue",
 					value: money(stats.data.salesOverview.grandTotal),
 					icon: CircleDollarSign,
 					direction: "up",
@@ -237,7 +243,7 @@ export default function DashboardPage() {
 			{/* ── Stat cards — each shows immediately when stats query resolves ── */}
 			<div className="dash-stat-grid">
 				{stats.isLoading
-					? Array.from({ length: 4 }, (_, i) => (
+					? Array.from({ length: 5 }, (_, i) => (
 							<div className="dash-stat dash-skeleton-stat" key={i}>
 								<i /><span /><b /><small />
 							</div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -27,15 +27,42 @@ import { useDeleteOutlet, useOutlet, useUpdateOutlet } from "@/hooks/use-outlets
 import { updateOutletSchema, type UpdateOutletInput } from "@/lib/validators/outlets"
 import { usePageTitle } from "@rms/ui/use-page-title"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { useOperatingHours, useUpdateOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 
 export function OutletDetail({ outletId }: { outletId: number }) {
   const router = useRouter()
   const { permissions } = useCurrentUser()
   const canManage = permissions.includes("outlets.manage")
+  const canViewHours = permissions.includes("settings.view")
+  const canManageHours = permissions.includes("settings.manage")
   const { data: outlet, isLoading } = useOutlet(outletId)
   const showSkeleton = useDelayedLoading(isLoading)
   const updateOutlet = useUpdateOutlet(outletId)
   const deleteOutlet = useDeleteOutlet()
+
+  const { data: hours } = useOperatingHours(canViewHours ? outletId : null)
+  const updateHours = useUpdateOperatingHours(outletId)
+  const [openingTime, setOpeningTime] = useState("")
+  const [closingTime, setClosingTime] = useState("")
+  const [hoursTimezone, setHoursTimezone] = useState("")
+  const [hoursEnabled, setHoursEnabled] = useState(false)
+
+  useEffect(() => {
+    if (!hours) return
+    setOpeningTime(hours.openingTime ?? "")
+    setClosingTime(hours.closingTime ?? "")
+    setHoursTimezone(hours.timezone)
+    setHoursEnabled(hours.enabled)
+  }, [hours])
+
+  async function onSubmitHours() {
+    try {
+      await updateHours.mutateAsync({ openingTime, closingTime, timezone: hoursTimezone, enabled: hoursEnabled })
+      toast.success("Operating hours updated")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update operating hours")
+    }
+  }
 
   const form = useForm<UpdateOutletInput>({
     resolver: zodResolver(updateOutletSchema),
@@ -298,6 +325,67 @@ export function OutletDetail({ outletId }: { outletId: number }) {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Only an admin can edit this outlet.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {canViewHours && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Operating Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm">
+                Opening time
+                <input
+                  type="time"
+                  value={openingTime}
+                  onChange={(e) => setOpeningTime(e.target.value)}
+                  disabled={!canManageHours}
+                  className="mt-1 block w-full rounded-md border bg-background p-2"
+                />
+              </label>
+              <label className="text-sm">
+                Closing time
+                <input
+                  type="time"
+                  value={closingTime}
+                  onChange={(e) => setClosingTime(e.target.value)}
+                  disabled={!canManageHours}
+                  className="mt-1 block w-full rounded-md border bg-background p-2"
+                />
+              </label>
+              <label className="col-span-2 text-sm">
+                IANA timezone
+                <input
+                  value={hoursTimezone}
+                  onChange={(e) => setHoursTimezone(e.target.value)}
+                  disabled={!canManageHours}
+                  placeholder="Asia/Kathmandu"
+                  className="mt-1 block w-full rounded-md border bg-background p-2"
+                />
+              </label>
+              <label className="col-span-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={hoursEnabled}
+                  onChange={(e) => setHoursEnabled(e.target.checked)}
+                  disabled={!canManageHours}
+                />
+                Enforce operating hours
+              </label>
+              {canManageHours && (
+                <Button disabled={updateHours.isPending} onClick={onSubmitHours}>
+                  {updateHours.isPending ? "Saving..." : "Save operating hours"}
+                </Button>
+              )}
+              {hours && (
+                <p className="col-span-2 text-sm text-muted-foreground">
+                  Status: {hours.isOpen ? "Open" : "Closed"}
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -24,6 +24,8 @@ export interface DashboardSummary {
   salesOverview: {
     orderCount: number;
     grandTotal: number;
+    /** Gross billed total for non-cancelled orders in range, regardless of payment status — what grandTotal used to mean before it became "paid". */
+    billedTotal: number;
     avgOrderValue: number;
   };
   revenueTrend: { date: string; orderCount: number; grandTotal: number }[];

@@ -101,16 +101,16 @@ export class DashboardComputeService {
   }
 
   /**
-   * Revenue-bearing orders only: excludes cancelled orders AND orders that
-   * haven't been paid yet, since revenue should reflect money actually
-   * collected, not orders merely placed.
+   * Revenue-bearing orders only: excludes cancelled orders and orders with
+   * nothing collected yet, since revenue should reflect money actually
+   * collected — including the collected portion of a partially-paid order —
+   * not orders merely placed or fully billed.
    *
-   * A "credit" payment settles the order (payment_status can reach 'paid')
-   * but isn't money collected yet — it's a charge to the customer's tab,
-   * settled later via POST /customer-credit/settlements. Joins each order's
-   * completed credit-payment total here so callers can subtract it from
-   * grand_total, instead of counting the charge as revenue the moment it's
-   * put on the tab.
+   * A "credit" payment settles the order (paid_amount reflects it) but isn't
+   * money collected yet — it's a charge to the customer's tab, settled later
+   * via POST /customer-credit/settlements. Joins each order's completed
+   * credit-payment total here so callers can subtract it from paid_amount,
+   * instead of counting the charge as revenue the moment it's put on the tab.
    */
   private ordersInRange(range: ResolvedRange) {
     const qb = this.ordersRepository
@@ -133,16 +133,32 @@ export class DashboardComputeService {
         to: range.to,
       })
       .andWhere("order.status != 'cancelled'")
-      .andWhere("order.payment_status = 'paid'");
+      .andWhere('order.paid_amount > 0');
     if (range.outletId !== undefined) {
       qb.andWhere('order.outlet_id = :outletId', { outletId: range.outletId });
     }
     return qb;
   }
 
-  /** grand_total net of whatever portion of the order was charged to a customer's credit tab rather than actually collected. */
+  /** paid_amount net of whatever portion of the order was charged to a customer's credit tab rather than actually collected. */
   private static readonly COLLECTED_TOTAL_SQL =
-    'order.grand_total - COALESCE(credit_payments.amount, 0)';
+    'order.paid_amount - COALESCE(credit_payments.amount, 0)';
+
+  /** Gross billed total for every non-cancelled order in range, regardless of payment status — unlike ordersInRange, not restricted to orders with something collected. */
+  private billedTotalInRange(range: ResolvedRange) {
+    const qb = this.ordersRepository
+      .createQueryBuilder('order')
+      .select('COALESCE(SUM(order.grand_total), 0)', 'billedTotal')
+      .where('order.created_at BETWEEN :from AND :to', {
+        from: range.from,
+        to: range.to,
+      })
+      .andWhere("order.status != 'cancelled'");
+    if (range.outletId !== undefined) {
+      qb.andWhere('order.outlet_id = :outletId', { outletId: range.outletId });
+    }
+    return qb;
+  }
 
   /**
    * Credit settlements collected in range, scoped the same way ordersInRange
@@ -173,7 +189,7 @@ export class DashboardComputeService {
   private async getSalesOverview(
     range: ResolvedRange,
   ): Promise<DashboardSummary['salesOverview']> {
-    const [row, settlementRow] = await Promise.all([
+    const [row, settlementRow, billedRow] = await Promise.all([
       this.ordersInRange(range)
         .select('COUNT(*)', 'orderCount')
         .addSelect(
@@ -184,6 +200,7 @@ export class DashboardComputeService {
       this.settlementsInRange(range)
         .select('COALESCE(SUM(-settlement.amount), 0)', 'amount')
         .getRawOne<{ amount: string }>(),
+      this.billedTotalInRange(range).getRawOne<{ billedTotal: string }>(),
     ]);
 
     const orderCount = Number(row?.orderCount ?? 0);
@@ -192,6 +209,7 @@ export class DashboardComputeService {
     return {
       orderCount,
       grandTotal: collectedFromOrders + settled,
+      billedTotal: Number(billedRow?.billedTotal ?? 0),
       // Kept order-only: a settlement isn't a new order, so folding it in
       // here would understate/overstate the average for reasons that have
       // nothing to do with order size.
@@ -262,9 +280,14 @@ export class DashboardComputeService {
   }
 
   private async getActiveTableSessions(range: ResolvedRange): Promise<number> {
+    // COUNT(DISTINCT dining_table_id), not COUNT(*): this represents
+    // occupied *tables*, which a "3 / 2" tile shouldn't be able to exceed.
+    // Normally 1:1 with session rows, but defensive against any leftover
+    // duplicate-session rows from before the DB-level uniqueness guard on
+    // table_sessions (see AddOneOpenSessionPerTable migration).
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
-      .select('COUNT(*)', 'count')
+      .select('COUNT(DISTINCT session.dining_table_id)', 'count')
       .from('table_sessions', 'session')
       .where("session.status IN ('active', 'billing')");
     if (range.outletId !== undefined) {

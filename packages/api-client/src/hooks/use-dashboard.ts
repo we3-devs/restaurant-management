@@ -11,7 +11,7 @@ export interface DashboardParams {
 }
 
 export interface DashboardStats {
-  salesOverview: { orderCount: number; grandTotal: number; avgOrderValue: number }
+  salesOverview: { orderCount: number; grandTotal: number; billedTotal: number; avgOrderValue: number }
   activeTableSessions: number
   ordersOverview: { status: string; count: number }[]
   kitchenOverview: { openTickets: number; inProgressTickets: number; avgPrepMinutes: number | null }

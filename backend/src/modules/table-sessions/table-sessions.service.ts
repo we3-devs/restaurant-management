@@ -13,6 +13,7 @@ import {
   EntityManager,
   FindOptionsWhere,
   In,
+  QueryFailedError,
   Repository,
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -506,7 +507,26 @@ export class TableSessionsService {
       startedAt: new Date(),
       startedBy,
     });
-    const saved = await manager.save(session);
+    // The assertNoOpenSession check above is read-then-write, not atomic —
+    // two concurrent requests (e.g. a guest QR scan racing a staff "start
+    // sale" tap) can both pass it before either insert commits. The unique
+    // index (idx_table_sessions_one_open_per_table) is the actual guard;
+    // this just turns its 23505 into the same ConflictException the
+    // pre-check throws, instead of a raw driver error.
+    let saved: TableSession;
+    try {
+      saved = await manager.save(session);
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string })?.code === '23505'
+      ) {
+        throw new ConflictException(
+          `Dining table ${dto.diningTableId} already has an open session`,
+        );
+      }
+      throw error;
+    }
     if (dto.customerId !== undefined) {
       await manager.insert(TableSessionCustomer, {
         tableSessionId: saved.id,
