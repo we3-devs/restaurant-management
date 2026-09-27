@@ -2,11 +2,12 @@ import "server-only"
 
 import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "../session"
 import { sessionFetch, type SessionFetchOptions } from "./session-fetch"
-
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
+import { backendUrl } from "../config"
 
 /** Same origin the authenticated helpers below use, for unauthenticated server-side reads (e.g. branding in generateMetadata). */
-export const BACKEND_API_BASE = `${BACKEND_URL}/api`
+export function backendApiBase(): string {
+  return `${backendUrl()}/api`
+}
 
 export class BackendUnauthorizedError extends Error {
   constructor() {
@@ -38,7 +39,7 @@ export async function backendFetch(
 ): Promise<Response> {
   return sessionFetch(
     {
-      backendUrl: BACKEND_URL,
+      backendUrl: backendUrl(),
       refreshPath: "/auth/refresh",
       getAccessToken,
       getRefreshToken,

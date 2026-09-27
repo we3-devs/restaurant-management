@@ -7,6 +7,7 @@ import {
   REFRESH_TOKEN_MAX_AGE_SECONDS,
 } from "@/lib/auth/session"
 import { isAllowedTenantHost, tenantHeaders } from "@rms/auth/tenant"
+import { backendUrl, misconfiguredResponse, missingSettings } from "@rms/auth/config"
 
 // Routes that must be reachable without a (staff) session. /guest (QR
 // ordering, its own customer-JWT auth) moved to operational-web along with
@@ -16,8 +17,6 @@ const AUTH_ROUTES = ["/login"]
 function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
-
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 /** Decodes a JWT's exp claim without verifying the signature — only used to decide whether a proactive refresh is worth attempting; the backend is the real authority. */
 function accessTokenExpiresAt(token: string): number | null {
@@ -48,7 +47,7 @@ const refreshInFlight = new Map<string, Promise<RefreshedTokens | null>>()
 async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
   const existing = refreshInFlight.get(refreshToken)
   if (existing) return existing
-  const promise = fetch(`${BACKEND_URL}/api/auth/refresh`, {
+  const promise = fetch(`${backendUrl()}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -79,6 +78,13 @@ export async function proxy(request: NextRequest) {
   if (!isAllowedTenantHost(request.headers.get("host"), "staff")) {
     return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
   }
+  // No fallback URLs: a missing setting is shown on every page and API
+  // response rather than silently pointing the app at some other backend.
+  const missing = missingSettings({
+    BACKEND_INTERNAL_URL: process.env.BACKEND_INTERNAL_URL,
+    NEXT_PUBLIC_BACKEND_WS_URL: process.env.NEXT_PUBLIC_BACKEND_WS_URL,
+  })
+  if (missing.length > 0) return misconfiguredResponse(request.nextUrl.pathname, missing)
   // PWA assets must be fetched before authentication redirects. In particular,
   // redirecting /sw.js to /login makes service-worker registration fail because
   // the browser receives HTML instead of JavaScript.

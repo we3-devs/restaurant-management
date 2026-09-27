@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { resolveTenantHost } from "@rms/auth/tenant";
 import { NextResponse } from "next/server";
 import { fetchBranding } from "@rms/api-client/branding";
-import { BACKEND_API_BASE } from "@/lib/server/backend-client";
+import { backendApiBase } from "@/lib/server/backend-client";
 
 export const revalidate = 30;
 
@@ -17,7 +17,7 @@ function tenantDisplayName(slug: string | undefined): string {
 export async function GET(request: Request) {
   const tenant = resolveTenantHost(request.headers.get("host"));
   const branding = await fetchBranding(
-    BACKEND_API_BASE,
+    backendApiBase(),
     tenant ? { "X-Tenant-Slug": tenant.slug } : undefined,
   );
   const restaurantName = tenantDisplayName(tenant?.slug);

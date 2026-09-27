@@ -19,13 +19,13 @@ async function fetchWsTicket(): Promise<string | null> {
 }
 
 function resolveWsUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_GUEST_WS_URL;
-  if (configured) return configured;
-  const fallback =
-    process.env.NEXT_PUBLIC_GUEST_API_URL?.replace(/\/api\/customer-backend\/?$/, "") ||
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ||
-    (typeof window !== "undefined" ? window.location.origin : "");
-  return fallback;
+  // The backend's origin: set explicitly, or derived from the API URL. No
+  // guess beyond that — this page's own origin is never the backend.
+  const url =
+    process.env.NEXT_PUBLIC_GUEST_WS_URL ||
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "");
+  if (!url) throw new Error("NEXT_PUBLIC_GUEST_WS_URL (or NEXT_PUBLIC_API_URL) is not set");
+  return url;
 }
 
 let sharedSocket: Socket | null = null;

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
+import { backendUrl } from "@rms/auth/config"
 import { clearAuthCookies, getRefreshToken } from "@/lib/auth/session"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 export async function POST() {
   const refreshToken = await getRefreshToken()
 
   if (refreshToken) {
-    await fetch(`${BACKEND_URL}/api/auth/logout`, {
+    await fetch(`${backendUrl()}/api/auth/logout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),

@@ -6,11 +6,8 @@ import {
   getCustomerToken,
   setCustomerSession,
 } from "../customer-session"
+import { publicApiUrl } from "../config"
 import { sessionFetch } from "./session-fetch"
-
-// NEXT_PUBLIC_API_URL already includes a trailing /api (see layout.tsx,
-// guest-socket.ts), which sessionFetch appends itself, so it's stripped here.
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ?? ""
 
 export class CustomerUnauthorizedError extends Error {
   constructor() {
@@ -42,7 +39,9 @@ export async function customerBackendFetch(
 ): Promise<Response> {
   return sessionFetch(
     {
-      backendUrl: BACKEND_URL,
+      // NEXT_PUBLIC_API_URL already ends in /api, which sessionFetch appends
+      // itself, so it's stripped here.
+      backendUrl: publicApiUrl().replace(/\/api$/, ""),
       refreshPath: "/customer-auth/refresh",
       getAccessToken: getCustomerToken,
       getRefreshToken: getCustomerRefreshToken,

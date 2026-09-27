@@ -8,7 +8,7 @@ import { RealtimeInvalidationProvider } from "@rms/api-client/realtime-invalidat
 import { QueryProvider } from "@/components/providers/query-provider"
 import { fetchBranding } from "@rms/api-client/branding"
 import { StaticBrandColor } from "@rms/api-client/brand-color"
-import { BACKEND_API_BASE } from "@/lib/server/backend-client"
+import { backendApiBase } from "@/lib/server/backend-client"
 import { brandingHeaders } from "@/lib/tenant"
 import { navRoutePermissions } from "./nav-items"
 import { DashboardChrome } from "./dashboard-chrome"
@@ -20,7 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Branding is fetched in parallel — independent of auth, no waterfall.
   const [user, branding] = await Promise.all([
     getCurrentUser(),
-    fetchBranding(BACKEND_API_BASE, await brandingHeaders()),
+    fetchBranding(backendApiBase(), await brandingHeaders()),
   ])
 
   const pathname = (await headers()).get("x-pathname") ?? ""

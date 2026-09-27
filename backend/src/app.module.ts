@@ -74,7 +74,6 @@ import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WsTicketsModule } from './common/ws-tickets/ws-tickets.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
-import { TenantContext } from './common/tenant/tenant-context';
 import { TenantModule } from './common/tenant/tenant.module';
 import { TenantRlsMiddleware } from './common/tenant/tenant-rls.middleware';
 import { AssetsModule } from './modules/assets/assets.module';
@@ -219,10 +218,7 @@ import { AssetsModule } from './modules/assets/assets.module';
 })
 export class AppModule implements NestModule, OnApplicationBootstrap, OnModuleDestroy {
   private warmupTimer?: NodeJS.Timeout;
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly tenantContext: TenantContext,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(TenantRlsMiddleware).forRoutes('*');
@@ -252,7 +248,6 @@ export class AppModule implements NestModule, OnApplicationBootstrap, OnModuleDe
    * aging out.
    */
   async onApplicationBootstrap() {
-    this.installTenantRlsQueryContext();
     const warmConnections = 10;
     const pingAll = () =>
       Promise.all(
@@ -267,39 +262,14 @@ export class AppModule implements NestModule, OnApplicationBootstrap, OnModuleDe
     this.warmupTimer.unref();
   }
 
-  /**
-   * RLS reads current_setting('app.tenant_id') from the PostgreSQL session.
-   * TypeORM obtains and releases pooled connections per query, so bind the
-   * setting immediately before every query rather than leaving tenant state on
-   * a connection after it returns to the pool.
-   */
-  private installTenantRlsQueryContext(): void {
-    const dataSource = this.dataSource as DataSource & { __tenantRlsPatched?: boolean };
-    if (dataSource.__tenantRlsPatched) return;
-    dataSource.__tenantRlsPatched = true;
-
-    const createQueryRunner = dataSource.createQueryRunner.bind(dataSource);
-    dataSource.createQueryRunner = ((mode?: 'master' | 'slave') => {
-      const queryRunner: any = createQueryRunner(mode);
-      const rawQuery = queryRunner.query.bind(queryRunner);
-      queryRunner.query = async (query: string, parameters?: unknown[], useStructuredResult?: boolean) => {
-        // Transaction-control statements (BEGIN/COMMIT/ROLLBACK/SAVEPOINT/...)
-        // must run standalone. Postgres allows ROLLBACK/ROLLBACK TO SAVEPOINT
-        // even once a transaction is aborted — that's how callers recover from
-        // it — but prepending set_config ahead of them breaks that recovery:
-        // set_config itself gets rejected with "current transaction is aborted",
-        // so the ROLLBACK never runs, the transaction stays aborted, and the
-        // connection can go back to the pool still poisoned for the next query.
-        if (/^\s*(begin|commit|rollback|savepoint|release)\b/i.test(query)) {
-          return rawQuery(query, parameters, useStructuredResult);
-        }
-        const tenantId = this.tenantContext.getTenantId();
-        await rawQuery(`SELECT set_config('app.tenant_id', $1, false)`, [tenantId === null ? '' : String(tenantId)]);
-        return rawQuery(query, parameters, useStructuredResult);
-      };
-      return queryRunner;
-    }) as DataSource['createQueryRunner'];
-  }
+  // No per-query set_config('app.tenant_id', ...): this backend connects as a
+  // role with BYPASSRLS, so Postgres never applies the tenant_isolation
+  // policies to its queries, and on the transaction-mode pooler (port 6543)
+  // a separate set_config isn't even guaranteed to reach the same server
+  // connection as the query after it. It only doubled every query's round
+  // trips. Tenant isolation is enforced in the app (TenantGuard, and
+  // scopedWhere/tenantFields via TenantContext). If the backend ever connects
+  // as a role without BYPASSRLS, set the tenant per transaction (SET LOCAL).
 
   onModuleDestroy() {
     if (this.warmupTimer) {

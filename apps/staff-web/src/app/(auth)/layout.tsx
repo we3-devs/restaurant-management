@@ -4,7 +4,7 @@ import { fetchBranding } from "@rms/api-client/branding"
 import { StaticBrandColor } from "@rms/api-client/brand-color"
 
 import { BrandLogo } from "@/components/brand-logo"
-import { BACKEND_API_BASE } from "@/lib/server/backend-client"
+import { backendApiBase } from "@/lib/server/backend-client"
 import { brandingHeaders, currentTenantName } from "@/lib/tenant"
 
 /**
@@ -13,7 +13,7 @@ import { brandingHeaders, currentTenantName } from "@/lib/tenant"
  * render even if the backend is unreachable (EMPTY_BRANDING fallback).
  */
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  const branding = await fetchBranding(BACKEND_API_BASE, await brandingHeaders())
+  const branding = await fetchBranding(backendApiBase(), await brandingHeaders())
   const restaurantName = branding.restaurantName ?? (await currentTenantName())
 
   return (

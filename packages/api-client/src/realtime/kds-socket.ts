@@ -2,7 +2,8 @@ import { io, type Socket } from "socket.io-client"
 import { useSyncExternalStore } from "react"
 import { apiClient } from "../client"
 
-const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? "https://restaurant-management-g6vb.onrender.com"
+// No fallback: proxy.ts refuses to serve the app while this is unset.
+const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL
 
 /**
  * The browser only ever holds an httpOnly auth cookie (see
@@ -60,6 +61,7 @@ export function useKdsSocketConnected(): boolean {
  */
 export function acquireKdsSocket(): Socket {
   if (!sharedSocket) {
+    if (!BACKEND_WS_URL) throw new Error("NEXT_PUBLIC_BACKEND_WS_URL is not set")
     sharedSocket = io(`${BACKEND_WS_URL}/kds`, {
       autoConnect: false,
       transports: ["websocket"],

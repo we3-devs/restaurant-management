@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
+import { backendUrl } from "@rms/auth/config"
 import { setAuthCookies } from "@/lib/auth/session"
 import { loginSchema } from "@/lib/validators/auth"
 import { tenantHeaders } from "@rms/auth/tenant"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 type AuthenticatedUser = {
   id: number
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     // visible in every deployed Next runtime.
     const tenantSlug = tenantHeaders(request).get("x-tenant-slug")
 
-    const backendResponse = await fetch(`${BACKEND_URL}/api/auth/login`, {
+    const backendResponse = await fetch(`${backendUrl()}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

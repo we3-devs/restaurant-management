@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { backendUrl, publicApiUrl } from "@rms/auth/config";
 import { headers } from "next/headers";
 import { fetchBranding } from "@rms/api-client/branding";
 import { resolveTenantHost } from "@rms/auth/tenant";
@@ -13,9 +14,7 @@ import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = resolveTenantHost((await headers()).get("host"));
   const branding = await fetchBranding(
-    process.env.BACKEND_INTERNAL_URL
-      ? `${process.env.BACKEND_INTERNAL_URL}/api`
-      : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api"),
+    process.env.BACKEND_INTERNAL_URL ? `${backendUrl()}/api` : publicApiUrl(),
     tenant ? { "X-Tenant-Slug": tenant.slug } : undefined,
   );
   const name = branding.restaurantName ?? "Order Menu";

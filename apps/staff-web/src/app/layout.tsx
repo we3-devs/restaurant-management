@@ -6,12 +6,12 @@ import { Toaster } from "@/components/ui/sonner";
 import { RouteProgress } from "@rms/ui/route-progress";
 import { fetchBranding } from "@rms/api-client/branding";
 import { StaticBrandColor } from "@rms/api-client/brand-color";
-import { BACKEND_API_BASE } from "@/lib/server/backend-client";
+import { backendApiBase } from "@/lib/server/backend-client";
 import { brandingHeaders, currentTenantName } from "@/lib/tenant";
 import { RegisterStaffServiceWorker } from "./operational/staff/register-sw";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await fetchBranding(BACKEND_API_BASE, await brandingHeaders());
+  const branding = await fetchBranding(backendApiBase(), await brandingHeaders());
   const name = await currentTenantName();
   const staffName = `${name} Staff`;
   const appIcon = branding.faviconUrl ?? branding.logoUrl ?? "/icons/favicon.ico";
@@ -40,7 +40,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const branding = await fetchBranding(BACKEND_API_BASE, await brandingHeaders());
+  const branding = await fetchBranding(backendApiBase(), await brandingHeaders());
 
   return (
     <html

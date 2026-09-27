@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { backendUrl } from "@rms/auth/config"
 import { clearAuthCookies, getRefreshToken, setAuthCookies } from "@/lib/auth/session"
 
-const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "https://restaurant-management-g6vb.onrender.com"
 
 type AuthTokens = { accessToken: string; refreshToken: string }
 
@@ -21,7 +21,7 @@ async function redeem(refreshToken: string | undefined): Promise<RefreshOutcome>
   }
   let response: Response
   try {
-    response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+    response = await fetch(`${backendUrl()}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     await setAuthCookies(outcome.tokens)
     // Check the fresh token before bouncing back, so a token the backend
     // still won't accept ends here instead of looping page -> refresh -> page.
-    const me = await fetch(`${BACKEND_URL}/api/auth/me`, {
+    const me = await fetch(`${backendUrl()}/api/auth/me`, {
       headers: { Authorization: `Bearer ${outcome.tokens.accessToken}` },
       cache: "no-store",
     }).catch(() => null)

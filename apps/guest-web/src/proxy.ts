@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isAllowedTenantHost, tenantHeaders } from "@rms/auth/tenant"
+import { misconfiguredResponse, missingSettings } from "@rms/auth/config"
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -18,6 +19,10 @@ export function proxy(request: NextRequest) {
   if (!isAllowedTenantHost(request.headers.get("host"), "guest")) {
     return new NextResponse("Unknown tenant host", { status: 421, headers: { "Cache-Control": "no-store" } })
   }
+  // No fallback URLs: a missing setting is shown on every page and API
+  // response rather than silently pointing guests at some other backend.
+  const missing = missingSettings({ NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL })
+  if (missing.length > 0) return misconfiguredResponse(request.nextUrl.pathname, missing)
   const headers = tenantHeaders(request)
   const response = NextResponse.next({ request: { headers } })
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY)
