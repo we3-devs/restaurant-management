@@ -180,7 +180,7 @@ export class AuthService {
       relations: { user: true },
     });
     if (!existing) {
-      throw new UnauthorizedException('Invalid refresh token');
+      this.rejectRefresh('Invalid refresh token', 'unknown_token');
     }
 
     if (claim.affected === 1) {
@@ -196,7 +196,11 @@ export class AuthService {
 
     if (existing.revokedAt === null) {
       // Still unrevoked, so the claim only failed on its expiry condition.
-      throw new UnauthorizedException('Refresh token has expired');
+      this.rejectRefresh(
+        'Refresh token has expired',
+        'expired',
+        existing.userId,
+      );
     }
 
     const rotatedHere = existing.replacedByTokenHash === successorHash;
@@ -230,7 +234,11 @@ export class AuthService {
         if (current.replacedByTokenHash !== this.hashToken(next)) break;
         candidate = next;
       }
-      throw new UnauthorizedException('Refresh token has been revoked');
+      this.rejectRefresh(
+        'Refresh token has been revoked',
+        'no_live_successor_in_grace',
+        existing.userId,
+      );
     }
 
     if (existing.replacedByTokenHash) {
@@ -239,12 +247,32 @@ export class AuthService {
       // account's logins on other devices were not exposed by this token,
       // so they stay up.
       await this.revokeTokenFamily(tokenHash);
-      throw new UnauthorizedException('Refresh token has already been used');
+      this.rejectRefresh(
+        'Refresh token has already been used',
+        `reuse_detected rotatedHere=${rotatedHere} revokedAgoMs=${Date.now() - existing.revokedAt.getTime()}`,
+        existing.userId,
+      );
     }
 
     // Revoked without a successor: logged out, or its family was already
     // revoked. Nothing further to revoke.
-    throw new UnauthorizedException('Refresh token has been revoked');
+    this.rejectRefresh(
+      'Refresh token has been revoked',
+      `revoked revokedAgoMs=${Date.now() - existing.revokedAt.getTime()}`,
+      existing.userId,
+    );
+  }
+
+  /** Logs why a refresh was refused (never any token material) and throws the 401. */
+  private rejectRefresh(
+    message: string,
+    reason: string,
+    userId?: number,
+  ): never {
+    this.logger.warn(
+      `[AUTH:REFRESH_REJECTED] userId=${userId ?? 'unknown'} reason=${reason}`,
+    );
+    throw new UnauthorizedException(message);
   }
 
   async logout(rawRefreshToken: string): Promise<void> {

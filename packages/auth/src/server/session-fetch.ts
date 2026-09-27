@@ -59,10 +59,12 @@ async function redeem(config: SessionFetchConfig, refreshToken: string): Promise
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     })
-  } catch {
+  } catch (error) {
+    console.warn(`[auth] ${config.scope} refresh: backend unreachable: ${error instanceof Error ? error.message : String(error)}`)
     return { tokens: null, invalid: false }
   }
   if (!response.ok) {
+    console.warn(`[auth] ${config.scope} refresh: backend returned ${response.status} ${(await response.text().catch(() => "")).slice(0, 200)}`)
     return { tokens: null, invalid: response.status === 401 || response.status === 403 }
   }
   const tokens = (await response.json()) as AuthTokens
@@ -104,6 +106,7 @@ export async function sessionFetch(
   }
   const firstAttempt = await fetchWithToken(`${config.backendUrl}/api${path}`, init, await config.getAccessToken())
   if (firstAttempt.status !== 401 || options.refresh === false) return firstAttempt
+  console.warn(`[auth] ${config.scope} access token rejected on ${path.split("?")[0]}, refreshing`)
 
   const result = await refresh(config)
   if (!result.tokens) {

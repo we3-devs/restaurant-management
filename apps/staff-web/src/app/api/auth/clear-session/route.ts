@@ -12,5 +12,9 @@ import { clearAuthCookies } from "@/lib/auth/session"
  */
 export async function GET(request: Request) {
   await clearAuthCookies()
-  return NextResponse.redirect(new URL("/login", request.url))
+  const loginUrl = new URL("/login", request.url)
+  // Carry the caller's reason code through, so the logout shows why.
+  const reason = new URL(request.url).searchParams.get("reason")
+  if (reason && /^[a-z_]{1,40}$/.test(reason)) loginUrl.searchParams.set("reason", reason)
+  return NextResponse.redirect(loginUrl)
 }

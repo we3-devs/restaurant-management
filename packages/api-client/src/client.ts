@@ -82,7 +82,7 @@ export async function apiClient<T>(path: string, init: RequestInit = {}): Promis
       // The client-side auth context has no way to react to this on its
       // own, so force a hard navigation to drop stale state and hit the
       // login page's own session check.
-      window.location.href = "/login"
+      window.location.href = "/login?reason=api_refresh_rejected"
       return new Promise<T>(() => {})
     }
     // "transient" falls through and lets the original 401 surface as an

@@ -61,8 +61,15 @@ async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | nu
     body: JSON.stringify({ refreshToken }),
     cache: "no-store",
   })
-    .then((response) => (response.ok ? (response.json() as Promise<RefreshedTokens>) : null))
-    .catch(() => null)
+    .then(async (response) => {
+      if (response.ok) return (await response.json()) as RefreshedTokens
+      console.warn(`[auth] proxy refresh rejected: ${response.status} ${(await response.text().catch(() => "")).slice(0, 200)}`)
+      return null
+    })
+    .catch((error: unknown) => {
+      console.warn(`[auth] proxy refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     .finally(() => {
       refreshInFlight.delete(refreshToken)
     })
@@ -109,7 +116,15 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!hasSession && !isAuth) {
-    return NextResponse.redirect(new URL("/login", request.url))
+    // Tag the redirect so an unexpected logout explains itself: no auth
+    // cookie arrived with this request at all. site=cross-site means the
+    // browser withheld them (SameSite=Strict on a navigation from another
+    // site) even though the session itself may still be alive.
+    const loginUrl = new URL("/login", request.url)
+    loginUrl.searchParams.set("reason", "no_session")
+    const site = request.headers.get("sec-fetch-site")
+    if (site) loginUrl.searchParams.set("site", site)
+    return NextResponse.redirect(loginUrl)
   }
 
   // "/" itself renders app/page.tsx, which does the real (backend-verified)

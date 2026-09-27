@@ -43,7 +43,8 @@ export const verifySession = cache(async (): Promise<CurrentUser> => {
     redirect(`/api/auth/refresh?next=${encodeURIComponent(returnTo)}`)
   }
   if (response.status === 403) {
-    redirect("/api/auth/clear-session")
+    console.warn(`[auth] /auth/me forbidden: ${(await response.text().catch(() => "")).slice(0, 200)}`)
+    redirect("/api/auth/clear-session?reason=me_forbidden")
   }
   if (!response.ok) {
     // Backend hiccup (5xx, cold start) — the session may be fine, so surface

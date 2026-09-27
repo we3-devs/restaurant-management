@@ -15,7 +15,10 @@ type AuthTokens = { accessToken: string; refreshToken: string }
 type RefreshOutcome = { status: "ok"; tokens: AuthTokens } | { status: "invalid" } | { status: "transient" }
 
 async function redeem(refreshToken: string | undefined): Promise<RefreshOutcome> {
-  if (!refreshToken) return { status: "invalid" }
+  if (!refreshToken) {
+    console.warn("[auth] refresh route: no refresh_token cookie on the request")
+    return { status: "invalid" }
+  }
   let response: Response
   try {
     response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
@@ -24,10 +27,14 @@ async function redeem(refreshToken: string | undefined): Promise<RefreshOutcome>
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     })
-  } catch {
+  } catch (error) {
+    console.warn(`[auth] refresh route: backend unreachable: ${error instanceof Error ? error.message : String(error)}`)
     return { status: "transient" }
   }
   if (!response.ok) {
+    // The backend's message says which rejection it was (expired, reused,
+    // revoked…) — no token material, safe to log.
+    console.warn(`[auth] refresh route: backend returned ${response.status} ${(await response.text().catch(() => "")).slice(0, 200)}`)
     return response.status === 401 || response.status === 403 ? { status: "invalid" } : { status: "transient" }
   }
   return { status: "ok", tokens: (await response.json()) as AuthTokens }
@@ -65,6 +72,13 @@ function safeReturnPath(value: string | null, base: string): string {
   return `${url.pathname}${url.search}`
 }
 
+/** /login tagged with why the session ended, so an unexpected logout explains itself. */
+function loginWithReason(request: NextRequest, reason: string): URL {
+  const url = new URL("/login", request.url)
+  url.searchParams.set("reason", reason)
+  return url
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
@@ -90,12 +104,13 @@ export async function GET(request: NextRequest) {
     }).catch(() => null)
     if (me?.ok) return NextResponse.redirect(new URL(next, request.url))
     if (me && (me.status === 401 || me.status === 403)) {
+      console.warn(`[auth] refresh detour: fresh token rejected by /auth/me: ${me.status} ${(await me.text().catch(() => "")).slice(0, 200)}`)
       await clearAuthCookies()
-      return NextResponse.redirect(new URL("/login", request.url))
+      return NextResponse.redirect(loginWithReason(request, "me_rejected"))
     }
   } else if (outcome.status === "invalid") {
     await clearAuthCookies()
-    return NextResponse.redirect(new URL("/login", request.url))
+    return NextResponse.redirect(loginWithReason(request, "refresh_rejected"))
   }
 
   // Backend unreachable: keep the session and retry shortly — this is what
