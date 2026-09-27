@@ -4,12 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'crypto';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { parseDurationToMs } from '../../common/utils/parse-duration';
 import { AppConfig } from '../../config/configuration';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PoolMetrics } from '../../common/instrumentation/pool-metrics';
 import { User } from '../users/entities/user.entity';
+import { isAccountDeactivated } from './account-status';
 import { RefreshToken } from './entities/refresh-token.entity';
 
 export interface TokenPair {
@@ -45,7 +46,18 @@ export class AuthService {
     return user;
   }
 
-  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+  /**
+   * Changes the caller's own password and signs out every other session
+   * (other devices, and anyone holding a stolen refresh token). The session
+   * making the change stays signed in; if it can't be identified (an access
+   * token issued before sessions carried an id), every session is ended.
+   */
+  async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+    currentSessionId?: number,
+  ): Promise<void> {
     const user = await this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
@@ -59,6 +71,15 @@ export class AuthService {
     const saltRounds = this.configService.get('bcrypt', { infer: true })!.saltRounds;
     user.password = await bcrypt.hash(newPassword, saltRounds);
     await this.usersRepository.save(user);
+
+    await this.refreshTokensRepository.update(
+      {
+        userId,
+        revokedAt: IsNull(),
+        ...(currentSessionId ? { id: Not(currentSessionId) } : {}),
+      },
+      { revokedAt: new Date() },
+    );
   }
 
   async login(
@@ -104,6 +125,9 @@ export class AuthService {
 
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+    if (await isAccountDeactivated(this.usersRepository.manager, user.id)) {
+      throw new UnauthorizedException('This account has been deactivated');
     }
 
     // Phase 3: Token generation
@@ -168,6 +192,23 @@ export class AuthService {
     if (!existing) {
       this.rejectRefresh('Invalid refresh token', 'unknown_token');
     }
+    if (
+      renewed.affected === 1 &&
+      (await isAccountDeactivated(
+        this.usersRepository.manager,
+        existing.userId,
+      ))
+    ) {
+      await this.refreshTokensRepository.update(
+        { tokenHash, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+      this.rejectRefresh(
+        'This account has been deactivated',
+        'user_deactivated',
+        existing.userId,
+      );
+    }
     if (renewed.affected !== 1) {
       if (existing.revokedAt) {
         this.rejectRefresh(
@@ -185,7 +226,7 @@ export class AuthService {
 
     return {
       tokens: {
-        accessToken: await this.signAccessToken(existing.user),
+        accessToken: await this.signAccessToken(existing.user, existing.id),
         refreshToken: rawRefreshToken,
       },
       user: existing.user,
@@ -240,19 +281,25 @@ export class AuthService {
     // the transaction .save() wraps a single new entity in (useTransaction
     // defaults to false for .insert(), true for .save()), cutting 3 network
     // round trips down to 1 on this remote DB.
-    const [accessToken] = await Promise.all([
-      this.signAccessToken(user),
-      this.refreshTokensRepository.insert({
-        userId: user.id,
-        tokenHash: this.hashToken(rawRefreshToken),
-        expiresAt: this.refreshTokenExpiry(),
-      }),
-    ]);
-    return { accessToken, refreshToken: rawRefreshToken };
+    const inserted = await this.refreshTokensRepository.insert({
+      userId: user.id,
+      tokenHash: this.hashToken(rawRefreshToken),
+      expiresAt: this.refreshTokenExpiry(),
+    });
+    const sessionId = Number(inserted.identifiers[0]?.id);
+    return {
+      accessToken: await this.signAccessToken(user, sessionId),
+      refreshToken: rawRefreshToken,
+    };
   }
 
-  private signAccessToken(user: User): Promise<string> {
-    return this.jwtService.signAsync({ sub: user.id, email: user.email });
+  /** `sid` names the session (refresh token row) the access token belongs to, so a password change can keep that one session signed in. */
+  private signAccessToken(user: User, sessionId: number): Promise<string> {
+    return this.jwtService.signAsync({
+      sub: user.id,
+      email: user.email,
+      sid: sessionId,
+    });
   }
 
   /** When a session used now should expire: refreshExpiresIn from now (sliding). */

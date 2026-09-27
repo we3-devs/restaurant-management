@@ -29,6 +29,7 @@ import { PermissionsService } from './permissions.service';
 import { User } from '../users/entities/user.entity';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import type { Request } from 'express';
+import type { AuthenticatedRequest } from './types/authenticated-request';
 
 const WS_TICKET_TTL_SECONDS = 30;
 
@@ -140,12 +141,21 @@ export class AuthController {
   @Post('change-password')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Changes the authenticated user password' })
+  @ApiOperation({
+    summary:
+      "Changes the authenticated user's password and signs out their other sessions",
+  })
   async changePassword(
     @CurrentUser() user: User,
     @Body() dto: ChangePasswordDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<void> {
-    await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    await this.authService.changePassword(
+      user.id,
+      dto.currentPassword,
+      dto.newPassword,
+      request.sessionId,
+    );
   }
 
   @Post('ws-ticket')

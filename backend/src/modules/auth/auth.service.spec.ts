@@ -1,4 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { FindOperator } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { AuthService, TokenPair } from './auth.service';
@@ -21,6 +22,7 @@ function matches(row: Row, where: Record<string, unknown>): boolean {
     const actual = row[key as keyof Row];
     if (expected instanceof FindOperator) {
       if (expected.type === 'isNull') return actual === null;
+      if (expected.type === 'not') return actual !== expected.value;
       if (expected.type === 'moreThan')
         return (actual as Date).getTime() > (expected.value as Date).getTime();
       throw new Error(`Unsupported operator ${expected.type}`);
@@ -38,7 +40,9 @@ class FakeRefreshTokenRepository {
 
   async insert(values: Omit<Row, 'id' | 'revokedAt'>) {
     await tick();
-    this.rows.push({ id: this.nextId++, revokedAt: null, ...values });
+    const id = this.nextId++;
+    this.rows.push({ id, revokedAt: null, ...values });
+    return { identifiers: [{ id }] };
   }
 
   async update(where: Record<string, unknown>, patch: Partial<Row>) {
@@ -73,9 +77,40 @@ class FakeRefreshTokenRepository {
   }
 }
 
-describe('AuthService.refresh', () => {
+/** Stand-in for Repository<User>: the password lookup/save changePassword uses, and the raw deactivation query. */
+class FakeUsersRepository {
+  deactivated = false;
+  passwordHash = '';
+  readonly manager = {
+    query: async () => {
+      await tick();
+      return [{ deactivated: this.deactivated }];
+    },
+  };
+
+  constructor(private readonly user: User) {}
+
+  createQueryBuilder() {
+    const builder = {
+      addSelect: () => builder,
+      where: () => builder,
+      getOne: () =>
+        Promise.resolve({ ...this.user, password: this.passwordHash }),
+    };
+    return builder;
+  }
+
+  save(user: User) {
+    this.passwordHash = user.password;
+    return Promise.resolve(user);
+  }
+}
+
+describe('AuthService', () => {
   const user = { id: 7, email: 'waiter@example.com' } as User;
   let repo: FakeRefreshTokenRepository;
+  let usersRepo: FakeUsersRepository;
+  let jwtService: { signAsync: jest.Mock };
   let service: AuthService;
   let signed = 0;
 
@@ -84,7 +119,8 @@ describe('AuthService.refresh', () => {
   beforeEach(() => {
     signed = 0;
     repo = new FakeRefreshTokenRepository(new Map([[user.id, user]]));
-    const jwtService = {
+    usersRepo = new FakeUsersRepository(user);
+    jwtService = {
       signAsync: jest.fn(() => Promise.resolve(`access-${++signed}`)),
     };
     const configService = {
@@ -95,10 +131,12 @@ describe('AuthService.refresh', () => {
               accessExpiresIn: '15m',
               refreshExpiresIn: '400d',
             }
-          : undefined,
+          : key === 'bcrypt'
+            ? { saltRounds: 4 }
+            : undefined,
     };
     service = new AuthService(
-      {} as never,
+      usersRepo as never,
       repo as never,
       jwtService as never,
       configService as never,
@@ -177,5 +215,75 @@ describe('AuthService.refresh', () => {
     await expect(service.refresh('not-a-real-token')).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it('stamps every access token with the session it belongs to', async () => {
+    const { refreshToken } = await login();
+    const sessionId = repo.rowFor(service, refreshToken).id;
+
+    await service.refresh(refreshToken);
+
+    for (const [payload] of jwtService.signAsync.mock.calls) {
+      expect(payload).toEqual({
+        sub: user.id,
+        email: user.email,
+        sid: sessionId,
+      });
+    }
+  });
+
+  it('refuses to refresh a deactivated account and ends that session', async () => {
+    const { refreshToken } = await login();
+    usersRepo.deactivated = true;
+
+    await expect(service.refresh(refreshToken)).rejects.toThrow(
+      'This account has been deactivated',
+    );
+    expect(repo.rowFor(service, refreshToken).revokedAt).not.toBeNull();
+  });
+
+  describe('changePassword', () => {
+    beforeEach(async () => {
+      usersRepo.passwordHash = await bcrypt.hash('old-pass', 4);
+    });
+
+    it('signs out every other session and keeps the current one', async () => {
+      const current = await login();
+      const otherDevice = await login();
+      const currentId = repo.rowFor(service, current.refreshToken).id;
+
+      await service.changePassword(user.id, 'old-pass', 'new-pass', currentId);
+
+      await expect(
+        service.refresh(current.refreshToken),
+      ).resolves.toBeDefined();
+      await expect(service.refresh(otherDevice.refreshToken)).rejects.toThrow(
+        'Refresh token has been revoked',
+      );
+      expect(await bcrypt.compare('new-pass', usersRepo.passwordHash)).toBe(
+        true,
+      );
+    });
+
+    it('signs out every session when the current one is unknown', async () => {
+      const current = await login();
+
+      await service.changePassword(user.id, 'old-pass', 'new-pass');
+
+      await expect(service.refresh(current.refreshToken)).rejects.toThrow(
+        'Refresh token has been revoked',
+      );
+    });
+
+    it('changes nothing when the current password is wrong', async () => {
+      const current = await login();
+
+      await expect(
+        service.changePassword(user.id, 'wrong', 'new-pass', 1),
+      ).rejects.toThrow('Current password is incorrect');
+      await expect(
+        service.refresh(current.refreshToken),
+      ).resolves.toBeDefined();
+    });
   });
 });

@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { ILike, In, QueryFailedError, Repository } from 'typeorm';
+import { ILike, In, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
 import { AppConfig } from '../../config/configuration';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -15,6 +15,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { User } from './entities/user.entity';
 import { Employee } from '../employees/entities/employee.entity';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
 
 @Injectable()
 export class UsersService {
@@ -161,15 +162,25 @@ export class UsersService {
     })!.saltRounds;
     user.password = await bcrypt.hash(newPassword, saltRounds);
     await this.usersRepository.save(user);
+    // A reset password means every existing login must sign in again.
+    await this.signOutEverywhere(id);
   }
 
-  /** Deactivating a user disables the linked employee account. */
+  /** Deactivating a user disables the linked employee account and ends every session it has. */
   async deactivate(id: number, tenantId?: number): Promise<void> {
     await this.getUserOrThrow(id, tenantId);
     await this.employeesRepository.update(
       { userId: id, isActive: true },
       { isActive: false, employmentStatus: 'inactive' },
     );
+    await this.signOutEverywhere(id);
+  }
+
+  /** Revokes all of the user's refresh tokens; each device is signed out once its current access token (at most 15 minutes) runs out. */
+  private async signOutEverywhere(userId: number): Promise<void> {
+    await this.employeesRepository.manager
+      .getRepository(RefreshToken)
+      .update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
 
   private async getUserOrThrow(id: number, tenantId?: number): Promise<User> {
