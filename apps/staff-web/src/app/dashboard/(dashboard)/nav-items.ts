@@ -69,6 +69,8 @@ export const navGroupDefs: NavGroupDef[] = [
     label: "Inventory",
     icon: Boxes,
     links: [
+      { href: "/dashboard/inventory/stock-tracking", label: "Stock Tracking", permission: "foods.view" },
+      { href: "/dashboard/inventory/import-goods", label: "Import Goods", permission: "stock-ins.manage" },
       { href: "/dashboard/inventory/units", label: "Units", permission: "units.view" },
       { href: "/dashboard/inventory/ingredient-categories", label: "Ingredient Categories", permission: "ingredient-categories.view" },
       { href: "/dashboard/inventory/ingredients", label: "Ingredients", permission: "ingredients.view" },

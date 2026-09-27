@@ -17,7 +17,6 @@ export interface Food {
   itemType: string
   departmentType: string | null
   hasVariants: boolean
-  hasAddons: boolean
   isTaxable: boolean
   isDiscountable: boolean
   isFeatured: boolean
@@ -35,13 +34,6 @@ export interface FoodOutlet {
   price: number | null
   isAvailable: boolean
   isActive: boolean
-}
-
-export interface FoodAddonGroupLink {
-  id: number
-  foodId: number
-  addonGroupId: number
-  addonGroup?: { id: number; name: string }
 }
 
 export interface FoodRecipe {
@@ -144,18 +136,38 @@ export function useResetFoods() {
   })
 }
 
-export function useBulkImportFoodsAsIngredients() {
+export interface FoodInventoryTracking {
+  foodId: number
+  /** true: all tracked items share one stock item (Beer). false: each has its own (Coke 1L / 1.5L). */
+  shareStock: boolean
+  /** The food's other active items stop being tracked. */
+  trackedFoodVariantIds: number[]
+}
+
+export interface SetInventoryTrackingInput {
+  foods: FoodInventoryTracking[]
+  outletId: number
+  /** Only needed when a new stock item has to be created. */
+  ingredientCategoryId?: number
+  baseUnitId?: number
+}
+
+export function useSetInventoryTracking() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { foodIds: number[]; outletId: number; ingredientCategoryId: number; baseUnitId: number }) =>
-      apiClient<{ created: number; skipped: number; errors: string[] }>("/foods/bulk-import-as-ingredients", {
+    mutationFn: (input: SetInventoryTrackingInput) =>
+      apiClient<{ updated: number; created: number; errors: string[] }>("/foods/inventory-tracking", {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.foods.lists() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.lists() })
-    },
+    // Invalidated on failure too: a batch can partly apply before one food
+    // errors. Returned so callers see fresh links once mutateAsync resolves.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.foodVariants.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ingredients.lists() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all }),
+      ]),
   })
 }
 
@@ -182,35 +194,6 @@ export function useRemoveFoodOutlet(foodId: number) {
     mutationFn: (outletId: number) =>
       apiClient<void>(`/foods/${foodId}/outlets/${outletId}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.outlets(foodId) }),
-  })
-}
-
-export function useFoodAddonGroups(foodId: number) {
-  return useQuery({
-    queryKey: queryKeys.foods.addonGroups(foodId),
-    queryFn: () => apiClient<FoodAddonGroupLink[]>(`/foods/${foodId}/addon-groups`),
-    enabled: foodId > 0,
-  })
-}
-
-export function useAssignFoodAddonGroup(foodId: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (addonGroupId: number) =>
-      apiClient<void>(`/foods/${foodId}/addon-groups`, { method: "POST", body: JSON.stringify({ addonGroupId }) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.foods.addonGroups(foodId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.foods.detail(foodId) })
-    },
-  })
-}
-
-export function useUnassignFoodAddonGroup(foodId: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (addonGroupId: number) =>
-      apiClient<void>(`/foods/${foodId}/addon-groups/${addonGroupId}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.foods.addonGroups(foodId) }),
   })
 }
 

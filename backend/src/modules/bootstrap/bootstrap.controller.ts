@@ -28,7 +28,7 @@ export class BootstrapController {
   @RequirePermissions('orders.manage')
   @ApiOperation({
     summary:
-      'One-call waiter POS screen bootstrap: outlet, departments, tables, food categories, addons — minimal fields only, scoped to an outlet the caller is actually assigned to',
+      'One-call waiter POS screen bootstrap: outlet, departments, tables, food categories — minimal fields only, scoped to an outlet the caller is actually assigned to',
   })
   @ApiOkResponse({ type: WaiterPosBootstrapResponseDto })
   async getPosBootstrap(

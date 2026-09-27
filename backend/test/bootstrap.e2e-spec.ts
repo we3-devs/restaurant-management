@@ -4,8 +4,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { Addon } from '../src/modules/addons/entities/addon.entity';
-import { AddonGroup } from '../src/modules/addon-groups/entities/addon-group.entity';
 import { DiningArea } from '../src/modules/dining-areas/entities/dining-area.entity';
 import { DiningTable } from '../src/modules/dining-tables/entities/dining-table.entity';
 import { OutletDepartment } from '../src/modules/outlet-departments/entities/outlet-department.entity';
@@ -29,7 +27,6 @@ interface WaiterPosBootstrapResponseBody {
   departments: Record<string, unknown>[];
   tables: Record<string, unknown>[];
   foodCategories: Record<string, unknown>[];
-  addons: Record<string, unknown>[];
 }
 
 describe('Bootstrap — waiter POS (e2e)', () => {
@@ -38,8 +35,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
   let departmentRepo: Repository<OutletDepartment>;
   let diningAreaRepo: Repository<DiningArea>;
   let diningTableRepo: Repository<DiningTable>;
-  let addonGroupRepo: Repository<AddonGroup>;
-  let addonRepo: Repository<Addon>;
   let permissionRepo: Repository<Permission>;
   let rolePermissionRepo: Repository<RolePermission>;
   let roleRepo: Repository<Role>;
@@ -55,7 +50,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
   let otherOutletId: number;
   let departmentId: number;
   let tableId: number;
-  let addonId: number;
 
   const waiterUser = {
     email: 'e2e-bootstrap-waiter@test.local',
@@ -82,8 +76,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
     departmentRepo = moduleFixture.get(getRepositoryToken(OutletDepartment));
     diningAreaRepo = moduleFixture.get(getRepositoryToken(DiningArea));
     diningTableRepo = moduleFixture.get(getRepositoryToken(DiningTable));
-    addonGroupRepo = moduleFixture.get(getRepositoryToken(AddonGroup));
-    addonRepo = moduleFixture.get(getRepositoryToken(Addon));
     permissionRepo = moduleFixture.get(getRepositoryToken(Permission));
     rolePermissionRepo = moduleFixture.get(getRepositoryToken(RolePermission));
     roleRepo = moduleFixture.get(getRepositoryToken(Role));
@@ -160,29 +152,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
     table.status = 'occupied';
     await diningTableRepo.save(table);
     tableId = table.id;
-
-    let addonGroup = await addonGroupRepo.findOne({
-      where: { name: 'E2E Bootstrap Fixture Addon Group' },
-    });
-    if (!addonGroup) {
-      addonGroup = await addonGroupRepo.save(
-        addonGroupRepo.create({ name: 'E2E Bootstrap Fixture Addon Group' }),
-      );
-    }
-
-    let addon = await addonRepo.findOne({
-      where: { name: 'E2E Bootstrap Fixture Addon' },
-    });
-    if (!addon) {
-      addon = await addonRepo.save(
-        addonRepo.create({
-          addonGroupId: addonGroup.id,
-          name: 'E2E Bootstrap Fixture Addon',
-          price: 1.5,
-        }),
-      );
-    }
-    addonId = addon.id;
 
     // Reuse orders.manage if seeded — /pos/bootstrap is gated on it.
     let permission = await permissionRepo.findOne({
@@ -329,7 +298,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
       ...body.departments,
       ...body.tables,
       ...body.foodCategories,
-      ...body.addons,
     ]) {
       for (const field of [
         'createdAt',
@@ -344,7 +312,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
         'description',
         'slug',
         'image',
-        'isRecipeEnabled',
       ]) {
         expect(record).not.toHaveProperty(field);
       }
@@ -367,11 +334,6 @@ describe('Bootstrap — waiter POS (e2e)', () => {
     const department = body.departments.find((d) => d.id === departmentId)!;
     for (const field of ['id', 'outletId', 'name', 'type', 'canPrepareOrder']) {
       expect(department).toHaveProperty(field);
-    }
-
-    const addon = body.addons.find((a) => a.id === addonId)!;
-    for (const field of ['id', 'addonGroupId', 'name', 'price']) {
-      expect(addon).toHaveProperty(field);
     }
   });
 });

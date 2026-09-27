@@ -15,8 +15,6 @@ import { RealtimeChangeSubscriber } from './common/subscribers/realtime-change.s
 import { TimestampSubscriber } from './common/subscribers/timestamp.subscriber';
 import configuration, { AppConfig } from './config/configuration';
 import { validate } from './config/env.validation';
-import { AddonGroupsModule } from './modules/addon-groups/addon-groups.module';
-import { AddonsModule } from './modules/addons/addons.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
@@ -166,11 +164,9 @@ import { AssetsModule } from './modules/assets/assets.module';
     OutletDepartmentsModule,
     WarehousesModule,
     FoodCategoriesModule,
-    AddonGroupsModule,
     FoodsModule,
     FoodVariantsModule,
     VariantsModule,
-    AddonsModule,
     DiningAreasModule,
     DiningTablesModule,
     CustomersModule,

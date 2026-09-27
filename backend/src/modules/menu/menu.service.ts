@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Addon } from '../addons/entities/addon.entity';
-import { AddonGroup } from '../addon-groups/entities/addon-group.entity';
 import { scopedWhere } from '../../common/tenant/tenant-scope';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { FoodCategory } from '../food-categories/entities/food-category.entity';
-import { FoodAddonGroup } from '../foods/entities/food-addon-group.entity';
 import { Food } from '../foods/entities/food.entity';
 import { FoodVariant } from '../food-variants/entities/food-variant.entity';
 import { WarehouseIngredientStock } from '../inventory-stock/entities/warehouse-ingredient-stock.entity';
@@ -24,9 +21,6 @@ export class MenuService {
     @InjectRepository(FoodVariant) private readonly foodVariants: Repository<FoodVariant>,
     @InjectRepository(Variant) private readonly variants: Repository<Variant>,
     @InjectRepository(SubVariant) private readonly subVariants: Repository<SubVariant>,
-    @InjectRepository(AddonGroup) private readonly addonGroups: Repository<AddonGroup>,
-    @InjectRepository(Addon) private readonly addons: Repository<Addon>,
-    @InjectRepository(FoodAddonGroup) private readonly foodAddonGroups: Repository<FoodAddonGroup>,
     @InjectRepository(WarehouseIngredientStock) private readonly stocks: Repository<WarehouseIngredientStock>,
     private readonly warehousesService: WarehousesService,
     private readonly tenantContext: TenantContext,
@@ -36,7 +30,7 @@ export class MenuService {
     const tenantId = this.tenantContext.getTenantId();
     const rows = await Promise.all([
       this.foods, this.categories, this.foodVariants, this.variants,
-      this.subVariants, this.addonGroups, this.addons, this.foodAddonGroups,
+      this.subVariants,
       this.stocks,
     ].map((repository) => {
       const qb = repository.createQueryBuilder('x').select('COUNT(*)', 'count').addSelect('MAX(x.updated_at)', 'updated');
@@ -47,15 +41,12 @@ export class MenuService {
   }
 
   async getBootstrap(outletId: number) {
-    const [foods, categories, foodVariants, variants, subVariants, addonGroups, addons, foodAddonGroups, version] = await Promise.all([
+    const [foods, categories, foodVariants, variants, subVariants, version] = await Promise.all([
       this.foods.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
       this.categories.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
       this.foodVariants.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
       this.variants.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
       this.subVariants.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
-      this.addonGroups.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
-      this.addons.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
-      this.foodAddonGroups.find({ where: scopedWhere(this.tenantContext, {}) }),
       this.getVersion(),
     ]);
     const inventoryAvailable = await this.getInventoryAvailability(outletId, foodVariants);
@@ -66,9 +57,6 @@ export class MenuService {
       foodVariants: foodVariants.map((variant) => ({ ...variant, inventoryAvailable: inventoryAvailable.get(variant.id) ?? true })),
       variants,
       subVariants,
-      addonGroups,
-      addons,
-      foodAddonGroups,
     };
   }
 

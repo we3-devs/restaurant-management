@@ -4,7 +4,6 @@ import { apiClient } from "../client"
 import { asPaginated } from "../bootstrap-helpers"
 import { queryKeys } from "../query-keys"
 import { STALE_TIME } from "../query-config"
-import type { Addon } from "./use-addons"
 import type { DiningTable } from "./use-dining-tables"
 import type { FoodCategory } from "./use-food-categories"
 import type { Outlet } from "./use-outlets"
@@ -25,7 +24,7 @@ import type { PaginatedResponse } from "../types"
  * below changes — every caller keeps using the same hook.
  *
  * Each hook also seeds the cache entries the individual resource hooks
- * (useOutletDepartments, useFoodCategories, useAddons, ...) would otherwise
+ * (useOutletDepartments, useFoodCategories, ...) would otherwise
  * fetch themselves, using the exact same query keys — so components deeper
  * in the tree keep calling their normal hooks and transparently get a cache
  * hit instead of a network request.
@@ -34,7 +33,7 @@ import type { PaginatedResponse } from "../types"
 // /pos/bootstrap is waiter-facing and intentionally returns a minimal
 // projection of each entity (no timestamps/internal fields, see
 // backend WaiterPosBootstrapResponseDto) — narrower than the full
-// Outlet/OutletDepartment/DiningTable/FoodCategory/Addon shapes those
+// Outlet/OutletDepartment/DiningTable/FoodCategory shapes those
 // hooks' own REST endpoints return. It's still safe to seed those hooks'
 // query caches from this data because every field the POS screen's
 // components actually read (name, status, capacity, diningAreaId, etc.)
@@ -51,14 +50,12 @@ export type PosBootstrapTable = Pick<
   "id" | "outletId" | "diningAreaId" | "name" | "code" | "capacity" | "status" | "isActive"
 >
 export type PosBootstrapFoodCategory = Pick<FoodCategory, "id" | "parentId" | "name" | "sortOrder">
-export type PosBootstrapAddon = Pick<Addon, "id" | "addonGroupId" | "name" | "price">
 
 export interface PosBootstrap {
   outlet: PosBootstrapOutlet
   departments: PosBootstrapDepartment[]
   tables: PosBootstrapTable[]
   foodCategories: PosBootstrapFoodCategory[]
-  addons: PosBootstrapAddon[]
 }
 
 export function usePosBootstrap(outletId: number | null) {
@@ -72,7 +69,7 @@ export function usePosBootstrap(outletId: number | null) {
 
   useEffect(() => {
     if (!query.data || !outletId) return
-    const { outlet, departments, tables, foodCategories, addons } = query.data
+    const { outlet, departments, tables, foodCategories } = query.data
     queryClient.setQueryData(queryKeys.outlets.detail(outletId), outlet)
     queryClient.setQueryData(
       queryKeys.outletDepartments.list({ outletId, limit: 100 }),
@@ -80,7 +77,6 @@ export function usePosBootstrap(outletId: number | null) {
     )
     queryClient.setQueryData(queryKeys.diningTables.list({ outletId, limit: 100 }), asPaginated(tables))
     queryClient.setQueryData(queryKeys.foodCategories.list({ limit: 100 }), asPaginated(foodCategories))
-    queryClient.setQueryData(queryKeys.addons.list({ limit: 100 }), asPaginated(addons))
   }, [query.data, outletId, queryClient])
 
   return query

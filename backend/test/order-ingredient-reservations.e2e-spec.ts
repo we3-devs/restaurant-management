@@ -4,8 +4,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { Addon } from '../src/modules/addons/entities/addon.entity';
-import { AddonRecipe } from '../src/modules/addons/entities/addon-recipe.entity';
 import { OutletDepartment } from '../src/modules/outlet-departments/entities/outlet-department.entity';
 import { Outlet } from '../src/modules/outlets/entities/outlet.entity';
 import { Food } from '../src/modules/foods/entities/food.entity';
@@ -51,17 +49,13 @@ describe('Order ingredient reservations (e2e)', () => {
   let ingredientRepo: Repository<Ingredient>;
   let foodRepo: Repository<Food>;
   let foodRecipeRepo: Repository<FoodRecipe>;
-  let addonRepo: Repository<Addon>;
-  let addonRecipeRepo: Repository<AddonRecipe>;
   let adminToken: string;
 
   let outletId: number;
   let departmentId: number;
   let warehouseId: number;
   let ingredientId: number;
-  let addonIngredientId: number;
   let foodId: number;
-  let addonId: number;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -86,8 +80,6 @@ describe('Order ingredient reservations (e2e)', () => {
     ingredientRepo = moduleFixture.get(getRepositoryToken(Ingredient));
     foodRepo = moduleFixture.get(getRepositoryToken(Food));
     foodRecipeRepo = moduleFixture.get(getRepositoryToken(FoodRecipe));
-    addonRepo = moduleFixture.get(getRepositoryToken(Addon));
-    addonRecipeRepo = moduleFixture.get(getRepositoryToken(AddonRecipe));
 
     const loginResponse = await request(app.getHttpServer())
       .post('/api/auth/login')
@@ -138,16 +130,6 @@ describe('Order ingredient reservations (e2e)', () => {
     );
     ingredientId = ingredient.id;
 
-    const addonIngredient = await ingredientRepo.save(
-      ingredientRepo.create({
-        name: 'E2E Reservation Addon Ingredient',
-        slug: `e2e-reservation-addon-ingredient-${suffix}`,
-        code: `E2E-RES-AING-${suffix}`,
-        baseUnitId: unit.id,
-      }),
-    );
-    addonIngredientId = addonIngredient.id;
-
     const food = await foodRepo.save(
       foodRepo.create({
         name: 'E2E Reservation Food',
@@ -166,23 +148,7 @@ describe('Order ingredient reservations (e2e)', () => {
       }),
     );
 
-    const addon = await addonRepo.save(
-      addonRepo.create({
-        name: 'E2E Reservation Addon',
-        isRecipeEnabled: true,
-      }),
-    );
-    addonId = addon.id;
-    await addonRecipeRepo.save(
-      addonRecipeRepo.create({
-        addonId,
-        ingredientId: addonIngredientId,
-        unitId: unit.id,
-        quantity: 50,
-      }),
-    );
-
-    // Stock-in 5000g of the food ingredient and 1000g of the addon ingredient.
+    // Stock-in 5000g of the food ingredient.
     const stockIn = await request(app.getHttpServer())
       .post('/api/stock-ins')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -195,11 +161,6 @@ describe('Order ingredient reservations (e2e)', () => {
       .send({ ingredientId, quantity: 5000, unitCost: 1 })
       .expect(201);
     await request(app.getHttpServer())
-      .post(`/api/stock-ins/${stockInId}/items`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ ingredientId: addonIngredientId, quantity: 1000, unitCost: 1 })
-      .expect(201);
-    await request(app.getHttpServer())
       .post(`/api/stock-ins/${stockInId}/approve`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
@@ -209,7 +170,7 @@ describe('Order ingredient reservations (e2e)', () => {
     await app.close();
   });
 
-  it('reserves, recomputes on quantity change, reserves for addons, and blocks insufficient stock', async () => {
+  it('reserves, recomputes on quantity change, and blocks insufficient stock', async () => {
     const order = await request(app.getHttpServer())
       .post('/api/orders')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -262,40 +223,6 @@ describe('Order ingredient reservations (e2e)', () => {
           .reservedQuantity,
       ),
     ).toBeCloseTo(600, 4);
-
-    // Add a recipe-enabled addon — its ingredient gets reserved too.
-    await request(app.getHttpServer())
-      .post(`/api/order-items/${itemId}/addons`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ addonId, quantity: 2 })
-      .expect(201);
-    const addonStock = await request(app.getHttpServer())
-      .get(
-        `/api/warehouse-ingredient-stocks?warehouseId=${warehouseId}&ingredientId=${addonIngredientId}`,
-      )
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect(
-      Number((addonStock.body as StockResponseBody).data[0].reservedQuantity),
-    ).toBeCloseTo(100, 4);
-
-    // Remove the addon — its reservation releases back to zero.
-    await request(app.getHttpServer())
-      .delete(`/api/order-items/${itemId}/addons/${addonId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(204);
-    const addonStockAfterRemove = await request(app.getHttpServer())
-      .get(
-        `/api/warehouse-ingredient-stocks?warehouseId=${warehouseId}&ingredientId=${addonIngredientId}`,
-      )
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect(
-      Number(
-        (addonStockAfterRemove.body as StockResponseBody).data[0]
-          .reservedQuantity,
-      ),
-    ).toBeCloseTo(0, 4);
 
     // Attempt to add way more quantity than available stock allows.
     await request(app.getHttpServer())

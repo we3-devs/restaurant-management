@@ -1,6 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AddonsModule } from '../addons/addons.module';
 import { AuthModule } from '../auth/auth.module';
 import { CustomerCreditModule } from '../customer-credit/customer-credit.module';
 import { CustomersModule } from '../customers/customers.module';
@@ -21,7 +20,6 @@ import { TableSessionsModule } from '../table-sessions/table-sessions.module';
 import { UnitsModule } from '../units/units.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { OperatingHoursModule } from '../operating-hours/operating-hours.module';
-import { OrderItemAddon } from './entities/order-item-addon.entity';
 import { OrderItemIngredientReservation } from './entities/order-item-ingredient-reservation.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
@@ -38,7 +36,6 @@ import { TableSessionOpenController } from './table-session-open.controller';
     TypeOrmModule.forFeature([
       Order,
       OrderItem,
-      OrderItemAddon,
       OrderStatusHistory,
       OrderItemIngredientReservation,
       TableSessionFoodStatusCount,
@@ -61,10 +58,8 @@ import { TableSessionOpenController } from './table-session-open.controller';
     FoodVariantsModule,
     // Circular, all three: IngredientsModule -> InventoryStockModule ->
     // KitchenTicketsModule -> OrdersModule closes a load-time loop (see the
-    // note in FoodsModule). AddonsModule sits on the same require chain.
-    // Without forwardRef these resolve to `undefined` mid-cycle and Nest
-    // refuses to build the module.
-    forwardRef(() => AddonsModule),
+    // note in FoodsModule). Without forwardRef these resolve to `undefined`
+    // mid-cycle and Nest refuses to build the module.
     OutletDepartmentsModule,
     forwardRef(() => IngredientsModule),
     UnitsModule,

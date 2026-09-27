@@ -72,13 +72,6 @@ export const createOrderItemSchema = z.object({
 
 export type CreateOrderItemInput = z.infer<typeof createOrderItemSchema>
 
-export const createOrderItemAddonSchema = z.object({
-  addonId: z.number({ message: "Select an addon" }).positive(),
-  quantity: z.number().min(0.01),
-})
-
-export type CreateOrderItemAddonInput = z.infer<typeof createOrderItemAddonSchema>
-
 // POS "Place order" pushes the whole locally-built cart in one request
 // instead of one round-trip per tap — see orders.service#addItemsBatch.
 export const createOrderItemsBatchSchema = z.object({
@@ -86,7 +79,6 @@ export const createOrderItemsBatchSchema = z.object({
     .array(
       createOrderItemSchema.extend({
         note: z.string().optional(),
-        addons: z.array(createOrderItemAddonSchema).optional(),
       }),
     )
     .min(1),

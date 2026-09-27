@@ -12,7 +12,6 @@ import { useOutlet } from "@/hooks/use-outlets"
 import { useCustomer } from "@/hooks/use-customers"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
-import { useAddons } from "@/hooks/use-addons"
 import { usePageTitle } from "@rms/ui/use-page-title"
 
 function Breadcrumb({ orderNumber }: { orderNumber: string }) {
@@ -39,12 +38,10 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
   const { data: customer } = useCustomer(order?.customerId ?? 0)
   const { data: foods } = useFoods({ limit: 500 })
   const { data: variants } = useFoodVariants({ limit: 500 })
-  const { data: addons } = useAddons({ limit: 500 })
 
   const getFoodName = (foodId: number) => foods?.data?.find((f) => f.id === foodId)?.name ?? "Loading…"
   const getVariantName = (foodVariantId: number | null) =>
     foodVariantId ? (variants?.data?.find((v) => v.id === foodVariantId)?.name ?? null) : null
-  const getAddonName = (addonId: number) => addons?.data?.find((a) => a.id === addonId)?.name ?? "Loading…"
 
   usePageTitle("Invoice Details")
 
@@ -155,15 +152,6 @@ export function InvoiceDetail({ orderId }: { orderId: number }) {
                         {getFoodName(item.foodId)}
                         {getVariantName(item.foodVariantId) ? ` — ${getVariantName(item.foodVariantId)}` : ""}
                       </p>
-                      {item.addons && item.addons.length > 0 && (
-                        <ul className="mt-1 text-xs text-gray-600">
-                          {item.addons.map((addon) => (
-                            <li key={addon.id} className="ml-4">
-                              + {getAddonName(addon.addonId)} (x{addon.quantity})
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                       {item.note && <p className="mt-1 text-xs italic text-gray-500">Note: {item.note}</p>}
                     </td>
                     <td className="py-3 text-center text-gray-700">{item.quantity}</td>

@@ -117,6 +117,11 @@ export class IngredientsService {
     return ingredient;
   }
 
+  /** The live ingredient holding this code, or null. */
+  async findByCode(code: string): Promise<Ingredient | null> {
+    return this.ingredientsRepository.findOne({ where: scopedWhere(this.tenantContext, { code }) });
+  }
+
   /**
    * Throws when the ingredient's category type doesn't carry warehouse stock.
    * Tracked: beverage, packaging, consumable. Untracked: raw_material,

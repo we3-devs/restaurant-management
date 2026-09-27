@@ -37,9 +37,6 @@ export class FoodResponseDto {
   hasVariants: boolean;
 
   @ApiProperty()
-  hasAddons: boolean;
-
-  @ApiProperty()
   isTaxable: boolean;
 
   @ApiProperty()

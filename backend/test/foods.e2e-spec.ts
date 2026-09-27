@@ -3,10 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { Repository } from 'typeorm';
-import { AddonGroup } from '../src/modules/addon-groups/entities/addon-group.entity';
 import { AppModule } from '../src/app.module';
 import { FoodCategory } from '../src/modules/food-categories/entities/food-category.entity';
-import { FoodAddonGroup } from '../src/modules/foods/entities/food-addon-group.entity';
 import { FoodOutlet } from '../src/modules/foods/entities/food-outlet.entity';
 import { Food } from '../src/modules/foods/entities/food.entity';
 import { Outlet } from '../src/modules/outlets/entities/outlet.entity';
@@ -20,7 +18,6 @@ interface FoodResponseBody {
   name: string;
   slug: string;
   sku: string | null;
-  hasAddons: boolean;
   foodCategoryId: number | null;
 }
 
@@ -36,14 +33,11 @@ describe('Foods (e2e)', () => {
   let app: INestApplication;
   let categoryRepo: Repository<FoodCategory>;
   let outletRepo: Repository<Outlet>;
-  let addonGroupRepo: Repository<AddonGroup>;
   let foodRepo: Repository<Food>;
   let foodOutletRepo: Repository<FoodOutlet>;
-  let foodAddonGroupRepo: Repository<FoodAddonGroup>;
   let adminToken: string;
   let categoryId: number;
   let outletId: number;
-  let addonGroupId: number;
 
   const createdFoodIds: number[] = [];
   const uniqueSuffix = Date.now();
@@ -66,10 +60,8 @@ describe('Foods (e2e)', () => {
 
     categoryRepo = moduleFixture.get(getRepositoryToken(FoodCategory));
     outletRepo = moduleFixture.get(getRepositoryToken(Outlet));
-    addonGroupRepo = moduleFixture.get(getRepositoryToken(AddonGroup));
     foodRepo = moduleFixture.get(getRepositoryToken(Food));
     foodOutletRepo = moduleFixture.get(getRepositoryToken(FoodOutlet));
-    foodAddonGroupRepo = moduleFixture.get(getRepositoryToken(FoodAddonGroup));
 
     const loginResponse = await request(app.getHttpServer())
       .post('/api/auth/login')
@@ -101,22 +93,11 @@ describe('Foods (e2e)', () => {
       );
     }
     outletId = outlet.id;
-
-    let addonGroup = await addonGroupRepo.findOne({
-      where: { name: 'E2E Foods Fixture Addon Group' },
-    });
-    if (!addonGroup) {
-      addonGroup = await addonGroupRepo.save(
-        addonGroupRepo.create({ name: 'E2E Foods Fixture Addon Group' }),
-      );
-    }
-    addonGroupId = addonGroup.id;
   });
 
   afterAll(async () => {
     if (createdFoodIds.length > 0) {
       await foodOutletRepo.delete({ foodId: createdFoodIds[0] });
-      await foodAddonGroupRepo.delete({ foodId: createdFoodIds[0] });
       await foodRepo.delete(createdFoodIds);
     }
     await app.close();
@@ -137,7 +118,6 @@ describe('Foods (e2e)', () => {
 
     const body = response.body as FoodResponseBody;
     expect(body.foodCategoryId).toBe(categoryId);
-    expect(body.hasAddons).toBe(false);
     createdFoodIds.push(body.id);
   });
 
@@ -193,48 +173,6 @@ describe('Foods (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(list.body as FoodOutletResponseBody[]).toHaveLength(0);
-  });
-
-  it('POST /api/foods/:id/addon-groups assigns a group and flips hasAddons to true', async () => {
-    const foodId = createdFoodIds[0];
-    await request(app.getHttpServer())
-      .post(`/api/foods/${foodId}/addon-groups`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ addonGroupId })
-      .expect(201);
-
-    // idempotent re-assign
-    await request(app.getHttpServer())
-      .post(`/api/foods/${foodId}/addon-groups`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ addonGroupId })
-      .expect(201);
-
-    const food = await request(app.getHttpServer())
-      .get(`/api/foods/${foodId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect((food.body as FoodResponseBody).hasAddons).toBe(true);
-
-    const list = await request(app.getHttpServer())
-      .get(`/api/foods/${foodId}/addon-groups`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect(list.body).toHaveLength(1);
-  });
-
-  it('DELETE /api/foods/:id/addon-groups/:addonGroupId unassigns the group', async () => {
-    const foodId = createdFoodIds[0];
-    await request(app.getHttpServer())
-      .delete(`/api/foods/${foodId}/addon-groups/${addonGroupId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(204);
-
-    const list = await request(app.getHttpServer())
-      .get(`/api/foods/${foodId}/addon-groups`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect(list.body).toHaveLength(0);
   });
 
   it('DELETE /api/foods/:id soft-deletes: 404 via API, row still present with deletedAt set', async () => {

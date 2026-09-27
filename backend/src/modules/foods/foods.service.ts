@@ -18,14 +18,11 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
-import { AddonGroupsService } from '../addon-groups/addon-groups.service';
 import { FoodCategoriesService } from '../food-categories/food-categories.service';
 import { IngredientsService } from '../ingredients/ingredients.service';
 import { OutletsService } from '../outlets/outlets.service';
 import { UnitsService } from '../units/units.service';
 import type { OutletDepartmentType } from '../outlet-departments/entities/outlet-department.entity';
-import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
-import { BulkImportFoodsAsIngredientsDto } from './dto/bulk-import-foods-as-ingredients.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
@@ -33,7 +30,7 @@ import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
 import { FoodResponseDto } from './dto/food-response.dto';
-import { FoodAddonGroup } from './entities/food-addon-group.entity';
+import { FoodInventoryTrackingDto, SetInventoryTrackingDto } from './dto/set-inventory-tracking.dto';
 import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
@@ -53,7 +50,6 @@ export interface PublicFood {
   shortDescription: string | null;
   imageUrl: string | null;
   hasVariants: boolean;
-  hasAddons: boolean;
 }
 
 export interface PublicMenu {
@@ -79,6 +75,11 @@ function releasedSlug(slug: string, id: number, maxLength: number): string {
   return `${slug.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
 }
 
+/** Food item names are free text — "1L" as often as "Coke 1L". */
+function foodItemStockName(food: Food, variant: FoodVariant): string {
+  return variant.name.toLowerCase().includes(food.name.toLowerCase()) ? variant.name : `${food.name} ${variant.name}`;
+}
+
 @Injectable()
 export class FoodsService {
   constructor(
@@ -86,8 +87,6 @@ export class FoodsService {
     private readonly foodsRepository: Repository<Food>,
     @InjectRepository(FoodOutlet)
     private readonly foodOutletsRepository: Repository<FoodOutlet>,
-    @InjectRepository(FoodAddonGroup)
-    private readonly foodAddonGroupsRepository: Repository<FoodAddonGroup>,
     @InjectRepository(FoodRecipe)
     private readonly foodRecipesRepository: Repository<FoodRecipe>,
     @InjectRepository(FoodVariant)
@@ -102,7 +101,6 @@ export class FoodsService {
     private readonly cache: Cache,
     private readonly foodCategoriesService: FoodCategoriesService,
     private readonly outletsService: OutletsService,
-    private readonly addonGroupsService: AddonGroupsService,
     private readonly ingredientsService: IngredientsService,
     private readonly unitsService: UnitsService,
     private readonly skuCompositionService: SkuCompositionService,
@@ -123,7 +121,7 @@ export class FoodsService {
       this.subVariantsRepository.find({ where: scopedWhere(this.tenantContext, { isActive: true }), order: { sortOrder: 'ASC', name: 'ASC' } }),
     ]);
     const menu = {
-      foods: foods.map(({ id, foodCategoryId, name, shortDescription, imageUrl, hasVariants, hasAddons }) => ({ id, foodCategoryId, name, shortDescription, imageUrl, hasVariants, hasAddons })),
+      foods: foods.map(({ id, foodCategoryId, name, shortDescription, imageUrl, hasVariants }) => ({ id, foodCategoryId, name, shortDescription, imageUrl, hasVariants })),
       categories: categories.map(({ id, parentId, name }) => ({ id, parentId, name })),
       variants: variants.map(({ id, foodId, variantId, subVariantId, name, price, isDefault }) => ({ id, foodId, variantId, subVariantId, name, price, isDefault })),
       variantNames: variantNames.map(({ id, name, sortOrder }) => ({ id, name, sortOrder })),
@@ -198,7 +196,6 @@ export class FoodsService {
         shortDescription: food.shortDescription,
         imageUrl: food.imageUrl,
         hasVariants: food.hasVariants,
-        hasAddons: food.hasAddons,
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
@@ -371,97 +368,134 @@ export class FoodsService {
   }
 
   /**
-   * Creates a new stock-tracked Ingredient (same outlet/category/unit for the
-   * whole batch) for every requested food that belongs to the current tenant,
-   * then links it to that food's food items (FoodVariant.inventoryIngredientId)
-   * that aren't already linked to a live ingredient — those share this one
-   * physical stock item by default. Food items already pointing at their own
-   * stock item (e.g. Coke 1L -> "Coke 1L", Coke 1.5L -> "Coke 1.5L") are left
-   * alone, and a food whose items are all linked is skipped. If an earlier
-   * import already created this food's ingredient, newly added food items
-   * join it instead of a second one being created.
-   * Per-food failures (e.g. a slug/code collision, or no food item to link
-   * yet) are collected rather than aborting the whole batch.
+   * Sets exactly which active food items of each listed food are
+   * stock-tracked (FoodVariant.inventoryIngredientId); unlisted items of that
+   * food stop being tracked. shareStock puts every tracked item on one stock
+   * item (Beer); otherwise each gets its own (Coke 1L / Coke 1.5L). Links that
+   * already fit are kept so their stock carries over. Missing stock items are
+   * FOOD-{foodId} / FOOD-ITEM-{foodVariantId} — reused when an earlier run
+   * created them, so untracking and re-tracking keeps the same stock.
+   * Untracking only clears the link: the stock item and its ledger stay.
+   * Per-food failures are collected rather than aborting the batch.
    */
-  async importAsIngredients(dto: BulkImportFoodsAsIngredientsDto): Promise<{ created: number; skipped: number; errors: string[] }> {
-    // The whole point of this import is to make foods stockable, so a
-    // category that carries no warehouse stock is rejected outright rather
-    // than silently producing ingredients no stock document will accept.
-    await this.ingredientsService.assertCategoryTrackable(dto.ingredientCategoryId);
+  async setInventoryTracking(dto: SetInventoryTrackingDto): Promise<{ updated: number; created: number; errors: string[] }> {
+    // Rejected up front: every food would otherwise fail the same way, and a
+    // non-stock category yields items no stock document will accept.
+    if (dto.ingredientCategoryId !== undefined) {
+      await this.ingredientsService.assertCategoryTrackable(dto.ingredientCategoryId);
+    }
 
-    const foods = await this.foodsRepository.find({ where: scopedWhere(this.tenantContext, { id: In(dto.foodIds) }) });
-    let created = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-    for (const food of foods) {
-      const variants = await this.foodVariantsRepository.find({
-        where: scopedWhere(this.tenantContext, { foodId: food.id, isActive: true }),
+    const foods = await this.foodsRepository.find({
+      where: scopedWhere(this.tenantContext, { id: In(dto.foods.map((entry) => entry.foodId)) }),
+    });
+    const foodById = new Map(foods.map((food) => [food.id, food]));
+    const result = { updated: 0, created: 0, errors: [] as string[] };
+
+    const ensureStockItem = async (code: string, name: string): Promise<{ id: number; code: string }> => {
+      const existing = await this.ingredientsService.findByCode(code);
+      if (existing) return existing;
+      if (dto.ingredientCategoryId === undefined || dto.baseUnitId === undefined) {
+        throw new BadRequestException('choose a stock category and counting unit for new stock items');
+      }
+      // Codes and slugs are unique across every tenant, and ids are too.
+      const slug = code.toLowerCase();
+      await this.ingredientsService.releaseDeletedIdentifiers({ code, slug });
+      const ingredient = await this.ingredientsService.create({
+        outletId: dto.outletId,
+        ingredientCategoryId: dto.ingredientCategoryId,
+        baseUnitId: dto.baseUnitId,
+        name,
+        slug,
+        code,
       });
-      if (variants.length === 0) {
-        errors.push(`${food.name}: has no food item to link inventory to`);
+      result.created++;
+      return ingredient;
+    };
+
+    for (const entry of dto.foods) {
+      const food = foodById.get(entry.foodId);
+      if (!food) {
+        result.errors.push(`Food ${entry.foodId} not found`);
         continue;
       }
-
-      // A link only counts while the ingredient behind it is still alive —
-      // deleting the ingredient used to leave the food item pointing at a
-      // dead row and permanently "already imported", with no way to import
-      // it again.
-      const linkedIds = [
-        ...new Set(
-          variants
-            .map((variant) => variant.inventoryIngredientId)
-            .filter((id): id is number => id !== null),
-        ),
-      ];
-      const liveLinked = new Map<number, { id: number; code: string }>();
-      for (const id of linkedIds) {
-        const ingredient = await this.findLiveIngredient(id);
-        if (ingredient) liveLinked.set(id, ingredient);
-      }
-      const unlinked = variants.filter(
-        (variant) => variant.inventoryIngredientId === null || !liveLinked.has(variant.inventoryIngredientId),
-      );
-      if (unlinked.length === 0) {
-        skipped++;
+      if (food.itemType === 'kitchen') {
+        result.errors.push(`${food.name}: kitchen dishes are stocked through their recipe`);
         continue;
       }
       try {
-        const code = `FOOD-${food.id}`;
-        let ingredientId = [...liveLinked.values()].find((ingredient) => ingredient.code === code)?.id;
-        if (ingredientId === undefined) {
-          // Soft-deleted ingredients kept their code/slug until remove()
-          // started releasing them, so anything deleted before that still
-          // squats on the values this import needs.
-          await this.ingredientsService.releaseDeletedIdentifiers({ code, slug: food.slug });
-          const ingredient = await this.ingredientsService.create({
-            outletId: dto.outletId,
-            ingredientCategoryId: dto.ingredientCategoryId,
-            baseUnitId: dto.baseUnitId,
-            name: food.name,
-            slug: food.slug,
-            code,
-          });
-          ingredientId = ingredient.id;
-        }
-        await this.foodVariantsRepository.update(
-          unlinked.map((variant) => variant.id),
-          { inventoryIngredientId: ingredientId },
-        );
-        created++;
+        if (await this.applyFoodTracking(food, entry, ensureStockItem)) result.updated++;
       } catch (error) {
-        errors.push(`${food.name}: ${error instanceof Error ? error.message : 'failed to import'}`);
+        result.errors.push(`${food.name}: ${error instanceof Error ? error.message : 'failed to update stock tracking'}`);
       }
     }
-    return { created, skipped, errors };
+    return result;
   }
 
-  /** The ingredient behind this id, or null if it has been deleted. */
-  private async findLiveIngredient(ingredientId: number): Promise<{ id: number; code: string } | null> {
-    try {
-      return await this.ingredientsService.findOne(ingredientId);
-    } catch {
-      return null;
+  /** Returns whether any of the food's items changed. */
+  private async applyFoodTracking(
+    food: Food,
+    entry: FoodInventoryTrackingDto,
+    ensureStockItem: (code: string, name: string) => Promise<{ id: number; code: string }>,
+  ): Promise<boolean> {
+    const variants = await this.foodVariantsRepository.find({
+      where: scopedWhere(this.tenantContext, { foodId: food.id, isActive: true }),
+    });
+    const trackedIds = new Set(entry.trackedFoodVariantIds);
+    const unknown = [...trackedIds].filter((id) => !variants.some((variant) => variant.id === id));
+    if (unknown.length > 0) {
+      throw new BadRequestException(`food item ${unknown.join(', ')} is not an active item of this food`);
     }
+    const tracked = variants.filter((variant) => trackedIds.has(variant.id));
+
+    // A link to a deleted ingredient counts as untracked.
+    const linkedIds = [
+      ...new Set(variants.map((variant) => variant.inventoryIngredientId).filter((id): id is number => id !== null)),
+    ];
+    const codeById = new Map((await this.ingredientsService.findByIds(linkedIds)).map((ingredient) => [ingredient.id, ingredient.code]));
+    const liveLink = (variant: FoodVariant) =>
+      variant.inventoryIngredientId !== null && codeById.has(variant.inventoryIngredientId) ? variant.inventoryIngredientId : null;
+
+    const target = new Map<number, number | null>(variants.map((variant) => [variant.id, null]));
+    const foodCode = `FOOD-${food.id}`;
+
+    if (entry.shareStock) {
+      if (tracked.length > 0) {
+        // Join an existing pool (e.g. one set up by hand) rather than orphan
+        // its stock — unless that "pool" is really one size's own item.
+        const links = [...new Set(tracked.map(liveLink).filter((id): id is number => id !== null))];
+        const pool =
+          links.length === 1 && (tracked.length === 1 || !codeById.get(links[0])!.startsWith('FOOD-ITEM-'))
+            ? links[0]
+            : (await ensureStockItem(foodCode, food.name)).id;
+        for (const variant of tracked) target.set(variant.id, pool);
+      }
+    } else {
+      const holders = new Map<number, number>();
+      for (const variant of tracked) {
+        const link = liveLink(variant);
+        if (link !== null) holders.set(link, (holders.get(link) ?? 0) + 1);
+      }
+      for (const variant of tracked) {
+        const link = liveLink(variant);
+        const ownsLink =
+          link !== null && holders.get(link) === 1 && !(variants.length > 1 && codeById.get(link) === foodCode);
+        target.set(
+          variant.id,
+          ownsLink ? link : (await ensureStockItem(`FOOD-ITEM-${variant.id}`, foodItemStockName(food, variant))).id,
+        );
+      }
+    }
+
+    const changedByTarget = new Map<number | null, number[]>();
+    for (const variant of variants) {
+      const next = target.get(variant.id)!;
+      if (variant.inventoryIngredientId === next) continue;
+      changedByTarget.set(next, [...(changedByTarget.get(next) ?? []), variant.id]);
+    }
+    for (const [inventoryIngredientId, ids] of changedByTarget) {
+      await this.foodVariantsRepository.update(ids, { inventoryIngredientId });
+    }
+    return changedByTarget.size > 0;
   }
 
   async listOutletOverrides(foodId: number): Promise<FoodOutlet[]> {
@@ -496,50 +530,6 @@ export class FoodsService {
   async removeOutletOverride(foodId: number, outletId: number): Promise<void> {
     await this.findOne(foodId);
     await this.foodOutletsRepository.delete(scopedWhere(this.tenantContext, { foodId, outletId }));
-  }
-
-  async listAddonGroups(foodId: number): Promise<FoodAddonGroup[]> {
-    await this.findOne(foodId);
-    return this.foodAddonGroupsRepository.find({
-      where: scopedWhere(this.tenantContext, { foodId }),
-      relations: { addonGroup: true },
-    });
-  }
-
-  async assignAddonGroup(
-    foodId: number,
-    dto: AssignAddonGroupDto,
-  ): Promise<void> {
-    const food = await this.findOne(foodId);
-    await this.addonGroupsService.findOne(dto.addonGroupId);
-
-    const existing = await this.foodAddonGroupsRepository.findOne({
-      where: scopedWhere(this.tenantContext, { foodId, addonGroupId: dto.addonGroupId }),
-    });
-    if (existing) {
-      return; // idempotent
-    }
-
-    await this.foodAddonGroupsRepository.save(
-      this.foodAddonGroupsRepository.create({
-        foodId,
-        addonGroupId: dto.addonGroupId,
-        ...tenantFields(this.tenantContext),
-      }),
-    );
-
-    if (!food.hasAddons) {
-      food.hasAddons = true;
-      await this.foodsRepository.save(food);
-    }
-  }
-
-  async unassignAddonGroup(
-    foodId: number,
-    addonGroupId: number,
-  ): Promise<void> {
-    await this.findOne(foodId);
-    await this.foodAddonGroupsRepository.delete(scopedWhere(this.tenantContext, { foodId, addonGroupId }));
   }
 
   /** Marks a food as having variants — called by FoodVariantsService on create. */
@@ -788,7 +778,6 @@ export class FoodsService {
       itemType: food.itemType,
       departmentType: food.departmentType,
       hasVariants: food.hasVariants,
-      hasAddons: food.hasAddons,
       isTaxable: food.isTaxable,
       isDiscountable: food.isDiscountable,
       isFeatured: food.isFeatured,

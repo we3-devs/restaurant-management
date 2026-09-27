@@ -7,10 +7,10 @@ import type {
 /**
  * Minimal, waiter-facing projections of the underlying entities — no
  * timestamps, soft-delete markers, or floor-plan-editor/admin-only fields
- * (position/size/rotation, department code/description, addon recipe flags,
- * category slug/image). Keep in sync with whatever the POS screen actually
- * reads; add a field here (not by widening this back to the full entity)
- * if the UI grows a real need for it.
+ * (position/size/rotation, department code/description, category
+ * slug/image). Keep in sync with whatever the POS screen actually reads;
+ * add a field here (not by widening this back to the full entity) if the
+ * UI grows a real need for it.
  */
 export class WaiterOutletDto {
   @ApiProperty()
@@ -81,20 +81,6 @@ export class WaiterFoodCategoryDto {
   sortOrder: number;
 }
 
-export class WaiterAddonDto {
-  @ApiProperty()
-  id: number;
-
-  @ApiProperty({ required: false, nullable: true })
-  addonGroupId: number | null;
-
-  @ApiProperty()
-  name: string;
-
-  @ApiProperty()
-  price: number;
-}
-
 export class WaiterPosBootstrapResponseDto {
   @ApiProperty({ type: WaiterOutletDto })
   outlet: WaiterOutletDto;
@@ -107,7 +93,4 @@ export class WaiterPosBootstrapResponseDto {
 
   @ApiProperty({ type: [WaiterFoodCategoryDto] })
   foodCategories: WaiterFoodCategoryDto[];
-
-  @ApiProperty({ type: [WaiterAddonDto] })
-  addons: WaiterAddonDto[];
 }

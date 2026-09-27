@@ -27,19 +27,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useAddonGroups } from "@/hooks/use-addon-groups"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import {
   useAddFoodRecipe,
-  useAssignFoodAddonGroup,
   useDeleteFood,
   useFood,
-  useFoodAddonGroups,
   useFoodOutlets,
   useFoodRecipes,
   useRemoveFoodOutlet,
   useRemoveFoodRecipe,
-  useUnassignFoodAddonGroup,
   useUpdateFood,
   useUpsertFoodOutlet,
 } from "@/hooks/use-foods"
@@ -323,7 +319,6 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       </Card>
 
       <FoodOutletOverrides foodId={foodId} />
-      <FoodAddonGroups foodId={foodId} hasAddons={food.hasAddons} />
       <FoodRecipes foodId={foodId} />
       <p className="text-sm text-muted-foreground">
         Direct-sale stock tracking now lives on each food item — see this food&apos;s{" "}
@@ -547,82 +542,6 @@ function FoodOutletOverrides({ foodId }: { foodId: number }) {
           </div>
           <Button onClick={handleAdd} disabled={!selectedOutletId || upsertOverride.isPending}>
             Save
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function FoodAddonGroups({ foodId, hasAddons }: { foodId: number; hasAddons: boolean }) {
-  const { data: links } = useFoodAddonGroups(foodId)
-  const { data: addonGroups } = useAddonGroups({ limit: 100 })
-  const assignGroup = useAssignFoodAddonGroup(foodId)
-  const unassignGroup = useUnassignFoodAddonGroup(foodId)
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("")
-
-  const groupName = (addonGroupId: number) =>
-    addonGroups?.data.find((g) => g.id === addonGroupId)?.name ?? "Loading…"
-
-  async function handleAssign() {
-    if (!selectedGroupId) return
-    try {
-      await assignGroup.mutateAsync(Number(selectedGroupId))
-      toast.success("Addon group assigned")
-      setSelectedGroupId("")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to assign addon group")
-    }
-  }
-
-  async function handleUnassign(addonGroupId: number) {
-    try {
-      await unassignGroup.mutateAsync(addonGroupId)
-      toast.success("Addon group unassigned")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to unassign addon group")
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          Addon groups
-          {hasAddons && <Badge variant="secondary">has addons</Badge>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {(links ?? []).length === 0 && <p className="text-sm text-muted-foreground">No addon groups assigned.</p>}
-          {(links ?? []).map((link) => (
-            <div key={link.id} className="flex items-center gap-1.5">
-              <Badge variant="secondary">{groupName(link.addonGroupId)}</Badge>
-              <Button variant="ghost" size="sm" onClick={() => handleUnassign(link.addonGroupId)}>
-                Remove
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <label className="text-sm font-medium">Assign an addon group</label>
-            <Select value={selectedGroupId} onValueChange={(value) => setSelectedGroupId(value ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an addon group" />
-              </SelectTrigger>
-              <SelectContent>
-                {addonGroups?.data.map((group) => (
-                  <SelectItem key={group.id} value={String(group.id)}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleAssign} disabled={!selectedGroupId || assignGroup.isPending}>
-            Assign
           </Button>
         </div>
       </CardContent>

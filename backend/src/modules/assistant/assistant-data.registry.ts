@@ -42,8 +42,6 @@ export const ASSISTANT_ALLOWED_TABLES = {
 } as const;
 
 export const ASSISTANT_READ_PERMISSION_SLUGS = new Set([
-  'addons.view',
-  'addon-groups.view',
   'attendance.view',
   'audit-logs.view',
   'customer-credit.view',

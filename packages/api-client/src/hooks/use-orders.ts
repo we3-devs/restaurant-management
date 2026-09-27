@@ -11,7 +11,6 @@ import { findCachedDiningTableId } from "./use-table-sessions"
 import { operationalMutationHeaders, type OperationalMutationOptions } from "../operational-mutation"
 import type {
   CreateOrderInput,
-  CreateOrderItemAddonInput,
   CreateOrderItemInput,
   CreateOrderItemsBatchInput,
   UpdateOrderInput,
@@ -85,18 +84,8 @@ export interface OrderItem {
   /** Staff who added this line — "Guest" for a guest's own QR/online order. */
   createdByName: string
   // Embedded by GET /order-items so cart/order-detail rows don't each need
-  // their own /order-items/:id/addons and /order-items/:id/reservations call.
-  addons: OrderItemAddon[]
+  // their own /order-items/:id/reservations call.
   reservations: OrderItemIngredientReservation[]
-}
-
-export interface OrderItemAddon {
-  id: number
-  orderItemId: number
-  addonId: number
-  quantity: number
-  unitPrice: number
-  totalAmount: number
 }
 
 export interface OrderItemIngredientReservation {
@@ -184,7 +173,7 @@ export function useCreateOrder(options: OperationalMutationOptions = {}) {
   })
 }
 
-/** Pushes a locally-built POS cart (items + their addons) in one request — see orders.service#addItemsBatch. */
+/** Pushes a locally-built POS cart in one request — see orders.service#addItemsBatch. */
 export function useAddOrderItemsBatch(orderId: number, options: OperationalMutationOptions = {}) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -692,70 +681,7 @@ export function useRemoveOrderItem(orderId: number, options: OperationalMutation
   })
 }
 
-export function useOrderItemAddons(orderId: number, itemId: number) {
-  return useQuery({
-    queryKey: queryKeys.orderItems.addons(itemId),
-    queryFn: () => apiClient<OrderItemAddon[]>(`/order-items/${itemId}/addons`),
-    enabled: itemId > 0,
-  })
-}
-
-export function useAddOrderItemAddon(orderId: number, itemId: number, options: OperationalMutationOptions = {}) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: CreateOrderItemAddonInput) =>
-      apiClient<OrderItemAddon>(`/order-items/${itemId}/addons`, { method: "POST", body: JSON.stringify(input), headers: operationalMutationHeaders(options.closedHoursOverride) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
-    },
-  })
-}
-
-/** DELETE by id — a no-op if replayed twice, safe to auto-queue while offline. */
-export function useRemoveOrderItemAddon(orderId: number, itemId: number, options: OperationalMutationOptions = {}) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (addonId: number) =>
-      options.closedHoursOverride
-        ? apiClient<void>(`/order-items/${itemId}/addons/${addonId}`, { method: "DELETE", headers: operationalMutationHeaders(true) })
-        : queuableApiClient<void>(
-            `/order-items/${itemId}/addons/${addonId}`,
-            { method: "DELETE" },
-            "Remove order item addon",
-          ),
-    onMutate: async (addonId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.items(orderId) })
-      const previous = queryClient.getQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId))
-      queryClient.setQueryData<PaginatedResponse<OrderItem>>(queryKeys.orders.items(orderId), (old) =>
-        old
-          ? {
-              ...old,
-              data: old.data.map((item) =>
-                item.id === itemId
-                  ? { ...item, addons: item.addons.filter((addon) => addon.addonId !== addonId) }
-                  : item,
-              ),
-            }
-          : old,
-      )
-      return { previous }
-    },
-    onError: (_err, _addonId, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKeys.orders.items(orderId), context.previous)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.addons(itemId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.items(orderId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orderItems.reservations(itemId) })
-    },
-  })
-}
-
-/** Read-only — a side effect of item/addon add-remove and order completion/cancellation. */
+/** Read-only — a side effect of item add/remove and order completion/cancellation. */
 export function useOrderItemReservations(itemId: number) {
   return useQuery({
     queryKey: queryKeys.orderItems.reservations(itemId),

@@ -6,7 +6,6 @@ export interface PublicFood {
   shortDescription?: string | null
   imageUrl: string | null
   hasVariants: boolean
-  hasAddons: boolean
 }
 
 export interface PublicFoodCategory {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -30,9 +31,7 @@ import {
   useDeleteFoodVariant,
   useFoodVariant,
   useFoodVariantOutlets,
-  useLinkIngredientToSiblings,
   useRemoveFoodVariantOutlet,
-  useUntrackSiblings,
   useUpdateFoodVariant,
   useUpsertFoodVariantOutlet,
 } from "@/hooks/use-food-variants"
@@ -58,8 +57,6 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
   const { data: ingredients } = useIngredients({ limit: 500 })
   const updateVariant = useUpdateFoodVariant(variantId)
   const deleteVariant = useDeleteFoodVariant()
-  const linkIngredientToSiblings = useLinkIngredientToSiblings(variantId)
-  const untrackSiblings = useUntrackSiblings(variantId)
 
   const form = useForm<UpdateFoodVariantInput>({
     resolver: zodResolver(updateFoodVariantSchema),
@@ -98,28 +95,6 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
       toast.success("Food item updated")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update food item")
-    }
-  }
-
-  async function handleLinkIngredientToSiblings() {
-    try {
-      const { updated } = await linkIngredientToSiblings.mutateAsync()
-      toast.success(updated > 0 ? `Linked to ${updated} other food item${updated === 1 ? "" : "s"} of this food` : "This food has no other food items")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to link ingredient")
-    }
-  }
-
-  async function handleUntrackSiblings() {
-    try {
-      const { updated } = await untrackSiblings.mutateAsync()
-      toast.success(
-        updated > 0
-          ? `Untracked ${updated} other food item${updated === 1 ? "" : "s"} that shared this ingredient`
-          : "No other food items were sharing this ingredient",
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to untrack siblings")
     }
   }
 
@@ -244,50 +219,26 @@ export function FoodVariantDetail({ variantId }: { variantId: number }) {
               <FormField
                 control={form.control}
                 name="inventoryIngredientId"
-                render={({ field }) => {
-                  const dirty = form.formState.dirtyFields.inventoryIngredientId
-                  return (
-                    <FormItem>
-                      <FormLabel>Direct inventory item (optional)</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked directly" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Not tracked directly</SelectItem>
-                              {ingredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={Boolean(dirty) || linkIngredientToSiblings.isPending}
-                          onClick={handleLinkIngredientToSiblings}
-                        >
-                          {linkIngredientToSiblings.isPending ? "Linking…" : "Track together"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={Boolean(dirty) || !field.value || untrackSiblings.isPending}
-                          onClick={handleUntrackSiblings}
-                        >
-                          {untrackSiblings.isPending ? "Untracking…" : "Untrack"}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        For beverages, consumables, or other direct-sale items. Kitchen foods should use the food&apos;s Recipe instead.
-                        By default each food item (size/variant) tracks its own stock — use &quot;Track together&quot; to copy this ingredient onto every other food item of this food so they share one stock pool instead,
-                        or &quot;Untrack&quot; to set every other food item currently sharing this same ingredient back to not tracked directly.
-                        {dirty && " Save changes first to link/untrack the unsaved ingredient."}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Stock item</FormLabel>
+                    <Select value={field.value ? String(field.value) : "none"} onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Not tracked" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not tracked</SelectItem>
+                        {ingredients?.data.map((ingredient) => <SelectItem key={ingredient.id} value={String(ingredient.id)}>{ingredient.name} ({ingredient.code})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Easier:{" "}
+                      <Link href="/dashboard/inventory/stock-tracking" className="underline">
+                        Stock Tracking
+                      </Link>{" "}
+                      sets this up with a tick, per size or shared across sizes. Kitchen foods use their recipe instead.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
               <FormField
                 control={form.control}

@@ -39,7 +39,6 @@ if (!tenantSlug) {
 const LOCKED_TABLES = [
   { table: 'order_items', trigger: 'order_items_lock_completed_order' },
   { table: 'order_payments', trigger: 'order_payments_lock_completed_order' },
-  { table: 'order_item_addons', trigger: 'order_item_addons_lock_completed_order' },
   // Deleting order_payments cascades an UPDATE orders (payment-totals sync
   // trigger), and this script also deletes completed orders directly below —
   // both hit this trigger on the orders table itself, not just its children.
@@ -57,7 +56,6 @@ function buildDeleteSteps(outletIds: number[], tenantId: number) {
 
   return [
     { table: 'order_item_ingredient_reservations', sql: `DELETE FROM order_item_ingredient_reservations WHERE order_item_id IN (${orderItemsSubquery})`, params: [outletIds] },
-    { table: 'order_item_addons', sql: `DELETE FROM order_item_addons WHERE order_item_id IN (${orderItemsSubquery})`, params: [outletIds] },
     { table: 'kitchen_ticket_items', sql: `DELETE FROM kitchen_ticket_items WHERE order_item_id IN (${orderItemsSubquery})`, params: [outletIds] },
     { table: 'table_session_food_status_counts', sql: `DELETE FROM table_session_food_status_counts WHERE order_id IN (${ordersSubquery})`, params: [outletIds] },
     { table: 'order_status_histories', sql: `DELETE FROM order_status_histories WHERE order_id IN (${ordersSubquery})`, params: [outletIds] },
@@ -134,7 +132,7 @@ async function run() {
     console.log('\n--- Executing inside a transaction ---');
     await runner.startTransaction();
     try {
-      // order_items/order_payments/order_item_addons are guarded by a
+      // order_items/order_payments are guarded by a
       // deliberate "completed orders are immutable" trigger
       // (prevent_completed_order_child_mutation, see
       // 1771900000000-LockCompletedOrders.ts) — most real sales orders are

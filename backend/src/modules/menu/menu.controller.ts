@@ -45,8 +45,8 @@ export class MenuController {
    * availability as POS's own `bootstrap` above, just reached by tableCode
    * instead of an authenticated outletId. Previously guest ordering read
    * from FoodsService#findPublicMenu, a separate hand-trimmed projection
-   * that never got the FoodVariant-level inventoryAvailable/addon data POS
-   * has, so the two menus silently drifted apart. Resolving outletId from
+   * that never got the FoodVariant-level inventoryAvailable data POS has,
+   * so the two menus silently drifted apart. Resolving outletId from
    * the table server-side (never trusting a client-supplied outletId) keeps
    * a guest scoped to their own table's outlet.
    *

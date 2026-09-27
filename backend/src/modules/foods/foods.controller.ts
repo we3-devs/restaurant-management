@@ -17,14 +17,13 @@ import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { OutletAccessService } from '../auth/outlet-access.service';
 import { User } from '../users/entities/user.entity';
-import { AssignAddonGroupDto } from './dto/assign-addon-group.dto';
 import { BulkDeleteFoodsDto } from './dto/bulk-delete-foods.dto';
-import { BulkImportFoodsAsIngredientsDto } from './dto/bulk-import-foods-as-ingredients.dto';
 import { BulkUpdateFoodsDepartmentDto } from './dto/bulk-update-foods-department.dto';
 import { CreateFoodRecipeDto } from './dto/create-food-recipe.dto';
 import { CreateFoodDto } from './dto/create-food.dto';
 import { ListFoodsQueryDto } from './dto/list-foods-query.dto';
 import { ResetFoodsDto } from './dto/reset-foods.dto';
+import { SetInventoryTrackingDto } from './dto/set-inventory-tracking.dto';
 import { UpdateFoodRecipeDto } from './dto/update-food-recipe.dto';
 import { UpdateFoodDto } from './dto/update-food.dto';
 import { UpsertFoodOutletDto } from './dto/upsert-food-outlet.dto';
@@ -134,14 +133,15 @@ export class FoodsController {
     return this.foodsService.resetAll();
   }
 
-  @Post('bulk-import-as-ingredients')
+  @Post('inventory-tracking')
   @RequirePermissions('foods.manage', 'ingredients.manage')
   @ApiOperation({
     summary:
-      'Creates a stock-tracked Ingredient for every requested food id that belongs to the current tenant and has no inventory link yet, then links it to each of that food\'s food items (FoodVariant.inventoryIngredientId)',
+      "Sets which food items of each listed food are stock-tracked, either sharing one stock item or each with its own; creates or reuses the stock items as needed and untracks the food's other items",
   })
-  bulkImportAsIngredients(@Body() dto: BulkImportFoodsAsIngredientsDto) {
-    return this.foodsService.importAsIngredients(dto);
+  async setInventoryTracking(@Body() dto: SetInventoryTrackingDto, @CurrentUser() user: User) {
+    await this.outletAccess.assertOutletAccess(user.id, dto.outletId);
+    return this.foodsService.setInventoryTracking(dto);
   }
 
   @Get(':id/outlets')
@@ -182,36 +182,6 @@ export class FoodsController {
   ) {
     await this.outletAccess.assertOutletAccess(user.id, outletId);
     return this.foodsService.removeOutletOverride(id, outletId);
-  }
-
-  @Get(':id/addon-groups')
-  @RequirePermissions('foods.view')
-  @ApiOperation({ summary: 'Lists addon groups assigned to a food' })
-  listAddonGroups(@Param('id', ParseIntPipe) id: number) {
-    return this.foodsService.listAddonGroups(id);
-  }
-
-  @Post(':id/addon-groups')
-  @RequirePermissions('foods.manage')
-  @ApiOperation({
-    summary: 'Assigns an addon group to a food (idempotent)',
-  })
-  assignAddonGroup(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AssignAddonGroupDto,
-  ) {
-    return this.foodsService.assignAddonGroup(id, dto);
-  }
-
-  @Delete(':id/addon-groups/:addonGroupId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions('foods.manage')
-  @ApiOperation({ summary: 'Unassigns an addon group from a food' })
-  unassignAddonGroup(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('addonGroupId', ParseIntPipe) addonGroupId: number,
-  ) {
-    return this.foodsService.unassignAddonGroup(id, addonGroupId);
   }
 
   // Bulk CSV/Excel import moved to the centralized superadmin Data Import

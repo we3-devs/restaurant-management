@@ -1,6 +1,5 @@
 import { Separator } from "./separator"
 import { TextSkeleton } from "./skeletons"
-import { useAddons } from "@rms/api-client/hooks/use-addons"
 import { useCustomer } from "@rms/api-client/hooks/use-customers"
 import { useFoods } from "@rms/api-client/hooks/use-foods"
 import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
@@ -117,7 +116,6 @@ function groupBillItems(items: OrderItem[]): OrderItem[] {
         ...existing,
         quantity: existing.quantity + item.quantity,
         totalAmount: existing.totalAmount + item.totalAmount,
-        addons: [...existing.addons, ...item.addons],
       }
     }
   }
@@ -126,9 +124,6 @@ function groupBillItems(items: OrderItem[]): OrderItem[] {
 }
 
 function BillItemRow({ item, name }: { item: OrderItem; name: string }) {
-  const { data: addons } = useAddons({ limit: 100 })
-  const addonName = (addonId: number) => addons?.data.find((a) => a.id === addonId)?.name ?? `#${addonId}`
-
   return (
     <div>
       <div className="flex justify-between gap-2">
@@ -137,11 +132,6 @@ function BillItemRow({ item, name }: { item: OrderItem; name: string }) {
         </span>
         <span className="shrink-0">{item.totalAmount}</span>
       </div>
-      {item.addons.map((link) => (
-        <p key={link.id} className="pl-4 text-xs text-muted-foreground">
-          + {addonName(link.addonId)}
-        </p>
-      ))}
       {item.note && <p className="pl-4 text-xs text-muted-foreground italic">{item.note}</p>}
     </div>
   )

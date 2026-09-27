@@ -21,7 +21,6 @@ import { OutletAccessService } from '../auth/outlet-access.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { TableSessionsService } from '../table-sessions/table-sessions.service';
 import { User } from '../users/entities/user.entity';
-import { CreateOrderItemAddonDto } from './dto/create-order-item-addon.dto';
 import { ListOrderItemsQueryDto } from './dto/list-order-items-query.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
 import { VoidOrderItemDto } from './dto/void-order-item.dto';
@@ -217,49 +216,11 @@ export class OrderItemsController {
     return this.ordersService.voidItem(id, dto.reason);
   }
 
-  @Get(':id/addons')
-  @RequirePermissions('orders.view')
-  @ApiOperation({ summary: 'Lists addons on an order item' })
-  async listAddons(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: User,
-  ) {
-    await this.assertItemAccess(id, user);
-    return this.ordersService.listItemAddons(id);
-  }
-
-  @Post(':id/addons')
-  @RequirePermissions('orders.manage')
-  @ApiOperation({
-    summary: 'Adds an addon to an order item, snapshotting its current price',
-  })
-  async addAddon(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CreateOrderItemAddonDto,
-    @CurrentUser() user: User,
-  ) {
-    await this.assertItemAccess(id, user);
-    return this.ordersService.addItemAddon(id, dto);
-  }
-
-  @Delete(':id/addons/:addonId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions('orders.manage')
-  @ApiOperation({ summary: 'Removes an addon from an order item' })
-  async removeAddon(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('addonId', ParseIntPipe) addonId: number,
-    @CurrentUser() user: User,
-  ) {
-    await this.assertItemAccess(id, user);
-    return this.ordersService.removeItemAddon(id, addonId);
-  }
-
   @Get(':id/reservations')
   @RequirePermissions('orders.view')
   @ApiOperation({
     summary:
-      "Lists an order item's ingredient reservations (reserved/consumed/released) — read-only, a side effect of item/addon add-remove and order completion/cancellation",
+      "Lists an order item's ingredient reservations (reserved/consumed/released) — read-only, a side effect of item add/remove and order completion/cancellation",
   })
   async listReservations(
     @Param('id', ParseIntPipe) id: number,

@@ -19,9 +19,6 @@ export interface MenuBootstrap {
   foodVariants: FoodVariant[]
   variants: Array<{ id: number; name: string; sortOrder: number }>
   subVariants: Array<{ id: number; name: string; sortOrder: number }>
-  addonGroups: Array<{ id: number; name: string; isRequired: boolean; minSelect: number; maxSelect: number | null; sortOrder: number }>
-  addons: Array<{ id: number; addonGroupId: number | null; name: string; price: number; sortOrder: number }>
-  foodAddonGroups: Array<{ id: number; foodId: number; addonGroupId: number }>
 }
 
 const DB_NAME = "rms-operational-cache"

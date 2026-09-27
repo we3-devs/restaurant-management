@@ -10,7 +10,6 @@ export const STALE_TIME = {
   departments: 30 * 60_000,
   tables: 60_000,
   foodVariants: 15 * 60_000,
-  addons: 15 * 60_000,
   ingredients: 15 * 60_000,
   units: Infinity,
   ingredientCategories: Infinity,

@@ -189,7 +189,7 @@ export class UnitsService {
   }
 
   /**
-   * Batch version of findConversionMultiplier for reservation math across a whole item/addon recipe set.
+   * Batch version of findConversionMultiplier for reservation math across a whole item recipe set.
    */
   async findConversionMultipliers(
     pairs: { fromUnitId: number; toUnitId: number }[],

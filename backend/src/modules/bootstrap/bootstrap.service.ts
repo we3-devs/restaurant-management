@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
-import { Addon } from '../addons/entities/addon.entity';
-import { AddonsService } from '../addons/addons.service';
 import { CustomerResponseDto } from '../customers/dto/customer-response.dto';
 import { CustomersService } from '../customers/customers.service';
 import { DiningTable } from '../dining-tables/entities/dining-table.entity';
@@ -25,7 +23,6 @@ import { WarehousesService } from '../warehouses/warehouses.service';
 import { PosBootstrapQueryDto } from './dto/pos-bootstrap-query.dto';
 import { ReservationsBootstrapQueryDto } from './dto/reservations-bootstrap-query.dto';
 import {
-  WaiterAddonDto,
   WaiterDiningTableDto,
   WaiterFoodCategoryDto,
   WaiterOutletDepartmentDto,
@@ -71,15 +68,6 @@ function toWaiterFoodCategory(category: FoodCategory): WaiterFoodCategoryDto {
   };
 }
 
-function toWaiterAddon(addon: Addon): WaiterAddonDto {
-  return {
-    id: addon.id,
-    addonGroupId: addon.addonGroupId,
-    name: addon.name,
-    price: addon.price,
-  };
-}
-
 export interface ReservationsBootstrapResponse {
   reservations: PaginatedResponse<Reservation>;
   customers: PaginatedResponse<CustomerResponseDto>;
@@ -109,7 +97,6 @@ export class BootstrapService {
     private readonly outletDepartmentsService: OutletDepartmentsService,
     private readonly diningTablesService: DiningTablesService,
     private readonly foodCategoriesService: FoodCategoriesService,
-    private readonly addonsService: AddonsService,
     private readonly customersService: CustomersService,
     private readonly reservationsService: ReservationsService,
     private readonly ingredientsService: IngredientsService,
@@ -122,16 +109,16 @@ export class BootstrapService {
    * outletId has already been validated against the caller's outlet
    * assignments by BootstrapController before this runs —
    * see OutletAccessService.assertOutletAccess. Departments/tables are
-   * fetched scoped to that outletId at the query level; food categories and
-   * addons have no outlet dimension anywhere in the schema (global catalog),
-   * so there's nothing to scope there.
+   * fetched scoped to that outletId at the query level; food categories
+   * have no outlet dimension anywhere in the schema (global catalog), so
+   * there's nothing to scope there.
    */
   async getPosBootstrap(
     query: PosBootstrapQueryDto,
   ): Promise<WaiterPosBootstrapResponseDto> {
     const { outletId } = query;
 
-    const [outlet, departments, tables, foodCategories, addons] =
+    const [outlet, departments, tables, foodCategories] =
       await Promise.all([
         this.outletsService.findOne(outletId),
         this.outletDepartmentsService.findAll({
@@ -141,7 +128,6 @@ export class BootstrapService {
         }),
         this.diningTablesService.findAll({ page: 1, limit: 100, outletId }),
         this.foodCategoriesService.findAll({ page: 1, limit: 100 }),
-        this.addonsService.findAll({ page: 1, limit: 100 }),
       ]);
 
     return {
@@ -149,7 +135,6 @@ export class BootstrapService {
       departments: departments.data.map(toWaiterDepartment),
       tables: tables.data.map(toWaiterTable),
       foodCategories: foodCategories.data.map(toWaiterFoodCategory),
-      addons: addons.data.map(toWaiterAddon),
     };
   }
 

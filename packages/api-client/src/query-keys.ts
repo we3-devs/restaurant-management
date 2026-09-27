@@ -69,19 +69,12 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.foodCategories.lists(), params] as const,
     detail: (id: number) => [...queryKeys.foodCategories.all, "detail", id] as const,
   },
-  addonGroups: {
-    all: ["addon-groups"] as const,
-    lists: () => [...queryKeys.addonGroups.all, "list"] as const,
-    list: (params?: unknown) => [...queryKeys.addonGroups.lists(), params] as const,
-    detail: (id: number) => [...queryKeys.addonGroups.all, "detail", id] as const,
-  },
   foods: {
     all: ["foods"] as const,
     lists: () => [...queryKeys.foods.all, "list"] as const,
     list: (params?: unknown) => [...queryKeys.foods.lists(), params] as const,
     detail: (id: number) => [...queryKeys.foods.all, "detail", id] as const,
     outlets: (id: number) => [...queryKeys.foods.all, "outlets", id] as const,
-    addonGroups: (id: number) => [...queryKeys.foods.all, "addon-groups", id] as const,
     recipes: (id: number) => [...queryKeys.foods.all, "recipes", id] as const,
   },
   foodVariants: {
@@ -90,13 +83,6 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.foodVariants.lists(), params] as const,
     detail: (id: number) => [...queryKeys.foodVariants.all, "detail", id] as const,
     outlets: (id: number) => [...queryKeys.foodVariants.all, "outlets", id] as const,
-  },
-  addons: {
-    all: ["addons"] as const,
-    lists: () => [...queryKeys.addons.all, "list"] as const,
-    list: (params?: unknown) => [...queryKeys.addons.lists(), params] as const,
-    detail: (id: number) => [...queryKeys.addons.all, "detail", id] as const,
-    recipes: (id: number) => [...queryKeys.addons.all, "recipes", id] as const,
   },
   diningAreas: {
     all: ["dining-areas"] as const,
@@ -130,7 +116,6 @@ export const queryKeys = {
   },
   orderItems: {
     all: ["order-items"] as const,
-    addons: (id: number) => [...queryKeys.orderItems.all, "addons", id] as const,
     reservations: (id: number) => [...queryKeys.orderItems.all, "reservations", id] as const,
   },
   kitchenTickets: {

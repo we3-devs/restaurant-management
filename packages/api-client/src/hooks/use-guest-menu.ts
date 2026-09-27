@@ -16,7 +16,6 @@ export interface PublicFood {
   shortDescription: string | null
   imageUrl: string | null
   hasVariants: boolean
-  hasAddons: boolean
 }
 
 /** A sellable food item: this food paired with values from the global option lists. */

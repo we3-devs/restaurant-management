@@ -1,12 +1,10 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AddonGroupsModule } from '../addon-groups/addon-groups.module';
 import { AuthModule } from '../auth/auth.module';
 import { FoodCategoriesModule } from '../food-categories/food-categories.module';
 import { IngredientsModule } from '../ingredients/ingredients.module';
 import { OutletsModule } from '../outlets/outlets.module';
 import { UnitsModule } from '../units/units.module';
-import { FoodAddonGroup } from './entities/food-addon-group.entity';
 import { FoodOutlet } from './entities/food-outlet.entity';
 import { FoodRecipe } from './entities/food-recipe.entity';
 import { Food } from './entities/food.entity';
@@ -21,11 +19,10 @@ import { FoodsImporter } from './import/foods-importer';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Food, FoodOutlet, FoodAddonGroup, FoodRecipe, FoodVariant, FoodCategory, Variant, SubVariant]),
+    TypeOrmModule.forFeature([Food, FoodOutlet, FoodRecipe, FoodVariant, FoodCategory, Variant, SubVariant]),
     AuthModule,
     FoodCategoriesModule,
     OutletsModule,
-    AddonGroupsModule,
     // Circular: IngredientsModule -> InventoryStockModule -> KitchenTicketsModule
     // -> OrdersModule -> FoodsModule. Without forwardRef, IngredientsModule is
     // still mid-load when this decorator evaluates and resolves to `undefined`.

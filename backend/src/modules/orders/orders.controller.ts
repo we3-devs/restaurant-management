@@ -424,7 +424,7 @@ export class OrdersController {
   @RequirePermissions('orders.manage')
   @ApiOperation({
     summary:
-      'Adds multiple items (each with optional addons) in one request — used by the POS to push a locally-built cart in one round-trip',
+      'Adds multiple items in one request — used by the POS to push a locally-built cart in one round-trip',
   })
   async addItemsBatch(
     @Param('id', ParseIntPipe) id: number,

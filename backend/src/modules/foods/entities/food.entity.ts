@@ -76,9 +76,6 @@ export class Food {
   @Column({ name: 'has_variants', type: 'boolean', default: false })
   hasVariants: boolean;
 
-  @Column({ name: 'has_addons', type: 'boolean', default: false })
-  hasAddons: boolean;
-
   @Column({ name: 'is_taxable', type: 'boolean', default: true })
   isTaxable: boolean;
 

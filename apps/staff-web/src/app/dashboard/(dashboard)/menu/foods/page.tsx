@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ChefHatIcon, DownloadIcon, EraserIcon, PackagePlusIcon, Trash2Icon } from "lucide-react"
+import { ChefHatIcon, DownloadIcon, EraserIcon, PackageCheckIcon, Trash2Icon } from "lucide-react"
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState } from "@tanstack/react-table"
 import { toast } from "sonner"
 
@@ -20,7 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -29,19 +28,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
 import { useFoodCategories } from "@/hooks/use-food-categories"
 import { useAnalyticsProducts } from "@/hooks/use-analytics"
-import { useIngredientCategories } from "@/hooks/use-ingredient-categories"
-import { useUnits } from "@/hooks/use-units"
 import {
   useBulkDeleteFoods,
-  useBulkImportFoodsAsIngredients,
   useBulkUpdateFoodsDepartment,
   useFoods,
   useResetFoods,
   type Food,
 } from "@/hooks/use-foods"
-import { useActiveOutlet } from "@/lib/outlet/active-outlet-context"
 import { OUTLET_DEPARTMENT_TYPES } from "@/lib/validators/foods"
-import { isTrackedIngredientType } from "@/lib/validators/ingredient-categories"
 import { CreateFoodDialog } from "./create-food-dialog"
 import { FoodsBackgroundPrefetch } from "./foods-background-prefetch"
 import { usePageTitle } from "@rms/ui/use-page-title"
@@ -64,7 +58,6 @@ function buildColumns(selectable: boolean): ColumnDef<FoodRow>[] {
         <div className="flex gap-1">
           {row.original.departmentType ? <Badge variant="outline">prep: {row.original.departmentType}</Badge> : <Badge variant="secondary">ready-made</Badge>}
           {row.original.hasVariants && <Badge variant="secondary">variants</Badge>}
-          {row.original.hasAddons && <Badge variant="secondary">addons</Badge>}
           {!row.original.isActive && <Badge variant="destructive">inactive</Badge>}
         </div>
       ),
@@ -122,21 +115,6 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
   const bulkUpdateDepartment = useBulkUpdateFoodsDepartment()
   const [bulkDepartment, setBulkDepartment] = useState<string>("none")
   const [prepPopoverOpen, setPrepPopoverOpen] = useState(false)
-  const { outletId: activeOutletId } = useActiveOutlet()
-  const { data: ingredientCategories } = useIngredientCategories({ limit: 100 })
-  // This import exists to make foods stock-trackable, and only beverage /
-  // packaging / consumable categories carry warehouse stock — landing a food
-  // in a raw_material or ready_product category would create an ingredient
-  // that no stock document will ever accept.
-  const stockTrackedCategories = useMemo(
-    () => (ingredientCategories?.data ?? []).filter((category) => isTrackedIngredientType(category.type)),
-    [ingredientCategories],
-  )
-  const { data: units } = useUnits({ limit: 100 })
-  const bulkImportAsIngredients = useBulkImportFoodsAsIngredients()
-  const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [importCategoryId, setImportCategoryId] = useState<string>("")
-  const [importUnitId, setImportUnitId] = useState<string>("")
   const resetFoods = useResetFoods()
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState("")
@@ -191,27 +169,6 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
     }
   }
 
-  async function handleBulkImportAsIngredients() {
-    if (!activeOutletId || !importCategoryId || !importUnitId) return
-    try {
-      const result = await bulkImportAsIngredients.mutateAsync({
-        foodIds: selectedIds,
-        outletId: activeOutletId,
-        ingredientCategoryId: Number(importCategoryId),
-        baseUnitId: Number(importUnitId),
-      })
-      if (result.created > 0) toast.success(`Imported ${result.created} food${result.created === 1 ? "" : "s"} into inventory`)
-      if (result.skipped > 0) toast.info(`Skipped ${result.skipped} already-linked food${result.skipped === 1 ? "" : "s"}`)
-      if (result.errors.length > 0) toast.error(`${result.errors.length} failed: ${result.errors.join("; ")}`)
-      setRowSelection({})
-      setImportDialogOpen(false)
-      setImportCategoryId("")
-      setImportUnitId("")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to import foods into inventory")
-    }
-  }
-
   async function handleReset() {
     try {
       const result = await resetFoods.mutateAsync()
@@ -257,41 +214,10 @@ export function FoodsList({ readOnly }: { readOnly: boolean }) {
               </PopoverContent>
             </Popover>
           )}
-          {!readOnly && selectedIds.length > 0 && (
-            <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-              <DialogTrigger render={<Button variant="outline" size="sm"><PackagePlusIcon /> Import to inventory ({selectedIds.length})</Button>} />
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Import {selectedIds.length} food{selectedIds.length === 1 ? "" : "s"} into inventory</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Creates a stock-tracked ingredient for each selected food in the active outlet and links it to the food items that aren&apos;t linked yet. Food items already linked to their own inventory item keep that link, and fully linked foods are skipped.</p>
-                  <Select value={importCategoryId} onValueChange={(value) => setImportCategoryId(value ?? "")}>
-                    <SelectTrigger className="w-full" disabled={stockTrackedCategories.length === 0}>
-                      <SelectValue placeholder={stockTrackedCategories.length === 0 ? "No stock-tracked categories" : "Ingredient category"} />
-                    </SelectTrigger>
-                    <SelectContent>{stockTrackedCategories.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {stockTrackedCategories.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Create an ingredient category of type beverage, packaging or consumable first — those are the types that carry warehouse stock.
-                    </p>
-                  )}
-                  <Select value={importUnitId} onValueChange={(value) => setImportUnitId(value ?? "")}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Base unit" /></SelectTrigger>
-                    <SelectContent>{units?.data.map((unit) => <SelectItem key={unit.id} value={String(unit.id)}>{unit.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <DialogFooter>
-                  <Button
-                    onClick={handleBulkImportAsIngredients}
-                    disabled={!activeOutletId || !importCategoryId || !importUnitId || bulkImportAsIngredients.isPending}
-                  >
-                    Import
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+          {!readOnly && (
+            <Button variant="outline" size="sm" render={<Link href="/dashboard/inventory/stock-tracking" />}>
+              <PackageCheckIcon /> Stock tracking
+            </Button>
           )}
           {!readOnly && selectedIds.length > 0 && (
             <AlertDialog>

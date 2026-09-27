@@ -5,31 +5,6 @@ import type {
 } from '../entities/order-item.entity';
 
 /**
- * One addon line on a WaiterOrderItemResponseDto — same minimal shape as the
- * parent: the id a caller might act on (removeAddon), the price fields a
- * bill needs, and the name so no follow-up /addons request is required.
- */
-export class WaiterOrderItemAddonResponseDto {
-  @ApiProperty()
-  id: number;
-
-  @ApiProperty()
-  addonId: number;
-
-  @ApiProperty()
-  addonName: string;
-
-  @ApiProperty()
-  quantity: number;
-
-  @ApiProperty()
-  unitPrice: number;
-
-  @ApiProperty()
-  totalAmount: number;
-}
-
-/**
  * The shape GET /order-items actually returns. Deliberately smaller than the
  * OrderItem entity: no cancelReason/preparationDepartmentId (internal
  * bookkeeping a waiter's cart/order-detail row never renders). createdAt/
@@ -93,7 +68,4 @@ export class WaiterOrderItemResponseDto {
   /** Staff who added this line — 'Guest' for a guest's own QR/online order (see OrdersService.GUEST_ORDERED_BY). */
   @ApiProperty()
   createdByName: string;
-
-  @ApiProperty({ type: [WaiterOrderItemAddonResponseDto] })
-  addons: WaiterOrderItemAddonResponseDto[];
 }

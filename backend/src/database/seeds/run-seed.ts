@@ -14,7 +14,7 @@ const PERMISSION_MODULES = [
   'table-sessions', 'dining-tables', 'dining-areas', 'reservations', 'customers',
   'employees', 'shifts', 'attendance', 'suppliers', 'purchase-orders', 'goods-receiving',
   'purchase-returns', 'supplier-payments', 'foods', 'food-categories', 'food-variants',
-  'addon-groups', 'addons', 'ingredients', 'ingredient-categories', 'units', 'stock-ins',
+  'ingredients', 'ingredient-categories', 'units', 'stock-ins',
   'stock-outs', 'stock-transfers', 'stock-adjustments', 'stock-counts', 'ingredient-wastages',
   'loyalty', 'customer-credit', 'settings', 'dashboard', 'reports', 'audit-logs',
   'inventory-stock', 'kitchen-tickets', 'service-requests', 'notifications', 'assistant',

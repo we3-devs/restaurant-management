@@ -73,53 +73,80 @@ export interface CreateInventoryItemInput {
   remarks?: string
 }
 
+interface PostStockInInput {
+  warehouseId: number
+  stockInDate: string
+  source: "purchase" | "correction"
+  remarks: string
+  items: { ingredientId: number; quantity: number; unitCost: number }[]
+}
+
 /**
- * Brings an existing ingredient into a warehouse so it shows up as an
- * inventory item.
- *
  * Stock rows are derived from the ledger, never written directly, so this
  * walks the same three-step document path the stock-in screen uses —
- * create draft, add the one item, approve — and it's the approval that
- * posts `opening_stock` and materialises the row. Callers therefore need
- * stock-ins.create, .update and .approve, not just inventory permissions.
+ * create draft, add the items, approve — and it's the approval that posts
+ * `opening_stock` and materialises the rows. Callers therefore need
+ * stock-ins.manage, not just inventory permissions.
  */
-export function useCreateInventoryItem() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ ingredientId, warehouseId, quantity, unitCost, remarks }: CreateInventoryItemInput) => {
-      const stockIn = await apiClient<StockIn>("/stock-ins", {
-        method: "POST",
-        body: JSON.stringify({
-          warehouseId,
-          stockInDate: new Date().toISOString().slice(0, 10),
-          source: "correction",
-          remarks: remarks ?? "Opening stock",
-        }),
-      })
+async function postApprovedStockIn({ items, ...header }: PostStockInInput): Promise<StockIn> {
+  const stockIn = await apiClient<StockIn>("/stock-ins", { method: "POST", body: JSON.stringify(header) })
 
-      // The draft exists from here on, so anything that fails after it has
-      // to take it back out — the server rejects an untracked ingredient at
-      // the add-item step, and an abandoned draft would otherwise pile up in
-      // the stock-in list for every failed attempt.
-      try {
-        await apiClient<StockInItem>(`/stock-ins/${stockIn.id}/items`, {
-          method: "POST",
-          body: JSON.stringify({ ingredientId, quantity, unitCost }),
-        })
-        // A draft left unapproved posts nothing, so a failure here is a real
-        // failure the dialog must surface rather than swallow.
-        return await apiClient<StockIn>(`/stock-ins/${stockIn.id}/approve`, { method: "POST" })
-      } catch (error) {
-        // Best-effort: the original error is what the user needs to see, so
-        // a failed cleanup must not replace it.
-        await apiClient<void>(`/stock-ins/${stockIn.id}`, { method: "DELETE" }).catch(() => undefined)
-        throw error
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventoryTransactions.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.stockIns.all })
-    },
+  // The draft exists from here on, so anything that fails after it has
+  // to take it back out — the server rejects an untracked ingredient at
+  // the add-item step, and an abandoned draft would otherwise pile up in
+  // the stock-in list for every failed attempt.
+  try {
+    for (const item of items) {
+      await apiClient<StockInItem>(`/stock-ins/${stockIn.id}/items`, { method: "POST", body: JSON.stringify(item) })
+    }
+    // A draft left unapproved posts nothing, so a failure here is a real
+    // failure the caller must surface rather than swallow.
+    return await apiClient<StockIn>(`/stock-ins/${stockIn.id}/approve`, { method: "POST" })
+  } catch (error) {
+    // Best-effort: the original error is what the user needs to see, so
+    // a failed cleanup must not replace it.
+    await apiClient<void>(`/stock-ins/${stockIn.id}`, { method: "DELETE" }).catch(() => undefined)
+    throw error
+  }
+}
+
+function useInvalidateStock() {
+  const queryClient = useQueryClient()
+  return () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all })
+    queryClient.invalidateQueries({ queryKey: queryKeys.inventoryTransactions.all })
+    queryClient.invalidateQueries({ queryKey: queryKeys.stockIns.all })
+  }
+}
+
+/** Brings an existing ingredient into a warehouse so it shows up as an inventory item. */
+export function useCreateInventoryItem() {
+  const invalidateStock = useInvalidateStock()
+  return useMutation({
+    mutationFn: ({ ingredientId, warehouseId, quantity, unitCost, remarks }: CreateInventoryItemInput) =>
+      postApprovedStockIn({
+        warehouseId,
+        stockInDate: new Date().toISOString().slice(0, 10),
+        source: "correction",
+        remarks: remarks ?? "Opening stock",
+        items: [{ ingredientId, quantity, unitCost }],
+      }),
+    onSuccess: invalidateStock,
+  })
+}
+
+export interface ImportGoodsInput {
+  warehouseId: number
+  stockInDate: string
+  remarks: string
+  items: { ingredientId: number; quantity: number; unitCost: number }[]
+}
+
+/** Receives several tracked items at once as one approved purchase stock-in. */
+export function useImportGoods() {
+  const invalidateStock = useInvalidateStock()
+  return useMutation({
+    mutationFn: (input: ImportGoodsInput) => postApprovedStockIn({ ...input, source: "purchase" }),
+    onSuccess: invalidateStock,
   })
 }

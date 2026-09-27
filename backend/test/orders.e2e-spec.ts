@@ -4,13 +4,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { AddonGroup } from '../src/modules/addon-groups/entities/addon-group.entity';
-import { Addon } from '../src/modules/addons/entities/addon.entity';
 import { DiningArea } from '../src/modules/dining-areas/entities/dining-area.entity';
 import { DiningTable } from '../src/modules/dining-tables/entities/dining-table.entity';
 import { FoodOutlet } from '../src/modules/foods/entities/food-outlet.entity';
 import { Food } from '../src/modules/foods/entities/food.entity';
-import { OrderItemAddon } from '../src/modules/orders/entities/order-item-addon.entity';
 import { OrderItem } from '../src/modules/orders/entities/order-item.entity';
 import { OrderStatusHistory } from '../src/modules/orders/entities/order-status-history.entity';
 import { Order } from '../src/modules/orders/entities/order.entity';
@@ -52,24 +49,19 @@ describe('Orders (e2e)', () => {
   let departmentRepo: Repository<OutletDepartment>;
   let foodRepo: Repository<Food>;
   let foodOutletRepo: Repository<FoodOutlet>;
-  let addonGroupRepo: Repository<AddonGroup>;
-  let addonRepo: Repository<Addon>;
   let diningAreaRepo: Repository<DiningArea>;
   let diningTableRepo: Repository<DiningTable>;
   let orderRepo: Repository<Order>;
   let orderItemRepo: Repository<OrderItem>;
-  let orderItemAddonRepo: Repository<OrderItemAddon>;
   let orderStatusHistoryRepo: Repository<OrderStatusHistory>;
 
   let adminToken: string;
   let outletId: number;
   let departmentId: number;
   let foodId: number;
-  let addonId: number;
   let tableId: number;
   const overridePrice = 15.5;
   const basePrice = 9.99;
-  const addonPrice = 2.25;
 
   const createdOrderIds: number[] = [];
 
@@ -93,13 +85,10 @@ describe('Orders (e2e)', () => {
     departmentRepo = moduleFixture.get(getRepositoryToken(OutletDepartment));
     foodRepo = moduleFixture.get(getRepositoryToken(Food));
     foodOutletRepo = moduleFixture.get(getRepositoryToken(FoodOutlet));
-    addonGroupRepo = moduleFixture.get(getRepositoryToken(AddonGroup));
-    addonRepo = moduleFixture.get(getRepositoryToken(Addon));
     diningAreaRepo = moduleFixture.get(getRepositoryToken(DiningArea));
     diningTableRepo = moduleFixture.get(getRepositoryToken(DiningTable));
     orderRepo = moduleFixture.get(getRepositoryToken(Order));
     orderItemRepo = moduleFixture.get(getRepositoryToken(OrderItem));
-    orderItemAddonRepo = moduleFixture.get(getRepositoryToken(OrderItemAddon));
     orderStatusHistoryRepo = moduleFixture.get(
       getRepositoryToken(OrderStatusHistory),
     );
@@ -159,29 +148,6 @@ describe('Orders (e2e)', () => {
       await foodOutletRepo.save(override);
     }
 
-    let addonGroup = await addonGroupRepo.findOne({
-      where: { name: 'E2E Orders Fixture Addon Group' },
-    });
-    if (!addonGroup) {
-      addonGroup = await addonGroupRepo.save(
-        addonGroupRepo.create({ name: 'E2E Orders Fixture Addon Group' }),
-      );
-    }
-
-    let addon = await addonRepo.findOne({
-      where: { name: 'E2E Orders Fixture Addon' },
-    });
-    if (!addon) {
-      addon = await addonRepo.save(
-        addonRepo.create({
-          addonGroupId: addonGroup.id,
-          name: 'E2E Orders Fixture Addon',
-          price: addonPrice,
-        }),
-      );
-    }
-    addonId = addon.id;
-
     let area = await diningAreaRepo.findOne({
       where: { outletId, name: 'E2E Orders Fixture Area' },
     });
@@ -213,12 +179,6 @@ describe('Orders (e2e)', () => {
   afterAll(async () => {
     if (createdOrderIds.length > 0) {
       const orderId = createdOrderIds[0];
-      const items = await orderItemRepo.find({ where: { orderId } });
-      if (items.length > 0) {
-        await orderItemAddonRepo.delete({
-          orderItemId: items[0].id,
-        });
-      }
       await orderItemRepo.delete({ orderId });
       await orderStatusHistoryRepo.delete({ orderId });
       await orderRepo.delete(createdOrderIds);
@@ -265,23 +225,6 @@ describe('Orders (e2e)', () => {
     expect((order.body as OrderResponseBody).grandTotal).toBe(
       overridePrice * 2,
     );
-  });
-
-  it('POST /api/order-items/:id/addons adds an addon and rolls it into order totals', async () => {
-    await request(app.getHttpServer())
-      .post(`/api/order-items/${itemId}/addons`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ addonId, quantity: 1 })
-      .expect(201);
-
-    const expectedSubtotal = overridePrice * 2 + addonPrice;
-
-    const order = await request(app.getHttpServer())
-      .get(`/api/orders/${orderId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(200);
-    expect((order.body as OrderResponseBody).subtotal).toBe(expectedSubtotal);
-    expect((order.body as OrderResponseBody).grandTotal).toBe(expectedSubtotal);
   });
 
   it('POST /api/orders/:id/items/batch merges duplicate cart lines without duplicating rows', async () => {
@@ -470,8 +413,8 @@ describe('Orders (e2e)', () => {
         .expect(200);
       ({ accessToken: scopedWaiterToken } = login.body as AuthResponseBody);
 
-      // Own-outlet order + item, and an addon on it, so the shape assertions
-      // below have something to check for `addonName` on too.
+      // Own-outlet order + item, so the shape assertions below have
+      // something to check.
       const ownOrder = await request(app.getHttpServer())
         .post('/api/orders')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -486,12 +429,6 @@ describe('Orders (e2e)', () => {
         .send({ foodId, quantity: 1 })
         .expect(201);
       ownItemId = (ownItem.body as OrderItemResponseBody).id;
-
-      await request(app.getHttpServer())
-        .post(`/api/order-items/${ownItemId}/addons`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ addonId, quantity: 1 })
-        .expect(201);
 
       // Other-outlet order the scoped waiter must never be able to list.
       const otherOrder = await request(app.getHttpServer())
@@ -541,10 +478,6 @@ describe('Orders (e2e)', () => {
       const item = body.data[0];
       expect(item.id).toBe(ownItemId);
       expect(item.foodName).toBe('E2E Orders Fixture Food');
-      expect(item.addons).toHaveLength(1);
-      expect(
-        (item.addons as Record<string, unknown>[])[0].addonName,
-      ).toBe('E2E Orders Fixture Addon');
     });
 
     it('never exposes internal-only fields on the waiter shape', async () => {
@@ -577,7 +510,6 @@ describe('Orders (e2e)', () => {
         'isHeld',
         'note',
         'packagingType',
-        'addons',
       ]) {
         expect(item).toHaveProperty(field);
       }

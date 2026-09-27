@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AddonsModule } from '../addons/addons.module';
 import { AuthModule } from '../auth/auth.module';
 import { CustomersModule } from '../customers/customers.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
@@ -21,7 +20,6 @@ import { BootstrapService } from './bootstrap.service';
     OutletDepartmentsModule,
     DiningTablesModule,
     FoodCategoriesModule,
-    AddonsModule,
     CustomersModule,
     ReservationsModule,
     IngredientsModule,
