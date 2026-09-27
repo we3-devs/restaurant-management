@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { setOfflineOwner } from "./offline/owner"
 import { restoreQueryCache, subscribeQueryCachePersistence } from "./offline/query-persister"
 
 export function QueryProvider({
   children,
   persist = false,
+  userId,
 }: {
   children: React.ReactNode
+  /** Signed-in user. Scopes this tab's persisted cache and offline mutation queue to them (see offline/owner.ts). */
+  userId: number
   /**
    * Offline-first mode: durably persists the whole query cache to IndexedDB
    * (survives reloads/offline) and stops treating time alone as a reason to
@@ -19,9 +23,10 @@ export function QueryProvider({
    */
   persist?: boolean
 }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
+  const [queryClient] = useState(() => {
+    // Before any child renders, restores the cache or queues a mutation.
+    setOfflineOwner(userId)
+    return new QueryClient({
         defaultOptions: {
           queries: {
             // Data younger than this is served from cache with no network
@@ -53,8 +58,8 @@ export function QueryProvider({
             networkMode: "online",
           },
         },
-      }),
-  )
+      })
+  })
 
   const [isRestored, setIsRestored] = useState(!persist)
 

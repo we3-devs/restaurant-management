@@ -157,7 +157,7 @@ export default function CartContent() {
             </div>
             <div className="space-y-3 p-4">
               <p className="text-sm text-slate-600">
-                This table requires confirming your location, but it's currently blocked for this site. Follow these
+                This table requires confirming your location, but it&apos;s currently blocked for this site. Follow these
                 steps, then come back and place your order again:
               </p>
               <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-700">

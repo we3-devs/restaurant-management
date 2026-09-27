@@ -6,11 +6,21 @@ import type { QueryClient } from "@tanstack/react-query"
 import { apiClient, ApiError } from "../client"
 import { queryKeys } from "../query-keys"
 import { getOfflineDb, type QueuedMutation } from "./db"
+import { getOfflineOwner } from "./owner"
 
 const listeners = new Set<() => void>()
 
 function notifyListeners() {
   listeners.forEach((listener) => listener())
+}
+
+/**
+ * Whether an entry may replay under the current session. Another user's
+ * unsynced writes stay queued until they sign in again on this device —
+ * replaying them now would send them with this user's credentials.
+ */
+function belongsToCurrentUser(entry: QueuedMutation): boolean {
+  return entry.userId === undefined || entry.userId === getOfflineOwner()
 }
 
 export async function queueMutation(entry: Omit<QueuedMutation, "id" | "createdAt">) {
@@ -20,6 +30,7 @@ export async function queueMutation(entry: Omit<QueuedMutation, "id" | "createdA
     ...entry,
     id: crypto.randomUUID(),
     createdAt: Date.now(),
+    userId: getOfflineOwner() ?? undefined,
   }
   await (await db).add("mutation-queue", queued)
   notifyListeners()
@@ -28,7 +39,8 @@ export async function queueMutation(entry: Omit<QueuedMutation, "id" | "createdA
 export async function getQueuedMutationCount() {
   const db = getOfflineDb()
   if (!db) return 0
-  return (await db).count("mutation-queue")
+  const all = await (await db).getAll("mutation-queue")
+  return all.filter(belongsToCurrentUser).length
 }
 
 /**
@@ -43,7 +55,7 @@ export async function replayQueuedMutations(queryClient?: QueryClient) {
   if (!db) return
   const store = await db
   const all = await store.getAll("mutation-queue")
-  const sorted = all.sort((a, b) => a.createdAt - b.createdAt)
+  const sorted = all.filter(belongsToCurrentUser).sort((a, b) => a.createdAt - b.createdAt)
   let replayedAny = false
 
   for (const entry of sorted) {

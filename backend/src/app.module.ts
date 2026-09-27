@@ -25,7 +25,6 @@ import { CustomerAuthModule } from './modules/customer-auth/customer-auth.module
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DashboardCacheModule } from './modules/dashboard-cache/dashboard-cache.module';
-import { PeriodInsightsModule } from './modules/period-insights/period-insights.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DataImportModule } from './modules/data-import/data-import.module';
@@ -205,7 +204,6 @@ import { AssetsModule } from './modules/assets/assets.module';
     AnalyticsModule,
     DataImportModule,
     DashboardCacheModule,
-    PeriodInsightsModule,
     ReportsModule,
     SettingsModule,
     OperatingHoursModule,

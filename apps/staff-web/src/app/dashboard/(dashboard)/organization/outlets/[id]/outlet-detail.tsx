@@ -284,7 +284,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
                                 value={field.value ?? ""}
                                 onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
                               />
-                              <FormDescription>e.g. 200 for roughly the restaurant's footprint</FormDescription>
+                              <FormDescription>e.g. 200 for roughly the restaurant&apos;s footprint</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -301,7 +301,7 @@ export function OutletDetail({ outletId }: { outletId: number }) {
                             <FormLabel>Allowed IP</FormLabel>
                             <FormControl {...field} value={field.value ?? ""} />
                             <FormDescription>
-                              The restaurant's public-facing WAN IP, not a LAN address (e.g. not 192.168.x.x).
+                              The restaurant&apos;s public-facing WAN IP, not a LAN address (e.g. not 192.168.x.x).
                             </FormDescription>
                             <FormMessage />
                           </FormItem>

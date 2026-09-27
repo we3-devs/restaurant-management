@@ -112,10 +112,7 @@ function normalizeTableName(table: string): string {
   return withoutSchema.replace(/\./g, '_');
 }
 
-/**
- * Startup validation
- * Run once when app boots.
- */
+/** Consistency check for the tables/permissions above, run by the registry spec. */
 export function validateAssistantRegistry(): void {
   const permissionIntents = Object.keys(
     ASSISTANT_DATA_PERMISSIONS,

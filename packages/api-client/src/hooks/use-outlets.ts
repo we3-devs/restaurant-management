@@ -21,50 +21,6 @@ export interface Outlet {
   tenant?: { id: number; name: string }
 }
 
-export interface SuperadminTenant {
-  id: number
-  name: string
-  slug: string
-  isActive: boolean
-  attendanceRequired: boolean
-  outlets?: Outlet[]
-}
-
-export function useSuperadminOutlets(options: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: queryKeys.outlets.superadminAll(),
-    queryFn: () => apiClient<Outlet[]>("/tenants/outlets"),
-    staleTime: STALE_TIME.outlets,
-    enabled: options.enabled ?? true,
-  })
-}
-
-export function useSuperadminTenants(options: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: queryKeys.outlets.superadminTenants(),
-    queryFn: () => apiClient<SuperadminTenant[]>("/tenants"),
-    staleTime: STALE_TIME.outlets,
-    enabled: options.enabled ?? true,
-  })
-}
-
-export function useUpdateSuperadminTenant() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...input }: { id: number; name?: string; isActive?: boolean; attendanceRequired?: boolean }) =>
-      apiClient<SuperadminTenant>(`/tenants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
-  })
-}
-
-export function useDeleteSuperadminTenant() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => apiClient<void>(`/tenants/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.outlets.superadminTenants() }),
-  })
-}
-
 export interface ListOutletsParams {
   page?: number
   limit?: number

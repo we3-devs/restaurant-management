@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { clearCachedApiResponses } from "@rms/api-client/offline/owner"
 import { LogOutIcon, MailIcon, ShieldCheckIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -43,6 +44,7 @@ export default function ProfilePage() {
   async function handleLogout() {
     setIsLoggingOut(true)
     await fetch("/api/auth/logout", { method: "POST" })
+    await clearCachedApiResponses()
     router.push("/login")
     router.refresh()
   }

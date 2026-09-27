@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { EntityManager, Repository } from 'typeorm';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { DataImportService } from './data-import.service';
 import { ImporterRegistry } from './importer-registry';
 import type { StorageService } from '../uploads/storage.service';
@@ -163,6 +164,7 @@ function buildService(jobs: Partial<ImportJob>[] = [], importer = buildFakeImpor
     buildDataSource(manager) as never,
     registry,
     buildStorageService(),
+    new TenantContext(),
   );
   return { service, jobsRepository };
 }

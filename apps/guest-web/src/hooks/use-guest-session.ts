@@ -25,6 +25,10 @@ export function useGuestSession() {
     if (storedTable) {
       // Table already locked from QR scan
       sessionStorage.setItem("guest_table", storedTable);
+      // The table lives in the URL and sessionStorage, which only exist in
+      // the browser — reading them after mount (not during render) keeps the
+      // server render and hydration identical.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTableCode(storedTable);
       setIsLocked(true);
 

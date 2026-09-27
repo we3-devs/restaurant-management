@@ -52,17 +52,17 @@ export default function StaffKitchenPage() {
   const assignedStation = visibleStations.find((s) => s.id === departmentId)
 
   const [stage, setStage] = useState<TicketStage>("incoming")
-  const [station, setStation] = useState<string>(() => (assignedStation ? String(assignedStation.id) : "all"))
-
-  useEffect(() => {
-    if (!isKitchenStaff || visibleStations.length === 0) return
-    // "all" means all stations assigned to this kitchen user. Only repair a
-    // stale specific station selection; do not replace the combined view with
-    // the first station after the bootstrap request finishes.
-    if (station !== "all" && !visibleStations.some((item) => String(item.id) === station)) {
-      setStation(String(visibleStations[0].id))
-    }
-  }, [isKitchenStaff, station, visibleStations])
+  const [selectedStation, setStation] = useState<string>(() => (assignedStation ? String(assignedStation.id) : "all"))
+  // "all" means all stations assigned to this kitchen user. Only repair a
+  // stale specific station selection; do not replace the combined view with
+  // the first station after the bootstrap request finishes.
+  const station =
+    isKitchenStaff &&
+    visibleStations.length > 0 &&
+    selectedStation !== "all" &&
+    !visibleStations.some((item) => String(item.id) === selectedStation)
+      ? String(visibleStations[0].id)
+      : selectedStation
 
   const stationFiltered = useMemo(() => {
     if (station === "all") {

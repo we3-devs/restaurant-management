@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query"
 import { dehydrate, hydrate } from "@tanstack/react-query"
 import { getOfflineDb } from "./db"
+import { getOfflineOwner } from "./owner"
 
 const CACHE_KEY = "react-query-cache"
 const PERSIST_DEBOUNCE_MS = 1000
@@ -10,6 +11,8 @@ const CACHE_BUSTER = 1
 interface PersistedCache {
   buster: number
   savedAt: number
+  /** User whose screens these are (see owner.ts). Absent on caches saved before this was tracked. */
+  owner?: number | null
   state: unknown
 }
 
@@ -20,7 +23,7 @@ async function saveQueryCache(client: QueryClient): Promise<void> {
   // already owns replaying pending writes; resurrecting mutation state here
   // would just duplicate/conflict with that.
   const state = dehydrate(client, { shouldDehydrateMutation: () => false })
-  const payload: PersistedCache = { buster: CACHE_BUSTER, savedAt: Date.now(), state }
+  const payload: PersistedCache = { buster: CACHE_BUSTER, savedAt: Date.now(), owner: getOfflineOwner(), state }
   await db.put("query-cache", payload, CACHE_KEY)
 }
 
@@ -29,7 +32,14 @@ export async function restoreQueryCache(client: QueryClient, maxAgeMs = 24 * 60 
   const db = await getOfflineDb()
   if (!db) return
   const payload = (await db.get("query-cache", CACHE_KEY)) as PersistedCache | undefined
-  if (!payload || payload.buster !== CACHE_BUSTER) return
+  if (!payload) return
+  // Someone else's cached screens (a shared tablet changed hands) are
+  // discarded, never shown.
+  if (payload.owner !== getOfflineOwner()) {
+    await db.delete("query-cache", CACHE_KEY)
+    return
+  }
+  if (payload.buster !== CACHE_BUSTER) return
   if (Date.now() - payload.savedAt > maxAgeMs) return
   hydrate(client, payload.state)
 }

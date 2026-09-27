@@ -43,7 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const allowed = hasRoutePermission(user, requiredPermission)
 
   return (
-    <QueryProvider>
+    <QueryProvider userId={user.id}>
       <StaticBrandColor primaryColor={branding.primaryColor} />
       <CurrentUserProvider user={user}>
         <ActiveOutletProvider>

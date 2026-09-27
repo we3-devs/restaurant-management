@@ -45,8 +45,6 @@ export const queryKeys = {
     list: (params?: unknown) => [...queryKeys.outlets.lists(), params] as const,
     detail: (id: number) => [...queryKeys.outlets.all, "detail", id] as const,
     assigned: () => [...queryKeys.outlets.all, "assigned"] as const,
-    superadminAll: () => [...queryKeys.outlets.all, "superadmin-all"] as const,
-    superadminTenants: () => [...queryKeys.outlets.all, "superadmin-tenants"] as const,
   },
   outletDepartments: {
     all: ["outlet-departments"] as const,
@@ -131,12 +129,6 @@ export const queryKeys = {
     charts: (params?: unknown) => [...queryKeys.dashboard.all, "charts", params] as const,
     breakdown: (params?: unknown) => [...queryKeys.dashboard.all, "breakdown", params] as const,
     inventoryActivity: (params?: unknown) => [...queryKeys.dashboard.all, "inventory-activity", params] as const,
-  },
-  periodInsights: {
-    all: ["period-insights"] as const,
-    list: (params?: unknown) => [...queryKeys.periodInsights.all, "ad", params] as const,
-    listNp: (params?: unknown) => [...queryKeys.periodInsights.all, "np", params] as const,
-    backfillStatus: () => [...queryKeys.periodInsights.all, "backfill-status"] as const,
   },
   reports: {
     all: ["reports"] as const,
@@ -327,20 +319,6 @@ export const queryKeys = {
     accounts: (params?: unknown) => [...queryKeys.customerCredit.all, "accounts", params] as const,
     account: (customerId: number) => [...queryKeys.customerCredit.all, "account", customerId] as const,
     transactions: (params?: unknown) => [...queryKeys.customerCredit.all, "transactions", params] as const,
-  },
-  customerPortal: {
-    all: ["customer-portal"] as const,
-    profile: () => [...queryKeys.customerPortal.all, "profile"] as const,
-    addresses: () => [...queryKeys.customerPortal.all, "addresses"] as const,
-    orders: (params?: unknown) => [...queryKeys.customerPortal.all, "orders", params] as const,
-    loyalty: () => [...queryKeys.customerPortal.all, "loyalty"] as const,
-    loyaltyHistory: (params?: unknown) => [...queryKeys.customerPortal.all, "loyalty-history", params] as const,
-  },
-  guestMenu: {
-    all: ["guest-menu"] as const,
-    categories: (params?: unknown) => [...queryKeys.guestMenu.all, "categories", params] as const,
-    foods: (params?: unknown) => [...queryKeys.guestMenu.all, "foods", params] as const,
-    variants: (foodId?: number) => [...queryKeys.guestMenu.all, "variants", foodId] as const,
   },
   guestOrders: {
     all: ["guest-orders"] as const,

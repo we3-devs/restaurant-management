@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { clearCachedApiResponses } from "@rms/api-client/offline/owner"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
@@ -84,6 +85,9 @@ export function LoginForm() {
       // at a time. Server-side layouts still re-verify and bounce on
       // mismatch (see (dashboard)/layout.tsx and staff/layout.tsx) — this is
       // just choosing the right first stop, not replacing that check.
+      // The previous user's cached API responses must not be served
+      // (offline) to this one — a shared tablet changing hands.
+      await clearCachedApiResponses()
       if (getLandingPath(body.user) === "/staff") {
         router.push("/operational/staff")
         return

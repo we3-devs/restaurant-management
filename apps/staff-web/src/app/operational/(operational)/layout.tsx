@@ -28,7 +28,7 @@ export default async function OperationalLayout({ children }: { children: React.
   const allowed = hasRoutePermission(user, requiredPermission)
 
   return (
-    <QueryProvider persist>
+    <QueryProvider persist userId={user.id}>
       <StaticBrandColor primaryColor={branding.primaryColor} />
       <CurrentUserProvider user={user}>
         <ActiveOutletProvider>

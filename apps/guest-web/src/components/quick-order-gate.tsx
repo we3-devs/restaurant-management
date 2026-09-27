@@ -74,7 +74,7 @@ export function QuickOrderGate({
           {error && errorKind === "permission_denied" && (
             <div className="rounded-lg bg-red-50 px-3 py-2.5 text-xs text-red-700">
               <p className="font-medium">Location access is turned off for this site.</p>
-              <p className="mt-1 mb-2">Turn it back on to confirm you're at the table:</p>
+              <p className="mt-1 mb-2">Turn it back on to confirm you&apos;re at the table:</p>
               <LocationPermissionHelp />
             </div>
           )}

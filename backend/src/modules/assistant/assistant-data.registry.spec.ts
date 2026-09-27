@@ -1,9 +1,14 @@
 import {
   assertAssistantDataAccess,
   ASSISTANT_BLOCKED_TABLES,
+  validateAssistantRegistry,
 } from './assistant-data.registry';
 
 describe('assistant data registry', () => {
+  it('has a table allow-list and only known read permissions for every intent', () => {
+    expect(() => validateAssistantRegistry()).not.toThrow();
+  });
+
   it('blocks protected system tables', () => {
     expect(() => assertAssistantDataAccess('inventory', ['users'])).toThrow(
       'Blocked table',
@@ -19,7 +24,7 @@ describe('assistant data registry', () => {
 
   it('rejects tables outside the allowed set for an intent', () => {
     expect(() => assertAssistantDataAccess('menu', ['users'])).toThrow(
-      'not allowed',
+      'Blocked table access',
     );
   });
 });

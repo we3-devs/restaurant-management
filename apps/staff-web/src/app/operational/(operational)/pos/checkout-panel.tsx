@@ -338,7 +338,7 @@ export function CheckoutPanel({
                     {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet. This
                     drops {unservedItemCount === 1 ? "it" : "them"} from the bill entirely (releasing any reserved
                     stock) instead of charging for and serving {unservedItemCount === 1 ? "it" : "them"} — use this
-                    only when the guest genuinely didn't get {unservedItemCount === 1 ? "it" : "them"}. This cannot be
+                    only when the guest genuinely didn&apos;t get {unservedItemCount === 1 ? "it" : "them"}. This cannot be
                     undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>

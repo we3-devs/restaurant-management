@@ -71,13 +71,17 @@ export default function BusinessSettingsPage() {
     }
   }, [data, form])
 
-  useEffect(() => {
-    if (!hours) return
+  // Load the saved hours into the editable fields whenever a new copy
+  // arrives — during render rather than in an effect.
+  // Starts empty so hours that are already cached on mount load too.
+  const [loadedHours, setLoadedHours] = useState<typeof hours>(undefined)
+  if (hours && hours !== loadedHours) {
+    setLoadedHours(hours)
     setOpeningTime(hours.openingTime ?? "")
     setClosingTime(hours.closingTime ?? "")
     setHoursTimezone(hours.timezone)
     setHoursEnabled(hours.enabled)
-  }, [hours])
+  }
 
   async function onSubmit(values: BusinessSettingsInput) {
     try {

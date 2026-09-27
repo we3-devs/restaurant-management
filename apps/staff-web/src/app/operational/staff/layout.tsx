@@ -42,7 +42,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   const allowed = hasRoutePermission(user, requiredPermission) && !isStaffRouteBlockedForRole(pathname, user)
 
   return (
-    <QueryProvider persist>
+    <QueryProvider persist userId={user.id}>
       <CurrentUserProvider user={user}>
         <ActiveOutletProvider>
           <RealtimeInvalidationProvider />

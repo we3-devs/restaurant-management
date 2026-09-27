@@ -15,6 +15,8 @@ export interface QueuedMutation {
    * entry is dropped instead of blocking the rest of the queue.
    */
   convergentOnBadRequest?: boolean
+  /** User who queued it (see owner.ts); it only replays under that user's session. Absent on entries queued before this was tracked. */
+  userId?: number
 }
 
 interface OfflineDB extends DBSchema {

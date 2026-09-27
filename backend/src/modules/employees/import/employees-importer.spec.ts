@@ -78,7 +78,7 @@ describe('EmployeesImporter', () => {
       const { employeesRepository, positionsRepository, outletsRepository } = buildRepos();
       const importer = new EmployeesImporter(employeesRepository, positionsRepository, outletsRepository);
       const { employeesRepository: managerRepo } = buildRepos();
-      const manager = { getRepository: () => managerRepo } as unknown as EntityManager;
+      const manager = { getRepository: () => managerRepo, query: jest.fn(async () => undefined) } as unknown as EntityManager;
 
       const result = await importer.commitRows(
         [

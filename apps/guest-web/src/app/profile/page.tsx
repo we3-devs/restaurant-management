@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, Pencil, UserRound } from "lucide-react";
 import { useGuestAuth } from "@/hooks/use-guest-auth";
 import { authFetch, readError } from "@/lib/api";
@@ -95,7 +96,7 @@ export default function ProfilePage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="text-center">
           <p className="font-semibold text-slate-900">Please log in to view your profile.</p>
-          <a href="/" className="mt-3 inline-block text-sm text-brand-700">Back to menu</a>
+          <Link href="/" className="mt-3 inline-block text-sm text-brand-700">Back to menu</Link>
         </div>
       </main>
     );
@@ -104,9 +105,9 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6">
       <div className="mx-auto max-w-lg">
-        <a href="/" className="mb-6 inline-flex items-center gap-1 text-sm text-slate-600">
+        <Link href="/" className="mb-6 inline-flex items-center gap-1 text-sm text-slate-600">
           <ArrowLeft size={16} /> Back to menu
-        </a>
+        </Link>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-brand-100 p-3 text-brand-700"><UserRound size={22} /></div>

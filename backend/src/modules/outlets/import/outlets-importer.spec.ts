@@ -59,7 +59,7 @@ describe('OutletsImporter', () => {
       const importer = new OutletsImporter(injectedRepository);
 
       const managerRepository = buildOutletsRepository();
-      const manager = { getRepository: () => managerRepository } as unknown as EntityManager;
+      const manager = { getRepository: () => managerRepository, query: jest.fn(async () => undefined) } as unknown as EntityManager;
 
       const result = await importer.commitRows([{ rowNumber: 2, name: 'New Outlet', errors: [] }], manager);
 

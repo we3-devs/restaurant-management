@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -322,9 +323,9 @@ export function FoodDetail({ foodId }: { foodId: number }) {
       <FoodRecipes foodId={foodId} />
       <p className="text-sm text-muted-foreground">
         Direct-sale stock tracking now lives on each food item — see this food&apos;s{" "}
-        <a href="/dashboard/menu/food-variants" className="underline">
+        <Link href="/dashboard/menu/food-variants" className="underline">
           food items
-        </a>{" "}
+        </Link>{" "}
         to link one to an inventory ingredient.
       </p>
     </div>

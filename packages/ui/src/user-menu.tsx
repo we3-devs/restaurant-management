@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { clearCachedApiResponses } from "@rms/api-client/offline/owner"
 import { LogOutIcon, UserIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "./avatar"
@@ -38,6 +39,7 @@ export function UserMenu({ profileHref }: { profileHref?: string } = {}) {
   async function handleLogout() {
     setIsLoggingOut(true)
     await fetch("/api/auth/logout", { method: "POST" })
+    await clearCachedApiResponses()
     router.push("/login")
     router.refresh()
   }

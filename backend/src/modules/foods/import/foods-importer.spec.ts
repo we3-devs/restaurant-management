@@ -12,7 +12,7 @@ function wrap(raws: Record<string, string>[], startAt = 2) {
 }
 
 function buildRepos(opts: {
-  existingFoods?: { slug: string }[];
+  existingFoods?: { slug: string; name: string }[];
   categories?: { id: number; name: string }[];
   variants?: { id: number; name: string }[];
   subVariants?: { id: number; name: string }[];
@@ -67,7 +67,9 @@ describe('FoodsImporter', () => {
 
   describe('validateRows', () => {
     it('rejects a slug that already exists — create only, never treated as an update', async () => {
-      const { importer } = buildImporter({ existingFoods: [{ slug: 'margherita-pizza' }] });
+      // A different name: a row whose name matches an existing food is grouped
+      // onto it as another size rather than slug-checked.
+      const { importer } = buildImporter({ existingFoods: [{ slug: 'margherita-pizza', name: 'Margherita' }] });
       const [row] = await importer.validateRows(wrap([{ name: 'Margherita Pizza', slug: 'margherita-pizza' }]));
       expect(row.errors).toContain('Slug "margherita-pizza" is already in use');
     });
@@ -119,15 +121,17 @@ describe('FoodsImporter', () => {
       expect(row.basePrice).toBe(290);
     });
 
-    it('errors on an unrecognised variant name', async () => {
+    it('accepts an unrecognised variant name, leaving it for commit to create', async () => {
       const { importer } = buildImporter();
       const [row] = await importer.validateRows(wrap([{ name: 'Choila', variant: 'Ghost' }]));
-      expect(row.errors).toContain('Variant "Ghost" not found — create it in Variants first');
+      expect(row.errors).toEqual([]);
+      expect(row.variantId).toBeNull();
+      expect(row.variantName).toBe('Ghost');
     });
 
     it('resolves a sub-variant name to its id', async () => {
       const { importer } = buildImporter({ subVariants: [{ id: 5, name: 'Full' }] });
-      const [row] = await importer.validateRows(wrap([{ name: 'KhanaSet', 'sub variant': 'Full', basePrice: '400' }]));
+      const [row] = await importer.validateRows(wrap([{ name: 'KhanaSet', subVariant: 'Full', basePrice: '400' }]));
       expect(row.errors).toEqual([]);
       expect(row.subVariantId).toBe(5);
     });
@@ -145,6 +149,7 @@ describe('FoodsImporter', () => {
       const { foodsRepository: managerFoodRepo, foodVariantsRepository: managerFVRepo } = buildRepos();
       const manager = {
         getRepository: (entity: unknown) => (entity === FoodsImporter ? managerFoodRepo : managerFVRepo),
+        query: jest.fn(async () => undefined),
       } as unknown as EntityManager;
 
       const result = await importer.commitRows(
@@ -162,8 +167,10 @@ describe('FoodsImporter', () => {
             itemType: 'ready_made',
             departmentType: null,
             basePrice: null,
+            variant: null,
             variantName: null,
             variantId: null,
+            subVariant: null,
             subVariantName: null,
             subVariantId: null,
             errors: [],
@@ -182,6 +189,8 @@ describe('FoodsImporter', () => {
       const managerFoodRepo = {
         create: (d: unknown) => d,
         save: jest.fn(async (f: unknown) => ({ ...(f as object), id: 1 })),
+        // Find-or-create lookups for the food and its category: nothing exists yet.
+        findOne: jest.fn(async () => null),
       };
       const managerFVRepo = {
         create: (d: unknown) => d,
@@ -195,6 +204,7 @@ describe('FoodsImporter', () => {
           const name = (entity as { name?: string }).name;
           return name === 'FoodVariant' ? managerFVRepo : managerFoodRepo;
         },
+        query: jest.fn(async () => undefined),
       } as unknown as EntityManager;
 
       await importer.commitRows(
@@ -212,8 +222,10 @@ describe('FoodsImporter', () => {
             itemType: 'kitchen',
             departmentType: null,
             basePrice: 290,
+            variant: 'Chicken',
             variantName: 'Chicken',
             variantId: 3,
+            subVariant: null,
             subVariantName: null,
             subVariantId: null,
             errors: [],
@@ -264,8 +276,10 @@ describe('FoodsImporter', () => {
             itemType: 'kitchen',
             departmentType: null,
             basePrice: 350,
+            variant: null,
             variantName: null,
             variantId: null,
+            subVariant: null,
             subVariantName: null,
             subVariantId: null,
             errors: [],

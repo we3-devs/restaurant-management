@@ -51,7 +51,7 @@ describe('CustomersImporter', () => {
     it('updates name/address for an existing match, leaves phone/email alone', async () => {
       const importer = new CustomersImporter(buildRepository());
       const managerRepo = buildRepository([{ id: 7, phone: '9800000000', email: null }]);
-      const manager = { getRepository: () => managerRepo } as unknown as EntityManager;
+      const manager = { getRepository: () => managerRepo, query: jest.fn(async () => undefined) } as unknown as EntityManager;
 
       await importer.commitRows(
         [{ rowNumber: 2, name: 'Jane Updated', phone: '9800000000', email: null, address: 'New Addr', existingId: 7, errors: [] }],
@@ -68,7 +68,7 @@ describe('CustomersImporter', () => {
     it('creates a new customer when there is no existing match', async () => {
       const importer = new CustomersImporter(buildRepository());
       const managerRepo = buildRepository();
-      const manager = { getRepository: () => managerRepo } as unknown as EntityManager;
+      const manager = { getRepository: () => managerRepo, query: jest.fn(async () => undefined) } as unknown as EntityManager;
 
       const result = await importer.commitRows(
         [{ rowNumber: 2, name: 'Jane', phone: '9800000000', email: null, address: null, existingId: null, errors: [] }],

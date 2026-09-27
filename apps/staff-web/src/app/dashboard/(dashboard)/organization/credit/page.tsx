@@ -142,7 +142,7 @@ export default function CustomerCreditPage() {
           <WalletIcon className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">No outstanding credit</p>
           <p className="text-sm text-muted-foreground">
-            Orders closed with the credit payment method will show up here until they're settled.
+            Orders closed with the credit payment method will show up here until they&apos;re settled.
           </p>
         </div>
       ) : (

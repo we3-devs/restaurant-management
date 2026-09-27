@@ -20,20 +20,20 @@ export class DashboardCacheScheduler implements OnModuleInit {
 
   constructor(private readonly cacheService: DashboardCacheService) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     registerDashboardCacheRebuilder((outletId, sections) =>
       this.cacheService.rebuildSections(outletId, sections),
     );
     // Warms a newly-added outlet (or a fresh deploy of these cache tables)
-    // immediately rather than leaving it uncached until the next write or
-    // the next nightly sweep — see AppModule's connection-pool warm-up for
-    // the analogous "don't make the first real request pay a cold-start
-    // cost" reasoning.
-    try {
-      await this.cacheService.rebuildAll();
-    } catch (err) {
-      this.logger.error(`Boot-time dashboard cache warm failed: ${(err as Error).message}`);
-    }
+    // right after boot rather than leaving it uncached until the next write
+    // or the next nightly sweep. In the background, not awaited: an awaited
+    // onModuleInit holds the server off listening until every outlet's
+    // dashboard is recomputed, which made every cold start that much slower.
+    // A dashboard request that arrives first just computes its own sections
+    // on the cache miss (DashboardCacheService).
+    void this.cacheService.rebuildAll().catch((err: Error) => {
+      this.logger.error(`Boot-time dashboard cache warm failed: ${err.message}`);
+    });
   }
 
   @Interval(DAY)

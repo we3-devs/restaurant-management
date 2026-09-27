@@ -4,7 +4,7 @@
 // file). Versioned so a deploy can invalidate stale shell/image caches — bump
 // this AND src/lib/app-version.ts's APP_VERSION together on any deploy that
 // changes staff-PWA code, otherwise installed clients keep the old cached JS.
-const CACHE_VERSION = "v1.1"
+const CACHE_VERSION = "v1.2"
 const SHELL_CACHE = `rms-shell-${CACHE_VERSION}`
 const IMAGE_CACHE = `rms-images-${CACHE_VERSION}`
 const API_CACHE = `rms-api-${CACHE_VERSION}`
@@ -31,13 +31,15 @@ self.addEventListener("activate", (event) => {
 /**
  * Network-first with a cache fallback for GET /api/* calls, so a kitchen
  * screen that briefly drops wifi can still show the last-known ticket list
- * instead of a hard error. Only successful, cookie-free GET responses are
- * cached — never a write, and never a response carrying Set-Cookie.
+ * instead of a hard error. Only successful GET responses are cached, never a
+ * write. These are per-user responses and this worker can't tell users apart
+ * (Set-Cookie is never visible to it), so the app clears this cache on every
+ * login and logout — see clearCachedApiResponses() in the api-client package.
  */
 async function handleApiRequest(request) {
   try {
     const response = await fetch(request)
-    if (response.ok && !response.headers.has("set-cookie")) {
+    if (response.ok) {
       const cache = await caches.open(API_CACHE)
       cache.put(request, response.clone())
     }
