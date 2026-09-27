@@ -38,18 +38,11 @@ interface RefreshedTokens {
 }
 
 // Dedupes concurrent refreshes for the same refresh token within this server
-// instance. The backend rotates refresh tokens on every use and revokes the
-// whole chain on reuse (theft detection) — without this, a page navigation's
-// parallel RSC/prefetch requests would each try to redeem the same token and
-// the loser would get its session killed instead of just refreshed.
-//
-// Keyed by token (a Map, not a single slot): this instance serves every
-// logged-in staff member concurrently, and a single-slot version would get
-// clobbered the moment a second user's refresh landed mid-flight — a third
-// request for the first user would then no longer find its own entry, fire a
-// second concurrent redemption of the same already-in-flight token, and trip
-// the same reuse-detection that kills the whole session chain. That's the
-// randomly-timed session death this map exists to prevent.
+// instance, so a navigation's parallel RSC/prefetch requests make one
+// backend call instead of one each. The refresh token itself is a stable
+// session credential (see AuthService.refresh), so a duplicate refresh that
+// slips past this — from another instance, say — is harmless, just wasted.
+// Keyed by token so every logged-in staff member gets their own entry.
 const refreshInFlight = new Map<string, Promise<RefreshedTokens | null>>()
 
 async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
@@ -117,9 +110,8 @@ export async function proxy(request: NextRequest) {
 
   if (!hasSession && !isAuth) {
     // Tag the redirect so an unexpected logout explains itself: no auth
-    // cookie arrived with this request at all. site=cross-site means the
-    // browser withheld them (SameSite=Strict on a navigation from another
-    // site) even though the session itself may still be alive.
+    // cookie arrived with this request at all. site says where the
+    // navigation came from (same-origin, cross-site, none for typed/bookmarked).
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("reason", "no_session")
     const site = request.headers.get("sec-fetch-site")

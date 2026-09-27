@@ -9,8 +9,9 @@ interface Row {
   tokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
-  replacedByTokenHash: string | null;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Yields to the event loop so concurrent refresh() calls interleave between DB calls the way real round trips do. */
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -35,6 +36,11 @@ class FakeRefreshTokenRepository {
 
   constructor(private readonly users: Map<number, User>) {}
 
+  async insert(values: Omit<Row, 'id' | 'revokedAt'>) {
+    await tick();
+    this.rows.push({ id: this.nextId++, revokedAt: null, ...values });
+  }
+
   async update(where: Record<string, unknown>, patch: Partial<Row>) {
     await tick();
     const hits = this.rows.filter((row) => matches(row, where));
@@ -56,47 +62,6 @@ class FakeRefreshTokenRepository {
       ...row,
       ...(relations?.user ? { user: this.users.get(row.userId) } : {}),
     };
-  }
-
-  createQueryBuilder() {
-    let values: Omit<Row, 'id' | 'revokedAt' | 'replacedByTokenHash'>;
-    const builder = {
-      insert: () => builder,
-      into: () => builder,
-      values: (v: typeof values) => {
-        values = v;
-        return builder;
-      },
-      orIgnore: () => builder,
-      execute: async () => {
-        await tick();
-        if (this.rows.some((row) => row.tokenHash === values.tokenHash)) return;
-        this.rows.push({
-          id: this.nextId++,
-          revokedAt: null,
-          replacedByTokenHash: null,
-          ...values,
-        });
-      },
-    };
-    return builder;
-  }
-
-  async query(sql: string, [tokenHash, revokedAt]: [string, Date]) {
-    await tick();
-    if (!sql.includes('WITH RECURSIVE'))
-      throw new Error(`Unexpected query: ${sql}`);
-    let hash: string | null = tokenHash;
-    while (hash) {
-      const row = this.rows.find((candidate) => candidate.tokenHash === hash);
-      if (!row) break;
-      if (row.revokedAt === null) row.revokedAt = revokedAt;
-      hash = row.replacedByTokenHash;
-    }
-  }
-
-  live(): Row[] {
-    return this.rows.filter((row) => row.revokedAt === null);
   }
 
   rowFor(service: AuthService, rawToken: string): Row {
@@ -142,76 +107,48 @@ describe('AuthService.refresh', () => {
     );
   });
 
-  it('rotates the token, and the replacement keeps working', async () => {
-    const { refreshToken } = await login();
+  it('issues a new access token and keeps the same refresh token', async () => {
+    const session = await login();
 
-    const first = await service.refresh(refreshToken);
-    expect(first.tokens.refreshToken).not.toBe(refreshToken);
-    expect(first.user).toBe(user);
+    const refreshed = await service.refresh(session.refreshToken);
 
-    const second = await service.refresh(first.tokens.refreshToken);
-    expect(second.tokens.refreshToken).not.toBe(first.tokens.refreshToken);
-    expect(repo.live().map((row) => row.tokenHash)).toEqual([
-      service['hashToken'](second.tokens.refreshToken),
-    ]);
+    expect(refreshed.tokens.refreshToken).toBe(session.refreshToken);
+    expect(refreshed.tokens.accessToken).not.toBe(session.accessToken);
+    expect(refreshed.user).toBe(user);
   });
 
-  it('hands every concurrent redeemer of the same token the same replacement', async () => {
+  it('slides the session expiry forward on every refresh', async () => {
+    const { refreshToken } = await login();
+    const row = repo.rowFor(service, refreshToken);
+    row.expiresAt = new Date(Date.now() + DAY_MS);
+
+    await service.refresh(refreshToken);
+
+    expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now() + 399 * DAY_MS);
+  });
+
+  it('lets any number of concurrent refreshes of one session succeed', async () => {
     const { refreshToken } = await login();
 
     const results = await Promise.all(
-      Array.from({ length: 6 }, () => service.refresh(refreshToken)),
+      Array.from({ length: 8 }, () => service.refresh(refreshToken)),
     );
 
-    const refreshTokens = new Set(
-      results.map((result) => result.tokens.refreshToken),
+    expect(results.every((r) => r.tokens.refreshToken === refreshToken)).toBe(
+      true,
     );
-    expect(refreshTokens.size).toBe(1);
-    // Each caller still gets its own access token.
-    expect(
-      new Set(results.map((result) => result.tokens.accessToken)).size,
-    ).toBe(6);
-    const [replacement] = refreshTokens;
-    expect(repo.live().map((row) => row.tokenHash)).toEqual([
-      service['hashToken'](replacement),
-    ]);
-
-    // Whichever Set-Cookie the browser kept, the next refresh still works.
-    await expect(service.refresh(replacement)).resolves.toBeDefined();
+    expect(repo.rowFor(service, refreshToken).revokedAt).toBeNull();
   });
 
-  it('returns the family’s newest token to a late duplicate after it rotated again', async () => {
+  it('keeps working across many sequential refreshes', async () => {
     const { refreshToken } = await login();
-    const first = await service.refresh(refreshToken);
-    const second = await service.refresh(first.tokens.refreshToken);
 
-    const late = await service.refresh(refreshToken);
-
-    expect(late.tokens.refreshToken).toBe(second.tokens.refreshToken);
-    expect(repo.live()).toHaveLength(1);
+    for (let i = 0; i < 20; i += 1) {
+      await expect(service.refresh(refreshToken)).resolves.toBeDefined();
+    }
   });
 
-  it('treats a replay outside the grace window as reuse and revokes only that login’s family', async () => {
-    const otherDevice = await login();
-    const { refreshToken } = await login();
-    const rotated = await service.refresh(refreshToken);
-    repo.rowFor(service, refreshToken).revokedAt = new Date(
-      Date.now() - 5 * 60_000,
-    );
-
-    await expect(service.refresh(refreshToken)).rejects.toThrow(
-      'Refresh token has already been used',
-    );
-
-    await expect(service.refresh(rotated.tokens.refreshToken)).rejects.toThrow(
-      UnauthorizedException,
-    );
-    await expect(
-      service.refresh(otherDevice.refreshToken),
-    ).resolves.toBeDefined();
-  });
-
-  it('rejects a logged-out token without touching the user’s other logins', async () => {
+  it('rejects a logged-out session without touching the user’s other logins', async () => {
     const otherDevice = await login();
     const { refreshToken } = await login();
     await service.logout(refreshToken);
@@ -224,21 +161,21 @@ describe('AuthService.refresh', () => {
     ).resolves.toBeDefined();
   });
 
-  it('rejects an expired token without rotating it', async () => {
+  it('rejects an expired session and does not revive it', async () => {
     const { refreshToken } = await login();
     const row = repo.rowFor(service, refreshToken);
-    row.expiresAt = new Date(Date.now() - 1000);
+    const expiredAt = new Date(Date.now() - 1000);
+    row.expiresAt = expiredAt;
 
     await expect(service.refresh(refreshToken)).rejects.toThrow(
       'Refresh token has expired',
     );
-    expect(row.revokedAt).toBeNull();
-    expect(repo.rows).toHaveLength(1);
+    expect(row.expiresAt).toBe(expiredAt);
   });
 
   it('rejects an unknown token', async () => {
     await expect(service.refresh('not-a-real-token')).rejects.toThrow(
-      'Invalid refresh token',
+      UnauthorizedException,
     );
   });
 });

@@ -30,7 +30,12 @@ export function authCookieAttributes(maxAge: number) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    // Lax, not Strict: Strict withholds the cookies when staff open the app
+    // from a link in another site or app (WhatsApp, email), which landed
+    // them on /login with a perfectly good session. Lax still keeps the
+    // cookies off cross-site POST/PUT/DELETE requests, and every mutation
+    // here is one of those.
+    sameSite: "lax" as const,
     path: "/",
     domain: COOKIE_DOMAIN,
     maxAge,

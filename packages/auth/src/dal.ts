@@ -31,12 +31,12 @@ export interface CurrentUser {
  * cheap cookie-presence check, this is the actual gate.
  */
 export const verifySession = cache(async (): Promise<CurrentUser> => {
-  // No in-render refresh: Server Components can't write cookies, so it would
-  // rotate the refresh token without the browser ever receiving the new one,
-  // and the browser's next refresh would replay the rotated-away token and
-  // trip reuse detection. proxy.ts refreshes ahead of every render; if the
-  // access token is still rejected here, detour through the refresh Route
-  // Handler (which can persist cookies) and come back.
+  // No in-render refresh: Server Components can't write cookies, so the new
+  // access token would be used for this one render and then lost, and every
+  // following request would have to refresh again. proxy.ts refreshes ahead
+  // of every render; if the access token is still rejected here, detour
+  // through the refresh Route Handler (which can persist cookies) and come
+  // back.
   const response = await backendFetch("/auth/me", {}, { refresh: false })
   if (response.status === 401) {
     const returnTo = (await headers()).get("x-pathname") ?? "/"
