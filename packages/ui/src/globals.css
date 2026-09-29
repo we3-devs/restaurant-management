@@ -232,6 +232,10 @@
   html.printing-receipt .receipt-print-sheet {
     position: static;
   }
+  /* "Auto" prints on the driver's own paper, so fill its width. */
+  html.printing-receipt .receipt-print-sheet[data-paper="auto"] {
+    width: auto;
+  }
 }
 
 @layer components {
