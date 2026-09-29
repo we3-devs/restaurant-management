@@ -21,7 +21,6 @@ import { useOrderAssignments } from "@/lib/api/hooks/use-assignments"
 import { useCreateOrderPayment } from "@/hooks/use-order-payments"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { ORDER_PAYMENT_METHODS } from "@/lib/validators/orders"
-import { useOrderStatusHistory } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
 import { useCustomer } from "@/hooks/use-customers"
@@ -46,7 +45,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   )
 }
 /*/////////
-/** Order tracking for admin — bill (printable, refundable once paid) and status history. Editing and taking payments stay in operational/POS. */
+/** Order tracking for admin — item status alongside the bill (printable, refundable once paid). Editing and taking payments stay in operational/POS. */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
@@ -87,11 +86,9 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_28rem]">
         <OrderItemTracking orderId={orderId} />
-      </div>
 
-      <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-wrap items-center justify-between gap-2">
             <ReceiptPrintButton orderId={orderId} />
@@ -101,8 +98,6 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
             <BillReceipt orderId={orderId} />
           </CardContent>
         </Card>
-
-        <StatusHistory orderId={orderId} />
       </div>
     </div>
   )
@@ -236,27 +231,5 @@ function RefundButton({ order }: { order: Order }) {
         </DialogContent>
       </Dialog>
     </>
-  )
-}
-
-function StatusHistory({ orderId }: { orderId: number }) {
-  const { data: history } = useOrderStatusHistory(orderId)
-
-  if (!history || history.length === 0) return null
-
-  return (
-    <Card>
-      <CardHeader className="text-sm font-medium">Status history</CardHeader>
-      <CardContent className="space-y-2">
-        {history.map((entry) => (
-          <div key={entry.id} className="flex items-center justify-between text-sm">
-            <span className="capitalize text-muted-foreground">
-              {entry.fromStatus ? `${entry.fromStatus} → ${entry.toStatus}` : entry.toStatus}
-            </span>
-            <span className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
   )
 }
