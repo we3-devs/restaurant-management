@@ -84,6 +84,12 @@ export function BillReceipt({ orderId }: { orderId: number }) {
           <span>Paid</span>
           <span>{order.paidAmount}</span>
         </div>
+        {order.refundedAmount > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Refunded</span>
+            <span>{order.refundedAmount}</span>
+          </div>
+        )}
         <div className="flex justify-between font-medium">
           <span>Due</span>
           <span>{order.dueAmount}</span>

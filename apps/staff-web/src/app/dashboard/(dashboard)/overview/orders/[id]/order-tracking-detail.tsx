@@ -1,17 +1,26 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { ChevronRightIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { StatusBadge } from "@/components/status-badge"
 import { BillReceipt } from "@/components/bill-receipt"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { PaymentMethodPicker } from "@/components/ui/payment-method-picker"
+import { ReceiptPrintButton } from "@/components/ui/receipt-print"
 import { DetailPageSkeleton, NotFoundCard } from "@/components/ui/skeletons"
 import { useDelayedLoading } from "@/components/ui/use-delayed-loading"
-import { useOrder, useOrderItems, type OrderItem } from "@/hooks/use-orders"
+import { useOrder, useOrderItems, type Order, type OrderItem } from "@/hooks/use-orders"
 import { useOrderAssignments } from "@/lib/api/hooks/use-assignments"
-import { useOrderPayments } from "@/hooks/use-order-payments"
+import { useCreateOrderPayment } from "@/hooks/use-order-payments"
+import { useCurrentUser } from "@/lib/auth/current-user-context"
+import { ORDER_PAYMENT_METHODS } from "@/lib/validators/orders"
 import { useOrderStatusHistory } from "@/hooks/use-orders"
 import { useFoods } from "@/hooks/use-foods"
 import { useFoodVariants } from "@/hooks/use-food-variants"
@@ -37,7 +46,7 @@ function Breadcrumb({ orderNumber }: { orderNumber: string }) {
   )
 }
 /*/////////
-/** Read-only order tracking for admin — bill, payment totals, and status history, no editing/payment actions (those stay in operational-web/POS). */
+/** Order tracking for admin — bill (printable, refundable once paid) and status history. Editing and taking payments stay in operational/POS. */
 export function OrderTrackingDetail({ orderId }: { orderId: number }) {
   const { data: order, isLoading } = useOrder(orderId)
   const { data: customer } = useCustomer(order?.customerId ?? 0)
@@ -84,16 +93,16 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
 
       <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader />
+          <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+            <ReceiptPrintButton orderId={orderId} />
+            <RefundButton order={order} />
+          </CardHeader>
           <CardContent>
             <BillReceipt orderId={orderId} />
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <PaymentSummary orderId={orderId} order={order} />
-          <StatusHistory orderId={orderId} />
-        </div>
+        <StatusHistory orderId={orderId} />
       </div>
     </div>
   )
@@ -148,55 +157,85 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
   )
 }
 
-function PaymentSummary({
-  orderId,
-  order,
-}: {
-  orderId: number
-  order: {
-    subtotal: number
-    discountAmount: number
-    grandTotal: number
-    paidAmount: number
-    dueAmount: number
-    refundedAmount: number
+/** Refund against a paid bill — up to what's still paid, since paidAmount is already net of earlier refunds. */
+function RefundButton({ order }: { order: Order }) {
+  const { permissions } = useCurrentUser()
+  const createPayment = useCreateOrderPayment(order.id)
+  const [open, setOpen] = useState(false)
+  const [method, setMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
+  const [amount, setAmount] = useState(0)
+  const [reason, setReason] = useState("")
+
+  if (!permissions.includes("order-payments.refund") || order.paidAmount <= 0) return null
+
+  const isValid = amount > 0 && amount <= order.paidAmount && reason.trim() !== ""
+
+  async function handleSubmit() {
+    if (!isValid) return
+    try {
+      await createPayment.mutateAsync({ type: "refund", method, amount, note: reason.trim() })
+      toast.success("Refund recorded")
+      setOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record refund")
+    }
   }
-}) {
-  const { data: payments } = useOrderPayments(orderId)
 
   return (
-    <Card>
-      <CardHeader className="text-sm font-medium">Payment summary</CardHeader>
-      <CardContent className="space-y-4">
-        {payments && payments.data.length > 0 && (
-          <div className="space-y-1 border-t border-b border-input py-4">
-            {payments.data.map((payment) => (
-              <div key={payment.id} className="flex justify-between text-sm">
-                <span className="text-muted-foreground capitalize">
-                  {payment.type} &middot; {payment.method}
-                </span>
-                <span className={payment.type === "refund" ? "text-destructive" : ""}>{payment.amount}</span>
-              </div>
-            ))}
+    <>
+      <Button
+        size="sm"
+        variant="destructive"
+        onClick={() => {
+          setMethod("cash")
+          setAmount(order.paidAmount)
+          setReason("")
+          setOpen(true)
+        }}
+      >
+        Refund
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Refund {order.billNumber ?? order.orderNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Credit is a customer's tab, not a refundable-from method. */}
+            <PaymentMethodPicker value={method} onChange={setMethod} exclude={["credit"]} />
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-amount">Amount (up to {order.paidAmount})</Label>
+              <Input
+                id="refund-amount"
+                type="number"
+                step="0.01"
+                min={0}
+                max={order.paidAmount}
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-reason">Reason for refund</Label>
+              <Input
+                id="refund-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Guest complaint — food quality"
+              />
+            </div>
           </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
-          <span className="text-muted-foreground">Subtotal :</span>
-          <span className="text-right sm:text-left">{order.subtotal}</span>
-          <span className="text-muted-foreground">Discount :</span>
-          <span className="text-right sm:text-left">{order.discountAmount}</span>
-          <span className="font-medium">Grand Total :</span>
-          <span className="text-right font-medium sm:text-left">{order.grandTotal}</span>
-          <span className="text-muted-foreground">Paid :</span>
-          <span className="text-right text-emerald-500 sm:text-left">{order.paidAmount}</span>
-          <span className="font-medium">Due :</span>
-          <span className="text-right font-medium text-destructive sm:text-left">{order.dueAmount}</span>
-          <span className="text-muted-foreground">Refunded :</span>
-          <span className="text-right sm:text-left">{order.refundedAmount}</span>
-        </div>
-      </CardContent>
-    </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={!isValid || createPayment.isPending} onClick={handleSubmit}>
+              {createPayment.isPending ? "Saving..." : "Record refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
