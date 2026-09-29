@@ -23,6 +23,11 @@ const POSITION_STORAGE_KEY = "assistant-bubble-position"
 
 type BubblePosition = { right: number; bottom: number }
 
+// The closed bubble's fixed on-screen size (Tailwind's size-12) — used to
+// clamp while dragging without a layout-forcing getBoundingClientRect() call
+// on every pointermove.
+const BUBBLE_SIZE = 48
+
 function clampPosition(right: number, bottom: number, width: number, height: number): BubblePosition {
   const maxRight = Math.max(window.innerWidth - width - EDGE_MARGIN, EDGE_MARGIN)
   const maxBottom = Math.max(window.innerHeight - height - EDGE_MARGIN, EDGE_MARGIN)
@@ -78,7 +83,17 @@ export function DashboardAssistantChatbot() {
   // per tenant — null means "use the default bottom-right corner".
   const position = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const containerRef = useRef<HTMLDivElement>(null)
-  const dragState = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startRight: 0, startBottom: 0 })
+  const dragState = useRef({
+    dragging: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    startRight: 0,
+    startBottom: 0,
+    lastRight: 0,
+    lastBottom: 0,
+    rafId: null as number | null,
+  })
 
   useEffect(() => {
     if (hydrated) return
@@ -124,6 +139,9 @@ export function DashboardAssistantChatbot() {
       startY: event.clientY,
       startRight: window.innerWidth - rect.right,
       startBottom: window.innerHeight - rect.bottom,
+      lastRight: 0,
+      lastBottom: 0,
+      rafId: null,
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -135,17 +153,37 @@ export function DashboardAssistantChatbot() {
     const dy = event.clientY - state.startY
     if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
     state.moved = true
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    updateBubblePosition(clampPosition(state.startRight - dx, state.startBottom - dy, rect.width, rect.height))
+    const { right, bottom } = clampPosition(state.startRight - dx, state.startBottom - dy, BUBBLE_SIZE, BUBBLE_SIZE)
+    state.lastRight = right
+    state.lastBottom = bottom
+    // Coalesce to one store update per animation frame instead of one per
+    // pointermove (which can fire hundreds of times a second on a
+    // high-poll-rate mouse — that's what made the drag feel laggy). Writing
+    // straight to the DOM node instead of going through React state was
+    // tried and reverted: any unrelated re-render of this component (e.g.
+    // the message list, an outlet-context update) redraws the container from
+    // React's last-known position, fighting the direct DOM write and making
+    // the bubble jump.
+    if (state.rafId === null) {
+      state.rafId = requestAnimationFrame(() => {
+        state.rafId = null
+        updateBubblePosition({ right: state.lastRight, bottom: state.lastBottom })
+      })
+    }
   }
 
   function handlePointerUp() {
     const state = dragState.current
     state.dragging = false
-    if (!state.moved || !bubblePosition) return
+    if (state.rafId !== null) {
+      cancelAnimationFrame(state.rafId)
+      state.rafId = null
+    }
+    if (!state.moved) return
+    const next = { right: state.lastRight, bottom: state.lastBottom }
+    updateBubblePosition(next)
     try {
-      localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(bubblePosition))
+      localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(next))
     } catch {
       // Storage blocked — the position still holds for this page session.
     }
