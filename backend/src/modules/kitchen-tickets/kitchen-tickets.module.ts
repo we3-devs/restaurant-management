@@ -5,6 +5,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { OrdersModule } from '../orders/orders.module';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
+import { SettingsModule } from '../settings/settings.module';
 import { KitchenTicketItem } from './entities/kitchen-ticket-item.entity';
 import { KitchenTicket } from './entities/kitchen-ticket.entity';
 import { KitchenDelayScanProcessor } from './kitchen-delay-scan.processor';
@@ -26,6 +27,8 @@ import { KitchenTicketsService } from './kitchen-tickets.service';
     ]),
     AuthModule,
     NotificationsModule,
+    // Per-tenant kitchen delay threshold for KitchenDelayScanProcessor.
+    SettingsModule,
     // Circular with OrdersModule (which already imports this module for
     // notifyTicketsCreated()) — needed so KitchenTicketsService can call
     // OrdersService#maybeAdvanceToServed() when an item is marked served.

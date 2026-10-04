@@ -4,7 +4,7 @@
 // file). Versioned so a deploy can invalidate stale shell/image caches — bump
 // this AND src/lib/app-version.ts's APP_VERSION together on any deploy that
 // changes staff-PWA code, otherwise installed clients keep the old cached JS.
-const CACHE_VERSION = "v1.2"
+const CACHE_VERSION = "v1.3"
 const SHELL_CACHE = `rms-shell-${CACHE_VERSION}`
 const IMAGE_CACHE = `rms-images-${CACHE_VERSION}`
 const API_CACHE = `rms-api-${CACHE_VERSION}`
@@ -114,12 +114,19 @@ self.addEventListener("push", (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Notification", {
-      body: payload.body ?? "",
-      icon: "/next.svg",
-      // Carried through to notificationclick below for deep-linking —
-      // notifications.service.ts (backend) sends { type, orderId }.
-      data: payload.data ?? null,
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // App already on screen: it got the same alert over the websocket and
+      // played its own sound + toast. An OS pop-up on top of that brings the
+      // system notification sound with it, which on kitchen tablets cuts off
+      // the in-app new-order sound — so only pop up when nobody's looking.
+      if (clients.some((client) => client.visibilityState === "visible")) return
+      return self.registration.showNotification(payload.title ?? "Notification", {
+        body: payload.body ?? "",
+        icon: "/next.svg",
+        // Carried through to notificationclick below for deep-linking —
+        // notifications.service.ts (backend) sends { type, orderId }.
+        data: payload.data ?? null,
+      })
     }),
   )
 })

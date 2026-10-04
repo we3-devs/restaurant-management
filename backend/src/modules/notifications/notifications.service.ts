@@ -397,8 +397,8 @@ export class NotificationsService {
   /**
    * Dedupe guard for the BullMQ scan jobs: has an unarchived notification of
    * this type + `data` marker already fired within the window? Avoids
-   * re-notifying every 10 minutes for the same low-stock ingredient / delayed
-   * ticket while the underlying condition is still true.
+   * re-notifying every 10 minutes for the same low-stock ingredient while the
+   * underlying condition is still true.
    */
   async existsRecent(
     outletId: number,
@@ -416,5 +416,42 @@ export class NotificationsService {
       .andWhere('notification.archived_at IS NULL')
       .getCount();
     return count > 0;
+  }
+
+  /**
+   * One-shot dedupe guard: has a notification of this type + `data` marker
+   * ever fired, archived or not? For alerts that should fire once per
+   * subject (e.g. one "running late" per kitchen ticket), where archiving
+   * the alert must not make the next scan raise it again.
+   */
+  async existsForMarker(
+    outletId: number,
+    type: Notification['type'],
+    marker: string,
+  ): Promise<boolean> {
+    const count = await this.notificationsRepository
+      .createQueryBuilder('notification')
+      .where('notification.outlet_id = :outletId', { outletId })
+      .andWhere('notification.type = :type', { type })
+      .andWhere('notification.data LIKE :marker', { marker: `%${marker}%` })
+      .getCount();
+    return count > 0;
+  }
+
+  /** Archives every still-unarchived notification of this type + `data` marker. */
+  async archiveByMarker(
+    outletId: number,
+    type: Notification['type'],
+    marker: string,
+  ): Promise<void> {
+    await this.notificationsRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ archivedAt: () => 'CURRENT_TIMESTAMP' })
+      .where('outlet_id = :outletId', { outletId })
+      .andWhere('type = :type', { type })
+      .andWhere('data LIKE :marker', { marker: `%${marker}%` })
+      .andWhere('archived_at IS NULL')
+      .execute();
   }
 }

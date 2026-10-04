@@ -9,12 +9,14 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OutletDepartment } from '../outlet-departments/entities/outlet-department.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { Order } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { PermissionsService } from '../auth/permissions.service';
+import { SettingsService } from '../settings/settings.service';
 import { User } from '../users/entities/user.entity';
 import {
   KdsBootstrapResponseDto,
@@ -75,6 +77,18 @@ function itemStatus(item: KitchenTicketItem): KitchenTicketItemStatus {
     : status;
 }
 
+/** Used when a tenant's notification.kitchenDelayThresholdMinutes is missing or not a number. */
+const DEFAULT_DELAY_THRESHOLD_MINUTES = 15;
+
+/**
+ * The `data` marker a kitchen_delayed notification carries for its ticket.
+ * The closing brace keeps ticket 12 from matching ticket 123's notification
+ * in the LIKE lookups below — data is exactly `{"ticketId":<id>}`.
+ */
+function delayedTicketMarker(ticketId: number): string {
+  return `"ticketId":${ticketId}}`;
+}
+
 const TICKET_DISPLAY_RELATIONS = [
   'order',
   'order.tableSession',
@@ -105,6 +119,8 @@ export class KitchenTicketsService {
     private readonly permissionsService: PermissionsService,
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
+    private readonly settingsService: SettingsService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async findAll(
@@ -342,6 +358,7 @@ export class KitchenTicketsService {
     ticket.status = 'cancelled';
     const saved = await this.ticketsRepository.save(ticket);
     this.gateway.notifyTicketUpdated(await this.toPushPayload(saved.id));
+    await this.archiveDelayAlerts(saved);
     await this.notifySimple(
       saved,
       'kitchen_cancelled',
@@ -530,7 +547,13 @@ export class KitchenTicketsService {
       ticket.status = 'open';
     }
 
-    return this.ticketsRepository.save(ticket);
+    const saved = await this.ticketsRepository.save(ticket);
+    // Every item voided/deleted off the ticket — whatever "running late"
+    // alert it raised is about food nobody's making any more.
+    if (saved.status === 'cancelled') {
+      await this.archiveDelayAlerts(saved);
+    }
+    return saved;
   }
 
   /** recomputeTicketStatusOnly() plus the order-level side effects — used by every single-ticket caller. */
@@ -852,28 +875,73 @@ export class KitchenTicketsService {
 
   /**
    * Called on a repeatable interval by KitchenDelayScanProcessor (see
-   * kitchen-tickets.module.ts). Flags open/in-progress tickets that have sat
-   * without going "ready" past the threshold — one notification per ticket,
-   * deduped against the last scan window so it doesn't re-fire every run.
+   * kitchen-tickets.module.ts). Flags tickets that have sat past their
+   * tenant's notification.kitchenDelayThresholdMinutes with food still not
+   * ready — once per ticket, rather than re-firing every threshold window.
+   *
+   * Runs outside any request, so it reads tickets across all tenants and
+   * resolves each tenant's threshold inside that tenant's context (settings
+   * rows are per-tenant). A threshold of 0 or less turns the alert off.
+   *
+   * A ticket only counts while its order is still live and it still has at
+   * least one item the kitchen hasn't finished — a ticket left 'open' on a
+   * cancelled/completed order, or whose items were all deleted/voided, must
+   * not keep raising "running late" alerts.
    */
-  async scanForDelayedTickets(thresholdMinutes = 15): Promise<number> {
-    const cutoff = new Date(Date.now() - thresholdMinutes * 60_000);
-    const stale = await this.ticketsRepository
+  async scanForDelayedTickets(): Promise<number> {
+    const candidates = await this.ticketsRepository
       .createQueryBuilder('ticket')
+      .innerJoin('ticket.order', 'order')
+      .innerJoinAndSelect('ticket.outlet', 'outlet')
       .where('ticket.status IN (:...statuses)', {
         statuses: ['open', 'in_progress'],
       })
-      .andWhere('ticket.created_at <= :cutoff', { cutoff })
+      .andWhere('order.status NOT IN (:...closedOrderStatuses)', {
+        closedOrderStatuses: ['cancelled', 'completed'],
+      })
+      .andWhere(
+        `EXISTS (
+          SELECT 1 FROM kitchen_ticket_items kti
+          JOIN order_items oi ON oi.id = kti.order_item_id
+          WHERE kti.ticket_id = ticket.id
+            AND oi.status NOT IN ('ready', 'served', 'cancelled')
+        )`,
+      )
       .getMany();
 
+    const byTenant = new Map<number, KitchenTicket[]>();
+    for (const ticket of candidates) {
+      const tenantTickets = byTenant.get(ticket.outlet.tenantId) ?? [];
+      tenantTickets.push(ticket);
+      byTenant.set(ticket.outlet.tenantId, tenantTickets);
+    }
+
     let notified = 0;
-    for (const ticket of stale) {
-      const marker = `"ticketId":${ticket.id}`;
-      const alreadyNotified = await this.notificationsService.existsRecent(
+    for (const [tenantId, tickets] of byTenant) {
+      notified += await this.tenantContext.run(tenantId, () =>
+        this.notifyDelayedTickets(tickets),
+      );
+    }
+    return notified;
+  }
+
+  /** One tenant's slice of scanForDelayedTickets — must run inside that tenant's context. */
+  private async notifyDelayedTickets(tickets: KitchenTicket[]): Promise<number> {
+    const settings = await this.settingsService.getNotificationSettings();
+    const configured = Number(settings.kitchenDelayThresholdMinutes);
+    const thresholdMinutes = Number.isFinite(configured)
+      ? configured
+      : DEFAULT_DELAY_THRESHOLD_MINUTES;
+    if (thresholdMinutes <= 0) return 0;
+
+    const cutoff = Date.now() - thresholdMinutes * 60_000;
+    let notified = 0;
+    for (const ticket of tickets) {
+      if (new Date(ticket.createdAt).getTime() > cutoff) continue;
+      const alreadyNotified = await this.notificationsService.existsForMarker(
         ticket.outletId,
         'kitchen_delayed',
-        marker,
-        thresholdMinutes,
+        delayedTicketMarker(ticket.id),
       );
       if (alreadyNotified) {
         continue;
@@ -886,7 +954,7 @@ export class KitchenTicketsService {
           type: 'kitchen_delayed',
           priority: 'urgent',
           title: `Kitchen ticket #${ticket.id} is running late`,
-          body: `Open for over ${thresholdMinutes} minutes with no items ready yet.`,
+          body: `Open for over ${thresholdMinutes} minutes with items still not ready.`,
           orderId: ticket.orderId,
           data: JSON.stringify({ ticketId: ticket.id }),
         });
@@ -899,6 +967,25 @@ export class KitchenTicketsService {
       }
     }
     return notified;
+  }
+
+  /**
+   * Clears a cancelled ticket's "running late" alert out of the bell — once
+   * the order (or every item on the ticket) is gone, that alert is noise.
+   * Archived rather than deleted so it's still in the archive view.
+   */
+  private async archiveDelayAlerts(ticket: KitchenTicket): Promise<void> {
+    try {
+      await this.notificationsService.archiveByMarker(
+        ticket.outletId,
+        'kitchen_delayed',
+        delayedTicketMarker(ticket.id),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to archive kitchen_delayed notifications for ticket ${ticket.id}: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ---------------------------------------------------------------- mapping

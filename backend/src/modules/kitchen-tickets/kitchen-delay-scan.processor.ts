@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { KitchenTicketsService } from './kitchen-tickets.service';
 
-const SCAN_INTERVAL_MS = 10 * 60_000;
-const DELAY_THRESHOLD_MINUTES = 15;
+// Short enough that an alert lands within a minute of the tenant's
+// configured threshold (Settings > Notifications), not up to 10 late.
+const SCAN_INTERVAL_MS = 60_000;
 
 /** Kitchen ticket delay sweep — replaces the old `kitchen-delay-alerts` BullMQ queue. */
 @Injectable()
@@ -16,9 +17,7 @@ export class KitchenDelayScanProcessor {
   async scan(): Promise<{ notified: number }> {
     this.logger.debug('Running kitchen delay scan');
     try {
-      const notified = await this.kitchenTicketsService.scanForDelayedTickets(
-        DELAY_THRESHOLD_MINUTES,
-      );
+      const notified = await this.kitchenTicketsService.scanForDelayedTickets();
       if (notified > 0) {
         this.logger.log(`Kitchen delay scan flagged ${notified} ticket(s)`);
       }
