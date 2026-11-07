@@ -43,18 +43,20 @@ const CURRENCIES = [
   { value: "INR", label: "INR — Indian rupee" },
   { value: "custom", label: "Custom" },
 ] as const
+const STANDARD_CURRENCY_CODES = ["NPR", "USD", "INR"] as const
 
 export default function BusinessSettingsPage() {
   const { permissions } = useCurrentUser()
   const canView = permissions.includes("settings.view")
   const canManage = permissions.includes("settings.manage")
   const { outletId: activeOutletId } = useActiveOutlet()
-  const { data: hours } = useOperatingHours(activeOutletId)
+  const { data: hours, isLoading: isHoursLoading } = useOperatingHours(activeOutletId)
   const updateHours = useUpdateOperatingHours(activeOutletId)
   const [openingTime, setOpeningTime] = useState("")
   const [closingTime, setClosingTime] = useState("")
   const [hoursTimezone, setHoursTimezone] = useState("")
   const [hoursEnabled, setHoursEnabled] = useState(false)
+  const [customCurrency, setCustomCurrency] = useState(false)
 
   const { data, isLoading } = useSettingsCategory<BusinessSettings>("business")
   const showSkeleton = useDelayedLoading(isLoading)
@@ -67,7 +69,11 @@ export default function BusinessSettingsPage() {
 
   useEffect(() => {
     if (data) {
-      form.reset({ ...defaultValues, ...data })
+      const currency = data.currency === "custom" ? "" : data.currency ?? ""
+      setCustomCurrency(
+        currency !== "" && !STANDARD_CURRENCY_CODES.includes(currency as (typeof STANDARD_CURRENCY_CODES)[number]),
+      )
+      form.reset({ ...defaultValues, ...data, currency })
     }
   }, [data, form])
 
@@ -103,7 +109,7 @@ export default function BusinessSettingsPage() {
       <h1 className="text-lg font-semibold">Business Settings</h1>
 
       {showSkeleton ? (
-        <FormSkeleton fields={6} />
+        <FormSkeleton fields={10} />
       ) : (
         <Card>
           <CardHeader>
@@ -207,14 +213,22 @@ export default function BusinessSettingsPage() {
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
                       <Select
-                        value={CURRENCIES.some((option) => option.value === field.value) ? field.value || "none" : "custom"}
-                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        value={customCurrency ? "custom" : field.value || "none"}
+                        onValueChange={(value) => {
+                          if (value === "custom") {
+                            if (!customCurrency) field.onChange("")
+                            setCustomCurrency(true)
+                            return
+                          }
+                          setCustomCurrency(false)
+                          field.onChange(value === "none" ? "" : value)
+                        }}
                         disabled={!canManage}
                       >
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>{CURRENCIES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                       </Select>
-                      {(!CURRENCIES.some((option) => option.value === field.value) || field.value === "custom") && (
+                      {customCurrency && (
                         <FormControl disabled={!canManage} placeholder="e.g. NPR" {...field} />
                       )}
                       <FormMessage />
@@ -245,7 +259,7 @@ export default function BusinessSettingsPage() {
                 />
                 {canManage && (
                   <div className="col-span-2">
-                    <Button type="submit" disabled={updateSettings.isPending}>
+                    <Button type="submit" disabled={isLoading || updateSettings.isPending}>
                       {updateSettings.isPending ? "Saving..." : "Save changes"}
                     </Button>
                   </div>
@@ -265,7 +279,7 @@ export default function BusinessSettingsPage() {
               <label className="text-sm">Closing time<input type="time" value={closingTime} onChange={(e) => setClosingTime(e.target.value)} disabled={!canManage} className="mt-1 block w-full rounded-md border bg-background p-2" /></label>
               <label className="col-span-2 text-sm">IANA timezone<input value={hoursTimezone} onChange={(e) => setHoursTimezone(e.target.value)} disabled={!canManage} placeholder="Asia/Kathmandu" className="mt-1 block w-full rounded-md border bg-background p-2" /></label>
               <label className="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={hoursEnabled} onChange={(e) => setHoursEnabled(e.target.checked)} disabled={!canManage} /> Enforce operating hours</label>
-              {canManage && <Button disabled={updateHours.isPending} onClick={async () => { try { await updateHours.mutateAsync({ openingTime, closingTime, timezone: hoursTimezone, enabled: hoursEnabled }); toast.success("Operating hours updated") } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to update operating hours") } }}>Save operating hours</Button>}
+              {canManage && <Button disabled={isHoursLoading || updateHours.isPending} onClick={async () => { try { await updateHours.mutateAsync({ openingTime, closingTime, timezone: hoursTimezone, enabled: hoursEnabled }); toast.success("Operating hours updated") } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to update operating hours") } }}>Save operating hours</Button>}
               {hours && <p className="col-span-2 text-sm text-muted-foreground">Status: {hours.isOpen ? "Open" : "Closed"}</p>}
             </div>
           )}

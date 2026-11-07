@@ -1,6 +1,8 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AppConfig } from '../../config/configuration';
 import type { Cache } from 'cache-manager';
@@ -25,6 +27,15 @@ import {
 } from './entities/global-setting.entity';
 
 const CACHE_TTL_SECONDS = 3600;
+
+function isValidTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CATEGORIES: SettingsCategory[] = [
   'business',
@@ -212,9 +223,33 @@ export class SettingsService {
     const tenantId = this.tenantContext.getTenantId();
     if (tenantId === null) throw new BadRequestException('Tenant context is required to update settings');
 
+    const SettingsDto = CATEGORY_DTO_MAP[category];
+    const settingsDto = plainToInstance(SettingsDto, dto);
+    const validationErrors = await validate(settingsDto as object, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    if (validationErrors.length > 0) {
+      throw new BadRequestException(
+        validationErrors.flatMap((error) => Object.values(error.constraints ?? {})),
+      );
+    }
+    const validatedDto = Object.fromEntries(
+      Object.keys(dto).map((key) => [key, Reflect.get(settingsDto as object, key)]),
+    );
+
+    if (category === 'business' && validatedDto.timezone !== undefined && validatedDto.timezone !== null) {
+      if (
+        typeof validatedDto.timezone !== 'string' ||
+        (validatedDto.timezone !== '' && !isValidTimezone(validatedDto.timezone))
+      ) {
+        throw new BadRequestException('timezone must be a valid IANA timezone');
+      }
+    }
+
     let row = await this.settingsRepository.findOne({ where: { category, tenantId } });
     const previousData = row?.data ?? {};
-    const mergedData = { ...previousData, ...dto };
+    const mergedData = { ...previousData, ...validatedDto };
 
     if (!row) {
       row = this.settingsRepository.create({ category, tenantId, data: mergedData });

@@ -173,7 +173,7 @@ export default function KitchenSettingsPage() {
                 />
                 {canManage && (
                   <div className="col-span-2">
-                    <Button type="submit" disabled={updateSettings.isPending}>
+                    <Button type="submit" disabled={isLoading || updateSettings.isPending}>
                       {updateSettings.isPending ? "Saving..." : "Save changes"}
                     </Button>
                   </div>

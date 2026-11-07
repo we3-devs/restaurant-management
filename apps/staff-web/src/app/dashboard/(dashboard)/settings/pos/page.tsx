@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -27,6 +27,7 @@ const PAYMENT_METHODS = [
   { value: "credit", label: "Customer credit" },
   { value: "custom", label: "Custom" },
 ] as const
+const STANDARD_PAYMENT_METHODS = ["cash", "card", "mobile", "credit"] as const
 
 const defaultValues: PosSettingsInput = {
   receiptPrefix: "",
@@ -85,6 +86,7 @@ export default function PosSettingsPage() {
   const { permissions } = useCurrentUser()
   const canView = permissions.includes("settings.view")
   const canManage = permissions.includes("settings.manage")
+  const [customPaymentMethod, setCustomPaymentMethod] = useState(false)
 
   const { data, isLoading } = useSettingsCategory<PosSettings>("pos")
   const showSkeleton = useDelayedLoading(isLoading)
@@ -97,7 +99,11 @@ export default function PosSettingsPage() {
 
   useEffect(() => {
     if (data) {
-      form.reset({ ...defaultValues, ...data })
+      const paymentMethod = data.defaultPaymentMethod === "custom" ? "" : data.defaultPaymentMethod ?? ""
+      setCustomPaymentMethod(
+        paymentMethod !== "" && !STANDARD_PAYMENT_METHODS.includes(paymentMethod as (typeof STANDARD_PAYMENT_METHODS)[number]),
+      )
+      form.reset({ ...defaultValues, ...data, defaultPaymentMethod: paymentMethod })
     }
   }, [data, form])
 
@@ -121,7 +127,7 @@ export default function PosSettingsPage() {
       <h1 className="text-lg font-semibold">POS Settings</h1>
 
       {showSkeleton ? (
-        <FormSkeleton fields={8} />
+        <FormSkeleton fields={10} />
       ) : (
         <Card>
           <CardHeader>
@@ -260,14 +266,22 @@ export default function PosSettingsPage() {
                     <FormItem>
                       <FormLabel>Default payment method</FormLabel>
                       <Select
-                        value={PAYMENT_METHODS.some((option) => option.value === field.value) ? field.value || "none" : "custom"}
-                        onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                        value={customPaymentMethod ? "custom" : field.value || "none"}
+                        onValueChange={(value) => {
+                          if (value === "custom") {
+                            if (!customPaymentMethod) field.onChange("")
+                            setCustomPaymentMethod(true)
+                            return
+                          }
+                          setCustomPaymentMethod(false)
+                          field.onChange(value === "none" ? "" : value)
+                        }}
                         disabled={!canManage}
                       >
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>{PAYMENT_METHODS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                       </Select>
-                      {(!PAYMENT_METHODS.some((option) => option.value === field.value) || field.value === "custom") && (
+                      {customPaymentMethod && (
                         <FormControl disabled={!canManage} placeholder="e.g. QR payment" {...field} />
                       )}
                       <FormMessage />
@@ -313,7 +327,7 @@ export default function PosSettingsPage() {
                 />
                 {canManage && (
                   <div className="col-span-2">
-                    <Button type="submit" disabled={updateSettings.isPending}>
+                    <Button type="submit" disabled={isLoading || updateSettings.isPending}>
                       {updateSettings.isPending ? "Saving..." : "Save changes"}
                     </Button>
                   </div>

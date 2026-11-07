@@ -37,6 +37,9 @@ export interface PosSettings {
   billNumberDigits?: number
   /** How often the bill number sequence resets back to 1. */
   billNumberResetPeriod?: "never" | "daily" | "monthly" | "yearly"
+  invoicePrefix?: string
+  invoiceNumberDigits?: number
+  invoiceNumberResetPeriod?: "never" | "daily" | "monthly" | "yearly"
 }
 
 export interface KitchenSettings {

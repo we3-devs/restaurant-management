@@ -95,7 +95,9 @@ export class PosSettingsDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
+  @Min(1)
+  @Max(12)
   billNumberDigits?: number;
 
   @ApiPropertyOptional({
@@ -106,6 +108,29 @@ export class PosSettingsDto {
   @IsOptional()
   @IsIn(BILL_NUMBER_RESET_PERIODS)
   billNumberResetPeriod?: (typeof BILL_NUMBER_RESET_PERIODS)[number];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  invoicePrefix?: string;
+
+  @ApiPropertyOptional({
+    description: 'Zero-padding width for the invoice number sequence portion',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  invoiceNumberDigits?: number;
+
+  @ApiPropertyOptional({
+    enum: BILL_NUMBER_RESET_PERIODS,
+    description: 'How often the invoice number sequence resets',
+  })
+  @IsOptional()
+  @IsIn(BILL_NUMBER_RESET_PERIODS)
+  invoiceNumberResetPeriod?: (typeof BILL_NUMBER_RESET_PERIODS)[number];
 
   @ApiPropertyOptional()
   @IsOptional()

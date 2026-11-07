@@ -1,8 +1,17 @@
 import { z } from "zod"
-import { toTitleCase } from "./helpers"
+
+function isValidTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format()
+    return true
+  } catch {
+    return false
+  }
+}
 
 export const businessSettingsSchema = z.object({
-  restaurantName: z.string().transform(toTitleCase).optional(),
+  // Preserve intentional brand casing (e.g. acronyms and stylized names).
+  restaurantName: z.string().trim().optional(),
   // Logo lives in appearance settings only — see appearanceSettingsSchema.
   address: z.string().optional(),
   phone: z.string().optional(),
@@ -10,7 +19,11 @@ export const businessSettingsSchema = z.object({
   website: z.string().optional(),
   vatNumber: z.string().optional(),
   businessHours: z.string().optional(),
-  timezone: z.string().optional(),
+  timezone: z
+    .string()
+    .trim()
+    .refine((value) => !value || isValidTimezone(value), "Enter a valid IANA timezone")
+    .optional(),
   currency: z.string().optional(),
   calendarSystem: z.enum(["AD", "BS"]).optional(),
 })
@@ -23,10 +36,10 @@ export const posSettingsSchema = z.object({
   receiptHeader: z.string().optional(),
   autoPrint: z.boolean().optional(),
   defaultPaymentMethod: z.string().optional(),
-  billNumberDigits: z.number().optional(),
+  billNumberDigits: z.number().int().min(1).max(12).optional(),
   billNumberResetPeriod: z.enum(["never", "daily", "monthly", "yearly"]).optional(),
   invoicePrefix: z.string().optional(),
-  invoiceNumberDigits: z.number().optional(),
+  invoiceNumberDigits: z.number().int().min(1).max(12).optional(),
   invoiceNumberResetPeriod: z.enum(["never", "daily", "monthly", "yearly"]).optional(),
 })
 

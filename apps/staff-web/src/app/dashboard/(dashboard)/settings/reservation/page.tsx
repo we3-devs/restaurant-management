@@ -62,7 +62,7 @@ export default function ReservationSettingsPage() {
       <h1 className="text-lg font-semibold">Reservation Settings</h1>
 
       {showSkeleton ? (
-        <FormSkeleton fields={5} />
+        <FormSkeleton fields={4} />
       ) : (
         <Card>
           <CardHeader>
@@ -137,7 +137,7 @@ export default function ReservationSettingsPage() {
                 />
                 {canManage && (
                   <div className="col-span-2">
-                    <Button type="submit" disabled={updateSettings.isPending}>
+                    <Button type="submit" disabled={isLoading || updateSettings.isPending}>
                       {updateSettings.isPending ? "Saving..." : "Save changes"}
                     </Button>
                   </div>

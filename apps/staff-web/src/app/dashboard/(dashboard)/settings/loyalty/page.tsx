@@ -64,7 +64,7 @@ export default function LoyaltySettingsPage() {
       <h1 className="text-lg font-semibold">Loyalty Settings</h1>
 
       {showSkeleton ? (
-        <FormSkeleton fields={4} />
+        <FormSkeleton fields={6} />
       ) : (
         <Card>
           <CardHeader>
@@ -173,7 +173,7 @@ export default function LoyaltySettingsPage() {
                 />
                 {canManage && (
                   <div className="col-span-2">
-                    <Button type="submit" disabled={updateSettings.isPending}>
+                    <Button type="submit" disabled={isLoading || updateSettings.isPending}>
                       {updateSettings.isPending ? "Saving..." : "Save changes"}
                     </Button>
                   </div>
