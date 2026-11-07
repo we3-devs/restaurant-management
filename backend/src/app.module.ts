@@ -93,7 +93,12 @@ import { AssetsModule } from './modules/assets/assets.module';
     TenantModule,
     AssetsModule,
     InstrumentationModule,
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
+    ConfigModule.forRoot({
+      envFilePath: ['.env.local', '.env'],
+      isGlobal: true,
+      load: [configuration],
+      validate,
+    }),
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'error' : 'debug'),

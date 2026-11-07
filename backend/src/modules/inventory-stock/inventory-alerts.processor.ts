@@ -71,6 +71,8 @@ export class InventoryAlertsProcessor {
     let notified = 0;
     for (const row of rows) {
       const quantity = Number(row.quantity);
+      const minimumStock = Number(row.minimumStock);
+      const reorderLevel = Number(row.reorderLevel);
       const outOfStock = quantity <= 0;
       const type = outOfStock ? 'out_of_stock' : 'low_stock';
       const marker = `"ingredientId":${row.ingredientId}`;
@@ -92,7 +94,7 @@ export class InventoryAlertsProcessor {
         title: outOfStock
           ? `${row.ingredientName} is out of stock`
           : `${row.ingredientName} is running low`,
-        body: `On hand: ${quantity} (reorder level ${row.reorderLevel})`,
+        body: `On hand: ${quantity} (minimum stock ${minimumStock}, reorder level ${reorderLevel})`,
         data: JSON.stringify({ ingredientId: row.ingredientId }),
       });
       this.gateway.notifyNotificationCreated(notification);

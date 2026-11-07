@@ -20,7 +20,12 @@ import { WarehousesModule } from '../../modules/warehouses/warehouses.module';
  */
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
+    ConfigModule.forRoot({
+      envFilePath: ['.env.local', '.env'],
+      isGlobal: true,
+      load: [configuration],
+      validate,
+    }),
     CacheModule.register({ isGlobal: true }),
     // @Global, so importing it here makes TenantContext resolvable by every
     // tenant-scoped service the seed pulls in (OutletsService and friends).

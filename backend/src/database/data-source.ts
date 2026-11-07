@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import 'dotenv/config';
+import '../config/load-env';
 import { DataSource } from 'typeorm';
 
 /**

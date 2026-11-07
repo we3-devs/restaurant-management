@@ -11,7 +11,11 @@ const nextConfig: NextConfig = {
   // "*.localhost" only matches one subdomain level (e.g. test.localhost),
   // not the two-level "staff.<slug>.localhost" shape this app is actually
   // accessed at — so it must be listed explicitly alongside the wildcard.
-  allowedDevOrigins: ["*.localhost", "*.*.localhost"],
+  allowedDevOrigins: [
+    "*.localhost",
+    "*.*.localhost",
+    "*.*.restra.localhost",
+  ],
 };
 
 export default nextConfig;

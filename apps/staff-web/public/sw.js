@@ -83,6 +83,12 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url)
 
+  // Next dev uses stable, unhashed chunk URLs while HMR replaces their
+  // contents. Never serve/cache those chunks through the PWA worker on local
+  // tenant hosts, or the page can render but fail to hydrate (forms then
+  // fall back to native document submits instead of calling their APIs).
+  if (url.hostname === "localhost" || url.hostname.endsWith(".localhost")) return
+
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(handleApiRequest(request))
     return

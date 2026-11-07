@@ -34,12 +34,19 @@ export class TenantGuard implements CanActivate {
     const user = request.user;
     if (!user) {
       if (!isPublic || !slug) throw new ForbiddenException('Tenant context is required');
-      const publicTenant = await this.dataSource.query(
-        `SELECT id FROM tenants WHERE LOWER(slug) = $1 AND is_active = true LIMIT 1`,
-        [slug],
-      );
-      if (!publicTenant[0]) throw new ForbiddenException('Unknown or inactive tenant');
-      request.tenantId = Number(publicTenant[0].id);
+      // TenantRlsMiddleware already resolves and validates this slug before
+      // guards run. Reuse that result instead of issuing the same lookup a
+      // second time for public endpoints such as branding and menu reads.
+      let tenantId = request.tenantId;
+      if (tenantId === undefined) {
+        const publicTenant = await this.dataSource.query(
+          `SELECT id FROM tenants WHERE LOWER(slug) = $1 AND is_active = true LIMIT 1`,
+          [slug],
+        );
+        tenantId = publicTenant[0] ? Number(publicTenant[0].id) : undefined;
+      }
+      if (tenantId === undefined) throw new ForbiddenException('Unknown or inactive tenant');
+      request.tenantId = tenantId;
       return true;
     }
 
