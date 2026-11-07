@@ -44,12 +44,15 @@ interface RefreshedTokens {
 // Keyed by token so every logged-in staff member gets their own entry.
 const refreshInFlight = new Map<string, Promise<RefreshedTokens | null>>()
 
-async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
+async function refreshTokens(refreshToken: string, tenantSlug?: string | null): Promise<RefreshedTokens | null> {
   const existing = refreshInFlight.get(refreshToken)
   if (existing) return existing
   const promise = fetch(`${backendUrl()}/api/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
+    },
     body: JSON.stringify({ refreshToken }),
     cache: "no-store",
   })
@@ -152,7 +155,7 @@ export async function proxy(request: NextRequest) {
     const expiresAt = accessToken ? accessTokenExpiresAt(accessToken) : null
     const needsRefresh = Boolean(refreshToken) && (!accessToken || expiresAt === null || expiresAt < Date.now() + 10_000)
     if (needsRefresh && refreshToken) {
-      refreshedTokens = await refreshTokens(refreshToken)
+      refreshedTokens = await refreshTokens(refreshToken, tenantHeaders(request).get("x-tenant-slug"))
       if (refreshedTokens) {
         // Forward the new cookie to this request too, so the Server
         // Components rendered right after this middleware see a valid
