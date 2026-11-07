@@ -117,17 +117,34 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
     return localCart.items.filter((item) => item.foodId === food.id)
   }
 
+  function cartItemAvailable(item: (typeof localCart.items)[number]) {
+    const variants = menu?.foodVariants.filter((variant) => variant.foodId === item.foodId) ?? []
+    const selectedVariant = item.foodVariantId !== null
+      ? variants.find((variant) => variant.id === item.foodVariantId)
+      : variants.find((variant) => variant.isDefault) ?? variants[0]
+    return selectedVariant?.inventoryAvailable !== false
+  }
+
+  function canRepeatFood(food: Food) {
+    const lastItem = foodCartItems(food).at(-1)
+    return lastItem ? cartItemAvailable(lastItem) : foodAvailable(food)
+  }
+
   function foodQuantity(food: Food) {
     return foodCartItems(food).reduce((sum, item) => sum + item.quantity, 0)
   }
 
   function handleRepeat(food: Food) {
     const lastItem = foodCartItems(food).at(-1)
-    if (lastItem) {
-      localCart.updateQuantity(lastItem.localId, lastItem.quantity + 1)
+    if (!lastItem) {
+      handleAdd(food)
       return
     }
-    handleAdd(food)
+    if (!cartItemAvailable(lastItem)) {
+      toast.error(`${lastItem.foodName} is out of stock`, { duration: 1600 })
+      return
+    }
+    localCart.updateQuantity(lastItem.localId, lastItem.quantity + 1)
   }
 
   function handleDecrease(food: Food) {
@@ -169,6 +186,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
+                    aria-disabled={!foodAvailable(food)}
                     className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${!foodAvailable(food) ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
                     onClick={() => handleAdd(food)}
                   >
@@ -196,7 +214,7 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                                 −
                               </button>
                               <span className="min-w-5 text-center text-xs font-semibold tabular-nums">{foodQuantity(food)}</span>
-                              <button type="button" onClick={() => handleRepeat(food)} className="rounded bg-primary px-1.5 py-1 text-primary-foreground hover:bg-primary/90" aria-label={`Add same ${food.name}`}>
+                              <button type="button" onClick={() => handleRepeat(food)} disabled={!canRepeatFood(food)} className="rounded bg-primary px-1.5 py-1 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Add same ${food.name}`}>
                                 +
                               </button>
                             </div>
