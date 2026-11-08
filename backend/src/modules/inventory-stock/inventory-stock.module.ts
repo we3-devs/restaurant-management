@@ -6,6 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { IngredientInventoryTransaction } from './entities/ingredient-inventory-transaction.entity';
 import { WarehouseIngredientStock } from './entities/warehouse-ingredient-stock.entity';
+import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { InventoryAlertsProcessor } from './inventory-alerts.processor';
 import {
   InventoryTransactionsController,
@@ -18,6 +19,7 @@ import { WarehouseIngredientStocksService } from './warehouse-ingredient-stocks.
     TypeOrmModule.forFeature([
       WarehouseIngredientStock,
       IngredientInventoryTransaction,
+      Ingredient,
     ]),
     NotificationsModule,
     AuthModule,

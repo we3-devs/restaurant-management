@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { BellIcon, BellRingIcon, CheckCheckIcon, CheckCircle2Icon, DropletIcon, HandIcon, SoupIcon, UserPlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -56,6 +57,7 @@ function NotificationIcon({ notification }: { notification: AppNotification }) {
 
 export function NotificationBell({ realtimeToast = true, enablePush = true, pushApp = "operational" }: { realtimeToast?: boolean; enablePush?: boolean; pushApp?: "operational" | "dashboard" }) {
   const [isOpen, setIsOpen] = useState(false)
+  const router = useRouter()
   const currentUser = useCurrentUser()
   const { outletId: effectiveOutletId } = useActiveOutlet()
 
@@ -82,6 +84,14 @@ export function NotificationBell({ realtimeToast = true, enablePush = true, push
       toast.success("All notifications marked as read")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update notifications")
+    }
+  }
+
+  function handleNotificationClick(notification: AppNotification) {
+    if (!notification.readAt) markRead.mutate(notification.id)
+    if (notification.type === "low_stock" || notification.type === "out_of_stock") {
+      setIsOpen(false)
+      router.push("/dashboard/overview/inventory-items")
     }
   }
 
@@ -144,7 +154,7 @@ export function NotificationBell({ realtimeToast = true, enablePush = true, push
               <button
                 key={notification.id}
                 type="button"
-                onClick={() => unread && markRead.mutate(notification.id)}
+                onClick={() => handleNotificationClick(notification)}
                 className={cn(
                   "flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted",
                   !unread && "opacity-60",

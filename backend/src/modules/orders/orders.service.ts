@@ -1180,12 +1180,38 @@ export class OrdersService {
     const sessionOrders = await this.ordersRepository.find({
       where: { tableSessionId: order.tableSessionId },
     });
-    const hasOtherActiveOrder = sessionOrders.some(
+    const otherOpenOrders = sessionOrders.filter(
       (other) =>
         other.id !== order.id &&
         other.status !== 'completed' &&
         other.status !== 'cancelled',
     );
+    // A table can have an empty pending draft left from opening another POS
+    // round. These drafts are cancelled by TableSessionsService.end(), so
+    // they must not prevent us from reaching that cleanup step and freeing
+    // the table after the last real order is completed.
+    const emptyPendingOrderIds = otherOpenOrders
+      .filter((other) => other.status === 'pending' && Number(other.grandTotal) === 0)
+      .map((other) => other.id);
+    const pendingOrdersWithItems = emptyPendingOrderIds.length > 0
+      ? new Set(
+          (await this.orderItemsRepository.manager
+            .createQueryBuilder()
+            .select('item.order_id', 'orderId')
+            .from('order_items', 'item')
+            .where('item.order_id IN (:...orderIds)', { orderIds: emptyPendingOrderIds })
+            .groupBy('item.order_id')
+            .getRawMany<{ orderId: string }>())
+            .map((row) => Number(row.orderId)),
+        )
+      : new Set<number>();
+    const hasOtherActiveOrder = otherOpenOrders.some((other) => {
+      const isEmptyDraft =
+        other.status === 'pending' &&
+        Number(other.grandTotal) === 0 &&
+        !pendingOrdersWithItems.has(other.id);
+      return !isEmptyDraft;
+    });
     if (!hasOtherActiveOrder) {
       await this.tableSessionsService.end(session.id, changedBy);
     }

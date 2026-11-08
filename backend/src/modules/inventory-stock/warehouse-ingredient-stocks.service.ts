@@ -15,6 +15,7 @@ import {
   InventoryTransactionType,
 } from './entities/ingredient-inventory-transaction.entity';
 import { WarehouseIngredientStock } from './entities/warehouse-ingredient-stock.entity';
+import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { scopedWhere, tenantFields } from '../../common/tenant/tenant-scope';
 
@@ -194,8 +195,13 @@ export class WarehouseIngredientStocksService {
       if (delta > 0) {
         const available = round(stock.quantity - stock.reservedQuantity, 4);
         if (available < delta) {
+          const ingredient = await txManager.getRepository(Ingredient).findOne({
+            where: scopedWhere(this.tenantContext, { id: ingredientId }),
+            select: { id: true, name: true },
+          });
+          const ingredientName = ingredient?.name ?? `ingredient ${ingredientId}`;
           throw new BadRequestException(
-            `Insufficient available stock for ingredient ${ingredientId} at warehouse ${warehouseId} (available: ${available}, requested: ${delta})`,
+            `Not enough ${ingredientName} in the selected warehouse. ${available} available; ${delta} required.`,
           );
         }
       }

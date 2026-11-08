@@ -13,11 +13,13 @@ import type { Food } from "@rms/api-client/hooks/use-foods"
 export function VariantPickerDialog({
   food,
   variants,
+  getQuantityInCart,
   onPick,
   onClose,
 }: {
   food: Food
   variants: FoodVariant[]
+  getQuantityInCart: (variantId: number) => number
   onPick: (variant: FoodVariant) => void
   onClose: () => void
 }) {
@@ -34,7 +36,11 @@ export function VariantPickerDialog({
           {variants.map((variant) => {
             // Each food item tracks its own stock now, so one out-of-stock
             // variant (e.g. a Large drink) no longer blocks its siblings.
-            const outOfStock = variant.inventoryAvailable === false
+            const quantityInCart = getQuantityInCart(variant.id)
+            const remaining = variant.availableQuantity == null
+              ? null
+              : Math.max(0, variant.availableQuantity - quantityInCart)
+            const outOfStock = variant.inventoryAvailable === false || remaining === 0
             return (
               <button
                 key={variant.id}
@@ -45,7 +51,13 @@ export function VariantPickerDialog({
               >
                 <span>{variant.name}</span>
                 <span className="flex items-center gap-2">
-                  {outOfStock && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
+                  {outOfStock ? (
+                    <Badge variant="destructive" className="text-xs">
+                      {variant.availableQuantity === 0 ? "out of stock" : "limit reached"}
+                    </Badge>
+                  ) : remaining !== null ? (
+                    <Badge variant="outline" className="text-xs">{remaining} available</Badge>
+                  ) : null}
                   <span className="text-muted-foreground">{variant.price}</span>
                 </span>
               </button>

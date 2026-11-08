@@ -7,7 +7,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { WarehouseIngredientStock } from './entities/warehouse-ingredient-stock.entity';
 
 const SCAN_INTERVAL_MS = 10 * 60_000;
-const DEDUPE_WINDOW_MINUTES = 10;
+// The scanner runs every 10 minutes. A 10-minute dedupe window expires
+// before the next scan in practice, so persistent low stock generated a new
+// notification on nearly every run. Keep one alert per ingredient/type per day.
+const DEDUPE_WINDOW_MINUTES = 24 * 60;
 
 interface LowStockRow {
   ingredientId: number;

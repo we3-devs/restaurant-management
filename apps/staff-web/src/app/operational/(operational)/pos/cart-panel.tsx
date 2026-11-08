@@ -71,7 +71,21 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 }
 
-export function CartPanel({ orderId, basePath = "/operational/pos" }: { orderId: number; basePath?: string }) {
+export type CartPanelView = "cart" | "payment"
+
+export function CartPanel({
+  orderId,
+  basePath = "/operational/pos",
+  view,
+  onOpenPayment,
+  onBackToCart,
+}: {
+  orderId: number
+  basePath?: string
+  view: CartPanelView
+  onOpenPayment: () => void
+  onBackToCart: () => void
+}) {
   // The tables board is its own top-level staff-shell page (see
   // staff/nav-items.ts), not nested under basePath.
   const tablesPath = basePath.startsWith("/operational/staff") ? "/operational/staff/tables" : "/operational/floor"
@@ -84,7 +98,7 @@ export function CartPanel({ orderId, basePath = "/operational/pos" }: { orderId:
     return <CompletedSaleSummary order={order} tablesPath={tablesPath} />
   }
 
-  return <EditableCart orderId={orderId} />
+  return <EditableCart orderId={orderId} view={view} onOpenPayment={onOpenPayment} onBackToCart={onBackToCart} />
 }
 
 function CompletedSaleSummary({
@@ -121,7 +135,17 @@ function CompletedSaleSummary({
   )
 }
 
-function EditableCart({ orderId }: { orderId: number }) {
+function EditableCart({
+  orderId,
+  view,
+  onOpenPayment,
+  onBackToCart,
+}: {
+  orderId: number
+  view: CartPanelView
+  onOpenPayment: () => void
+  onBackToCart: () => void
+}) {
   const { data: items, isLoading } = useOrderItems(orderId)
   const { data: order } = useOrder(orderId)
   // Every item ordered during this table's whole visit (across every
@@ -349,7 +373,8 @@ function EditableCart({ orderId }: { orderId: number }) {
   }
 
   return (
-    <div className="flex w-full min-h-[75vh] flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start">
+    <div className="flex w-full min-h-[75vh] flex-col gap-4">
+      {view === "cart" && (
       <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Cart</h2>
       <div className="max-h-[65vh] space-y-3 overflow-y-auto">
@@ -364,9 +389,22 @@ function EditableCart({ orderId }: { orderId: number }) {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase">
               In cart — not sent yet ({pendingCount})
             </h3>
-            {localCart.items.map((item) => (
-              <LocalCartItemRow key={item.localId} item={item} />
-            ))}
+            {localCart.items.map((item) => {
+              const variants = menu?.foodVariants.filter((variant) => variant.foodId === item.foodId) ?? []
+              const selectedVariant = item.foodVariantId !== null
+                ? variants.find((variant) => variant.id === item.foodVariantId)
+                : variants.find((variant) => variant.isDefault) ?? variants[0]
+              return (
+                <LocalCartItemRow
+                  key={item.localId}
+                  item={item}
+                  availableQuantity={selectedVariant?.availableQuantity ?? null}
+                  quantityInCart={localCart.items
+                    .filter((cartItem) => cartItem.foodId === item.foodId && cartItem.foodVariantId === item.foodVariantId)
+                    .reduce((sum, cartItem) => sum + cartItem.quantity, 0)}
+                />
+              )
+            })}
             {serverPendingItems.map((item) => (
               <CartItemRow
                 key={item.id}
@@ -446,12 +484,33 @@ function EditableCart({ orderId }: { orderId: number }) {
         {isPlacing ? "Placing..." : `Place order${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
       </Button>
       <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="place order" onConfirm={handlePlaceOrderOverride} />
-      </div>
-
-      {/* Column 2: record a payment — nothing to do here without the
-          permission, so this column is simply omitted rather than shown
-          empty (see canRecordPayment above). */}
       {order && canRecordPayment && (
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={onOpenPayment}
+          disabled={!isOnline || localCart.items.length > 0}
+        >
+          {localCart.items.length > 0
+            ? "Place order before paying"
+            : displayedDueAmount > 0
+              ? `Pay ${displayedDueAmount}`
+              : "Payment details"}
+        </Button>
+      )}
+      </div>
+      )}
+
+      {view === "payment" && order && canRecordPayment && (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Payment</h2>
+              <p className="text-sm text-muted-foreground">Record a payment and review the order balance.</p>
+            </div>
+            <Button variant="outline" onClick={onBackToCart}>Back to order</Button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2.5 rounded-lg border border-dashed border-input p-3">
           <div className="flex items-center gap-1.5">
             <CircleDollarSignIcon className="size-4 text-primary" />
@@ -541,11 +600,7 @@ function EditableCart({ orderId }: { orderId: number }) {
           </Button>
           <ClosedHoursOverrideButton closed={operatingHours?.enabled === true && operatingHours.isOpen === false} label="add payment" onConfirm={async () => { await createPaymentOverride.mutateAsync({ type: "payment", method: paymentMethod, amount: parsedPaymentAmount, customerId: paymentCustomerId }); setPaymentAmount(""); toast.success("Payment recorded") }} />
         </div>
-      )}
 
-      {/* Column 3: payment summary (totals + ledger) and, for whoever can
-          take money, the complete-sale actions. */}
-      {order && (
           <div className="space-y-3 rounded-lg border border-input p-3">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase">
@@ -666,6 +721,8 @@ function EditableCart({ orderId }: { orderId: number }) {
               </>
             )}
           </div>
+            </div>
+        </>
       )}
     </div>
   )
@@ -981,7 +1038,15 @@ function ReadOnlySentItemRow({
 }
 
 /** Not-yet-placed item — every edit here is local state, nothing hits the network until "Place order". */
-function LocalCartItemRow({ item }: { item: LocalCartItem }) {
+function LocalCartItemRow({
+  item,
+  availableQuantity,
+  quantityInCart,
+}: {
+  item: LocalCartItem
+  availableQuantity: number | null
+  quantityInCart: number
+}) {
   const localCart = useLocalCartContext()
 
   return (
@@ -996,6 +1061,11 @@ function LocalCartItemRow({ item }: { item: LocalCartItem }) {
             <Badge variant="outline" className="text-xs">
               Not sent
             </Badge>
+            {availableQuantity != null && quantityInCart >= availableQuantity && (
+              <Badge variant="destructive" className="text-xs">
+                {availableQuantity === 0 ? "out of stock" : "stock limit reached"}
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {item.unitPrice} each &middot; total {(item.unitPrice * item.quantity).toFixed(2)}
@@ -1024,6 +1094,7 @@ function LocalCartItemRow({ item }: { item: LocalCartItem }) {
         <Button
           variant="outline"
           size="icon-xs"
+          disabled={availableQuantity != null && quantityInCart >= availableQuantity}
           onClick={() => localCart.updateQuantity(item.localId, item.quantity + 1)}
           aria-label="Increase quantity"
         >

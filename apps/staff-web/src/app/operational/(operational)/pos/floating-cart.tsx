@@ -7,7 +7,7 @@ import { Button } from "@rms/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@rms/ui/dialog"
 import { Skeleton } from "@rms/ui/skeleton"
 import { useOrder, useOrderItems } from "@rms/api-client/hooks/use-orders"
-import { CartPanel } from "./cart-panel"
+import { CartPanel, type CartPanelView } from "./cart-panel"
 import { useLocalCartContext } from "./local-cart-context"
 
 /**
@@ -16,6 +16,7 @@ import { useLocalCartContext } from "./local-cart-context"
  */
 export function FloatingCart({ orderId, basePath = "/operational/pos" }: { orderId: number; basePath?: string }) {
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<CartPanelView>("cart")
   const { data: order } = useOrder(orderId)
   const { data: items, isLoading } = useOrderItems(orderId)
   const localCart = useLocalCartContext()
@@ -25,7 +26,10 @@ export function FloatingCart({ orderId, basePath = "/operational/pos" }: { order
   return (
     <>
       <Button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setView("cart")
+          setOpen(true)
+        }}
         aria-label="Open cart"
         className="fixed right-6 bottom-6 z-30 size-16 rounded-full p-0 shadow-popover"
       >
@@ -41,13 +45,28 @@ export function FloatingCart({ orderId, basePath = "/operational/pos" }: { order
         )}
         <span className="sr-only">{itemCount} item(s) in cart</span>
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen)
+          if (nextOpen) setView("cart")
+        }}
+      >
         <DialogContent
-          className="max-h-[92vh] min-h-[70vh] overflow-y-auto sm:max-w-3xl lg:max-w-6xl"
+          className={`overflow-visible ${view === "payment" ? "sm:max-w-5xl lg:max-w-6xl" : "sm:max-w-2xl lg:max-w-3xl"}`}
           showCloseButton={order?.status !== "completed"}
+          closeButtonClassName="top-0 -right-10 rounded-md bg-destructive text-destructive-foreground shadow-md hover:bg-destructive/90"
         >
-          <DialogTitle className="sr-only">Cart</DialogTitle>
-          <CartPanel orderId={orderId} basePath={basePath} />
+          <div className="max-h-[92vh] min-h-[70vh] overflow-y-auto">
+            <DialogTitle className="sr-only">{view === "payment" ? "Payment" : "Cart"}</DialogTitle>
+            <CartPanel
+              orderId={orderId}
+              basePath={basePath}
+              view={view}
+              onOpenPayment={() => setView("payment")}
+              onBackToCart={() => setView("cart")}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </>

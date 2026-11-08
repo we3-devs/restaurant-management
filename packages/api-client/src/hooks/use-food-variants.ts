@@ -27,6 +27,8 @@ export interface FoodVariant {
   updatedAt: string
   /** Derived from this food item's own linked ingredient and available (unreserved) stock — omitted for public/guest reads. */
   inventoryAvailable?: boolean
+  /** Maximum whole item quantity currently sellable from the outlet's unreserved stock; null means untracked. */
+  availableQuantity?: number | null
 }
 
 export interface FoodVariantOutlet {

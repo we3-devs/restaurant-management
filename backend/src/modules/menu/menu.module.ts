@@ -9,12 +9,15 @@ import { AuthModule } from '../auth/auth.module';
 import { DiningTablesModule } from '../dining-tables/dining-tables.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { WarehouseIngredientStock } from '../inventory-stock/entities/warehouse-ingredient-stock.entity';
+import { Ingredient } from '../ingredients/entities/ingredient.entity';
 import { FoodRecipe } from '../foods/entities/food-recipe.entity';
+import { UnitsModule } from '../units/units.module';
+import { UnitConversion } from '../units/entities/unit-conversion.entity';
 import { MenuController } from './menu.controller';
 import { MenuService } from './menu.service';
 
 @Module({
-  imports: [AuthModule, WarehousesModule, DiningTablesModule, TypeOrmModule.forFeature([Food, FoodCategory, FoodVariant, FoodRecipe, WarehouseIngredientStock, Variant, SubVariant])],
+  imports: [AuthModule, WarehousesModule, DiningTablesModule, UnitsModule, TypeOrmModule.forFeature([Food, FoodCategory, FoodVariant, FoodRecipe, UnitConversion, Ingredient, WarehouseIngredientStock, Variant, SubVariant])],
   controllers: [MenuController],
   providers: [MenuService],
 })

@@ -69,6 +69,6 @@ export class MenuController {
       throw new BadRequestException('tableCode is required');
     }
     const table = await this.diningTables.findByCode(tableCode);
-    return this.menuService.getBootstrap(table.outletId);
+    return this.menuService.getBootstrap(table.outletId, false);
   }
 }
