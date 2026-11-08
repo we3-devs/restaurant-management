@@ -16,12 +16,18 @@ import { useUnits } from "@/hooks/use-units"
 import { useWarehouses } from "@/hooks/use-warehouses"
 import { useActiveOutlet } from "@rms/api-client/outlet/active-outlet-context"
 import { usePageTitle } from "@rms/ui/use-page-title"
+import { StatusBadge } from "@rms/ui/status-badge"
 import { CreateIngredientDialog } from "../ingredients/create-ingredient-dialog"
 import { CreateInventoryItemDialog } from "./create-inventory-item-dialog"
 import { EditInventoryItemDialog } from "./edit-inventory-item-dialog"
 
 const money = (value: number) => value.toFixed(2)
 const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
+const inventoryStatus = (quantity: number, ingredient: { minimumStock?: number; reorderLevel?: number }) => {
+  if (quantity <= 0) return "out_of_stock"
+  if (quantity <= Math.max(ingredient.minimumStock ?? 0, ingredient.reorderLevel ?? 0)) return "low_stock"
+  return "in_stock"
+}
 
 export default function InventoryItemsPage() {
   return <InventoryItemsList readOnly={false} />
@@ -154,7 +160,10 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                     {readOnly ? <p className="truncate font-medium">{ingredient.name}</p> : <Link href={`/dashboard/inventory/ingredients/${ingredient.id}`} className="block truncate font-medium hover:underline">{ingredient.name}</Link>}
                     <p className="truncate text-xs text-muted-foreground">{ingredient.code} · {ingredient.category.name}</p>
                   </div>
-                  {!ingredient.isActive && <Badge variant="destructive">inactive</Badge>}
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    <StatusBadge status={inventoryStatus(stock.quantity, ingredient)} />
+                    {!ingredient.isActive && <Badge variant="destructive">inactive</Badge>}
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                   <div><p className="text-xs text-muted-foreground">Location</p><p className="truncate">{location?.name ?? `Warehouse #${stock.warehouseId}`}</p></div>
@@ -177,6 +186,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
               <TableHead>Category</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Location</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Total quantity</TableHead>
               <TableHead className="text-right">Available</TableHead>
               <TableHead className="text-right">Avg. cost</TableHead>
@@ -189,7 +199,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
                   {warehouses?.data.length ? "No inventory items in these warehouses." : "No warehouses found."}
                 </TableCell>
               </TableRow>
@@ -205,6 +215,7 @@ export function InventoryItemsList({ readOnly }: { readOnly: boolean }) {
                   <TableCell>{ingredient.category.name}</TableCell>
                   <TableCell>{unit?.shortName ?? unit?.name ?? "—"}</TableCell>
                   <TableCell>{location?.name ?? `Warehouse #${stock.warehouseId}`}</TableCell>
+                  <TableCell><StatusBadge status={inventoryStatus(stock.quantity, ingredient)} /></TableCell>
                   <TableCell className="text-right">{stock.quantity}</TableCell>
                   <TableCell className="text-right">
                     {Math.max(0, stock.quantity - stock.reservedQuantity)}

@@ -25,6 +25,8 @@ export interface Ingredient {
   image: string | null
   buyingPrice: number
   sellingPrice: number
+  minimumStock?: number
+  reorderLevel?: number
   baseUnitId: number
   defaultPurchaseUnitId: number | null
   defaultUsageUnitId: number | null

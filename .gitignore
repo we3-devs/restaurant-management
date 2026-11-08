@@ -121,3 +121,6 @@ launcher.bat
 
 # TypeORM migrations + baseline schema dump (kept out of version control).
 /typeorm/
+
+
+npm-audit.json
