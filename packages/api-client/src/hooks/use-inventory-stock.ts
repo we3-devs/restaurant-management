@@ -116,6 +116,7 @@ function useInvalidateStock() {
     queryClient.invalidateQueries({ queryKey: queryKeys.warehouseIngredientStocks.all })
     queryClient.invalidateQueries({ queryKey: queryKeys.inventoryTransactions.all })
     queryClient.invalidateQueries({ queryKey: queryKeys.stockIns.all })
+    queryClient.invalidateQueries({ queryKey: ["menu", "cache"] })
   }
 }
 

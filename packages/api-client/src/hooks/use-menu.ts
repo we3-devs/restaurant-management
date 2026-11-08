@@ -46,6 +46,7 @@ export function useMenu(outletId: number | null) {
     queryKey: ["menu", "cache", outletId],
     enabled: !!outletId && outletId > 0,
     staleTime: 0,
+    refetchInterval: 15_000,
     queryFn: async () => {
       const key = `outlet:${outletId}`
       const cached = await readMenu(key)
