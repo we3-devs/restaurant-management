@@ -91,7 +91,12 @@ import { TenantsModule } from './modules/tenants/tenants.module';
   ],
   imports: [
     InstrumentationModule,
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+      load: [configuration],
+      validate,
+    }),
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'error' : 'debug'),
