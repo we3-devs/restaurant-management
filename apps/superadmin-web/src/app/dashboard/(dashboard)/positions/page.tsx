@@ -214,6 +214,23 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
     }
   }
 
+  async function handleAllowAll() {
+    if (!position || !permissions?.length) return
+    const granted = new Set(position.permissionSlugs ?? [])
+    const missing = permissions.filter((permission) => !granted.has(permission.slug))
+    if (missing.length === 0) {
+      toast.info("All permissions are already allowed")
+      return
+    }
+
+    try {
+      await Promise.all(missing.map((permission) => assignPermission.mutateAsync(permission.id)))
+      toast.success(`Allowed all permissions for ${positionName}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to allow all permissions")
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="outline" size="sm"><ShieldCheckIcon className="size-4" />Permissions</Button>} />
@@ -222,6 +239,17 @@ function PositionPermissionsDialog({ positionId, positionName }: { positionId: n
           <DialogTitle>{positionName} permissions</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">Choose what people assigned to this position can do. Full access includes viewing.</p>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleAllowAll()}
+            disabled={!position || !permissions?.length || assignPermission.isPending || unassignPermission.isPending}
+          >
+            Allow all
+          </Button>
+        </div>
         <div className="space-y-3">
           {[...permissionsByModule.entries()].map(([module, modulePermissions]) => {
             const hasView = modulePermissions.some((permission) => permission.action === "view")
