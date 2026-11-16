@@ -387,6 +387,28 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
           addonIsActive: boolean | null
         }>(),
     ]);
+    const [variants, subVariants] = await Promise.all([
+      this.foodsRepository.manager
+        .createQueryBuilder()
+        .select('name', 'name')
+        .addSelect('sku_segment', 'skuSegment')
+        .addSelect('is_active', 'isActive')
+        .addSelect('sort_order', 'sortOrder')
+        .from('variants', 'variant')
+        .orderBy('sort_order', 'ASC')
+        .addOrderBy('name', 'ASC')
+        .getRawMany<{ name: string; skuSegment: string | null; isActive: boolean; sortOrder: number }>(),
+      this.foodsRepository.manager
+        .createQueryBuilder()
+        .select('name', 'name')
+        .addSelect('sku_segment', 'skuSegment')
+        .addSelect('is_active', 'isActive')
+        .addSelect('sort_order', 'sortOrder')
+        .from('sub_variants', 'subVariant')
+        .orderBy('sort_order', 'ASC')
+        .addOrderBy('name', 'ASC')
+        .getRawMany<{ name: string; skuSegment: string | null; isActive: boolean; sortOrder: number }>(),
+    ]);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Foods');
@@ -440,6 +462,18 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         item.isActive,
         item.sortOrder,
       ]);
+    }
+
+    // Export the shared option catalogs as well as the food-item pairings
+    // above. This preserves configured sub-variants even when no current food
+    // item references them.
+    const variantsSheet = workbook.addWorksheet('Variants');
+    variantsSheet.addRow(['type', 'name', 'skuSegment', 'isActive', 'sortOrder']);
+    for (const variant of variants) {
+      variantsSheet.addRow(['Variant', variant.name, variant.skuSegment ?? '', variant.isActive, variant.sortOrder]);
+    }
+    for (const subVariant of subVariants) {
+      variantsSheet.addRow(['Sub-variant', subVariant.name, subVariant.skuSegment ?? '', subVariant.isActive, subVariant.sortOrder]);
     }
     // Older/simple foods can have their sell price directly on the food row
     // and no food_variants record. Keep those in the actual-items sheet too.
@@ -522,10 +556,14 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
       };
       worksheet.getRow(1).font = { bold: true };
       worksheet.columns.forEach((column) => {
-        column.width = Math.min(
-          Math.max(14, ...worksheet.getColumn(column.number).values.map((value) => String(value ?? '').length + 2)),
-          48,
-        );
+        if (column.number === undefined) return;
+        const contentWidth = worksheet
+          .getColumn(column.number)
+          .values.reduce<number>(
+            (width, value) => Math.max(width, String(value ?? '').length + 2),
+            14,
+          );
+        column.width = Math.min(contentWidth, 48);
       });
     }
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
