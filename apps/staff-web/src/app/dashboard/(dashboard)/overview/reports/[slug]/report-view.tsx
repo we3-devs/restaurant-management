@@ -51,9 +51,10 @@ export function ReportView({ slug, label, description }: { slug: ReportType; lab
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState<string | null>(null)
-  const [creditedFilter, setCreditedFilter] = useState("all")
+  const [paymentCategory, setPaymentCategory] = useState<"all" | "paid" | "unpaid" | "credited">("all")
 
-  const params = { outletId, ...range, search: search || undefined, credited: slug === "sales-items" && creditedFilter !== "all" ? creditedFilter === "credited" : undefined, page, limit: PAGE_SIZE }
+  const supportsPaymentCategory = slug === "sales" || slug === "sales-items"
+  const params = { outletId, ...range, search: search || undefined, category: supportsPaymentCategory ? paymentCategory : undefined, page, limit: PAGE_SIZE }
   const { data, isLoading, isPlaceholderData } = useReport(slug, params)
   const showSkeleton = useDelayedLoading(isLoading)
   const rowLink = REPORT_ROW_LINK[slug]
@@ -77,43 +78,39 @@ export function ReportView({ slug, label, description }: { slug: ReportType; lab
         <Link href="/dashboard/overview/reports" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
           <ArrowLeftIcon className="size-4" /> All reports
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{label}</h1>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm">
-            <Select value={slug} onValueChange={(value) => { if (value) router.push(`/dashboard/overview/reports/${value}`) }}>
-              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {REPORT_GROUPS.filter((group) => !group.permission || permissions.includes(group.permission)).map((group) => (
-                  <SelectGroup key={group.group}>
-                    <SelectLabel>{group.group}</SelectLabel>
-                    {group.reports.map((report) => <SelectItem key={report.slug} value={report.slug}>{report.label}</SelectItem>)}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
-            <DateRangeFilter compact showQuickRanges value={range} onChange={(v) => { setRange(v); setPage(1) }} />
-            {slug === "sales-items" && (
-              <Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}>
-                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All sales</SelectItem>
-                  <SelectItem value="credited">Credited</SelectItem>
-                  <SelectItem value="uncredited">Non-credited</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}><DownloadIcon /> {exporting === "csv" ? "Exporting..." : "CSV"}</Button>
-            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("xlsx")}><DownloadIcon /> {exporting === "xlsx" ? "Exporting..." : "Excel"}</Button>
-            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("pdf")}><DownloadIcon /> {exporting === "pdf" ? "Exporting..." : "PDF"}</Button>
-          </div>
         </div>
       </div>
 
-      <div className="mt-3 max-w-md">
-        <Input className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={SEARCH_PLACEHOLDER[slug]} />
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={slug} onValueChange={(value) => { if (value) router.push(`/dashboard/overview/reports/${value}`) }}>
+            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {REPORT_GROUPS.filter((group) => !group.permission || permissions.includes(group.permission)).map((group) => (
+                <SelectGroup key={group.group}>
+                  <SelectLabel>{group.group}</SelectLabel>
+                  {group.reports.map((report) => <SelectItem key={report.slug} value={report.slug}>{report.label}</SelectItem>)}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+          <DateRangeFilter compact showQuickRanges value={range} onChange={(v) => { setRange(v); setPage(1) }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}><DownloadIcon /> {exporting === "csv" ? "Exporting..." : "CSV"}</Button>
+            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("xlsx")}><DownloadIcon /> {exporting === "xlsx" ? "Exporting..." : "Excel"}</Button>
+            <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("pdf")}><DownloadIcon /> {exporting === "pdf" ? "Exporting..." : "PDF"}</Button>
+        </div>
+      </div>
+
+      <div className="flex w-full flex-wrap items-center gap-2">
+        <Input className="h-9 min-w-[220px] flex-1" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={SEARCH_PLACEHOLDER[slug]} />
+        {supportsPaymentCategory && <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-card p-1">{([['all', 'All orders'], ['paid', 'Paid'], ['unpaid', 'Unpaid'], ['credited', 'Credited']] as const).map(([value, buttonLabel]) => <Button key={value} size="sm" variant={paymentCategory === value ? "default" : "ghost"} onClick={() => { setPaymentCategory(value); setPage(1) }}>{buttonLabel}</Button>)}</div>}
       </div>
 
       {showSkeleton ? (

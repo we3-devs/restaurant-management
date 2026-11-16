@@ -17,6 +17,7 @@ import {
   In,
   Between,
   Not,
+  Raw,
   Repository,
 } from 'typeorm';
 import { PaginatedResponse } from '../../common/dto/paginated-response.interface';
@@ -182,7 +183,7 @@ export class OrdersService {
     query: ListOrdersQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<OrderListResponse>> {
-    const { page, limit, search, outletId, tableSessionId, status, excludeStatus, createdFrom, createdTo } = query;
+    const { page, limit, search, outletId, tableSessionId, status, excludeStatus, createdFrom, createdTo, category } = query;
     const baseWhere: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
       baseWhere.outletId = outletId;
@@ -191,6 +192,15 @@ export class OrdersService {
     }
     if (tableSessionId !== undefined) {
       baseWhere.tableSessionId = tableSessionId;
+    }
+    if (category === 'paid') {
+      baseWhere.paymentStatus = 'paid';
+      baseWhere.id = Raw((column) => `${column} NOT IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge' AND order_id IS NOT NULL)`);
+    } else if (category === 'unpaid') {
+      baseWhere.paymentStatus = In(['unpaid', 'partial']);
+      baseWhere.id = Raw((column) => `${column} NOT IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge' AND order_id IS NOT NULL)`);
+    } else if (category === 'credited') {
+      baseWhere.id = Raw((column) => `${column} IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge' AND order_id IS NOT NULL)`);
     }
     if (status !== undefined) {
       baseWhere.status = status;
