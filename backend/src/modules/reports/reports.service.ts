@@ -281,7 +281,9 @@ export class ReportsService {
       // items, so the three columns reconcile to Total Cost.
       .addSelect(`SUM(item.total_amount * CASE
         WHEN order.grand_total <= 0 THEN 0
-        ELSE LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+        ELSE LEAST(1, GREATEST(0,
+          (order.paid_amount - LEAST(order.grand_total, GREATEST(0, ${creditedAmountSql})))
+          / order.grand_total))
       END)`, 'paid')
       .addSelect(`SUM(item.total_amount * CASE
         WHEN order.grand_total <= 0 THEN 0
@@ -290,7 +292,9 @@ export class ReportsService {
       .addSelect(`SUM(item.total_amount * CASE
         WHEN order.grand_total <= 0 THEN 1
         ELSE GREATEST(0, 1
-          - LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+          - LEAST(1, GREATEST(0,
+            (order.paid_amount - LEAST(order.grand_total, GREATEST(0, ${creditedAmountSql})))
+            / order.grand_total))
           - LEAST(1, GREATEST(0, ${creditedAmountSql} / order.grand_total)))
       END)`, 'notPaid')
       .from('order_items', 'item')
