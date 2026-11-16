@@ -68,7 +68,11 @@ export interface OrderItem {
   /** Denormalized from the parent order — lets items be queried across a whole table visit, which can span several orders. */
   tableSessionId: number | null
   foodId: number
+  /** Resolved by GET /order-items so tracking rows do not need separate food lookups. */
+  foodName: string
   foodVariantId: number | null
+  /** Resolved by GET /order-items; null when the item has no variant. */
+  variantName: string | null
   preparationDepartmentId: number | null
   quantity: number
   unitPrice: number

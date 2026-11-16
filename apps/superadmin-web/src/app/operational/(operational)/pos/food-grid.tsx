@@ -44,11 +44,47 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const items = useMemo(() => {
     const normalized = search.trim().toLowerCase()
+    // A food with no active food item (variant) can't actually be added to
+    // the cart — handleAdd would just fail with a toast — so it's dropped
+    // from the grid instead of showing as a dead tile.
+    const orderableFoodIds = new Set((menu?.foodVariants ?? []).map((variant) => variant.foodId))
     return (menu?.foods ?? []).filter((food) =>
+      orderableFoodIds.has(food.id) &&
       (categoryId === null || food.foodCategoryId === categoryId) &&
       (!normalized || food.name.toLowerCase().includes(normalized)),
     )
-  }, [menu?.foods, search, categoryId])
+  }, [menu?.foods, menu?.foodVariants, search, categoryId])
+  function cartQuantityForVariant(foodId: number, variantId: number) {
+    const foodVariants = menu?.foodVariants.filter((variant) => variant.foodId === foodId) ?? []
+    const implicitVariantId = foodVariants.find((variant) => variant.isDefault)?.id ?? foodVariants[0]?.id
+    return localCart.items
+      .filter((item) => item.foodId === foodId && (
+        item.foodVariantId === variantId || (item.foodVariantId === null && implicitVariantId === variantId)
+      ))
+      .reduce((sum, item) => sum + item.quantity, 0)
+  }
+
+  // Availability now lives per food item (variant), not per food — a food
+  // tile reads as out-of-stock only once every one of its food items is.
+  const foodAvailability = useMemo(() => {
+    const result = new Map<number, boolean>()
+    for (const variant of menu?.foodVariants ?? []) {
+      const inCart = cartQuantityForVariant(variant.foodId, variant.id)
+      const isAvailable = variant.inventoryAvailable !== false &&
+        (variant.availableQuantity == null || inCart < variant.availableQuantity)
+      result.set(variant.foodId, (result.get(variant.foodId) ?? false) || isAvailable)
+    }
+    return result
+  }, [menu?.foodVariants, localCart.items])
+  function foodAvailable(food: Food) {
+    return foodAvailability.get(food.id) ?? true
+  }
+  function foodOutOfStock(food: Food) {
+    const variants = menu?.foodVariants.filter((variant) => variant.foodId === food.id) ?? []
+    return variants.length > 0 && variants.every((variant) =>
+      variant.inventoryAvailable === false || variant.availableQuantity === 0,
+    )
+  }
   const rows = useMemo(() => {
     const chunked: Food[][] = []
     for (let i = 0; i < items.length; i += columns) {
@@ -67,8 +103,8 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
   // Cart-building is entirely local/offline — the order only ever hits the
   // network once, in a single batch, when "Place order" is tapped.
   function handleAdd(food: Food) {
-    if (food.inventoryAvailable === false) {
-      toast.error(`${food.name} is out of stock`, { duration: 1600 })
+    if (!foodAvailable(food)) {
+      toast.error(foodOutOfStock(food) ? `${food.name} is out of stock` : `${food.name} has reached its available stock limit`, { duration: 2200 })
       return
     }
     if (food.hasVariants) {
@@ -79,6 +115,15 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
       ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)
     if (!item) {
       toast.error(`${food.name} has no active food item`)
+      return
+    }
+    if (item.inventoryAvailable === false) {
+      toast.error(`${food.name} is out of stock`, { duration: 1600 })
+      return
+    }
+    const alreadyInCart = cartQuantityForVariant(food.id, item.id)
+    if (item.availableQuantity != null && alreadyInCart >= item.availableQuantity) {
+      toast.error(`Only ${item.availableQuantity} ${food.name} available`, { duration: 2200 })
       return
     }
     localCart.addItem({
@@ -95,17 +140,39 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
     return localCart.items.filter((item) => item.foodId === food.id)
   }
 
+  function cartItemAvailable(item: (typeof localCart.items)[number]) {
+    const variants = menu?.foodVariants.filter((variant) => variant.foodId === item.foodId) ?? []
+    const selectedVariant = item.foodVariantId !== null
+      ? variants.find((variant) => variant.id === item.foodVariantId)
+      : variants.find((variant) => variant.isDefault) ?? variants[0]
+    if (selectedVariant?.inventoryAvailable === false) return false
+    if (selectedVariant?.availableQuantity == null) return true
+    const inCart = localCart.items
+      .filter((cartItem) => cartItem.foodId === item.foodId && cartItem.foodVariantId === item.foodVariantId)
+      .reduce((sum, cartItem) => sum + cartItem.quantity, 0)
+    return inCart < selectedVariant.availableQuantity
+  }
+
+  function canRepeatFood(food: Food) {
+    const lastItem = foodCartItems(food).at(-1)
+    return lastItem ? cartItemAvailable(lastItem) : foodAvailable(food)
+  }
+
   function foodQuantity(food: Food) {
     return foodCartItems(food).reduce((sum, item) => sum + item.quantity, 0)
   }
 
   function handleRepeat(food: Food) {
     const lastItem = foodCartItems(food).at(-1)
-    if (lastItem) {
-      localCart.updateQuantity(lastItem.localId, lastItem.quantity + 1)
+    if (!lastItem) {
+      handleAdd(food)
       return
     }
-    handleAdd(food)
+    if (!cartItemAvailable(lastItem)) {
+      toast.error(`${lastItem.foodName} has reached its available stock limit`, { duration: 2200 })
+      return
+    }
+    localCart.updateQuantity(lastItem.localId, lastItem.quantity + 1)
   }
 
   function handleDecrease(food: Food) {
@@ -147,7 +214,8 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                 {rows[virtualRow.index].map((food) => (
                   <Card
                     key={food.id}
-                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${food.inventoryAvailable === false ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
+                    aria-disabled={!foodAvailable(food)}
+                    className={`flex h-full flex-col overflow-hidden p-0 transition-colors ${!foodAvailable(food) ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"} ${foodQuantity(food) > 0 ? "border-primary bg-primary/5 ring-1 ring-primary/30" : ""}`}
                     onClick={() => handleAdd(food)}
                   >
                     <div className="flex h-24 shrink-0 items-center justify-center bg-muted">
@@ -167,14 +235,18 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
                           <span className="text-sm font-medium">{menu?.foodVariants.find((variant) => variant.foodId === food.id && variant.isDefault)?.price ?? menu?.foodVariants.find((variant) => variant.foodId === food.id)?.price ?? "—"}</span>
                         )}
                         <div className="flex items-center gap-1">
-                          {food.inventoryAvailable === false && <Badge variant="destructive" className="text-xs">out of stock</Badge>}
+          {!foodAvailable(food) && (
+            <Badge variant="destructive" className="text-xs">
+              {foodOutOfStock(food) ? "out of stock" : "limit reached"}
+            </Badge>
+          )}
                           {foodQuantity(food) > 0 ? (
                             <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5" onClick={(event) => event.stopPropagation()}>
                               <button type="button" onClick={() => handleDecrease(food)} className="rounded p-1 hover:bg-muted" aria-label={`Decrease ${food.name}`}>
                                 −
                               </button>
                               <span className="min-w-5 text-center text-xs font-semibold tabular-nums">{foodQuantity(food)}</span>
-                              <button type="button" onClick={() => handleRepeat(food)} className="rounded bg-primary px-1.5 py-1 text-primary-foreground hover:bg-primary/90" aria-label={`Add same ${food.name}`}>
+                              <button type="button" onClick={() => handleRepeat(food)} disabled={!canRepeatFood(food)} className="rounded bg-primary px-1.5 py-1 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Add same ${food.name}`}>
                                 +
                               </button>
                             </div>
@@ -205,7 +277,13 @@ export function FoodGrid({ categoryId }: { categoryId: number | null }) {
         <VariantPickerDialog
           food={variantFood}
           variants={menu?.foodVariants.filter((variant) => variant.foodId === variantFood.id) ?? []}
+          getQuantityInCart={(variantId) => cartQuantityForVariant(variantFood.id, variantId)}
           onPick={(variant) => {
+            const alreadyInCart = cartQuantityForVariant(variantFood.id, variant.id)
+            if (variant.availableQuantity != null && alreadyInCart >= variant.availableQuantity) {
+              toast.error(`Only ${variant.availableQuantity} ${variantFood.name} (${variant.name}) available`, { duration: 2200 })
+              return
+            }
             localCart.addItem({
               foodId: variantFood.id,
               foodName: variantFood.name,

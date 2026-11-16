@@ -30,7 +30,10 @@ import { updateDiningAreaSchema, type UpdateDiningAreaInput } from "@rms/validat
 export function DiningAreaDetail({ areaId }: { areaId: number }) {
   const router = useRouter()
   const pathname = usePathname()
-  const listPath = pathname?.startsWith("/dashboard") ? "/dashboard/dining-areas" : "/operational/dining-areas"
+  // Mirrors DiningAreasPage's basePath derivation — strip the trailing
+  // "/:id" segment to get back to whichever list route this detail page
+  // was reached from, instead of hardcoding one.
+  const listPath = pathname ? pathname.replace(/\/[^/]+$/, "") : "/operational/dining-areas"
   const { data: area, isLoading } = useDiningArea(areaId)
   const showSkeleton = useDelayedLoading(isLoading)
   const updateArea = useUpdateDiningArea(areaId)

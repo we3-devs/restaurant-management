@@ -1,9 +1,7 @@
 "use client"
 
-import { PrinterIcon } from "lucide-react"
-
 import { BillReceipt } from "@rms/ui/bill-receipt"
-import { Button } from "@rms/ui/button"
+import { ReceiptPrintButton } from "@rms/ui/receipt-print"
 import { NotFoundCard, TextSkeleton } from "@rms/ui/skeletons"
 import { useOrder } from "@rms/api-client/hooks/use-orders"
 
@@ -24,14 +22,11 @@ export function ReceiptView({ orderId }: { orderId: number }) {
 
   return (
     <div className="mx-auto max-w-[320px] space-y-4">
-      <div className="no-print flex justify-end">
-        <Button onClick={() => window.print()}>
-          <PrinterIcon />
-          Print
-        </Button>
+      <div className="flex justify-end">
+        <ReceiptPrintButton orderId={orderId} />
       </div>
 
-      <div id="receipt" className="rounded-lg border border-input p-6 print:w-[80mm]">
+      <div className="rounded-lg border border-input p-6">
         <BillReceipt orderId={orderId} />
       </div>
     </div>

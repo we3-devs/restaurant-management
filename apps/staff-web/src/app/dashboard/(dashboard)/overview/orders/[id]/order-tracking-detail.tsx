@@ -21,8 +21,6 @@ import { useOrderAssignments } from "@/lib/api/hooks/use-assignments"
 import { useCreateOrderPayment } from "@/hooks/use-order-payments"
 import { useCurrentUser } from "@/lib/auth/current-user-context"
 import { ORDER_PAYMENT_METHODS } from "@/lib/validators/orders"
-import { useFoods } from "@/hooks/use-foods"
-import { useFoodVariants } from "@/hooks/use-food-variants"
 import { useCustomer } from "@/hooks/use-customers"
 import { useDiningTable } from "@/hooks/use-dining-tables"
 import { useTableSession } from "@/hooks/use-table-sessions"
@@ -106,11 +104,6 @@ export function OrderTrackingDetail({ orderId }: { orderId: number }) {
 /** Per-item kitchen status — the bill only shows price lines, never where an item actually is in the kitchen workflow. */
 function OrderItemTracking({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
-  const { data: foods } = useFoods({ limit: 500 })
-  const { data: variants } = useFoodVariants({ limit: 500 })
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
-  const variantName = (foodVariantId: number | null) =>
-    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   return (
     <Card>
@@ -134,7 +127,7 @@ function OrderItemTracking({ orderId }: { orderId: number }) {
             <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {item.quantity} &times; {variantName(item.foodVariantId) ? `${variantName(item.foodVariantId)}` : `${foodName(item.foodId)}`}
+                  {item.quantity} &times; {item.variantName ?? item.foodName ?? `Item #${item.foodId}`}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Ordered by {item.createdByName} at {formatTime(item.createdAt)}

@@ -19,8 +19,6 @@ import { OrderDiscountForm } from "@rms/ui/order-discount-form"
 import { useOrder, useOrderItems, useIssueInvoice, type Order, type OrderItem } from "@rms/api-client/hooks/use-orders"
 import { tableSessionName, useTableSession } from "@rms/api-client/hooks/use-table-sessions"
 import { useCustomer, useCustomers } from "@rms/api-client/hooks/use-customers"
-import { useFoods } from "@rms/api-client/hooks/use-foods"
-import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { formatTime } from "@rms/api-client/kitchen/ticket-stage"
 import { useCurrentUser } from "@rms/auth/current-user-context"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
@@ -223,11 +221,6 @@ function ContextDetailsCards({
  */
 function OrderItemTrackingCard({ orderId }: { orderId: number }) {
   const { data: items, isLoading } = useOrderItems(orderId)
-  const { data: foods } = useFoods({ limit: 500 })
-  const { data: variants } = useFoodVariants({ limit: 500 })
-  const foodName = (foodId: number) => foods?.data.find((f) => f.id === foodId)?.name ?? "Loading…"
-  const variantName = (foodVariantId: number | null) =>
-    foodVariantId ? (variants?.data.find((v) => v.id === foodVariantId)?.name ?? null) : null
 
   return (
     <Card>
@@ -251,8 +244,8 @@ function OrderItemTrackingCard({ orderId }: { orderId: number }) {
             <div key={item.id} className="flex items-center justify-between gap-2 border-b border-input py-2 last:border-b-0">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {item.quantity} &times; {foodName(item.foodId)}
-                  {variantName(item.foodVariantId) ? ` — ${variantName(item.foodVariantId)}` : ""}
+                  {item.quantity} &times; {item.foodName ?? `Item #${item.foodId}`}
+                  {item.variantName ? ` — ${item.variantName}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Ordered by {item.createdByName} at {formatTime(item.createdAt)}

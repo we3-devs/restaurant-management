@@ -32,7 +32,11 @@ import { DINING_TABLE_STATUSES, updateDiningTableSchema, type UpdateDiningTableI
 export function DiningTableDetail({ tableId }: { tableId: number }) {
   const router = useRouter()
   const pathname = usePathname()
-  const listPath = pathname?.startsWith("/dashboard") ? "/dashboard/tables" : "/operational/dining-tables"
+  // Mirrors DiningTablesPage's basePath derivation — strip the trailing
+  // "/:id" segment to get back to whichever list route this detail page
+  // was reached from (operational floor, dashboard tables, dashboard
+  // read-only table view), instead of hardcoding one.
+  const listPath = pathname ? pathname.replace(/\/[^/]+$/, "") : "/operational/dining-tables"
   const { data: table, isLoading } = useDiningTable(tableId)
   const showSkeleton = useDelayedLoading(isLoading)
   const { data: outlet } = useOutlet(table?.outletId ?? 0)

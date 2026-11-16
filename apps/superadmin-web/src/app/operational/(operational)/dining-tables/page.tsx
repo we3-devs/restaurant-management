@@ -16,7 +16,11 @@ import { CreateDiningTableDialog } from "./create-dining-table-dialog"
 
 export default function DiningTablesPage() {
   const pathname = usePathname()
-  const basePath = pathname?.startsWith("/dashboard") ? "/dashboard/tables" : "/operational/dining-tables"
+  // This page is mounted at several routes (operational floor management,
+  // dashboard's editable table list, dashboard's read-only "view" list) —
+  // derive the base path from wherever it's actually rendered instead of
+  // hardcoding one, so row links stay on the same route family.
+  const basePath = pathname || "/operational/dining-tables"
   const { outletId } = useActiveOutlet()
   const { data, isLoading } = useDiningTables({
     limit: 100,

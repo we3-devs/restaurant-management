@@ -1,14 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@rms/ui/badge"
+import { BillReceiptDialog } from "@rms/ui/bill-receipt-dialog"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { OrderDiscountForm } from "@rms/ui/order-discount-form"
+import { PaymentMethodPicker } from "@rms/ui/payment-method-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { useCreateTableSessionPayment, useCompleteAllForTableSession } from "@rms/api-client/hooks/use-order-payments"
 import { useOrderItems, type Order } from "@rms/api-client/hooks/use-orders"
@@ -17,6 +18,7 @@ import { useFoodVariants } from "@rms/api-client/hooks/use-food-variants"
 import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { useCustomers } from "@rms/api-client/hooks/use-customers"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 
 const ITEM_STATUS_LABELS: Record<string, string> = {
   stock_reserved: "Pending",
@@ -45,43 +47,40 @@ export function TableSessionCheckout({
   basePath?: string
 }) {
   const isOnline = useOnlineStatus()
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
-  // the receipt page is its own top-level staff-shell page (see
-  // staff/nav-items.ts) — mirrors CheckoutPanel's derivation.
-  const receiptPath = (id: number) => (basePath.startsWith("/operational/staff") ? `/operational/staff/pos/receipt/${id}` : `/operational/pos/receipt/${id}`)
   const createPayment = useCreateTableSessionPayment(tableSessionId)
   const completeAll = useCompleteAllForTableSession(tableSessionId)
 
   const totalDue = orders.reduce((sum, order) => sum + order.dueAmount, 0)
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
-  const [paymentAmount, setPaymentAmount] = useState(totalDue)
-  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  // Raw text, not a number: starts empty and is never auto-filled from the
+  // combined due amount — mirrors CheckoutPanel's own pattern.
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const parsedPaymentAmount = Number(paymentAmount)
+  const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
+  const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
-  // Re-seeds the payment-amount field whenever the combined due changes
-  // (e.g. after a payment lands) — mirrors CheckoutPanel's own pattern.
-  const [seededDue, setSeededDue] = useState<number | null>(null)
-  if (totalDue !== seededDue) {
-    setSeededDue(totalDue)
-    setPaymentAmount(totalDue)
-  }
 
   async function handlePay() {
-    if (paymentAmount <= 0) return
+    if (!isValidPaymentAmount) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to record a payment")
       return
     }
-    if (paymentMethod === "credit" && !creditCustomerId) {
+    if (paymentMethod === "credit" && !paymentCustomerId) {
       toast.error("Select a customer to charge this to their tab")
       return
     }
     try {
       await createPayment.mutateAsync({
         method: paymentMethod,
-        amount: paymentAmount,
-        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+        amount: parsedPaymentAmount,
+        // Required for credit (the tab being charged); optional attribution
+        // for every other method.
+        customerId: paymentCustomerId,
       })
+      setPaymentAmount("")
       toast.success("Payment recorded across the table")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -110,7 +109,7 @@ export function TableSessionCheckout({
 
       <div className="space-y-1.5">
         {orders.map((order) => (
-          <OrderWithItems key={order.id} order={order} receiptHref={receiptPath(order.id)} />
+          <OrderWithItems key={order.id} order={order} />
         ))}
       </div>
 
@@ -119,56 +118,62 @@ export function TableSessionCheckout({
         <span>{totalDue}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Select
-          value={paymentMethod}
-          onValueChange={(value) => value && setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ORDER_PAYMENT_METHODS.map((method) => (
-              <SelectItem key={method} value={method}>
-                {method}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
+      <div className="space-y-1.5">
+        <span className="text-sm font-medium">Amount</span>
         <Input
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
+          placeholder="Enter amount"
           value={paymentAmount}
-          onChange={(e) => setPaymentAmount(Number(e.target.value))}
+          onChange={(e) => {
+            const next = e.target.value
+            if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+          }}
         />
       </div>
-      {paymentMethod === "credit" && (
-        <Select
-          value={creditCustomerId ? String(creditCustomerId) : ""}
-          onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
-        >
-          <SelectTrigger className="w-full" disabled={customersLoading}>
-            <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
-          </SelectTrigger>
-          <SelectContent>
-            {customers?.data.map((customer) => (
-              <SelectItem key={customer.id} value={String(customer.id)}>
-                {customer.name}
-                {customer.phone ? ` (${customer.phone})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      {/* Shown for every payment method now, not just credit — required
+          when charging a tab, optional attribution otherwise. */}
+      <Select
+        value={paymentCustomerId ? String(paymentCustomerId) : "none"}
+        onValueChange={(value) => {
+          if (value === "create") {
+            setCreateCustomerOpen(true)
+            return
+          }
+          setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)
+        }}
+      >
+        <SelectTrigger className="w-full" disabled={customersLoading}>
+          <SelectValue
+            placeholder={customersLoading ? "Loading…" : paymentMethod === "credit" ? "Charge to customer's tab" : "No customer"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+          <SelectItem value="create">+ Create customer</SelectItem>
+          {customers?.data.map((customer) => (
+            <SelectItem key={customer.id} value={String(customer.id)}>
+              {customer.name}
+              {customer.phone ? ` (${customer.phone})` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <CreateCustomerDialog
+        open={createCustomerOpen}
+        onOpenChange={setCreateCustomerOpen}
+        onCreated={(customer) => setPaymentCustomerId(customer.id)}
+      />
       <Button
         variant="outline"
         size="sm"
         onClick={handlePay}
         disabled={
           createPayment.isPending ||
-          paymentAmount <= 0 ||
+          !isValidPaymentAmount ||
           !isOnline ||
-          (paymentMethod === "credit" && !creditCustomerId)
+          (paymentMethod === "credit" && !paymentCustomerId)
         }
       >
         {createPayment.isPending ? "Recording..." : "Pay across table"}
@@ -187,7 +192,7 @@ export function TableSessionCheckout({
 }
 
 /** One order's summary plus its item list — not-served items first, so the cashier sees at a glance what's still outstanding before what's already gone out. */
-function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: string }) {
+function OrderWithItems({ order }: { order: Order }) {
   const { data: items } = useOrderItems(order.id)
   const { data: foods } = useFoods({ limit: 100 })
   const { data: variants } = useFoodVariants({ limit: 100 })
@@ -212,14 +217,14 @@ function OrderWithItems({ order, receiptHref }: { order: Order; receiptHref: str
             <p>{order.grandTotal}</p>
             <p className="text-muted-foreground">Due {order.dueAmount}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="View / print bill"
-            render={<Link href={receiptHref} target="_blank" rel="noopener noreferrer" />}
-          >
-            <PrinterIcon className="size-4" />
-          </Button>
+          <BillReceiptDialog
+            orderId={order.id}
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="View / print bill">
+                <PrinterIcon className="size-4" />
+              </Button>
+            }
+          />
         </div>
       </div>
       {sortedItems.length > 0 && (

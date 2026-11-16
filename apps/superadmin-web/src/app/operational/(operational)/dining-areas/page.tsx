@@ -24,7 +24,11 @@ const columns: ColumnDef<DiningArea>[] = [
 
 export default function DiningAreasPage() {
   const pathname = usePathname()
-  const basePath = pathname?.startsWith("/dashboard") ? "/dashboard/dining-areas" : "/operational/dining-areas"
+  // Mounted at several routes (operational floor management, dashboard's
+  // editable dining-area list, dashboard's read-only "view" list) — derive
+  // the base path from wherever it's actually rendered instead of
+  // hardcoding one, so row links stay on the same route family.
+  const basePath = pathname || "/operational/dining-areas"
   const { outletId } = useActiveOutlet()
   const { data, isLoading } = useDiningAreas({ limit: 100, outletId: outletId ?? undefined })
   const showSkeleton = useDelayedLoading(isLoading)

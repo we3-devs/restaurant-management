@@ -21,6 +21,7 @@ import { tableSessionName, useOpenTableSession, useTableSessions } from "@rms/ap
 import { ORDER_TYPES } from "@rms/validators/orders"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 
 type OrderType = (typeof ORDER_TYPES)[number]
 
@@ -56,6 +57,7 @@ export function StartSaleDialog({
   )
   const [guestCount, setGuestCount] = useState(2)
   const [customerId, setCustomerId] = useState<string>("")
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
 
   // Arriving via a table-card click on /floor (?tableId=...) — jump straight
   // into the walk-in form pre-filled for that table instead of making the
@@ -63,6 +65,10 @@ export function StartSaleDialog({
   // (it mounts this component in response to the same preselectedTableId);
   // this only owns the form fields. Adjusts state during render (not an
   // effect) — same idiom as useStartSaleDialogState/CheckoutPanel.
+  const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
+  const availableTables = tables.filter((table) => table.status === "available")
+  const preselectedTable = tables.find((table) => table.id === preselectedTableId)
+
   const [seededTableId, setSeededTableId] = useState<number | undefined>(
     preselectedTableId,
   )
@@ -71,11 +77,8 @@ export function StartSaleDialog({
     setOrderType("table")
     setTableSessionId("")
     setNewTableId(String(preselectedTableId))
+    setGuestCount(preselectedTable?.capacity ?? 2)
   }
-
-  const { data: sessions } = useTableSessions({ outletId, status: "active", limit: 100 })
-  const availableTables = tables.filter((table) => table.status === "available")
-  const preselectedTable = tables.find((table) => table.id === preselectedTableId)
   const { data: customers } = useCustomers({ limit: 100 })
   const openTableSession = useOpenTableSession()
   const createOrder = useCreateOrder()
@@ -106,7 +109,7 @@ export function StartSaleDialog({
         const result = await openTableSession.mutateAsync({
           outletId,
           diningTableId: Number(newTableId),
-          guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount,
+          guestCount,
           customerId: customerId ? Number(customerId) : undefined,
           orderType,
         })
@@ -136,7 +139,7 @@ export function StartSaleDialog({
     let orderId: number
     if (orderType === "table" && !tableSessionId) {
       if (!newTableId) throw new Error("Pick an active table or seat a walk-in table first")
-      const result = await openTableSessionOverride.mutateAsync({ outletId, diningTableId: Number(newTableId), guestCount: preselectedTableId ? (preselectedTable?.capacity ?? 1) : guestCount, customerId: customerId ? Number(customerId) : undefined, orderType })
+      const result = await openTableSessionOverride.mutateAsync({ outletId, diningTableId: Number(newTableId), guestCount, customerId: customerId ? Number(customerId) : undefined, orderType })
       if (!result?.order) throw new Error("Table session opened but no order was returned")
       orderId = result.order.id
     } else {
@@ -165,13 +168,32 @@ export function StartSaleDialog({
                 <Input value={preselectedTable?.name ?? "Loading…"} disabled />
               </div>
               <div className="space-y-1.5">
+                <Label>No. of customers</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label>Customer (optional)</Label>
-                <Select value={customerId || "none"} onValueChange={(value) => setCustomerId(value === "none" ? "" : (value ?? ""))}>
+                <Select
+                  value={customerId || "none"}
+                  onValueChange={(value) => {
+                    if (value === "create") {
+                      setCreateCustomerOpen(true)
+                      return
+                    }
+                    setCustomerId(value === "none" ? "" : (value ?? ""))
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Walk-in" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Walk-in (no customer)</SelectItem>
+                    <SelectItem value="create">+ Create customer</SelectItem>
                     {customers?.data.map((customer) => (
                       <SelectItem key={customer.id} value={String(customer.id)}>
                         {customer.name}
@@ -179,6 +201,11 @@ export function StartSaleDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <CreateCustomerDialog
+                  open={createCustomerOpen}
+                  onOpenChange={setCreateCustomerOpen}
+                  onCreated={(customer) => setCustomerId(String(customer.id))}
+                />
               </div>
             </>
           ) : (

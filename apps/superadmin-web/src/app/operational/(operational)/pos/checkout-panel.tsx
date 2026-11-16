@@ -1,8 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { PrinterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -17,10 +15,12 @@ import {
   AlertDialogTrigger,
 } from "@rms/ui/alert-dialog"
 import { Badge } from "@rms/ui/badge"
+import { BillReceiptDialog } from "@rms/ui/bill-receipt-dialog"
 import { BillSummary } from "@rms/ui/bill-summary"
 import { Button } from "@rms/ui/button"
 import { Input } from "@rms/ui/input"
 import { OrderDiscountForm } from "@rms/ui/order-discount-form"
+import { PaymentMethodPicker } from "@rms/ui/payment-method-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@rms/ui/select"
 import { Separator } from "@rms/ui/separator"
 import { useCreateOrderPayment, useOrderPayments } from "@rms/api-client/hooks/use-order-payments"
@@ -35,6 +35,7 @@ import { useOnlineStatus } from "@rms/api-client/offline/online-status"
 import { ORDER_PAYMENT_METHODS } from "@rms/validators/orders"
 import { calculatePaymentTotals } from "@rms/validators/payment-totals"
 import { TableSessionCheckout } from "./table-session-checkout"
+import { CreateCustomerDialog } from "./create-customer-dialog"
 import { useOperatingHours } from "@rms/api-client/hooks/use-operating-hours"
 import { ClosedHoursOverrideButton } from "@/components/closed-hours-override-button"
 import { useCurrentUser } from "@rms/auth/current-user-context"
@@ -49,11 +50,6 @@ export function CheckoutPanel({
   /** Order-taking/receipt route this panel navigates into — desktop POS by default, staff mobile passes its own route. */
   basePath?: string
 }) {
-  // basePath is the order-taking route ("/operational/pos" or "/operational/staff/pos"), but
-  // the receipt page doesn't live under it — it's its own top-level
-  // staff-shell page (see staff/nav-items.ts) — so derive it separately
-  // rather than nesting off basePath.
-  const receiptPath = basePath.startsWith("/operational/staff") ? `/operational/staff/pos/receipt/${orderId}` : `/operational/pos/receipt/${orderId}`
   const { data: order } = useOrder(orderId)
   const { data: orderItems } = useOrderItems(orderId)
   const { data: payments } = useOrderPayments(orderId)
@@ -84,8 +80,15 @@ export function CheckoutPanel({
   )
 
   const [paymentMethod, setPaymentMethod] = useState<(typeof ORDER_PAYMENT_METHODS)[number]>("cash")
-  const [paymentAmount, setPaymentAmount] = useState(0)
-  const [creditCustomerId, setCreditCustomerId] = useState<number | undefined>(undefined)
+  // Raw text, not a number: starts empty and is never auto-filled from the
+  // due amount, so it can't silently snap to a stale figure while an order
+  // update is still in flight, and staff always type the exact amount
+  // they're actually handed rather than trusting a pre-filled guess.
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const parsedPaymentAmount = Number(paymentAmount)
+  const isValidPaymentAmount = paymentAmount.trim() !== "" && Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
+  const [paymentCustomerId, setPaymentCustomerId] = useState<number | undefined>(undefined)
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false)
   const { data: customers, isLoading: customersLoading } = useCustomers({ limit: 50 })
 
   // Prefer the payment ledger for the visible totals. The order detail may be
@@ -94,25 +97,12 @@ export function CheckoutPanel({
   const paidAmount = paymentTotals?.paidAmount ?? order?.paidAmount ?? 0
   const displayedDueAmount = paymentTotals?.dueAmount ?? order?.dueAmount ?? 0
 
-  // Re-seed the editable totals/payment-amount fields whenever a different
-  // order loads, or the due amount changes after a payment — without an
-  // effect, per React's "adjusting state when a prop changes" pattern.
-  const [seededDueAmount, setSeededDueAmount] = useState<number | null>(null)
-  if (order && displayedDueAmount !== seededDueAmount) {
-    setSeededDueAmount(displayedDueAmount)
-    setPaymentAmount(displayedDueAmount)
-  }
-
-  // Items still sitting in the cart (added but never "Send to kitchen"'d, or
-  // held) — these specifically block sending, not just completing.
-  const unsentItemCount = (orderItems?.data ?? []).filter(
-    (item) => item.status === "stock_reserved",
-  ).length
-  // Anything not yet 'served' (or voided) keeps the order from reaching
-  // 'served', which is normally the only status 'completed' can follow — so
-  // the backend rejects a plain complete. Surface that up front instead of
-  // letting the cashier hit a confusing generic error, and offer the
-  // force-complete override (voids these items) instead of a hard block.
+  // Anything not yet 'served' (or voided) — including items still sitting in
+  // the cart, never sent to kitchen. Purely informational for the main
+  // Complete button ("Complete sale" passes autoServe, which marks all of
+  // these served instead of requiring the normal serve step first); still
+  // gates the separate destructive "void instead" option below, which needs
+  // orders.delete.
   const unservedItemCount = (orderItems?.data ?? []).filter(
     (item) => item.status !== "served" && item.status !== "cancelled",
   ).length
@@ -120,12 +110,12 @@ export function CheckoutPanel({
   if (!order) return null
 
   async function handleAddPayment() {
-    if (paymentAmount <= 0) return
+    if (!isValidPaymentAmount) return
     if (!isOnline) {
       toast.error("You're offline — reconnect to record a payment")
       return
     }
-    if (paymentMethod === "credit" && !creditCustomerId) {
+    if (paymentMethod === "credit" && !paymentCustomerId) {
       toast.error("Select a customer to charge this to their tab")
       return
     }
@@ -133,9 +123,12 @@ export function CheckoutPanel({
       await createPayment.mutateAsync({
         type: "payment",
         method: paymentMethod,
-        amount: paymentAmount,
-        customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+        amount: parsedPaymentAmount,
+        // Required for credit (the tab being charged); optional attribution
+        // for every other method.
+        customerId: paymentCustomerId,
       })
+      setPaymentAmount("")
       toast.success("Payment recorded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record payment")
@@ -149,7 +142,13 @@ export function CheckoutPanel({
       return
     }
     try {
-      await updateStatus.mutateAsync("completed")
+      // autoServe is a no-op when everything's already served — passing it
+      // unconditionally means "Complete sale" always just works instead of
+      // staff having to separately mark every item served first. Unlike
+      // force (below), it doesn't drop anything from the bill: unserved
+      // items are marked served, not voided, so the sale still charges and
+      // consumes stock for them normally.
+      await updateStatus.mutateAsync({ status: "completed", autoServe: true })
       // Stay put instead of bouncing to the receipt page — the bill can be
       // printed from the button above whenever it's needed, before or after
       // completion.
@@ -161,7 +160,7 @@ export function CheckoutPanel({
 
   async function handleCompleteSaleOverride() {
     if (!order) return
-    await updateStatusOverride.mutateAsync("completed")
+    await updateStatusOverride.mutateAsync({ status: "completed", autoServe: true })
     toast.success(order.subtotal === 0 ? "Table closed — no sale" : "Sale complete")
   }
 
@@ -186,10 +185,7 @@ export function CheckoutPanel({
   return (
     <div className="space-y-3 border-t border-input pt-3">
       <div className="flex justify-end">
-        <Button variant="outline" size="sm" render={<Link href={receiptPath} target="_blank" rel="noopener noreferrer" />}>
-          <PrinterIcon />
-          View / print bill
-        </Button>
+        <BillReceiptDialog orderId={orderId} />
       </div>
 
       <BillSummary order={{ ...order, paidAmount, dueAmount: displayedDueAmount }} />
@@ -222,42 +218,53 @@ export function CheckoutPanel({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={paymentMethod}
-              onValueChange={(value) => {
-                if (!value) return
-                setPaymentMethod(value as (typeof ORDER_PAYMENT_METHODS)[number])
-                if (value === "credit") setCreditCustomerId(order.customerId ?? undefined)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ORDER_PAYMENT_METHODS.map((method) => (
-                  <SelectItem key={method} value={method}>
-                    {method}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <PaymentMethodPicker
+            value={paymentMethod}
+            onChange={(method) => {
+              setPaymentMethod(method)
+              if (method === "credit") setPaymentCustomerId(order.customerId ?? undefined)
+            }}
+          />
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium">Amount</span>
             <Input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              placeholder="Enter amount"
               value={paymentAmount}
-              onChange={(e) => setPaymentAmount(Number(e.target.value))}
+              onChange={(e) => {
+                const next = e.target.value
+                // Digits and at most one decimal point — text input (not
+                // type="number") so the field can be genuinely empty and
+                // has no increment/decrement spinner.
+                if (/^\d*\.?\d*$/.test(next)) setPaymentAmount(next)
+              }}
             />
           </div>
-          {paymentMethod === "credit" && (
+          {/* Shown for every payment method now, not just credit — required
+              when charging a tab, optional attribution otherwise (e.g. so a
+              cash/card payment's receipt/history shows who paid). */}
+          <>
             <Select
-              value={creditCustomerId ? String(creditCustomerId) : ""}
-              onValueChange={(value) => setCreditCustomerId(value ? Number(value) : undefined)}
+              value={paymentCustomerId ? String(paymentCustomerId) : "none"}
+              onValueChange={(value) => {
+                if (value === "create") {
+                  setCreateCustomerOpen(true)
+                  return
+                }
+                setPaymentCustomerId(value && value !== "none" ? Number(value) : undefined)
+              }}
             >
               <SelectTrigger className="w-full" disabled={customersLoading}>
-                <SelectValue placeholder={customersLoading ? "Loading…" : "Charge to customer's tab"} />
+                <SelectValue
+                  placeholder={
+                    customersLoading ? "Loading…" : paymentMethod === "credit" ? "Charge to customer's tab" : "No customer"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
+                {paymentMethod !== "credit" && <SelectItem value="none">No customer</SelectItem>}
+                <SelectItem value="create">+ Create customer</SelectItem>
                 {customers?.data.map((customer) => (
                   <SelectItem key={customer.id} value={String(customer.id)}>
                     {customer.name}
@@ -266,16 +273,21 @@ export function CheckoutPanel({
                 ))}
               </SelectContent>
             </Select>
-          )}
+            <CreateCustomerDialog
+              open={createCustomerOpen}
+              onOpenChange={setCreateCustomerOpen}
+              onCreated={(customer) => setPaymentCustomerId(customer.id)}
+            />
+          </>
           <Button
             variant="outline"
             size="sm"
             onClick={handleAddPayment}
             disabled={
               createPayment.isPending ||
-              paymentAmount <= 0 ||
+              !isValidPaymentAmount ||
               !isOnline ||
-              (paymentMethod === "credit" && !creditCustomerId)
+              (paymentMethod === "credit" && !paymentCustomerId)
             }
           >
             {createPayment.isPending ? "Recording..." : "Add payment"}
@@ -287,58 +299,57 @@ export function CheckoutPanel({
               await createPaymentOverride.mutateAsync({
                 type: "payment",
                 method: paymentMethod,
-                amount: paymentAmount,
-                customerId: paymentMethod === "credit" ? creditCustomerId : undefined,
+                amount: parsedPaymentAmount,
+                customerId: paymentCustomerId,
               })
+              setPaymentAmount("")
               toast.success("Payment recorded")
             }}
           />
 
-          {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline ? (
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleCompleteSale}
+            disabled={displayedDueAmount > 0 || updateStatus.isPending || !isOnline}
+          >
+            {!isOnline
+              ? "Offline"
+              : displayedDueAmount > 0
+                ? `Due ${displayedDueAmount}`
+                : unservedItemCount > 0
+                  ? `Complete sale (${unservedItemCount} unserved item${unservedItemCount === 1 ? "" : "s"} will auto-serve)`
+                  : "Complete sale"}
+          </Button>
+
+          {displayedDueAmount <= 0 && unservedItemCount > 0 && canForceComplete && isOnline && (
             <AlertDialog>
               <AlertDialogTrigger
                 render={
-                  <Button className="w-full" size="lg" variant="destructive" disabled={updateStatus.isPending}>
-                    {unsentItemCount > 0
-                      ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen, or complete anyway`
-                      : `Complete anyway (${unservedItemCount} unserved)`}
+                  <Button className="w-full" size="sm" variant="outline" disabled={updateStatus.isPending}>
+                    Void {unservedItemCount} unserved item{unservedItemCount === 1 ? "" : "s"} instead
                   </Button>
                 }
               />
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Complete without full service?</AlertDialogTitle>
+                  <AlertDialogTitle>Void unserved items and complete?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet.
-                    Completing now voids {unservedItemCount === 1 ? "it" : "them"} (releasing any reserved stock) and
-                    closes out the table. This cannot be undone.
+                    {unservedItemCount} item{unservedItemCount === 1 ? " hasn't" : "s haven't"} been served yet. This
+                    drops {unservedItemCount === 1 ? "it" : "them"} from the bill entirely (releasing any reserved
+                    stock) instead of charging for and serving {unservedItemCount === 1 ? "it" : "them"} — use this
+                    only when the guest genuinely didn&apos;t get {unservedItemCount === 1 ? "it" : "them"}. This cannot be
+                    undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction variant="destructive" onClick={handleForceCompleteSale}>
-                    Complete anyway
+                    Void and complete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : (
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleCompleteSale}
-              disabled={displayedDueAmount > 0 || unservedItemCount > 0 || updateStatus.isPending || !isOnline}
-            >
-              {!isOnline
-                ? "Offline"
-                : displayedDueAmount > 0
-                  ? `Due ${displayedDueAmount}`
-                  : unsentItemCount > 0
-                    ? `Send ${unsentItemCount} item${unsentItemCount === 1 ? "" : "s"} to kitchen first`
-                    : unservedItemCount > 0
-                      ? `${unservedItemCount} item${unservedItemCount === 1 ? "" : "s"} not yet served`
-                      : "Complete sale"}
-            </Button>
           )}
           <ClosedHoursOverrideButton
             closed={operatingHours?.enabled === true && operatingHours.isOpen === false}

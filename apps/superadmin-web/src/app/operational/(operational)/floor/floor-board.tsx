@@ -60,7 +60,16 @@ function useArrivingSoonByTable(outletId: number): Map<number, string> {
   }, [arrivingSoon, assignments])
 }
 
-export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?: string }) {
+export function FloorBoard({
+  outletId,
+  basePath,
+  showHeader = true,
+}: {
+  outletId: number
+  basePath?: string
+  /** The staff-shell Tables page already has its own "Tables" page header, so this banner would be redundant there. */
+  showHeader?: boolean
+}) {
   const { data: areas, isLoading } = useDiningAreas({ outletId, limit: 100 })
   const showSkeleton = useDelayedLoading(isLoading)
   const arrivingSoonByTable = useArrivingSoonByTable(outletId)
@@ -80,17 +89,19 @@ export function FloorBoard({ outletId, basePath }: { outletId: number; basePath?
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <LayoutGridIcon className="size-4 text-primary" />
-          <div>
-            <p className="text-sm font-medium">Floor map</p>
-            <p className="text-xs text-muted-foreground">
-              Dashboard-configured floor plan. Tap a table to start a sale.
-            </p>
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <LayoutGridIcon className="size-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Floor map</p>
+              <p className="text-xs text-muted-foreground">
+                Dashboard-configured floor plan. Tap a table to start a sale.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       {showSkeleton && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
@@ -138,7 +149,6 @@ function AreaSection({
         {tables.length === 0 && <p className="col-span-2 py-8 text-center text-sm text-muted-foreground">No tables in this area yet.</p>}
       </div>
       <div className="relative hidden h-[340px] overflow-hidden rounded-xl border bg-muted/20 [background-image:linear-gradient(to_right,hsl(var(--border)/.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/.35)_1px,transparent_1px)] [background-size:32px_32px] sm:block">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-amber-500/[0.04]" />
         {tables.map((table, index) => (
           <MapTable key={table.id} table={table} index={index} arrivingAt={arrivingSoonByTable.get(table.id)} basePath={basePath} />
         ))}
@@ -156,7 +166,7 @@ function getPosition(index: number, position?: { x: number; y: number }) {
 function MapTable({ table, index, arrivingAt, basePath }: { table: DiningTable; index: number; arrivingAt?: string; basePath?: string }) {
   const point = getPosition(index, { x: table.positionX, y: table.positionY })
   return (
-    <div className="absolute w-28 -translate-x-1/2 -translate-y-1/2" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
+    <div className="absolute w-20 -translate-x-1/2 -translate-y-1/2 sm:w-28" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
       <TableCard table={table} arrivingAt={arrivingAt} basePath={basePath} />
     </div>
   )

@@ -38,10 +38,14 @@ function readCart(orderId: number): LocalCartItem[] {
  */
 export function useLocalCart(orderId: number) {
   const [items, setItems] = useState<LocalCartItem[]>(() => readCart(orderId))
-
-  useEffect(() => {
+  // Switching orders loads that order's saved cart during render, not in an
+  // effect — an effect let the persist effect below write the previous
+  // order's items under the new order's key for one render.
+  const [cartOrderId, setCartOrderId] = useState(orderId)
+  if (cartOrderId !== orderId) {
+    setCartOrderId(orderId)
     setItems(readCart(orderId))
-  }, [orderId])
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return

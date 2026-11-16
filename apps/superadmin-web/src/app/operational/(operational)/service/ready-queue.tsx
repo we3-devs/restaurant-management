@@ -49,14 +49,28 @@ function ReadyGroupCard({
   const markServed = useMarkOrderReadyItemServed(group.orderId, outletId)
   const markAllServed = useMarkOrderReadyItemsServed(group.orderId, outletId)
   const [confirming, setConfirming] = useState<number | null>(null)
+  // markServed is one shared mutation instance for every item in this card
+  // (mutateAsync can run several calls concurrently, but its own .isPending
+  // reflects "at least one is in flight" across all of them) — tracking
+  // per-item pending state here instead of trusting the shared flag is what
+  // lets staff tap "Deliver" on several items at once instead of every other
+  // button in the card locking up while one item's request is in flight.
+  const [pendingItemIds, setPendingItemIds] = useState<Set<number>>(new Set())
 
   async function handleDeliver(itemId: number) {
+    setPendingItemIds((prev) => new Set(prev).add(itemId))
     try {
       await markServed.mutateAsync(itemId)
       setConfirming(null)
       toast.success("Item delivered")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to mark delivered")
+    } finally {
+      setPendingItemIds((prev) => {
+        const next = new Set(prev)
+        next.delete(itemId)
+        return next
+      })
     }
   }
 
@@ -84,7 +98,7 @@ function ReadyGroupCard({
         </div>
         <Button
           size="sm"
-          disabled={markAllServed.isPending || markServed.isPending}
+          disabled={markAllServed.isPending || pendingItemIds.size > 0}
           onClick={handleDeliverAll}
         >
           <PackageCheckIcon />
@@ -103,12 +117,21 @@ function ReadyGroupCard({
             {confirming === item.id ? (
               <div className="flex shrink-0 items-center gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button>
-                <Button size="sm" disabled={markServed.isPending} onClick={() => handleDeliver(item.id)}>
-                  <PackageCheckIcon /> Confirm
+                <Button
+                  size="sm"
+                  disabled={pendingItemIds.has(item.id) || markAllServed.isPending}
+                  onClick={() => handleDeliver(item.id)}
+                >
+                  <PackageCheckIcon /> {pendingItemIds.has(item.id) ? "Delivering..." : "Confirm"}
                 </Button>
               </div>
             ) : (
-              <Button size="sm" variant="outline" disabled={markServed.isPending} onClick={() => setConfirming(item.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pendingItemIds.has(item.id) || markAllServed.isPending}
+                onClick={() => setConfirming(item.id)}
+              >
                 <PackageCheckIcon /> Deliver
               </Button>
             )}
