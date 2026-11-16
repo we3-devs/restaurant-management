@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -36,6 +37,11 @@ export class ListReportQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   credited?: boolean;
+
+  @ApiPropertyOptional({ enum: ['all', 'sales', 'credit'], description: 'For sales-items: all rows, paid non-credit sales, or customer-credit orders' })
+  @IsOptional()
+  @IsIn(['all', 'sales', 'credit'])
+  category?: 'all' | 'sales' | 'credit';
 
   @ApiPropertyOptional({ description: 'ASC or DESC, defaults to DESC' })
   @IsOptional()

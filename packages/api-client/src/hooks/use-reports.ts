@@ -53,6 +53,7 @@ export interface ReportParams {
   page?: number
   limit?: number
   credited?: boolean
+  category?: "all" | "sales" | "credit"
 }
 
 export function useReport(type: ReportType, params: ReportParams, options?: { enabled?: boolean }) {

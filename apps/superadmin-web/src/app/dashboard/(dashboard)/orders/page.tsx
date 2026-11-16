@@ -47,6 +47,7 @@ const createColumns = (customerNameFor: (order: Order) => string): ColumnDef<Ord
 export default function OrdersTrackingPage() {
   const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [category, setCategory] = useState<"all" | "sales" | "credit">("all")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [range, setRange] = useState<DateRange>(defaultRange)
@@ -69,6 +70,7 @@ export default function OrdersTrackingPage() {
     search: search.trim() || undefined,
     outletId: outletId ?? undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
+    category: category === "all" ? undefined : category,
     createdFrom: range.dateFrom,
     createdTo: range.dateTo,
   })
@@ -89,11 +91,14 @@ export default function OrdersTrackingPage() {
 
   return (
     <div className="page-shell space-y-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Orders</h1>
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={(value) => { setRange(value); setPage(1) }} /><Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value ?? "all"); setPage(1) }}><SelectTrigger id="order-status" className="h-8 w-32 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{ORDER_STATUSES.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="sm" disabled={!data || data.data.length === 0} onClick={exportOrders}><DownloadIcon /> Export CSV</Button></div>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Orders</h1>
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><DateRangeFilter compact value={range} onChange={(value) => { setRange(value); setPage(1) }} /><div className="flex flex-wrap items-center gap-2"><Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value ?? "all"); setPage(1) }}><SelectTrigger id="order-status" className="h-8 w-32 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{ORDER_STATUSES.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="sm" disabled={!data || data.data.length === 0} onClick={exportOrders}><DownloadIcon /> Export CSV</Button></div></div>
+      <div className="flex w-full flex-wrap items-center gap-2">
+        <Input id="order-search" className="h-9 min-w-[220px] flex-1" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search orders or customers..." />
+        <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-card p-1">
+          {([['all', 'All orders'], ['sales', 'Sales'], ['credit', 'Credit']] as const).map(([value, label]) => <Button key={value} size="sm" variant={category === value ? "default" : "ghost"} onClick={() => { setCategory(value); setPage(1) }}>{label}</Button>)}
+        </div>
       </div>
-      <div className="mt-3 max-w-md"><Input id="order-search" className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search orders or customers..." /></div>
 
       {showSkeleton ? (
         <TableSkeleton rows={PAGE_SIZE} columns={columns.length} />

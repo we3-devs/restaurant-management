@@ -23,6 +23,7 @@ interface ResolvedQuery {
   to: Date;
   search?: string;
   credited?: boolean;
+  category?: 'all' | 'sales' | 'credit';
   sortDir: 'ASC' | 'DESC';
   page: number;
   limit: number;
@@ -56,6 +57,7 @@ export class ReportsService {
       to,
       search: query.search,
       credited: query.credited,
+      category: query.category,
       sortDir: query.sortDir === 'ASC' ? 'ASC' : 'DESC',
       page: forExport ? 1 : query.page,
       limit: forExport ? EXPORT_ROW_CAP : query.limit,
@@ -243,7 +245,10 @@ export class ReportsService {
       .orderBy('"totalCost"', resolved.sortDir);
     if (resolved.outletIds !== undefined) qb.andWhere('order.outlet_id IN (:...outletIds)', { outletIds: resolved.outletIds });
     if (resolved.search) qb.andWhere('(order.order_number ILIKE :search OR food.name ILIKE :search)', { search: `%${resolved.search}%` });
-    if (resolved.credited !== undefined) qb.andWhere(`${creditedSql} = :credited`, { credited: resolved.credited });
+    if (resolved.category === 'credit') qb.andWhere(creditedSql);
+    else if (resolved.category === 'sales') {
+      qb.andWhere("order.payment_status = 'paid'").andWhere(`NOT ${creditedSql}`);
+    } else if (resolved.credited !== undefined) qb.andWhere(`${creditedSql} = :credited`, { credited: resolved.credited });
     const { data, total } = await this.paginateRaw(qb, resolved);
     return { data, meta: this.meta(resolved.page, resolved.limit, total) };
   }

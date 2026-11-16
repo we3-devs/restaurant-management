@@ -17,6 +17,11 @@ const ORDER_STATUSES: OrderStatus[] = [
 ];
 
 export class ListOrdersQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: ['sales', 'credit'], description: 'Optional order category filter' })
+  @IsOptional()
+  @IsIn(['sales', 'credit'])
+  category?: 'sales' | 'credit';
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
