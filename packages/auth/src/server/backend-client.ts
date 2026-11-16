@@ -37,6 +37,7 @@ export async function backendFetch(
   init: RequestInit = {},
   options: SessionFetchOptions = {},
 ): Promise<Response> {
+  const tenantSlug = new Headers(init.headers).get("x-tenant-slug")
   return sessionFetch(
     {
       backendUrl: backendUrl(),
@@ -47,7 +48,8 @@ export async function backendFetch(
       clearSession: clearAuthCookies,
       unauthorizedError: new BackendUnauthorizedError(),
       unavailableError: new BackendUnavailableError(),
-      scope: "staff",
+      scope: tenantSlug ? `staff:${tenantSlug}` : "staff",
+      refreshHeaders: tenantSlug ? { "X-Tenant-Slug": tenantSlug } : undefined,
     },
     path,
     init,

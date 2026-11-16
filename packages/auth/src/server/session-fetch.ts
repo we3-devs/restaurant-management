@@ -11,6 +11,8 @@ export interface SessionFetchConfig {
   /** Thrown when the refresh fails for a transient reason (backend unreachable/5xx), so callers can tell it apart from a dead session. Defaults to unauthorizedError. */
   unavailableError?: Error
   scope: string
+  /** Context headers needed by tenant-aware refresh endpoints. Keep auth headers out of this set. */
+  refreshHeaders?: HeadersInit
 }
 
 export interface SessionFetchOptions {
@@ -53,9 +55,11 @@ async function fetchWithToken(url: string, init: RequestInit, token?: string): P
 async function redeem(config: SessionFetchConfig, refreshToken: string): Promise<RefreshResult> {
   let response: Response
   try {
+    const headers = new Headers(config.refreshHeaders)
+    headers.set("Content-Type", "application/json")
     response = await fetch(`${config.backendUrl}/api${config.refreshPath}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     })
@@ -65,7 +69,9 @@ async function redeem(config: SessionFetchConfig, refreshToken: string): Promise
   }
   if (!response.ok) {
     console.warn(`[auth] ${config.scope} refresh: backend returned ${response.status} ${(await response.text().catch(() => "")).slice(0, 200)}`)
-    return { tokens: null, invalid: response.status === 401 || response.status === 403 }
+    // 403 can mean missing/mismatched tenant context, not a dead session.
+    // Only an explicit 401 from the refresh endpoint proves the token invalid.
+    return { tokens: null, invalid: response.status === 401 }
   }
   const tokens = (await response.json()) as AuthTokens
   return { tokens, invalid: false }
