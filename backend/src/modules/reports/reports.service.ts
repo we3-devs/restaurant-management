@@ -270,22 +270,28 @@ export class ReportsService {
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
     const creditedSql = `EXISTS (SELECT 1 FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
+    const creditedAmountSql = `(SELECT COALESCE(SUM(credit.amount), 0) FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .addSelect("COALESCE(food_variant.name, food.name)", 'itemName')
       .addSelect('SUM(item.quantity)', 'quantity')
       .addSelect('SUM(item.total_amount) / NULLIF(SUM(item.quantity), 0)', 'unitCost')
       .addSelect('SUM(item.total_amount)', 'totalCost')
-      // Allocate an order's actual paid ratio across its items. This keeps
-      // unpaid/partial orders out of Paid instead of assuming every
-      // non-credit order is fully settled.
+      // Allocate paid, credited, and still-due amounts across each order's
+      // items, so the three columns reconcile to Total Cost.
       .addSelect(`SUM(item.total_amount * CASE
         WHEN order.grand_total <= 0 THEN 0
         ELSE LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
       END)`, 'paid')
       .addSelect(`SUM(item.total_amount * CASE
+        WHEN order.grand_total <= 0 THEN 0
+        ELSE LEAST(1, GREATEST(0, ${creditedAmountSql} / order.grand_total))
+      END)`, 'credited')
+      .addSelect(`SUM(item.total_amount * CASE
         WHEN order.grand_total <= 0 THEN 1
-        ELSE 1 - LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+        ELSE GREATEST(0, 1
+          - LEAST(1, GREATEST(0, order.paid_amount / order.grand_total))
+          - LEAST(1, GREATEST(0, ${creditedAmountSql} / order.grand_total)))
       END)`, 'notPaid')
       .from('order_items', 'item')
       .innerJoin('orders', 'order', 'order.id = item.order_id')

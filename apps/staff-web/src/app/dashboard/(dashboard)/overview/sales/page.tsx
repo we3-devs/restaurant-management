@@ -19,7 +19,7 @@ function isoDate(date: Date) { return date.toISOString().slice(0, 10) }
 function defaultRange() { const to = new Date(); return { dateFrom: isoDate(new Date(to.getTime() - 30 * 24 * 60 * 60_000)), dateTo: isoDate(to) } }
 function formatSalesValue(key: string, value: unknown) {
   if (value === null || value === undefined) return "—"
-  if (["unitCost", "totalCost", "paid", "notPaid"].includes(key)) return Number(value).toFixed(2)
+  if (["unitCost", "totalCost", "paid", "notPaid", "credited"].includes(key)) return Number(value).toFixed(2)
   return String(value)
 }
 

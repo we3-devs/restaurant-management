@@ -85,6 +85,7 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     { key: 'totalCost', header: 'Total Cost' },
     { key: 'paid', header: 'Paid' },
     { key: 'notPaid', header: 'Not Paid' },
+    { key: 'credited', header: 'Credited' },
   ],
   orders: [
     { key: 'orderNumber', header: 'Order #' },
