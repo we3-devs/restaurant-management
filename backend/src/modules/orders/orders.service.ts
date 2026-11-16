@@ -81,8 +81,9 @@ export const GUEST_ORDERED_BY = 'Guest';
 
 export type OrderListResponse = Omit<
   Order,
-  'tableSession' | 'customer' | 'createdByUser'
+  'tableSession' | 'customer' | 'createdByUser' | 'paymentStatus'
 > & {
+  paymentStatus: Order['paymentStatus'] | 'credited';
   tableName: string | null;
   customerName: string | null;
   /** Who placed the order — the staff user behind created_by, or 'Guest' for self-ordered QR/online orders where created_by is null. */
@@ -273,10 +274,28 @@ export class OrdersService {
     const billedByNames = await this.resolveBilledByNames(
       orders.map((order) => order.id),
     );
+    const creditedOrderIds = orders.length
+      ? new Set(
+          (
+            (await this.ordersRepository.manager
+              .createQueryBuilder()
+              .select('credit.order_id', 'orderId')
+              .from('customer_credit_transactions', 'credit')
+              .where('credit.type = :type', { type: 'charge' })
+              .andWhere('credit.order_id IN (:...orderIds)', {
+                orderIds: orders.map((order) => order.id),
+              })
+              .getRawMany<{ orderId: string | number }>()) ?? []
+          ).map((credit) => Number(credit.orderId)),
+        )
+      : new Set<number>();
 
     return {
       data: orders.map(({ tableSession, customer, createdByUser, ...order }) => ({
         ...order,
+        paymentStatus: creditedOrderIds.has(Number(order.id))
+          ? 'credited'
+          : order.paymentStatus,
         tableName: tableSession?.diningTable?.name ?? null,
         customerName: customer?.name ?? null,
         orderedByName: createdByUser?.name ?? GUEST_ORDERED_BY,

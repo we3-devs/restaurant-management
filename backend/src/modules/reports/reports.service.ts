@@ -235,7 +235,10 @@ export class ReportsService {
       .addSelect('order.tax_amount', 'taxAmount')
       .addSelect('order.service_charge_amount', 'serviceChargeAmount')
       .addSelect('order.grand_total', 'grandTotal')
-      .addSelect('order.payment_status', 'paymentStatus')
+      .addSelect(
+        `CASE WHEN ${creditedSql} THEN 'credited' ELSE order.payment_status END`,
+        'paymentStatus',
+      )
       .from('orders', 'order')
       .where("order.status != 'cancelled'")
       .andWhere('order.created_at BETWEEN :from AND :to', {
