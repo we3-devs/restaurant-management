@@ -62,8 +62,13 @@ export class AttendanceController {
     summary:
       'Clocks the logged-in employee in or out using an attendance QR code',
   })
-  async scanQr(@Body() dto: ScanAttendanceQrDto, @CurrentUser() user: User) {
-    return this.attendanceService.scanQr(dto, user.id);
+  async scanQr(
+    @Body() dto: ScanAttendanceQrDto,
+    @CurrentUser() user: User,
+    @Req() request: AuthenticatedRequest & { tenantId?: number },
+  ) {
+    const tenantId = this.assertTenant(request);
+    return this.attendanceService.scanQr(dto, user.id, tenantId);
   }
 
   @Get('me')
@@ -94,9 +99,14 @@ export class AttendanceController {
   @Post('clock-in')
   @RequirePermissions('attendance.manage')
   @ApiOperation({ summary: 'Clocks in an employee' })
-  async clockIn(@Body() dto: ClockInDto, @CurrentUser() user: User) {
+  async clockIn(
+    @Body() dto: ClockInDto,
+    @CurrentUser() user: User,
+    @Req() request: AuthenticatedRequest & { tenantId?: number },
+  ) {
+    const tenantId = this.assertTenant(request);
     await this.outletAccess.assertOutletAccess(user.id, dto.outletId);
-    return this.attendanceService.clockIn(dto, user.id);
+    return this.attendanceService.clockIn(dto, user.id, tenantId);
   }
 
   @Post('clock-out')

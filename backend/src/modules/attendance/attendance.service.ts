@@ -75,7 +75,7 @@ export class AttendanceService {
     };
   }
 
-  async scanQr(dto: ScanAttendanceQrDto, userId: number): Promise<Attendance> {
+  async scanQr(dto: ScanAttendanceQrDto, userId: number, tenantId: number): Promise<Attendance> {
     const station = await this.qrStationRepo.findOne({ where: { tokenHash: this.hashQrToken(dto.token) } });
     if (!station) throw new BadRequestException('Invalid attendance QR code');
     const employee = await this.employeeRepo.createQueryBuilder('employee')
@@ -85,9 +85,10 @@ export class AttendanceService {
       .andWhere('employee.employment_status = :employmentStatus', { employmentStatus: 'active' })
       .getOne();
     if (!employee) throw new BadRequestException('Your account is not linked to an active employee at this outlet');
+    await this.assertEmployeeAndOutletTenant(employee.id, station.outletId, tenantId);
 
     if (station.action === 'clock-in') {
-      return this.clockIn({ employeeId: employee.id, outletId: station.outletId }, userId);
+      return this.clockIn({ employeeId: employee.id, outletId: station.outletId }, userId, tenantId);
     }
     const attendance = await this.attendanceRepo.findOne({ where: { employeeId: employee.id, outletId: station.outletId, clockOut: IsNull() } });
     if (!attendance) throw new BadRequestException('You are not currently clocked in at this outlet');
@@ -140,12 +141,13 @@ export class AttendanceService {
   }
 
   async findAll(
-    query: ListAttendanceQueryDto,
+    query: ListAttendanceQueryDto & { tenantId: number },
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
   ): Promise<PaginatedResponse<Attendance>> {
     const {
       page,
       limit,
+      tenantId,
       employeeId,
       outletId,
       shiftId,
@@ -153,7 +155,7 @@ export class AttendanceService {
       dateFrom,
       dateTo,
     } = query;
-    const where: FindOptionsWhere<Attendance> = {};
+    const where: FindOptionsWhere<Attendance> = { outlet: { tenantId } };
     if (employeeId) where.employeeId = employeeId;
     if (outletId) where.outletId = outletId;
     else if (accessibleOutletIds !== 'ALL') where.outletId = In(accessibleOutletIds);
@@ -187,7 +189,8 @@ export class AttendanceService {
     return a;
   }
 
-  async clockIn(dto: ClockInDto, createdBy: number): Promise<Attendance> {
+  async clockIn(dto: ClockInDto, createdBy: number, tenantId: number): Promise<Attendance> {
+    await this.assertEmployeeAndOutletTenant(dto.employeeId, dto.outletId, tenantId);
     await this.operatingHoursService.assertOperational(dto.outletId);
     const existing = await this.attendanceRepo.findOne({
       where: {
@@ -250,6 +253,42 @@ export class AttendanceService {
       );
 
     return attendance;
+  }
+
+  private async assertEmployeeAndOutletTenant(
+    employeeId: number,
+    outletId: number,
+    tenantId: number,
+  ): Promise<void> {
+    const rows = await this.dataSource.query(
+      `SELECT 1
+       FROM employees employee
+       INNER JOIN outlets outlet ON outlet.id = $2 AND outlet.tenant_id = $3
+       INNER JOIN employee_outlet_assignments assignment
+         ON assignment.employee_id = employee.id
+        AND assignment.outlet_id = outlet.id
+        AND assignment.is_active = TRUE
+       LEFT JOIN users employee_user ON employee_user.id = employee.user_id
+       LEFT JOIN positions position ON position.id = employee.position_id
+       WHERE employee.id = $1 AND outlet.id = $2 AND outlet.tenant_id = $3
+         AND employee.is_active = TRUE
+         AND employee.employment_status = 'active'
+         AND (employee_user.id IS NULL OR employee_user.tenant_id = $3)
+         AND (position.id IS NULL OR position.tenant_id IS NULL OR position.tenant_id = $3)
+         AND NOT EXISTS (
+           SELECT 1
+           FROM employee_outlet_assignments other_assignment
+           INNER JOIN outlets other_outlet ON other_outlet.id = other_assignment.outlet_id
+           WHERE other_assignment.employee_id = employee.id
+             AND other_assignment.is_active = TRUE
+             AND other_outlet.tenant_id <> $3
+         )
+       LIMIT 1`,
+      [employeeId, outletId, tenantId],
+    );
+    if (!rows.length) {
+      throw new BadRequestException('Employee and outlet must belong to the authenticated tenant');
+    }
   }
 
   async clockOut(dto: ClockOutDto, createdBy: number): Promise<Attendance> {
