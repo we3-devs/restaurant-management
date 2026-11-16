@@ -113,8 +113,8 @@ export interface ListOrdersParams {
   excludeStatus?: string[]
   createdFrom?: string
   createdTo?: string
-  /** Superadmin order classification: fully paid non-credit sales or customer-credit orders. */
-  category?: "sales" | "credit"
+  /** Superadmin order payment bucket. */
+  category?: "paid" | "unpaid" | "credited"
 }
 
 export function useOrders(params: ListOrdersParams = {}, options?: { enabled?: boolean }) {

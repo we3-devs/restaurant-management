@@ -140,9 +140,10 @@ export default function ReportsPage() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState<string | null>(null)
-  const [creditedFilter, setCreditedFilter] = useState("all")
+  const [paymentCategory, setPaymentCategory] = useState<"all" | "paid" | "unpaid" | "credited">("all")
 
-  const params = { outletId, ...range, search: search || undefined, credited: reportType === "sales-items" && creditedFilter !== "all" ? creditedFilter === "credited" : undefined, page, limit: PAGE_SIZE }
+  const supportsPaymentCategory = reportType === "sales" || reportType === "sales-items"
+  const params = { outletId, ...range, search: search || undefined, category: supportsPaymentCategory ? paymentCategory : undefined, page, limit: PAGE_SIZE }
   const { data, isLoading, isPlaceholderData } = useReport(reportType, params)
   const showSkeleton = useDelayedLoading(isLoading)
 
@@ -161,8 +162,9 @@ export default function ReportsPage() {
 
   return (
     <div className="page-shell space-y-7">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reports</h1><div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><Select value={reportType} onValueChange={(v) => { if (!v) return; setReportType(v as ReportType); setPage(1); setSearch("") }}><SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger><SelectContent>{REPORT_TYPE_GROUPS.map((group) => <SelectGroup key={group.group}><SelectLabel>{group.group}</SelectLabel>{group.tabs.map((tab) => <SelectItem key={tab.value} value={tab.value}>{tab.label}</SelectItem>)}</SelectGroup>)}</SelectContent></Select><DateRangeFilter compact value={range} onChange={(v) => { setRange(v); setPage(1) }} />{reportType === "sales-items" && <Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}><SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited</SelectItem><SelectItem value="uncredited">Non-credited</SelectItem></SelectContent></Select>}<Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}><DownloadIcon /> {exporting === "csv" ? "Exporting..." : "Export CSV"}</Button></div></div>
-      <div className="mt-3 max-w-md"><Input className="h-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={SEARCH_PLACEHOLDER[reportType]} /></div>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Reports</h1>
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card/70 p-2 shadow-sm"><div className="flex flex-wrap items-center gap-2"><Select value={reportType} onValueChange={(v) => { if (!v) return; setReportType(v as ReportType); setPage(1); setSearch(""); setPaymentCategory("all") }}><SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger><SelectContent>{REPORT_TYPE_GROUPS.map((group) => <SelectGroup key={group.group}><SelectLabel>{group.group}</SelectLabel>{group.tabs.map((tab) => <SelectItem key={tab.value} value={tab.value}>{tab.label}</SelectItem>)}</SelectGroup>)}</SelectContent></Select><DateRangeFilter compact value={range} onChange={(v) => { setRange(v); setPage(1) }} /></div><Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}><DownloadIcon /> {exporting === "csv" ? "Exporting..." : "Export CSV"}</Button></div>
+      <div className="flex w-full flex-wrap items-center gap-2"><Input className="h-9 min-w-[220px] flex-1" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder={SEARCH_PLACEHOLDER[reportType]} />{supportsPaymentCategory && <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-card p-1">{([['all', 'All'], ['paid', 'Paid'], ['unpaid', 'Unpaid'], ['credited', 'Credited']] as const).map(([value, label]) => <Button key={value} size="sm" variant={paymentCategory === value ? "default" : "ghost"} onClick={() => { setPaymentCategory(value); setPage(1) }}>{label}</Button>)}</div>}</div>
 
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/70 p-2 shadow-sm">
         <div className="w-48 space-y-1">
@@ -204,7 +206,6 @@ export default function ReportsPage() {
             setPage(1)
           }}
         />
-        {reportType === "sales-items" && <div className="w-44 space-y-1.5"><label className="text-sm font-medium">Credit status</label><Select value={creditedFilter} onValueChange={(value) => { setCreditedFilter(value ?? "all"); setPage(1) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sales</SelectItem><SelectItem value="credited">Credited items</SelectItem><SelectItem value="uncredited">Non-credited items</SelectItem></SelectContent></Select></div>}
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="outline" size="sm" disabled={!!exporting} onClick={() => handleExport("csv")}>
             <DownloadIcon /> {exporting === "csv" ? "Exporting..." : "CSV"}

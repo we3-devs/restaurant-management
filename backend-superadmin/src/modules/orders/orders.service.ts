@@ -171,19 +171,21 @@ export class OrdersService {
     if (tableSessionId !== undefined) {
       baseWhere.tableSessionId = tableSessionId;
     }
-    if (category === 'sales') {
+    if (category === 'paid') {
       baseWhere.paymentStatus = 'paid';
+    } else if (category === 'unpaid') {
+      baseWhere.paymentStatus = In(['unpaid', 'partial']);
     }
-    if (category === 'credit') {
-      baseWhere.id = Raw((column) => `${column} IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge')`);
-    } else if (category === 'sales') {
-      baseWhere.id = Raw((column) => `${column} NOT IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge')`);
+    if (category === 'credited') {
+      baseWhere.id = Raw((column) => `${column} IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge' AND order_id IS NOT NULL)`);
+    } else if (category === 'paid' || category === 'unpaid') {
+      baseWhere.id = Raw((column) => `${column} NOT IN (SELECT order_id FROM customer_credit_transactions WHERE type = 'charge' AND order_id IS NOT NULL)`);
     }
     if (status !== undefined) {
       baseWhere.status = status;
     } else {
       const excludedStatuses = new Set(excludeStatus ?? []);
-      if (category === 'sales') excludedStatuses.add('cancelled');
+      if (category === 'paid' || category === 'unpaid') excludedStatuses.add('cancelled');
       if (excludedStatuses.size > 0) {
         baseWhere.status = Not(In([...excludedStatuses]));
       }

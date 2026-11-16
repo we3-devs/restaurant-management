@@ -38,10 +38,10 @@ export class ListReportQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === true || value === 'true')
   credited?: boolean;
 
-  @ApiPropertyOptional({ enum: ['all', 'sales', 'credit'], description: 'For sales-items: all rows, paid non-credit sales, or customer-credit orders' })
+  @ApiPropertyOptional({ enum: ['all', 'paid', 'unpaid', 'credited'], description: 'Filter sales reports by payment status or customer credit' })
   @IsOptional()
-  @IsIn(['all', 'sales', 'credit'])
-  category?: 'all' | 'sales' | 'credit';
+  @IsIn(['all', 'paid', 'unpaid', 'credited'])
+  category?: 'all' | 'paid' | 'unpaid' | 'credited';
 
   @ApiPropertyOptional({ description: 'ASC or DESC, defaults to DESC' })
   @IsOptional()

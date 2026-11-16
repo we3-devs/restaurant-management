@@ -47,7 +47,7 @@ const createColumns = (customerNameFor: (order: Order) => string): ColumnDef<Ord
 export default function OrdersTrackingPage() {
   const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [category, setCategory] = useState<"all" | "sales" | "credit">("all")
+  const [category, setCategory] = useState<"all" | "paid" | "unpaid" | "credited">("all")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [range, setRange] = useState<DateRange>(defaultRange)
@@ -96,7 +96,7 @@ export default function OrdersTrackingPage() {
       <div className="flex w-full flex-wrap items-center gap-2">
         <Input id="order-search" className="h-9 min-w-[220px] flex-1" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search orders or customers..." />
         <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-card p-1">
-          {([['all', 'All orders'], ['sales', 'Sales'], ['credit', 'Credit']] as const).map(([value, label]) => <Button key={value} size="sm" variant={category === value ? "default" : "ghost"} onClick={() => { setCategory(value); setPage(1) }}>{label}</Button>)}
+          {([['all', 'All orders'], ['paid', 'Paid'], ['unpaid', 'Unpaid'], ['credited', 'Credited']] as const).map(([value, label]) => <Button key={value} size="sm" variant={category === value ? "default" : "ghost"} onClick={() => { setCategory(value); setPage(1) }}>{label}</Button>)}
         </div>
       </div>
 

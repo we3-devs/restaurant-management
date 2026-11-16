@@ -23,7 +23,7 @@ interface ResolvedQuery {
   to: Date;
   search?: string;
   credited?: boolean;
-  category?: 'all' | 'sales' | 'credit';
+  category?: 'all' | 'paid' | 'unpaid' | 'credited';
   sortDir: 'ASC' | 'DESC';
   page: number;
   limit: number;
@@ -182,6 +182,7 @@ export class ReportsService {
   private async salesReport(
     resolved: ResolvedQuery,
   ): Promise<PaginatedResponse<Record<string, unknown>>> {
+    const creditedSql = `EXISTS (SELECT 1 FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
       .select('order.order_number', 'orderNumber')
@@ -208,6 +209,12 @@ export class ReportsService {
       qb.andWhere('order.order_number ILIKE :search', {
         search: `%${resolved.search}%`,
       });
+    }
+    if (resolved.category === 'credited') qb.andWhere(creditedSql);
+    else if (resolved.category === 'paid') {
+      qb.andWhere("order.payment_status = 'paid'").andWhere(`NOT ${creditedSql}`);
+    } else if (resolved.category === 'unpaid') {
+      qb.andWhere("order.payment_status IN ('unpaid', 'partial')").andWhere(`NOT ${creditedSql}`);
     }
     const { data, total } = await this.paginateRaw(qb, resolved);
     return { data, meta: this.meta(resolved.page, resolved.limit, total) };
@@ -245,9 +252,11 @@ export class ReportsService {
       .orderBy('"totalCost"', resolved.sortDir);
     if (resolved.outletIds !== undefined) qb.andWhere('order.outlet_id IN (:...outletIds)', { outletIds: resolved.outletIds });
     if (resolved.search) qb.andWhere('(order.order_number ILIKE :search OR food.name ILIKE :search)', { search: `%${resolved.search}%` });
-    if (resolved.category === 'credit') qb.andWhere(creditedSql);
-    else if (resolved.category === 'sales') {
+    if (resolved.category === 'credited') qb.andWhere(creditedSql);
+    else if (resolved.category === 'paid') {
       qb.andWhere("order.payment_status = 'paid'").andWhere(`NOT ${creditedSql}`);
+    } else if (resolved.category === 'unpaid') {
+      qb.andWhere("order.payment_status IN ('unpaid', 'partial')").andWhere(`NOT ${creditedSql}`);
     } else if (resolved.credited !== undefined) qb.andWhere(`${creditedSql} = :credited`, { credited: resolved.credited });
     const { data, total } = await this.paginateRaw(qb, resolved);
     return { data, meta: this.meta(resolved.page, resolved.limit, total) };
