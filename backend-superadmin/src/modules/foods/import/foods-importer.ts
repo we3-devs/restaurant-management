@@ -259,13 +259,143 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
   async buildExport(): Promise<Buffer> {
     const [foods, categories] = await Promise.all([
       this.foodsRepository.find({ order: { id: 'ASC' } }),
-      this.foodCategoriesRepository.find({ select: { id: true, name: true } }),
+      this.foodCategoriesRepository.find({ order: { sortOrder: 'ASC', name: 'ASC' } }),
     ]);
     const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+    const [items, outletPricing, addonRows] = await Promise.all([
+      this.foodsRepository.manager
+        .createQueryBuilder()
+        .select('food.id', 'foodId')
+        .addSelect('food.name', 'foodName')
+        .addSelect('food.slug', 'foodSlug')
+        .addSelect('food.food_category_id', 'foodCategoryId')
+        .addSelect('item.name', 'itemName')
+        .addSelect('variant.name', 'variantName')
+        .addSelect('subVariant.name', 'subVariantName')
+        .addSelect('item.sku', 'sku')
+        .addSelect('item.price', 'price')
+        .addSelect('item.is_default', 'isDefault')
+        .addSelect('item.is_active', 'isActive')
+        .addSelect('item.sort_order', 'sortOrder')
+        .from('food_variants', 'item')
+        .innerJoin('foods', 'food', 'food.id = item.food_id AND food.deleted_at IS NULL')
+        .leftJoin('variants', 'variant', 'variant.id = item.variant_id')
+        .leftJoin('sub_variants', 'subVariant', 'subVariant.id = item.sub_variant_id')
+        .where('item.deleted_at IS NULL')
+        .orderBy('food.id', 'ASC')
+        .addOrderBy('item.sort_order', 'ASC')
+        .addOrderBy('item.id', 'ASC')
+        .getRawMany<{
+          foodId: number
+          foodName: string
+          foodSlug: string
+          foodCategoryId: number | null
+          itemName: string
+          variantName: string | null
+          subVariantName: string | null
+          sku: string | null
+          price: number
+          isDefault: boolean
+          isActive: boolean
+          sortOrder: number
+        }>(),
+      this.foodsRepository.manager
+        .createQueryBuilder()
+        .select("'Food'", 'recordType')
+        .addSelect('food.name', 'foodName')
+        .addSelect('food.slug', 'foodSlug')
+        .addSelect('food.name', 'itemName')
+        .addSelect('outlet.name', 'outletName')
+        .addSelect('foodOutlet.price', 'priceOverride')
+        .addSelect('foodOutlet.is_available', 'isAvailable')
+        .addSelect('foodOutlet.is_active', 'isActive')
+        .from('food_outlets', 'foodOutlet')
+        .innerJoin('foods', 'food', 'food.id = foodOutlet.food_id AND food.deleted_at IS NULL')
+        .innerJoin('outlets', 'outlet', 'outlet.id = foodOutlet.outlet_id')
+        .getRawMany<{
+          recordType: string
+          foodName: string
+          foodSlug: string
+          itemName: string
+          variantName: string | null
+          subVariantName: string | null
+          outletName: string
+          priceOverride: number | null
+          isAvailable: boolean
+          isActive: boolean
+        }>()
+        .then(async (foodRows) => {
+          const itemRows = await this.foodsRepository.manager
+            .createQueryBuilder()
+            .select("'Food item'", 'recordType')
+            .addSelect('food.name', 'foodName')
+            .addSelect('food.slug', 'foodSlug')
+            .addSelect('item.name', 'itemName')
+            .addSelect('variant.name', 'variantName')
+            .addSelect('subVariant.name', 'subVariantName')
+            .addSelect('outlet.name', 'outletName')
+            .addSelect('itemOutlet.price', 'priceOverride')
+            .addSelect('itemOutlet.is_available', 'isAvailable')
+            .addSelect('itemOutlet.is_active', 'isActive')
+            .from('food_variant_outlets', 'itemOutlet')
+            .innerJoin('food_variants', 'item', 'item.id = itemOutlet.food_variant_id AND item.deleted_at IS NULL')
+            .innerJoin('foods', 'food', 'food.id = item.food_id AND food.deleted_at IS NULL')
+            .leftJoin('variants', 'variant', 'variant.id = item.variant_id')
+            .leftJoin('sub_variants', 'subVariant', 'subVariant.id = item.sub_variant_id')
+            .innerJoin('outlets', 'outlet', 'outlet.id = itemOutlet.outlet_id')
+            .getRawMany<{
+              recordType: string
+              foodName: string
+              foodSlug: string
+              itemName: string
+              variantName: string | null
+              subVariantName: string | null
+              outletName: string
+              priceOverride: number | null
+              isAvailable: boolean
+              isActive: boolean
+            }>()
+          return [...foodRows, ...itemRows]
+        }),
+      this.foodsRepository.manager
+        .createQueryBuilder()
+        .select('food.name', 'foodName')
+        .addSelect('food.slug', 'foodSlug')
+        .addSelect('addonGroup.name', 'groupName')
+        .addSelect('addonGroup.is_required', 'isRequired')
+        .addSelect('addonGroup.min_select', 'minSelect')
+        .addSelect('addonGroup.max_select', 'maxSelect')
+        .addSelect('addon.name', 'addonName')
+        .addSelect('addon.price', 'addonPrice')
+        .addSelect('addon.is_active', 'addonIsActive')
+        .from('food_addon_groups', 'foodAddonGroup')
+        .innerJoin('foods', 'food', 'food.id = foodAddonGroup.food_id AND food.deleted_at IS NULL')
+        .innerJoin('addon_groups', 'addonGroup', 'addonGroup.id = foodAddonGroup.addon_group_id AND addonGroup.deleted_at IS NULL')
+        .leftJoin('addons', 'addon', 'addon.addon_group_id = addonGroup.id AND addon.deleted_at IS NULL')
+        .orderBy('food.id', 'ASC')
+        .addOrderBy('addonGroup.sort_order', 'ASC')
+        .addOrderBy('addon.sort_order', 'ASC')
+        .getRawMany<{
+          foodName: string
+          foodSlug: string
+          groupName: string
+          isRequired: boolean
+          minSelect: number
+          maxSelect: number | null
+          addonName: string | null
+          addonPrice: number | null
+          addonIsActive: boolean | null
+        }>(),
+    ]);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Foods');
-    sheet.addRow(['name', 'slug', 'sku', 'category', 'itemType', 'basePrice']);
+    sheet.addRow([
+      'name', 'slug', 'sku', 'category', 'itemType', 'basePrice', 'foodType',
+      'departmentType', 'shortDescription', 'description', 'imageUrl',
+      'hasVariants', 'hasAddons', 'isTaxable', 'isDiscountable', 'isFeatured',
+      'isActive', 'preparationTime', 'sortOrder',
+    ]);
     for (const food of foods) {
       sheet.addRow([
         food.name,
@@ -274,7 +404,129 @@ export class FoodsImporter implements ImportDomainConfig<Record<string, string>,
         food.foodCategoryId ? (categoryById.get(food.foodCategoryId) ?? '') : '',
         food.itemType,
         food.basePrice,
+        food.foodType ?? '',
+        food.departmentType ?? '',
+        food.shortDescription ?? '',
+        food.description ?? '',
+        food.imageUrl ?? '',
+        food.hasVariants,
+        food.hasAddons,
+        food.isTaxable,
+        food.isDiscountable,
+        food.isFeatured,
+        food.isActive,
+        food.preparationTime ?? '',
+        food.sortOrder,
       ]);
+    }
+
+    const itemsSheet = workbook.addWorksheet('Food items');
+    itemsSheet.addRow([
+      'foodName', 'foodSlug', 'category', 'itemName', 'variant', 'subVariant',
+      'sku', 'price', 'isDefault', 'isActive', 'sortOrder',
+    ]);
+    const foodsWithItems = new Set(items.map((item) => Number(item.foodId)));
+    for (const item of items) {
+      itemsSheet.addRow([
+        item.foodName,
+        item.foodSlug,
+        item.foodCategoryId ? (categoryById.get(Number(item.foodCategoryId)) ?? '') : '',
+        item.itemName,
+        item.variantName ?? '',
+        item.subVariantName ?? '',
+        item.sku ?? '',
+        item.price,
+        item.isDefault,
+        item.isActive,
+        item.sortOrder,
+      ]);
+    }
+    // Older/simple foods can have their sell price directly on the food row
+    // and no food_variants record. Keep those in the actual-items sheet too.
+    for (const food of foods) {
+      if (foodsWithItems.has(food.id)) continue;
+      itemsSheet.addRow([
+        food.name,
+        food.slug,
+        food.foodCategoryId ? (categoryById.get(food.foodCategoryId) ?? '') : '',
+        food.name,
+        '',
+        '',
+        food.sku ?? '',
+        food.basePrice,
+        true,
+        food.isActive,
+        food.sortOrder,
+      ]);
+    }
+
+    const categoriesSheet = workbook.addWorksheet('Categories');
+    categoriesSheet.addRow(['name', 'slug', 'parentCategory', 'description', 'image', 'isActive', 'sortOrder']);
+    const categoryByParentId = new Map(categories.map((category) => [category.id, category]));
+    for (const category of categories) {
+      categoriesSheet.addRow([
+        category.name,
+        category.slug,
+        category.parentId ? (categoryByParentId.get(category.parentId)?.name ?? '') : '',
+        category.description ?? '',
+        category.image ?? '',
+        category.isActive,
+        category.sortOrder,
+      ]);
+    }
+
+    const addonsSheet = workbook.addWorksheet('Add-ons');
+    addonsSheet.addRow([
+      'foodName', 'foodSlug', 'groupName', 'isRequired', 'minSelect', 'maxSelect',
+      'addonName', 'addonPrice', 'addonIsActive',
+    ]);
+    for (const row of addonRows) {
+      addonsSheet.addRow([
+        row.foodName,
+        row.foodSlug,
+        row.groupName,
+        row.isRequired,
+        row.minSelect,
+        row.maxSelect ?? '',
+        row.addonName ?? '',
+        row.addonPrice ?? '',
+        row.addonIsActive ?? '',
+      ]);
+    }
+
+    const outletSheet = workbook.addWorksheet('Outlet pricing');
+    outletSheet.addRow([
+      'recordType', 'foodName', 'foodSlug', 'itemName', 'variant', 'subVariant',
+      'outlet', 'priceOverride', 'isAvailable', 'isActive',
+    ]);
+    for (const row of outletPricing) {
+      outletSheet.addRow([
+        row.recordType,
+        row.foodName,
+        row.foodSlug,
+        row.itemName,
+        row.variantName ?? '',
+        row.subVariantName ?? '',
+        row.outletName,
+        row.priceOverride ?? '',
+        row.isAvailable,
+        row.isActive,
+      ]);
+    }
+
+    for (const worksheet of workbook.worksheets) {
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+      worksheet.autoFilter = {
+        from: 'A1',
+        to: worksheet.getCell(worksheet.rowCount, worksheet.columnCount).address,
+      };
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.columns.forEach((column) => {
+        column.width = Math.min(
+          Math.max(14, ...worksheet.getColumn(column.number).values.map((value) => String(value ?? '').length + 2)),
+          48,
+        );
+      });
     }
     return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
   }
