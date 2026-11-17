@@ -30,6 +30,10 @@ interface ResolvedQuery {
   limit: number;
 }
 
+type ReportResult = PaginatedResponse<Record<string, unknown>> & {
+  summary?: Record<string, unknown>;
+};
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -75,7 +79,7 @@ export class ReportsService {
     type: ReportType,
     query: ListReportQueryDto,
     accessibleOutletIds: number[] | 'ALL',
-  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+  ): Promise<ReportResult> {
     if (!REPORT_TYPES.includes(type)) {
       throw new BadRequestException(`Unknown report type "${type}"`);
     }
@@ -105,10 +109,20 @@ export class ReportsService {
 
   /** PostgreSQL numeric values arrive as strings; present decimal values consistently to two places. */
   private normalizeDecimals(
-    report: PaginatedResponse<Record<string, unknown>>,
-  ): PaginatedResponse<Record<string, unknown>> {
+    report: ReportResult,
+  ): ReportResult {
     return {
       ...report,
+      ...(report.summary && {
+        summary: Object.fromEntries(
+          Object.entries(report.summary).map(([key, value]) => [
+            key,
+            typeof value === 'string' && DECIMAL_VALUE.test(value)
+              ? Number(value).toFixed(2)
+              : value,
+          ]),
+        ),
+      }),
       data: report.data.map((row) =>
         Object.fromEntries(
           Object.entries(row).map(([key, value]) => [
@@ -125,8 +139,8 @@ export class ReportsService {
   /** Aggregated/snapshot reports have no truthful per-row source date, so expose their generation time instead. */
   private withGeneratedAt(
     type: ReportType,
-    report: PaginatedResponse<Record<string, unknown>>,
-  ): PaginatedResponse<Record<string, unknown>> {
+    report: ReportResult,
+  ): ReportResult {
     if (reportHasRecordDate(type)) return report;
     const generatedAt = new Date().toISOString();
     return {
@@ -138,7 +152,7 @@ export class ReportsService {
   private async run(
     type: ReportType,
     resolved: ResolvedQuery,
-  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+  ): Promise<ReportResult> {
     if (resolved.outletIds !== undefined && resolved.outletIds.length === 0) {
       return { data: [], meta: this.meta(resolved.page, resolved.limit, 0) };
     }
@@ -220,7 +234,7 @@ export class ReportsService {
 
   private async salesReport(
     resolved: ResolvedQuery,
-  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+  ): Promise<ReportResult> {
     const creditedSql = `EXISTS (SELECT 1 FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
     const qb = this.ordersRepository.manager
       .createQueryBuilder()
@@ -262,13 +276,27 @@ export class ReportsService {
     } else if (resolved.category === 'unpaid') {
       qb.andWhere("order.payment_status IN ('unpaid', 'partial')").andWhere(`NOT ${creditedSql}`);
     }
+    const summary = await qb
+      .clone()
+      .orderBy()
+      .select('COUNT(order.id)', 'orderCount')
+      .addSelect('COALESCE(SUM(order.subtotal), 0)', 'subtotal')
+      .addSelect('COALESCE(SUM(order.discount_amount), 0)', 'discountAmount')
+      .addSelect('COALESCE(SUM(order.tax_amount), 0)', 'taxAmount')
+      .addSelect('COALESCE(SUM(order.service_charge_amount), 0)', 'serviceChargeAmount')
+      .addSelect('COALESCE(SUM(order.grand_total), 0)', 'grandTotal')
+      .getRawOne<Record<string, unknown>>();
     const { data, total } = await this.paginateRaw(qb, resolved);
-    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+    return {
+      data,
+      summary: { orderNumber: 'Total', ...summary, createdAt: null, paymentStatus: null },
+      meta: this.meta(resolved.page, resolved.limit, total),
+    };
   }
 
   private async salesItemsReport(
     resolved: ResolvedQuery,
-  ): Promise<PaginatedResponse<Record<string, unknown>>> {
+  ): Promise<ReportResult> {
     const creditedSql = `EXISTS (SELECT 1 FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
     const creditedAmountSql = `(SELECT COALESCE(SUM(credit.amount), 0) FROM customer_credit_transactions credit WHERE credit.order_id = order.id AND credit.type = 'charge')`;
     const qb = this.ordersRepository.manager
@@ -314,8 +342,24 @@ export class ReportsService {
     } else if (resolved.category === 'unpaid') {
       qb.andWhere("order.payment_status IN ('unpaid', 'partial')").andWhere(`NOT ${creditedSql}`);
     } else if (resolved.credited !== undefined) qb.andWhere(`${creditedSql} = :credited`, { credited: resolved.credited });
-    const { data, total } = await this.paginateRaw(qb, resolved);
-    return { data, meta: this.meta(resolved.page, resolved.limit, total) };
+    const [allRows, { data, total }] = await Promise.all([
+      qb.clone().getRawMany<Record<string, unknown>>(),
+      this.paginateRaw(qb, resolved),
+    ]);
+    const sum = (key: string) => allRows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
+    return {
+      data,
+      summary: {
+        itemName: 'Total',
+        quantity: sum('quantity'),
+        unitCost: null,
+        totalCost: sum('totalCost'),
+        paid: sum('paid'),
+        notPaid: sum('notPaid'),
+        credited: sum('credited'),
+      },
+      meta: this.meta(resolved.page, resolved.limit, total),
+    };
   }
 
   private async ordersReport(

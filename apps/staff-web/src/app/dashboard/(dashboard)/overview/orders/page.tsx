@@ -114,6 +114,14 @@ export default function OrdersTrackingPage() {
               ))}
             </TableHeader>
             <TableBody>
+              {data?.summary && data.meta.total > 0 && (
+                <TableRow className="bg-muted/20 font-medium hover:bg-muted/30">
+                  <TableCell colSpan={columns.length - 1}>
+                    Total ({data.meta.total} orders)
+                  </TableCell>
+                  <TableCell>{Number(data.summary.grandTotal).toFixed(2)}</TableCell>
+                </TableRow>
+              )}
               {table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}

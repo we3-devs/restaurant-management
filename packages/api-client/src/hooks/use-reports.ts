@@ -40,6 +40,7 @@ export interface ReportColumn {
 
 export interface ReportResponse {
   data: Record<string, unknown>[]
+  summary?: Record<string, unknown>
   meta: { page: number; limit: number; total: number; totalPages: number }
   columns: ReportColumn[]
 }

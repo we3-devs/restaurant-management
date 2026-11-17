@@ -131,6 +131,13 @@ export function ReportView({ slug, label, description }: { slug: ReportType; lab
               </TableRow>
             </TableHeader>
             <TableBody>
+              {data.summary && (
+                <TableRow className="bg-muted/20 font-medium hover:bg-muted/30">
+                  {data.columns.map((col) => (
+                    <TableCell key={`summary-${col.key}`}>{formatCell(data.summary?.[col.key])}</TableCell>
+                  ))}
+                </TableRow>
+              )}
               {data.data.map((row, i) => (
                 <TableRow key={i}>
                   {data.columns.map((col) => {

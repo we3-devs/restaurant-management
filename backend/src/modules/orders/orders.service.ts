@@ -183,7 +183,7 @@ export class OrdersService {
   async findAll(
     query: ListOrdersQueryDto,
     accessibleOutletIds: number[] | 'ALL' = 'ALL',
-  ): Promise<PaginatedResponse<OrderListResponse>> {
+  ): Promise<PaginatedResponse<OrderListResponse> & { summary: { grandTotal: number } }> {
     const { page, limit, search, outletId, tableSessionId, status, excludeStatus, createdFrom, createdTo, category } = query;
     const baseWhere: FindOptionsWhere<Order> = {};
     if (outletId !== undefined) {
@@ -228,7 +228,8 @@ export class OrdersService {
         ]
       : baseWhere;
 
-    const [orders, total] = await this.ordersRepository.findAndCount({
+    const [[orders, total], grandTotal] = await Promise.all([
+      this.ordersRepository.findAndCount({
       where,
       relations: {
         tableSession: { diningTable: true },
@@ -269,7 +270,9 @@ export class OrdersService {
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
-    });
+      }),
+      this.ordersRepository.sum('grandTotal', where),
+    ]);
 
     const billedByNames = await this.resolveBilledByNames(
       orders.map((order) => order.id),
@@ -291,6 +294,7 @@ export class OrdersService {
       : new Set<number>();
 
     return {
+      summary: { grandTotal: Number(grandTotal ?? 0) },
       data: orders.map(({ tableSession, customer, createdByUser, ...order }) => ({
         ...order,
         paymentStatus: creditedOrderIds.has(Number(order.id))

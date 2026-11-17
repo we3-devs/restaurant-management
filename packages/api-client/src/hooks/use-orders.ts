@@ -120,7 +120,7 @@ export interface ListOrdersParams {
 export function useOrders(params: ListOrdersParams = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.orders.list(params),
-    queryFn: () => apiClient<PaginatedResponse<Order>>(`/orders${toQueryString(params)}`),
+    queryFn: () => apiClient<PaginatedResponse<Order> & { summary?: { grandTotal: number } }>(`/orders${toQueryString(params)}`),
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   })
